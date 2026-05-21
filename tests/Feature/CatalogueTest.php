@@ -193,6 +193,19 @@ class CatalogueTest extends TestCase
             ->assertSee('Impôt')
             ->assertSee('Exporter CSV');
 
+        $this->get(route('catalog', ['panel' => 'services']))
+            ->assertOk()
+            ->assertSee('Liste des services')
+            ->assertDontSee("Quantité d'alerte", false);
+
+        $this->getJson(route('catalog.data', [
+            'panel' => 'services',
+            'draw' => 1,
+            'start' => 0,
+            'length' => 10,
+        ]))->assertOk()
+            ->assertJsonStructure(['draw', 'recordsTotal', 'recordsFiltered', 'data']);
+
         $response = $this->get(route('catalog.export', ['panel' => 'articles', 'q' => $item->barcode ?? $item->title]));
 
         $response->assertOk();

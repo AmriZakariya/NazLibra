@@ -1,3 +1,6 @@
+import DataTable from 'datatables.net-dt';
+import 'datatables.net-dt/css/dataTables.dataTables.css';
+
 const money = new Intl.NumberFormat('fr-MA', {
     style: 'currency',
     currency: 'MAD',
@@ -14,6 +17,50 @@ document.querySelectorAll('.app-theme-toggle').forEach((button) => {
 if (localStorage.getItem('librairepro-theme') === 'dark') {
     document.documentElement.classList.add('dark');
 }
+
+document.querySelectorAll('[data-sidebar]').forEach((sidebar) => {
+    const toggle = sidebar.querySelector('[data-sidebar-toggle]');
+    const current = sidebar.querySelector('[data-current-nav], [aria-current="page"]');
+    const scrollArea = sidebar.querySelector('[data-sidebar-scroll]');
+    const groups = [...sidebar.querySelectorAll('[data-sidebar-group]')];
+    const openGroups = JSON.parse(localStorage.getItem('librairepro-sidebar-groups') || '[]');
+    const setCollapsed = (collapsed) => {
+        document.documentElement.classList.toggle('sidebar-collapsed', collapsed);
+        localStorage.setItem('librairepro-sidebar', collapsed ? 'collapsed' : 'expanded');
+        toggle?.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+        toggle?.setAttribute('aria-label', collapsed ? 'Ouvrir le menu' : 'Réduire le menu');
+    };
+
+    setCollapsed(localStorage.getItem('librairepro-sidebar') === 'collapsed');
+
+    groups.forEach((group) => {
+        if (openGroups.includes(group.dataset.sidebarGroup)) {
+            group.open = true;
+        }
+
+        if (group.querySelector('[data-current-nav], [aria-current="page"]')) {
+            group.open = true;
+        }
+
+        group.addEventListener('toggle', () => {
+            const next = groups.filter((item) => item.open).map((item) => item.dataset.sidebarGroup);
+            localStorage.setItem('librairepro-sidebar-groups', JSON.stringify(next));
+        });
+    });
+
+    toggle?.addEventListener('click', () => {
+        setCollapsed(!document.documentElement.classList.contains('sidebar-collapsed'));
+    });
+
+    requestAnimationFrame(() => {
+        if (!current || !scrollArea || document.documentElement.classList.contains('sidebar-collapsed')) return;
+        const currentBox = current.getBoundingClientRect();
+        const scrollBox = scrollArea.getBoundingClientRect();
+        if (currentBox.top < scrollBox.top + 24 || currentBox.bottom > scrollBox.bottom - 24) {
+            current.scrollIntoView({ block: 'center' });
+        }
+    });
+});
 
 document.querySelectorAll('.app-rtl-toggle').forEach((button) => {
     button.addEventListener('click', () => {
@@ -93,6 +140,76 @@ document.querySelectorAll('.catalog-labels').forEach((button) => {
             url.searchParams.set('items', ids.join(','));
         }
         window.location.href = url.toString();
+    });
+});
+
+document.querySelectorAll('[data-yajra-table]').forEach((table) => {
+    const panel = table.dataset.panel || 'articles';
+    const hasAlertColumn = panel !== 'services';
+
+    const baseColumns = [
+        { data: 'checkbox', name: 'checkbox', orderable: false, searchable: false },
+        { data: 'image', name: 'image', orderable: false, searchable: false },
+        { data: 'barcode', name: 'barcode', orderable: true, searchable: true },
+        { data: 'title', name: 'title', orderable: true, searchable: true },
+        { data: 'category_type', name: 'category_type', orderable: false, searchable: true },
+        { data: 'unit_label', name: 'unit_label', orderable: false, searchable: true },
+        { data: 'stock_quantity', name: 'stock_quantity', orderable: true, searchable: false },
+    ];
+
+    const columns = hasAlertColumn
+        ? [
+            ...baseColumns,
+            { data: 'min_stock_threshold', name: 'min_stock_threshold', orderable: true, searchable: false },
+            { data: 'sale_price', name: 'sale_price', orderable: true, searchable: false },
+            { data: 'tax_label', name: 'tax_label', orderable: false, searchable: true },
+            { data: 'status', name: 'status', orderable: true, searchable: false },
+            { data: 'action', name: 'action', orderable: false, searchable: false },
+        ]
+        : [
+            ...baseColumns,
+            { data: 'sale_price', name: 'sale_price', orderable: true, searchable: false },
+            { data: 'tax_label', name: 'tax_label', orderable: false, searchable: true },
+            { data: 'status', name: 'status', orderable: true, searchable: false },
+            { data: 'action', name: 'action', orderable: false, searchable: false },
+        ];
+
+    new DataTable(table, {
+        ajax: table.dataset.ajaxUrl,
+        columns,
+        order: [[3, 'asc']],
+        pageLength: Number(table.dataset.length || 25),
+        processing: true,
+        serverSide: true,
+        autoWidth: false,
+        scrollX: true,
+        language: {
+            search: 'Recherche table',
+            lengthMenu: 'Afficher _MENU_ lignes',
+            info: 'Affichage _START_-_END_ sur _TOTAL_',
+            infoEmpty: 'Aucune ligne',
+            infoFiltered: '(filtré depuis _MAX_ lignes)',
+            zeroRecords: 'Aucune donnée trouvée',
+            processing: 'Chargement...',
+            emptyTable: 'Aucune donnée disponible',
+            paginate: {
+                first: 'Début',
+                previous: 'Précédent',
+                next: 'Suivant',
+                last: 'Fin',
+            },
+        },
+        columnDefs: [
+            { targets: [0, 1], className: 'dt-center' },
+            { targets: [2], className: 'font-mono text-xs' },
+            { targets: [-1], className: 'dt-right' },
+            { targets: '_all', defaultContent: '' },
+        ],
+        drawCallback: () => {
+            document.querySelectorAll('.catalog-check-all').forEach((checkbox) => {
+                checkbox.checked = false;
+            });
+        },
     });
 });
 

@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use Yajra\DataTables\Facades\DataTables;
 use ZipArchive;
 
 class LibraireProController extends Controller
@@ -86,28 +87,9 @@ class LibraireProController extends Controller
         $sorts = ['title', 'barcode', 'stock_quantity', 'min_stock_threshold', 'sale_price', 'status', 'created_at'];
         $sort = in_array($sort, $sorts, true) ? $sort : 'title';
 
-        $itemsQuery = $tenant->items()
-            ->with(['category', 'brand', 'unit', 'tax', 'variants'])
-            ->when($query, fn (Builder $builder) => $builder->where(function (Builder $builder) use ($query): void {
-                $builder->where('title', 'like', "%{$query}%")
-                    ->orWhere('item_code', 'like', "%{$query}%")
-                    ->orWhere('sku', 'like', "%{$query}%")
-                    ->orWhere('isbn', 'like', "%{$query}%")
-                    ->orWhere('barcode', 'like', "%{$query}%")
-                    ->orWhere('author', 'like', "%{$query}%");
-            }))
-            ->when($status !== 'all', fn (Builder $builder) => $builder->where('status', $status))
-            ->when($category !== 'all', fn (Builder $builder) => $builder->where('category_id', $category))
-            ->when($stock === 'low', fn (Builder $builder) => $builder->whereColumn('stock_quantity', '<=', 'min_stock_threshold'))
-            ->when($stock === 'out', fn (Builder $builder) => $builder->where('stock_quantity', '<=', 0));
-
+        $itemsQuery = $this->catalogItemsQuery($tenant, $request);
         if (in_array($panel, ['services', 'ajouter-service'], true)) {
-            $itemsQuery->where('type', 'service');
             $type = 'service';
-        } elseif ($type !== 'all') {
-            $itemsQuery->where('type', $type);
-        } else {
-            $itemsQuery->where('type', '!=', 'service');
         }
 
         $items = $itemsQuery
@@ -159,9 +141,115 @@ class LibraireProController extends Controller
         ]);
     }
 
+    public function catalogData(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = $this->tenant();
+        $panel = $request->query('panel', 'articles');
+
+        return DataTables::eloquent($this->catalogItemsQuery($tenant, $request))
+            ->filter(function (Builder $builder) use ($request): void {
+                $search = trim((string) data_get($request->input('search', []), 'value'));
+                if ($search === '') {
+                    return;
+                }
+
+                $builder->where(function (Builder $builder) use ($search): void {
+                    $builder->where('title', 'like', "%{$search}%")
+                        ->orWhere('item_code', 'like', "%{$search}%")
+                        ->orWhere('sku', 'like', "%{$search}%")
+                        ->orWhere('isbn', 'like', "%{$search}%")
+                        ->orWhere('barcode', 'like', "%{$search}%")
+                        ->orWhere('author', 'like', "%{$search}%")
+                        ->orWhereHas('category', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('brand', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('unit', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('tax', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->addColumn('checkbox', fn (Item $item): string => '<input class="catalog-item-check rounded border-slate-300" value="'.$item->id.'" type="checkbox">')
+            ->addColumn('image', function (Item $item): string {
+                $image = collect($item->images)->first();
+
+                if ($image) {
+                    return '<img src="'.e(asset('storage/'.$image)).'" alt="" class="size-11 rounded-lg object-cover">';
+                }
+
+                return '<div class="grid size-11 place-items-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">'.e(mb_substr($item->title, 0, 2)).'</div>';
+            })
+            ->editColumn('barcode', fn (Item $item): string => e($item->barcode ?? $item->isbn ?? $item->sku ?? '—'))
+            ->editColumn('title', function (Item $item): string {
+                $brand = $item->brand?->name ? ' · '.$item->brand->name : '';
+                $variants = $item->variants->isNotEmpty() ? '<p class="mt-1 text-xs font-medium text-brand">'.$item->variants->count().' variante(s)</p>' : '';
+
+                return '<div class="max-w-[320px]"><p class="font-semibold">'.e($item->title).'</p><p class="mt-1 text-xs text-slate-500">'.e($item->item_code ?? 'Sans code interne').e($brand).'</p>'.$variants.'</div>';
+            })
+            ->addColumn('category_type', fn (Item $item): string => '<span class="font-medium">'.e($item->category?->name ?? 'Sans catégorie').'</span><span class="mt-1 block text-xs text-slate-500">'.e($this->typeLabel($item->type)).'</span>')
+            ->addColumn('unit_label', fn (Item $item): string => e($item->unit?->name ?? '—'))
+            ->editColumn('stock_quantity', fn (Item $item): string => '<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.($item->is_low_stock && $item->type !== 'service' ? 'bg-amber-50 text-amber-700 ring-amber-200' : 'bg-emerald-50 text-emerald-700 ring-emerald-200').'">'.($item->type === 'service' ? 'Illimité' : number_format($item->stock_quantity, 0, ',', ' ')).'</span>')
+            ->editColumn('min_stock_threshold', fn (Item $item): string => $item->type === 'service' ? '—' : number_format($item->min_stock_threshold, 0, ',', ' '))
+            ->editColumn('sale_price', fn (Item $item): string => '<strong>'.$this->money($item->sale_price).'</strong>')
+            ->addColumn('tax_label', fn (Item $item): string => e($item->tax ? $item->tax->name.' ('.number_format((float) $item->tax->rate, 2, ',', ' ').'%)' : '—'))
+            ->editColumn('status', function (Item $item): string {
+                $tone = match ($item->status) {
+                    'out_of_stock' => 'bg-rose-50 text-rose-700 ring-rose-200',
+                    'archived' => 'bg-slate-100 text-slate-700 ring-slate-200',
+                    default => 'bg-blue-50 text-blue-700 ring-blue-200',
+                };
+
+                return '<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$tone.'">'.e($this->statusLabel($item->status)).'</span>';
+            })
+            ->addColumn('action', fn (Item $item): string => '<a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail / modifier</a>')
+            ->rawColumns(['checkbox', 'image', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'action'])
+            ->toJson();
+    }
+
     public function exportCatalog(Request $request): StreamedResponse
     {
         $tenant = $this->tenant();
+        $panel = $request->query('panel', 'articles');
+
+        $items = $this->catalogItemsQuery($tenant, $request)
+            ->orderBy('title')
+            ->get();
+
+        $filename = 'catalogue-'.($panel === 'services' ? 'services' : 'articles').'-'.now()->format('Ymd-His').'.csv';
+
+        return response()->streamDownload(function () use ($items, $panel): void {
+            $handle = fopen('php://output', 'w');
+            $headers = ['Image', 'Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Stock'];
+            if ($panel !== 'services') {
+                $headers[] = "Quantité d'alerte";
+            }
+            array_push($headers, 'Prix de vente', 'Impôt', 'Statut', 'Action');
+            fputcsv($handle, $headers);
+
+            foreach ($items as $item) {
+                $row = [
+                    collect($item->images)->first() ?? '',
+                    $item->barcode ?? $item->isbn ?? $item->sku ?? '',
+                    $item->title,
+                    ($item->category?->name ?? 'Sans catégorie').' / '.$this->typeLabel($item->type),
+                    $item->unit?->name ?? '',
+                    $item->type === 'service' ? 'Illimité' : $item->stock_quantity,
+                ];
+                if ($panel !== 'services') {
+                    $row[] = $item->min_stock_threshold;
+                }
+                array_push($row,
+                    $item->sale_price,
+                    $item->tax ? $item->tax->name.' ('.number_format((float) $item->tax->rate, 2, '.', '').'%)' : '',
+                    $this->statusLabel($item->status),
+                    route('catalog', ['panel' => $item->type === 'service' ? 'services' : 'articles', 'edit' => $item->id])
+                );
+                fputcsv($handle, $row);
+            }
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    private function catalogItemsQuery(Tenant $tenant, Request $request): Builder
+    {
         $panel = $request->query('panel', 'articles');
         $query = trim((string) $request->query('q'));
         $status = $request->query('status', 'all');
@@ -169,8 +257,9 @@ class LibraireProController extends Controller
         $category = $request->query('category', 'all');
         $stock = $request->query('stock', 'all');
 
-        $items = $tenant->items()
-            ->with(['category', 'unit', 'tax'])
+        return Item::query()
+            ->where('tenant_id', $tenant->id)
+            ->with(['category', 'brand', 'unit', 'tax', 'variants'])
             ->when($query, fn (Builder $builder) => $builder->where(function (Builder $builder) use ($query): void {
                 $builder->where('title', 'like', "%{$query}%")
                     ->orWhere('item_code', 'like', "%{$query}%")
@@ -183,36 +272,9 @@ class LibraireProController extends Controller
             ->when($category !== 'all', fn (Builder $builder) => $builder->where('category_id', $category))
             ->when($stock === 'low', fn (Builder $builder) => $builder->whereColumn('stock_quantity', '<=', 'min_stock_threshold'))
             ->when($stock === 'out', fn (Builder $builder) => $builder->where('stock_quantity', '<=', 0))
-            ->when($panel === 'services', fn (Builder $builder) => $builder->where('type', 'service'))
-            ->when($panel !== 'services' && $type !== 'all', fn (Builder $builder) => $builder->where('type', $type))
-            ->when($panel !== 'services' && $type === 'all', fn (Builder $builder) => $builder->where('type', '!=', 'service'))
-            ->orderBy('title')
-            ->get();
-
-        $filename = 'catalogue-'.($panel === 'services' ? 'services' : 'articles').'-'.now()->format('Ymd-His').'.csv';
-
-        return response()->streamDownload(function () use ($items): void {
-            $handle = fopen('php://output', 'w');
-            fputcsv($handle, ['Image', 'Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Stock', "Quantité d'alerte", 'Prix de vente', 'Impôt', 'Statut', 'Action']);
-
-            foreach ($items as $item) {
-                fputcsv($handle, [
-                    collect($item->images)->first() ?? '',
-                    $item->barcode ?? $item->isbn ?? $item->sku ?? '',
-                    $item->title,
-                    ($item->category?->name ?? 'Sans catégorie').' / '.$this->typeLabel($item->type),
-                    $item->unit?->name ?? '',
-                    $item->type === 'service' ? 'Illimité' : $item->stock_quantity,
-                    $item->min_stock_threshold,
-                    $item->sale_price,
-                    $item->tax ? $item->tax->name.' ('.number_format((float) $item->tax->rate, 2, '.', '').'%)' : '',
-                    $this->statusLabel($item->status),
-                    route('catalog', ['panel' => $item->type === 'service' ? 'services' : 'articles', 'edit' => $item->id]),
-                ]);
-            }
-
-            fclose($handle);
-        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+            ->when(in_array($panel, ['services', 'ajouter-service'], true), fn (Builder $builder) => $builder->where('type', 'service'))
+            ->when(! in_array($panel, ['services', 'ajouter-service'], true) && $type !== 'all', fn (Builder $builder) => $builder->where('type', $type))
+            ->when(! in_array($panel, ['services', 'ajouter-service'], true) && $type === 'all', fn (Builder $builder) => $builder->where('type', '!=', 'service'));
     }
 
     public function storeItem(Request $request): RedirectResponse

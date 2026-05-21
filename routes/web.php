@@ -73,6 +73,7 @@ Route::redirect('/state', '/modules/settings?section=states')->name('legacy.stat
 Route::redirect('/users/password_reset', '/modules/settings?section=password')->name('legacy.password');
 
 Route::get('/catalogue', [LibraireProController::class, 'catalog'])->name('catalog');
+Route::get('/catalogue/data', [LibraireProController::class, 'catalogData'])->name('catalog.data');
 Route::post('/catalogue/articles', [LibraireProController::class, 'storeItem'])->name('catalog.items.store');
 Route::put('/catalogue/articles/{item}', [LibraireProController::class, 'updateItem'])->name('catalog.items.update');
 Route::delete('/catalogue/articles/{item}', [LibraireProController::class, 'destroyItem'])->name('catalog.items.destroy');

@@ -23,6 +23,11 @@
         <meta name="color-scheme" content="light dark">
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>{{ $title ?? 'LibrairePro' }}</title>
+        <script>
+            if (localStorage.getItem('librairepro-sidebar') === 'collapsed') {
+                document.documentElement.classList.add('sidebar-collapsed');
+            }
+        </script>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-slate-50 text-slate-950 antialiased dark:bg-slate-950 dark:text-slate-100">
@@ -44,7 +49,7 @@
                     }
                 }
 
-                return true;
+                return count($query) > 0 || count($currentQuery) === 0;
             };
             $articleLinks = [
                 ['label' => 'Ajouter un article', 'icon' => '+', 'href' => route('catalog', ['panel' => 'ajouter'])],
@@ -146,39 +151,59 @@
         @endphp
 
         <div class="flex min-h-screen">
-            <aside class="sticky top-0 hidden h-screen w-72 shrink-0 overflow-y-auto border-r border-slate-200 bg-white/90 px-4 py-5 backdrop-blur md:block dark:border-white/10 dark:bg-slate-950/90">
-                <a href="{{ route('dashboard') }}" class="flex items-center gap-3 rounded-xl px-2 py-2">
-                    <span class="grid size-10 place-items-center rounded-xl bg-brand text-sm font-bold text-white shadow-sm">LP</span>
-                    <span>
-                        <span class="block text-sm font-semibold">{{ $tenant->name }}</span>
-                        <span class="block text-xs text-slate-500 dark:text-slate-400">SaaS librairie · {{ strtoupper($tenant->currency) }}</span>
-                    </span>
-                </a>
+            <aside class="app-sidebar sticky top-0 hidden h-screen w-72 shrink-0 overflow-hidden border-r border-slate-200 bg-white/92 backdrop-blur md:flex md:flex-col dark:border-white/10 dark:bg-slate-950/92" data-sidebar>
+                <div class="flex h-[72px] shrink-0 items-center gap-3 border-b border-slate-200 px-4 dark:border-white/10">
+                    <a href="{{ route('dashboard') }}" class="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-2" title="{{ $tenant->name }}">
+                        <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-brand text-sm font-bold text-white shadow-sm">LP</span>
+                        <span class="sidebar-label min-w-0">
+                            <span class="block truncate text-sm font-semibold">{{ $tenant->name }}</span>
+                            <span class="block truncate text-xs text-slate-500 dark:text-slate-400">SaaS librairie · {{ strtoupper($tenant->currency) }}</span>
+                        </span>
+                    </a>
+                    <button class="sidebar-toggle grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white" type="button" aria-label="Réduire le menu" aria-pressed="false" data-sidebar-toggle>
+                        <span class="sidebar-toggle-icon">‹</span>
+                    </button>
+                </div>
 
-                <nav class="mt-7 space-y-1 pb-8">
+                <nav class="sidebar-scroll min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4" data-sidebar-scroll>
                     @foreach ($nav as $item)
-                        <a href="{{ $item['href'] }}" class="group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition {{ $active === $item['key'] ? 'bg-brand text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/5 dark:hover:text-white' }}">
-                            <span class="grid size-6 place-items-center rounded-md text-base {{ $active === $item['key'] ? 'bg-white/15' : 'bg-slate-100 text-slate-500 group-hover:text-slate-900 dark:bg-white/5 dark:text-slate-300' }}">{{ $item['icon'] }}</span>
-                            {{ $item['label'] }}
-                            @if (! empty($item['children']))
-                                <span class="ms-auto text-xs {{ $active === $item['key'] ? 'text-white/70' : 'text-slate-400' }}">⌄</span>
-                            @endif
-                        </a>
+                        @php
+                            $children = $item['children'] ?? [];
+                            $childrenActive = collect($children)->contains(fn ($child) => $isCurrentLink($child['href']));
+                            $linkActive = $isCurrentLink($item['href']);
+                            $itemActive = $linkActive || $childrenActive || (empty($children) && $active === $item['key']);
+                        @endphp
                         @if (! empty($item['children']))
-                            <div class="ms-5 mt-1 max-h-64 space-y-1 overflow-y-auto border-s border-slate-200 ps-3 dark:border-white/10">
+                            <details class="sidebar-group" data-sidebar-group="{{ Str::slug($item['label']) }}" @if($childrenActive || $linkActive) open @endif>
+                                <summary class="sidebar-link group {{ $itemActive ? 'is-active' : '' }}" title="{{ $item['label'] }}">
+                                    <span class="sidebar-icon">{{ $item['icon'] }}</span>
+                                    <span class="sidebar-label truncate">{{ $item['label'] }}</span>
+                                    <span class="sidebar-chevron ms-auto">⌄</span>
+                                </summary>
+                                <div class="sidebar-children">
+                                    <a href="{{ $item['href'] }}" class="sidebar-child {{ $linkActive ? 'is-active' : '' }}" @if($linkActive) aria-current="page" data-current-nav @endif>
+                                        <span class="sidebar-child-dot"></span>
+                                        <span class="truncate">Vue principale</span>
+                                    </a>
                                 @foreach ($item['children'] as $child)
                                     @php($childActive = $isCurrentLink($child['href']))
-                                    <a href="{{ $child['href'] }}" class="flex items-center gap-2 rounded-md px-2 py-2 text-xs font-medium transition {{ $childActive ? 'bg-brand/10 text-brand dark:bg-brand/20 dark:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white' }}">
-                                        <span class="grid size-5 place-items-center rounded text-[11px] {{ $childActive ? 'bg-brand text-white' : 'bg-slate-100 text-slate-500 dark:bg-white/5' }}">{{ $child['icon'] }}</span>
+                                    <a href="{{ $child['href'] }}" class="sidebar-child {{ $childActive ? 'is-active' : '' }}" title="{{ $child['label'] }}" @if($childActive) aria-current="page" data-current-nav @endif>
+                                        <span class="sidebar-child-icon">{{ $child['icon'] }}</span>
                                         <span class="truncate">{{ $child['label'] }}</span>
                                     </a>
                                 @endforeach
-                            </div>
+                                </div>
+                            </details>
+                        @else
+                            <a href="{{ $item['href'] }}" class="sidebar-link group {{ $itemActive ? 'is-active' : '' }}" title="{{ $item['label'] }}" @if($itemActive) aria-current="page" data-current-nav @endif>
+                                <span class="sidebar-icon">{{ $item['icon'] }}</span>
+                                <span class="sidebar-label truncate">{{ $item['label'] }}</span>
+                            </a>
                         @endif
                     @endforeach
                 </nav>
 
-                <div class="mt-7 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="sidebar-status m-3 shrink-0 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="flex items-center justify-between">
                         <p class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Mode rentrée</p>
                         <x-status-pill tone="success">Actif</x-status-pill>

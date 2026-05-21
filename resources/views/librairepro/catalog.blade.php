@@ -94,55 +94,29 @@
                     </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="catalog-data-table w-full min-w-[1180px] text-left text-sm">
+                    <table class="catalog-data-table w-full min-w-[1180px] text-left text-sm" data-yajra-table data-ajax-url="{{ route('catalog.data', request()->query()) }}" data-panel="{{ $panel }}" data-length="{{ $perPage }}">
                         <thead class="sticky top-0 z-10 bg-slate-50 text-xs uppercase text-slate-500 shadow-[inset_0_-1px_0_var(--border-soft)] dark:bg-slate-900 dark:text-slate-400">
                             <tr>
                                 <th class="px-4 py-3"><input class="catalog-check-all rounded border-slate-300" type="checkbox"></th>
                                 <th class="px-4 py-3">Image</th>
-                                <th class="px-4 py-3"><a href="{{ $sortLink('barcode') }}">Code de barre{{ $sortIndicator('barcode') }}</a></th>
-                                <th class="px-4 py-3"><a href="{{ $sortLink('title') }}">Nom de l'article{{ $sortIndicator('title') }}</a></th>
+                                <th class="px-4 py-3">Code de barre</th>
+                                <th class="px-4 py-3">Nom de l'article</th>
                                 <th class="px-4 py-3">Catégorie/<br>Type d'élément</th>
                                 <th class="px-4 py-3">Unité</th>
-                                <th class="px-4 py-3"><a href="{{ $sortLink('stock_quantity') }}">Stock{{ $sortIndicator('stock_quantity') }}</a></th>
-                                <th class="px-4 py-3"><a href="{{ $sortLink('min_stock_threshold') }}">Quantité d'alerte{{ $sortIndicator('min_stock_threshold') }}</a></th>
-                                <th class="px-4 py-3"><a href="{{ $sortLink('sale_price') }}">Prix de vente{{ $sortIndicator('sale_price') }}</a></th>
+                                <th class="px-4 py-3">Stock</th>
+                                @if ($panel !== 'services')
+                                    <th class="px-4 py-3">Quantité d'alerte</th>
+                                @endif
+                                <th class="px-4 py-3">Prix de vente</th>
                                 <th class="px-4 py-3">Impôt</th>
                                 <th class="px-4 py-3">Statut</th>
                                 <th class="px-4 py-3 text-right">Action</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-200 dark:divide-white/10">
-                            @forelse ($items as $item)
-                                <tr class="align-top transition hover:bg-slate-50/80 dark:hover:bg-white/[0.03]">
-                                    <td class="px-4 py-4"><input class="catalog-item-check rounded border-slate-300" value="{{ $item->id }}" type="checkbox"></td>
-                                    <td class="px-4 py-4">
-                                        @php($image = collect($item->images)->first())
-                                        @if ($image)
-                                            <img src="{{ asset('storage/'.$image) }}" alt="" class="size-11 rounded-lg object-cover">
-                                        @else
-                                            <div class="grid size-11 place-items-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">{{ mb_substr($item->title, 0, 2) }}</div>
-                                        @endif
-                                    </td>
-                                    <td class="px-4 py-4 font-mono text-xs">{{ $item->barcode ?? $item->isbn ?? $item->sku ?? '—' }}</td>
-                                    <td class="px-4 py-4"><div class="max-w-[320px]"><p class="font-semibold">{{ $item->title }}</p><p class="mt-1 text-xs text-slate-500">{{ $item->item_code ?? 'Sans code interne' }}@if ($item->brand?->name) · {{ $item->brand->name }}@endif</p>@if ($item->variants->isNotEmpty())<p class="mt-1 text-xs font-medium text-brand">{{ $item->variants->count() }} variante(s)</p>@endif</div></td>
-                                    <td class="px-4 py-4"><span class="font-medium">{{ $item->category?->name ?? 'Sans catégorie' }}</span><span class="mt-1 block text-xs text-slate-500">{{ $typeLabel($item->type) }}</span></td>
-                                    <td class="px-4 py-4">{{ $item->unit?->name ?? '—' }}</td>
-                                    <td class="px-4 py-4"><x-status-pill :tone="$item->is_low_stock && $item->type !== 'service' ? 'warning' : 'success'">{{ $item->type === 'service' ? 'Illimité' : number_format($item->stock_quantity, 0, ',', ' ') }}</x-status-pill></td>
-                                    <td class="px-4 py-4">{{ $item->type === 'service' ? '—' : number_format($item->min_stock_threshold, 0, ',', ' ') }}</td>
-                                    <td class="px-4 py-4 font-semibold">{{ $money($item->sale_price) }}</td>
-                                    <td class="px-4 py-4">{{ $item->tax ? $item->tax->name.' ('.number_format((float) $item->tax->rate, 2, ',', ' ').'%)' : '—' }}</td>
-                                    <td class="px-4 py-4"><x-status-pill :tone="$item->status === 'out_of_stock' ? 'danger' : ($item->status === 'archived' ? 'neutral' : 'primary')">{{ $statusLabel($item->status) }}</x-status-pill></td>
-                                    <td class="px-4 py-4 text-right"><a href="{{ route('catalog', array_merge(request()->query(), ['panel' => $panel, 'edit' => $item->id])) }}#edit-item" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail / modifier</a></td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="12" class="px-4 py-12 text-center text-sm text-slate-500">Aucune donnée trouvée. Ajustez les filtres ou lancez un import.</td></tr>
-                            @endforelse
+                            <tr><td colspan="{{ $panel === 'services' ? 11 : 12 }}" class="px-4 py-12 text-center text-sm text-slate-500">Chargement de la table...</td></tr>
                         </tbody>
                     </table>
-                </div>
-                <div class="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between">
-                    <p class="text-sm text-slate-500">Affichage {{ $items->firstItem() ?? 0 }}-{{ $items->lastItem() ?? 0 }} sur {{ $items->total() }}</p>
-                    <div>{{ $items->links() }}</div>
                 </div>
             </article>
 
