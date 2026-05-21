@@ -6,6 +6,251 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-sans: Inter, Geist, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+@layer base {
+    :root {
+        color-scheme: light;
+    }
+
+    :root.dark {
+        color-scheme: dark;
+    }
+
+    * {
+        letter-spacing: 0;
+    }
+
+    body {
+        font-family: var(--font-sans);
+        background:
+            linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 50%, transparent) 0, transparent 280px),
+            var(--app-bg);
+        color: var(--text-main);
+        font-size: calc(14px * var(--font-scale));
+    }
+
+    ::selection {
+        background: color-mix(in srgb, var(--brand-primary) 18%, transparent);
+        color: var(--text-main);
+    }
+
+    input,
+    select,
+    textarea {
+        background-color: var(--surface) !important;
+        border-color: var(--border-soft) !important;
+        color: var(--text-main) !important;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+        color: var(--text-muted) !important;
+        opacity: 0.72;
+    }
+
+    button,
+    a {
+        border-radius: var(--brand-radius);
+    }
+}
+
+@layer utilities {
+    .bg-brand {
+        background-color: var(--brand-primary);
+    }
+
+    .shadow-sm {
+        --tw-shadow-color: color-mix(in srgb, var(--text-main) 10%, transparent);
+    }
+
+    .bg-indigo-600,
+    .bg-indigo-500 {
+        background-color: var(--brand-primary) !important;
+    }
+
+    .bg-emerald-600,
+    .bg-green-600 {
+        background-color: var(--brand-success) !important;
+    }
+
+    .text-brand {
+        color: var(--brand-primary);
+    }
+
+    .text-indigo-700,
+    .text-indigo-600,
+    .text-indigo-500,
+    .text-indigo-300 {
+        color: var(--brand-primary) !important;
+    }
+
+    .text-emerald-700,
+    .text-emerald-600,
+    .text-green-700,
+    .text-green-600 {
+        color: var(--brand-success) !important;
+    }
+
+    .border-brand {
+        border-color: var(--brand-primary);
+    }
+
+    .ring-brand\/10 {
+        --tw-ring-color: color-mix(in srgb, var(--brand-primary) 10%, transparent);
+    }
+
+    .bg-white {
+        background-color: var(--surface) !important;
+    }
+
+    .bg-slate-50 {
+        background-color: var(--app-bg) !important;
+    }
+
+    .bg-slate-100 {
+        background-color: var(--surface-muted) !important;
+    }
+
+    .text-slate-950,
+    .text-slate-900,
+    .text-slate-800,
+    .text-slate-700 {
+        color: var(--text-main) !important;
+    }
+
+    .text-slate-600,
+    .text-slate-500,
+    .text-slate-400 {
+        color: var(--text-muted) !important;
+    }
+
+    .border-slate-300,
+    .border-slate-200 {
+        border-color: var(--border-soft) !important;
+    }
+
+    .rounded-lg,
+    .rounded-xl,
+    .rounded-2xl {
+        border-radius: var(--brand-radius) !important;
+    }
+
+    .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+    }
+
+    .label-sheet {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    }
+
+    .label-card {
+        min-height: 96px;
+        border: 1px solid rgb(203 213 225);
+        border-radius: 8px;
+        padding: 10px;
+        background: white;
+        color: rgb(15 23 42);
+        break-inside: avoid;
+    }
+
+    .label-small {
+        grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    }
+
+    .label-small .label-card {
+        min-height: 64px;
+        padding: 8px;
+    }
+
+    .label-large {
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+
+    .label-large .label-card {
+        min-height: 132px;
+        padding: 14px;
+    }
+
+    .label-title {
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    .label-meta,
+    .label-code {
+        margin-top: 4px;
+        font-size: 10px;
+        color: rgb(100 116 139);
+    }
+
+    .label-barcode {
+        margin-top: 8px;
+        overflow: hidden;
+        border-radius: 4px;
+        background: repeating-linear-gradient(90deg, #111827 0 2px, transparent 2px 4px, #111827 4px 5px, transparent 5px 8px);
+        color: transparent;
+        height: 34px;
+    }
+
+    .label-price {
+        margin-top: 8px;
+        font-size: 18px;
+        font-weight: 800;
+    }
+
+    .catalog-grid-shell {
+        background:
+            linear-gradient(90deg, var(--surface) 30%, color-mix(in srgb, var(--surface) 0%, transparent)),
+            linear-gradient(90deg, color-mix(in srgb, var(--surface) 0%, transparent), var(--surface) 70%) 100% 0,
+            radial-gradient(farthest-side at 0 50%, color-mix(in srgb, var(--text-muted) 18%, transparent), transparent),
+            radial-gradient(farthest-side at 100% 50%, color-mix(in srgb, var(--text-muted) 18%, transparent), transparent) 100% 0;
+        background-attachment: local, local, scroll, scroll;
+        background-repeat: no-repeat;
+        background-size: 48px 100%, 48px 100%, 16px 100%, 16px 100%;
+    }
+
+    .catalog-data-table th {
+        white-space: nowrap;
+        font-weight: 750;
+    }
+
+    .catalog-data-table td {
+        vertical-align: middle;
+    }
+
+    .catalog-data-table tbody tr:nth-child(even) {
+        background-color: color-mix(in srgb, var(--surface-muted) 38%, transparent);
+    }
+}
+
+@media print {
+    body {
+        background: white !important;
+    }
+
+    .no-print,
+    aside,
+    header {
+        display: none !important;
+    }
+
+    main,
+    .print-area {
+        padding: 0 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .label-sheet {
+        gap: 6mm;
+    }
 }
