@@ -137,8 +137,9 @@ class DatabaseSeeder extends Seeder
             $taxes = collect([
                 ['TVA 20%', 20],
                 ['Sans TVA', 0],
+                ['TVA 7%', 7, false],
             ])->mapWithKeys(fn (array $row) => [
-                $row[0] => Tax::updateOrCreate(['tenant_id' => $tenant->id, 'name' => $row[0]], ['rate' => $row[1]]),
+                $row[0] => Tax::updateOrCreate(['tenant_id' => $tenant->id, 'name' => $row[0]], ['rate' => $row[1], 'is_active' => $row[2] ?? true]),
             ]);
 
             $clients = collect([
