@@ -14,6 +14,28 @@
         'density' => 'comfortable',
     ];
     $theme = array_merge($themeDefaults, $tenant->settings['theme'] ?? []);
+    $layoutStores = collect($tenant->settings['stores'] ?? [])
+        ->map(fn ($store) => is_array($store) ? $store : ['name' => (string) $store])
+        ->map(function (array $store) use ($tenant) {
+            $name = trim((string) ($store['name'] ?? 'Magasin principal'));
+
+            return [
+                'key' => (string) ($store['key'] ?? Str::slug($name)),
+                'name' => $name,
+                'type' => (string) ($store['type'] ?? 'store'),
+                'is_active' => (bool) ($store['is_active'] ?? true),
+            ];
+        })
+        ->filter(fn ($store) => $store['name'] !== '')
+        ->values();
+    if ($layoutStores->isEmpty()) {
+        $layoutStores = collect([
+            ['key' => 'magasin-principal', 'name' => 'Magasin principal', 'type' => 'store', 'is_active' => true],
+            ['key' => 'depot', 'name' => 'Dépôt', 'type' => 'warehouse', 'is_active' => true],
+            ['key' => 'rayon-scolaire', 'name' => 'Rayon scolaire', 'type' => 'area', 'is_active' => true],
+        ]);
+    }
+    $layoutCurrentStore = $layoutStores->firstWhere('key', $tenant->settings['current_store'] ?? null) ?? $layoutStores->first();
 @endphp
 <!DOCTYPE html>
 <html lang="fr" dir="ltr" style="--brand-primary: {{ $theme['primary'] }}; --brand-accent: {{ $theme['accent'] }}; --brand-success: {{ $theme['success'] }}; --app-bg: {{ $theme['background'] }}; --surface: {{ $theme['surface_color'] }}; --surface-muted: {{ $theme['surface_muted'] }}; --text-main: {{ $theme['text'] }}; --text-muted: {{ $theme['muted'] }}; --border-soft: {{ $theme['border'] }}; --font-scale: {{ $theme['font_scale'] }}; --brand-radius: {{ $theme['radius'] }}px;">
@@ -24,7 +46,8 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>{{ $title ?? 'LibrairePro' }}</title>
         <script>
-            if (localStorage.getItem('librairepro-sidebar') === 'collapsed') {
+            const libraireProSidebarState = localStorage.getItem('librairepro-sidebar');
+            if (libraireProSidebarState === null || libraireProSidebarState === 'collapsed') {
                 document.documentElement.classList.add('sidebar-collapsed');
             }
         </script>
@@ -43,6 +66,10 @@
                     return false;
                 }
 
+                if ($path === 'catalogue/etiquettes' && count($query) === 0) {
+                    return true;
+                }
+
                 foreach ($query as $key => $value) {
                     if ((string) ($currentQuery[$key] ?? '') !== (string) $value) {
                         return false;
@@ -57,6 +84,8 @@
                 ['label' => "Liste d'articles", 'icon' => '≡', 'href' => route('catalog', ['panel' => 'articles'])],
                 ['label' => 'Liste des catégories', 'icon' => '≡', 'href' => route('catalog', ['panel' => 'categories'])],
                 ['label' => 'Liste des marques', 'icon' => '≡', 'href' => route('catalog', ['panel' => 'marques'])],
+                ['label' => 'Liste des unités', 'icon' => '≡', 'href' => route('catalog', ['panel' => 'unites'])],
+                ['label' => 'Liste des impôts', 'icon' => '%', 'href' => route('catalog', ['panel' => 'impots'])],
                 ['label' => 'Liste des variantes', 'icon' => '≡', 'href' => route('catalog', ['panel' => 'variantes'])],
                 ['label' => 'Imprimer des étiquettes', 'icon' => '▥', 'href' => route('catalog.labels')],
                 ['label' => 'Importer des éléments', 'icon' => '↤', 'href' => route('catalog', ['panel' => 'import', 'kind' => 'items'])],
@@ -77,7 +106,7 @@
                 ['key' => 'sales', 'label' => 'Ventes', 'icon' => '₧', 'href' => route('pos'), 'children' => [
                     ['label' => 'Point de vente', 'icon' => '◉', 'href' => route('pos')],
                     ['label' => 'Ajouter une vente', 'icon' => '+', 'href' => route('module', ['module' => 'sales', 'section' => 'add'])],
-                    ['label' => 'Liste des ventes', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'list'])],
+                    ['label' => 'Liste des ventes', 'icon' => '≡', 'href' => route('module', 'sales')],
                     ['label' => 'Paiements des ventes', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'payments'])],
                     ['label' => 'Liste des retours de vente', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'returns'])],
                     ['label' => 'Liste de livraison', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'delivery'])],
@@ -108,7 +137,7 @@
                 ]],
                 ['key' => 'finance', 'label' => 'Avance', 'icon' => '$', 'href' => route('module', ['module' => 'finance', 'section' => 'advances']), 'children' => [
                     ['label' => 'Ajouter une avance', 'icon' => '+', 'href' => route('module', ['module' => 'finance', 'section' => 'advance-add'])],
-                    ['label' => 'Liste avancée', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'advances'])],
+                    ['label' => 'Liste des avances', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'advances'])],
                 ]],
                 ['key' => 'finance', 'label' => 'Coupons', 'icon' => '◇', 'href' => route('module', ['module' => 'finance', 'section' => 'coupons']), 'children' => [
                     ['label' => 'Créer un coupon client', 'icon' => '+', 'href' => route('module', ['module' => 'finance', 'section' => 'customer-coupon-add'])],
@@ -124,8 +153,10 @@
                     ['label' => 'Transactions en espèces', 'icon' => '⇄', 'href' => route('module', ['module' => 'finance', 'section' => 'cash'])],
                 ]],
                 ['key' => 'catalog', 'label' => 'Stock', 'icon' => '⌛', 'href' => route('catalog', ['panel' => 'articles', 'stock' => 'low']), 'children' => [
-                    ['label' => "Liste d'ajustement", 'icon' => '≡', 'href' => route('catalog', ['panel' => 'articles', 'stock' => 'low'])],
-                    ['label' => 'Liste de transfert', 'icon' => '≡', 'href' => route('catalog', ['panel' => 'articles', 'section' => 'stock-transfer'])],
+                    ['label' => "Ajouter ajustement", 'icon' => '+', 'href' => route('catalog', ['panel' => 'stock-adjustment-add'])],
+                    ['label' => "Liste d'ajustement", 'icon' => '≡', 'href' => route('catalog', ['panel' => 'stock-adjustments'])],
+                    ['label' => 'Ajouter transfert', 'icon' => '+', 'href' => route('catalog', ['panel' => 'stock-transfer-add'])],
+                    ['label' => 'Liste de transfert', 'icon' => '≡', 'href' => route('catalog', ['panel' => 'stock-transfers'])],
                 ]],
                 ['key' => 'settings', 'label' => 'Utilisateurs', 'icon' => '♙', 'href' => route('module', ['module' => 'settings', 'section' => 'users']), 'children' => [
                     ['label' => 'Liste des utilisateurs', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'users'])],
@@ -151,32 +182,32 @@
         @endphp
 
         <div class="flex min-h-screen">
-            <aside class="app-sidebar sticky top-0 hidden h-screen w-72 shrink-0 overflow-hidden border-r border-slate-200 bg-white/92 backdrop-blur md:flex md:flex-col dark:border-white/10 dark:bg-slate-950/92" data-sidebar>
-                <div class="flex h-[72px] shrink-0 items-center gap-3 border-b border-slate-200 px-4 dark:border-white/10">
-                    <a href="{{ route('dashboard') }}" class="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-1 py-2" title="{{ $tenant->name }}">
-                        <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-brand text-sm font-bold text-white shadow-sm">LP</span>
+            <aside class="app-sidebar sticky top-0 hidden h-screen w-72 shrink-0 overflow-hidden md:flex md:flex-col" data-sidebar>
+                <div class="sidebar-brand flex h-[76px] shrink-0 items-center gap-3 px-4">
+                    <a href="{{ route('dashboard') }}" class="sidebar-brand-link flex min-w-0 flex-1 items-center gap-3" title="{{ $tenant->name }}">
+                        <span class="sidebar-logo grid size-10 shrink-0 place-items-center bg-brand text-sm font-bold text-white shadow-sm">LP</span>
                         <span class="sidebar-label min-w-0">
                             <span class="block truncate text-sm font-semibold">{{ $tenant->name }}</span>
                             <span class="block truncate text-xs text-slate-500 dark:text-slate-400">SaaS librairie · {{ strtoupper($tenant->currency) }}</span>
                         </span>
                     </a>
-                    <button class="sidebar-toggle grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:text-white" type="button" aria-label="Réduire le menu" aria-pressed="false" data-sidebar-toggle>
+                    <button class="sidebar-toggle grid size-9 shrink-0 place-items-center" type="button" aria-label="Réduire le menu" aria-pressed="false" data-sidebar-toggle>
                         <span class="sidebar-toggle-icon">‹</span>
                     </button>
                 </div>
 
-                <nav class="sidebar-scroll min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4" data-sidebar-scroll>
+                <nav class="sidebar-scroll min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-5 pt-2" data-sidebar-scroll>
                     @foreach ($nav as $item)
                         @php
                             $children = $item['children'] ?? [];
                             $childrenActive = collect($children)->contains(fn ($child) => $isCurrentLink($child['href']));
                             $linkActive = $isCurrentLink($item['href']);
-                            $itemActive = $linkActive || $childrenActive || (empty($children) && $active === $item['key']);
+                            $itemActive = $linkActive || $childrenActive;
                         @endphp
                         @if (! empty($item['children']))
                             <details class="sidebar-group" data-sidebar-group="{{ Str::slug($item['label']) }}" @if($childrenActive || $linkActive) open @endif>
                                 <summary class="sidebar-link group {{ $itemActive ? 'is-active' : '' }}" title="{{ $item['label'] }}">
-                                    <span class="sidebar-icon">{{ $item['icon'] }}</span>
+                                    <span class="sidebar-icon" data-initial="{{ Str::upper(Str::substr($item['label'], 0, 1)) }}">{{ $item['icon'] }}</span>
                                     <span class="sidebar-label truncate">{{ $item['label'] }}</span>
                                     <span class="sidebar-chevron ms-auto">⌄</span>
                                 </summary>
@@ -196,20 +227,14 @@
                             </details>
                         @else
                             <a href="{{ $item['href'] }}" class="sidebar-link group {{ $itemActive ? 'is-active' : '' }}" title="{{ $item['label'] }}" @if($itemActive) aria-current="page" data-current-nav @endif>
-                                <span class="sidebar-icon">{{ $item['icon'] }}</span>
+                                <span class="sidebar-icon" data-initial="{{ Str::upper(Str::substr($item['label'], 0, 1)) }}">{{ $item['icon'] }}</span>
                                 <span class="sidebar-label truncate">{{ $item['label'] }}</span>
                             </a>
                         @endif
                     @endforeach
                 </nav>
 
-                <div class="sidebar-status m-3 shrink-0 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                    <div class="flex items-center justify-between">
-                        <p class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Mode rentrée</p>
-                        <x-status-pill tone="success">Actif</x-status-pill>
-                    </div>
-                    <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">Cache POS, alertes stock et commandes rapides prêts pour les pics de caisse.</p>
-                </div>
+
             </aside>
 
             <main class="min-w-0 flex-1">
@@ -227,9 +252,47 @@
                             <input name="q" value="{{ request('q') }}" class="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5 dark:focus:bg-slate-900" placeholder="Rechercher titre, ISBN, code-barres, client...">
                         </form>
                         <button class="app-theme-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="Basculer le thème">◐</button>
+                        <details class="relative hidden sm:block">
+                            <summary class="current-store-trigger flex h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                                <span class="grid size-6 place-items-center rounded-md bg-brand/10 text-xs text-brand">▣</span>
+                                <span class="max-w-36 truncate">{{ $layoutCurrentStore['name'] }}</span>
+                            </summary>
+                            <div class="absolute right-0 top-12 z-40 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-slate-950">
+                                <p class="px-1 pb-2 text-xs font-semibold uppercase text-slate-500">Magasin courant</p>
+                                <form action="{{ route('settings.current-store.update') }}" method="POST" class="space-y-2">
+                                    @csrf
+                                    <select name="current_store" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                        @foreach ($layoutStores->where('is_active', true) as $store)
+                                            <option value="{{ $store['key'] }}" @selected($layoutCurrentStore['key'] === $store['key'])>{{ $store['name'] }}</option>
+                                        @endforeach
+                                    </select>
+                                    <button class="w-full rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">Changer</button>
+                                </form>
+                                <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="mt-2 block rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">Gérer les magasins</a>
+                            </div>
+                        </details>
                         <button class="app-rtl-toggle hidden rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:block dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button">العربية</button>
                         <a href="{{ route('pos') }}" class="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition brightness-100 hover:brightness-110">Caisse</a>
-                        <div class="grid size-11 place-items-center rounded-full text-sm font-bold text-white" style="background: var(--brand-primary)">AE</div>
+                        @auth
+                            @php($accountUser = auth()->user())
+                            <details class="relative">
+                                <summary class="grid size-11 cursor-pointer list-none place-items-center rounded-full text-sm font-bold text-white" style="background: {{ $accountUser->avatar_color ?: 'var(--brand-primary)' }}">{{ Str::upper(Str::substr($accountUser->name, 0, 2)) }}</summary>
+                                <div class="absolute right-0 top-12 z-40 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-slate-950">
+                                    <div class="flex items-center gap-3 border-b border-slate-200 pb-3 dark:border-white/10">
+                                        <span class="grid size-10 place-items-center rounded-lg text-sm font-bold text-white" style="background: {{ $accountUser->avatar_color ?: 'var(--brand-primary)' }}">{{ Str::upper(Str::substr($accountUser->name, 0, 2)) }}</span>
+                                        <span class="min-w-0"><strong class="block truncate text-sm">{{ $accountUser->name }}</strong><small class="block truncate text-xs text-slate-500">{{ $accountUser->email }}</small></span>
+                                    </div>
+                                    <a href="{{ route('profile') }}" class="mt-2 block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">Mon profil</a>
+                                    <a href="{{ route('module', ['module' => 'settings', 'section' => 'users']) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">Utilisateurs & rôles</a>
+                                    <form action="{{ route('logout') }}" method="POST" class="mt-2 border-t border-slate-200 pt-2 dark:border-white/10">
+                                        @csrf
+                                        <button class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10">Déconnexion</button>
+                                    </form>
+                                </div>
+                            </details>
+                        @else
+                            <a href="{{ route('login') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">Connexion</a>
+                        @endauth
                     </div>
                     @if (session('status'))
                         <div class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">

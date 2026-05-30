@@ -6,7 +6,42 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['tenant_id', 'kind', 'name', 'client_type', 'phone', 'email', 'cin', 'ice', 'address', 'tags', 'advance_balance', 'outstanding_balance', 'fine_balance', 'membership_expires_at'])]
+#[Fillable([
+    'tenant_id',
+    'kind',
+    'code',
+    'store_id',
+    'name',
+    'client_type',
+    'status',
+    'phone',
+    'email',
+    'cin',
+    'ice',
+    'credit_limit',
+    'opening_balance',
+    'tax_number',
+    'address',
+    'country',
+    'state',
+    'city',
+    'postcode',
+    'location_link',
+    'shipping_country',
+    'shipping_state',
+    'shipping_city',
+    'shipping_postcode',
+    'shipping_address',
+    'shipping_location_link',
+    'price_level_type',
+    'price_level',
+    'attachment_path',
+    'tags',
+    'advance_balance',
+    'outstanding_balance',
+    'fine_balance',
+    'membership_expires_at',
+])]
 class Contact extends Model
 {
     protected function casts(): array
@@ -14,6 +49,12 @@ class Contact extends Model
         return [
             'tags' => 'array',
             'membership_expires_at' => 'date',
+            'credit_limit' => 'decimal:2',
+            'opening_balance' => 'decimal:2',
+            'advance_balance' => 'decimal:2',
+            'outstanding_balance' => 'decimal:2',
+            'fine_balance' => 'decimal:2',
+            'price_level' => 'decimal:2',
         ];
     }
 
@@ -25,5 +66,20 @@ class Contact extends Model
     public function loans(): HasMany
     {
         return $this->hasMany(Loan::class, 'member_id');
+    }
+
+    public function customerAdvances(): HasMany
+    {
+        return $this->hasMany(CustomerAdvance::class);
+    }
+
+    public function supplierPurchases(): HasMany
+    {
+        return $this->hasMany(Purchase::class, 'supplier_id');
+    }
+
+    public function supplierPurchaseReturns(): HasMany
+    {
+        return $this->hasMany(PurchaseReturn::class, 'supplier_id');
     }
 }

@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Item;
+use App\Models\StockAdjustment;
+use App\Models\StockTransfer;
 use App\Models\Tax;
 use App\Models\Tenant;
 use App\Models\Unit;
@@ -98,6 +100,49 @@ class CatalogueTest extends TestCase
             ->assertOk()
             ->assertSee('Stylo bleu import')
             ->assertSee('IMP-STYLO-001');
+    }
+
+    public function test_label_search_matches_split_keywords_and_keeps_selection_active(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $category = Category::firstOrFail();
+        $brand = Brand::firstOrFail();
+        $unit = Unit::firstOrFail();
+        $tax = Tax::firstOrFail();
+
+        $item = Item::create([
+            'tenant_id' => $tenant->id,
+            'category_id' => $category->id,
+            'brand_id' => $brand->id,
+            'unit_id' => $unit->id,
+            'tax_id' => $tax->id,
+            'type' => 'supply',
+            'title' => 'Cahier pique rouge 192 pages',
+            'barcode' => 'LBL-SEARCH-001',
+            'purchase_price' => 7,
+            'sale_price' => 12,
+            'stock_quantity' => 30,
+            'min_stock_threshold' => 4,
+            'status' => 'active',
+        ]);
+
+        $this->get(route('catalog.labels', ['q' => 'cahier 192']))
+            ->assertOk()
+            ->assertSee('Cahier pique rouge 192 pages')
+            ->assertSee('Imprimer des étiquettes')
+            ->assertSee('sidebar-child is-active', false);
+
+        $this->get(route('catalog.labels', [
+            'q' => 'terme introuvable',
+            'selected_items' => [$item->id],
+            'quantities' => [$item->id => 2],
+        ]))
+            ->assertOk()
+            ->assertSee('Cahier pique rouge 192 pages')
+            ->assertSee('checked', false)
+            ->assertSee('2 étiquette');
     }
 
     public function test_catalogue_import_accepts_mylibrairie_sample_headers(): void
@@ -381,8 +426,177 @@ class CatalogueTest extends TestCase
 
         $this->get(route('catalog', ['panel' => 'marques']))
             ->assertOk()
-            ->assertSee('Marques / éditeurs')
+            ->assertSee('marques / éditeurs', false)
             ->assertSee('Liste des marques');
+
+        $this->get(route('catalog', ['panel' => 'unites']))
+            ->assertOk()
+            ->assertSee('Liste des unités');
+
+        $this->get(route('catalog', ['panel' => 'impots']))
+            ->assertOk()
+            ->assertSee('Liste des impôts');
+    }
+
+    public function test_catalogue_reference_lists_are_searchable_and_editable(): void
+    {
+        $this->seed();
+
+        $category = Category::create([
+            'tenant_id' => Tenant::firstOrFail()->id,
+            'name' => 'Recherche Catégorie Test',
+            'slug' => 'recherche-categorie-test',
+            'icon' => 'book',
+            'color' => '#2563EB',
+            'loan_duration_days' => 14,
+            'daily_fine_amount' => 2,
+        ]);
+
+        $brand = Brand::create([
+            'tenant_id' => Tenant::firstOrFail()->id,
+            'name' => 'Recherche Éditeur Test',
+            'type' => 'publisher',
+        ]);
+
+        $unit = Unit::create([
+            'tenant_id' => Tenant::firstOrFail()->id,
+            'name' => 'Palette Test',
+        ]);
+
+        $tax = Tax::create([
+            'tenant_id' => Tenant::firstOrFail()->id,
+            'name' => 'TVA Recherche',
+            'rate' => 13,
+        ]);
+
+        $this->get(route('catalog', ['panel' => 'categories', 'reference_q' => 'Recherche Catégorie']))
+            ->assertOk()
+            ->assertSee('Recherche Catégorie Test')
+            ->assertSee('Modifier')
+            ->assertSee('Supprimer');
+
+        $this->put(route('catalog.categories.update', $category), [
+            'name' => 'Catégorie Modifiée Test',
+            'parent_id' => null,
+            'icon' => 'book-open',
+            'color' => '#0D9488',
+            'description' => 'Mise à jour',
+            'loan_duration_days' => 14,
+            'daily_fine_amount' => 2,
+        ])->assertRedirect();
+        $this->assertDatabaseHas('categories', ['id' => $category->id, 'name' => 'Catégorie Modifiée Test']);
+
+        $this->get(route('catalog', ['panel' => 'marques', 'reference_q' => 'Éditeur Test']))
+            ->assertOk()
+            ->assertSee('Recherche Éditeur Test');
+        $this->put(route('catalog.brands.update', $brand), [
+            'name' => 'Éditeur Modifié Test',
+            'type' => 'publisher',
+        ])->assertRedirect();
+        $this->assertDatabaseHas('brands', ['id' => $brand->id, 'name' => 'Éditeur Modifié Test']);
+
+        $this->get(route('catalog', ['panel' => 'unites', 'reference_q' => 'Palette']))
+            ->assertOk()
+            ->assertSee('Palette Test');
+        $this->put(route('catalog.units.update', $unit), [
+            'name' => 'Carton Test',
+            'description' => 'Unité modifiée',
+        ])->assertRedirect();
+        $this->assertDatabaseHas('units', ['id' => $unit->id, 'name' => 'Carton Test']);
+
+        $this->get(route('catalog', ['panel' => 'impots', 'reference_q' => 'TVA Recherche']))
+            ->assertOk()
+            ->assertSee('TVA Recherche');
+        $this->put(route('catalog.taxes.update', $tax), [
+            'name' => 'TVA Modifiée',
+            'rate' => 14,
+            'description' => 'Impôt modifié',
+        ])->assertRedirect();
+        $this->assertDatabaseHas('taxes', ['id' => $tax->id, 'name' => 'TVA Modifiée', 'rate' => 14]);
+
+        $this->delete(route('catalog.categories.destroy', $category->fresh()))->assertRedirect();
+        $this->delete(route('catalog.brands.destroy', $brand->fresh()))->assertRedirect();
+        $this->delete(route('catalog.units.destroy', $unit->fresh()))->assertRedirect();
+        $this->delete(route('catalog.taxes.destroy', $tax->fresh()))->assertRedirect();
+
+        $this->assertDatabaseMissing('categories', ['id' => $category->id]);
+        $this->assertDatabaseMissing('brands', ['id' => $brand->id]);
+        $this->assertDatabaseMissing('units', ['id' => $unit->id]);
+        $this->assertDatabaseMissing('taxes', ['id' => $tax->id]);
+    }
+
+    public function test_stock_adjustment_changes_stock_and_is_listed(): void
+    {
+        $this->seed();
+
+        $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 5)->firstOrFail();
+        $initialStock = (int) $item->stock_quantity;
+
+        $this->get(route('catalog', ['panel' => 'stock-adjustment-add']))
+            ->assertOk()
+            ->assertSee('Ajustement des stocks')
+            ->assertSee("Liste d&#039;ajustement", false);
+
+        $response = $this->post(route('catalog.stock-adjustments.store'), [
+            'adjusted_at' => now()->format('Y-m-d H:i:s'),
+            'warehouse' => 'Dépôt test',
+            'reason' => 'Inventaire test',
+            'items' => [
+                ['item_id' => $item->id, 'direction' => 'remove', 'quantity' => 2, 'note' => 'Casse test'],
+            ],
+        ]);
+
+        $adjustment = StockAdjustment::firstOrFail();
+        $response->assertRedirect(route('catalog', ['panel' => 'stock-adjustments']));
+        $this->assertStringStartsWith('AJS', $adjustment->number);
+        $this->assertSame($initialStock - 2, (int) $item->fresh()->stock_quantity);
+
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'reference_id' => $adjustment->id,
+            'quantity_delta' => -2,
+            'quantity_after' => $initialStock - 2,
+        ]);
+
+        $this->get(route('catalog', ['panel' => 'stock-adjustments', 'q' => 'Inventaire test']))
+            ->assertOk()
+            ->assertSee($adjustment->number)
+            ->assertSee('Inventaire test');
+    }
+
+    public function test_stock_transfer_records_transfer_without_changing_global_stock(): void
+    {
+        $this->seed();
+
+        $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 5)->firstOrFail();
+        $initialStock = (int) $item->stock_quantity;
+
+        $this->get(route('catalog', ['panel' => 'stock-transfer-add']))
+            ->assertOk()
+            ->assertSee('Transfert de stock')
+            ->assertSee('Liste de transfert');
+
+        $response = $this->post(route('catalog.stock-transfers.store'), [
+            'transferred_at' => now()->format('Y-m-d H:i:s'),
+            'store_from' => 'Magasin A',
+            'warehouse_from' => 'Dépôt',
+            'store_to' => 'Magasin B',
+            'warehouse_to' => 'Rayon scolaire',
+            'items' => [
+                ['item_id' => $item->id, 'quantity' => 3, 'note' => 'Carton test'],
+            ],
+        ]);
+
+        $transfer = StockTransfer::firstOrFail();
+        $response->assertRedirect(route('catalog', ['panel' => 'stock-transfers']));
+        $this->assertStringStartsWith('TRS', $transfer->number);
+        $this->assertSame($initialStock, (int) $item->fresh()->stock_quantity);
+        $this->assertSame(3, (int) $transfer->total_quantity);
+
+        $this->get(route('catalog', ['panel' => 'stock-transfers', 'q' => 'Magasin B']))
+            ->assertOk()
+            ->assertSee($transfer->number)
+            ->assertSee('Magasin B');
     }
 
     public function test_settings_can_persist_tenant_theme(): void
@@ -444,6 +658,8 @@ class CatalogueTest extends TestCase
         $this->get('/items/labels')->assertRedirect('/catalogue/etiquettes');
         $this->get('/import/items')->assertRedirect('/catalogue?panel=import&kind=items');
         $this->get('/import/services')->assertRedirect('/catalogue?panel=import&kind=services');
+        $this->get('/units')->assertRedirect('/catalogue?panel=unites');
+        $this->get('/tax')->assertRedirect('/catalogue?panel=impots');
     }
 
     private function legacyXlsx(string $title, array $headers, array $rows, string $name): UploadedFile

@@ -1,82 +1,409 @@
-@php($money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' DH')
+@php
+    $money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' DH';
+    $productTypes = ['all' => 'Tous', 'book' => 'Livres', 'supply' => 'Papeterie', 'service' => 'Services'];
+@endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · Caisse">
-    <section class="grid gap-6 xl:grid-cols-[1fr_380px]">
-        <div class="space-y-5">
-            <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div>
-                        <p class="text-sm font-medium text-indigo-600 dark:text-indigo-300">Caisse rapide</p>
-                        <h1 class="mt-1 text-2xl font-semibold">Scanner, chercher, encaisser</h1>
-                    </div>
-                    <div class="flex gap-2">
-                        <x-status-pill tone="success">Mode hors-ligne prêt</x-status-pill>
-                        <x-status-pill tone="info">Raccourcis clavier</x-status-pill>
-                    </div>
-                </div>
-                <form action="{{ route('pos') }}" class="mt-5 flex gap-2">
-                    <input name="q" value="{{ $query }}" autofocus class="h-12 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-4 text-sm outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 dark:border-white/10 dark:bg-white/5" placeholder="Scanner code-barres ou saisir titre / ISBN">
-                    <button class="rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white">Chercher</button>
-                </form>
-            </div>
-
-            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                @foreach ($items as $item)
-                    <button class="pos-item rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-white/10 dark:bg-white/[0.03]" type="button" data-name="{{ $item->title }}" data-price="{{ $item->sale_price }}">
-                        <div class="flex items-start justify-between gap-3">
-                            <div class="grid size-11 place-items-center rounded-lg bg-indigo-50 text-sm font-bold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">{{ mb_substr($item->title, 0, 2) }}</div>
-                            <x-status-pill :tone="$item->is_low_stock ? 'warning' : 'success'">{{ $item->stock_quantity }}</x-status-pill>
+    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? [])' data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}">
+        <div class="min-w-0 space-y-5">
+            @if ($lastSale)
+                @php
+                    $receiptText = "Ticket ".$lastSale->number." - ".$money($lastSale->total_amount);
+                    $shareText = rawurlencode($receiptText."\n".$tenant->name."\nMerci pour votre achat.");
+                    $paidAmount = (float) data_get($lastSale->metadata, 'paid_amount', $lastSale->total_amount);
+                    $changeAmount = (float) data_get($lastSale->metadata, 'change_amount', 0);
+                @endphp
+                <div class="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
+                    <article class="receipt-success max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-emerald-200 bg-white p-5 shadow-2xl dark:border-emerald-500/20 dark:bg-slate-950">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Paiement validé</p>
+                                <h2 class="mt-1 text-2xl font-semibold">{{ $lastSale->number }} · {{ $money($lastSale->total_amount) }}</h2>
+                                <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Facture {{ data_get($lastSale->metadata, 'invoice_number', 'FAC-'.$lastSale->number) }} · {{ $lastSale->sold_at->format('d/m/Y H:i') }}</p>
+                            </div>
+                            <a href="{{ route('pos') }}" class="grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10">×</a>
                         </div>
-                        <p class="mt-4 line-clamp-2 min-h-10 text-sm font-semibold">{{ $item->title }}</p>
-                        <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">{{ $item->barcode ?? $item->isbn }}</p>
-                        <p class="mt-3 text-lg font-semibold">{{ $money($item->sale_price) }}</p>
-                    </button>
-                @endforeach
-            </div>
+
+                        <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                            <div class="rounded-xl bg-emerald-50 p-3 dark:bg-emerald-500/10">
+                                <span class="text-xs font-semibold uppercase text-slate-500">Client</span>
+                                <p class="mt-1 font-semibold">{{ $lastSale->contact?->name ?? 'Client comptoir' }}</p>
+                            </div>
+                            <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+                                <span class="text-xs font-semibold uppercase text-slate-500">Payé</span>
+                                <p class="mt-1 font-semibold">{{ $money($paidAmount) }}</p>
+                            </div>
+                            <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+                                <span class="text-xs font-semibold uppercase text-slate-500">Monnaie</span>
+                                <p class="mt-1 font-semibold">{{ $money($changeAmount) }}</p>
+                            </div>
+                        </div>
+
+                        <div class="receipt-print-area mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-white/5">
+                            <div class="text-center">
+                                <strong class="block text-base">{{ $tenant->name }}</strong>
+                                <span class="text-xs text-slate-500">{{ $tenant->address }} · {{ $tenant->phone }}</span>
+                                <p class="mt-2 font-semibold">Ticket {{ $lastSale->number }}</p>
+                                <p class="text-xs text-slate-500">{{ $lastSale->sold_at->format('d/m/Y H:i') }}</p>
+                            </div>
+                            <div class="mt-4 space-y-2">
+                                @foreach ($lastSale->items as $line)
+                                    <div class="flex justify-between gap-3">
+                                        <span>{{ $line->quantity }} x {{ $line->name }}</span>
+                                        <strong>{{ $money($line->total_price) }}</strong>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <div class="mt-4 border-t border-slate-200 pt-3 dark:border-white/10">
+                                <div class="flex justify-between"><span>Sous-total</span><span>{{ $money($lastSale->subtotal_amount) }}</span></div>
+                                <div class="flex justify-between"><span>Remise</span><span>{{ $money($lastSale->discount_amount) }}</span></div>
+                                <div class="flex justify-between text-base font-bold"><span>Total</span><span>{{ $money($lastSale->total_amount) }}</span></div>
+                                <div class="mt-2 text-xs text-slate-500">Paiement: {{ $lastSale->payment_method }}</div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 grid gap-2 sm:grid-cols-4">
+                            <a href="{{ route('pos') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold dark:border-white/10 dark:bg-white/5">Nouveau ticket</a>
+                            <button class="pos-print-ticket rounded-lg bg-brand px-4 py-3 text-sm font-semibold text-white" type="button">Imprimer ticket</button>
+                            <button class="pos-print-pdf rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold dark:border-white/10 dark:bg-white/5" type="button">PDF</button>
+                            <a href="https://wa.me/?text={{ $shareText }}" target="_blank" rel="noreferrer" class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold dark:border-white/10 dark:bg-white/5">Partager</a>
+                        </div>
+                    </article>
+                </div>
+            @endif
+
+            <details class="pos-command-center pos-collapsible rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <summary class="pos-collapsible-summary flex cursor-pointer list-none items-center justify-between gap-3 p-4">
+                    <span class="min-w-0">
+                        <span class="block text-sm font-semibold text-brand">Caisse librairie</span>
+                        <span class="mt-1 block truncate text-xl font-semibold">Scanner, trouver, encaisser</span>
+                    </span>
+                    <span class="flex min-w-0 shrink items-center justify-end gap-2">
+                        <span class="hidden flex-wrap justify-end gap-2 lg:flex">
+                            <x-status-pill tone="primary">Prochaine vente {{ $nextSaleNumber }}</x-status-pill>
+                            <x-status-pill :tone="$resumeTicket ? 'warning' : 'info'">{{ $resumeTicket ? 'Reprise '.$resumeTicket->number : 'Attente '.$nextTicketNumber }}</x-status-pill>
+                            <x-status-pill tone="success">Stock temps réel</x-status-pill>
+                            <x-status-pill :tone="$priceEditable ? 'warning' : 'info'">{{ $priceEditable ? 'Prix modifiable' : 'Prix verrouillés' }}</x-status-pill>
+                            <x-status-pill :tone="$allowOversell ? 'warning' : 'success'">{{ $allowOversell ? 'Hors stock autorisé' : 'Stock bloquant' }}</x-status-pill>
+                        </span>
+                        <span class="pos-collapsible-chevron grid size-8 shrink-0 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-sm font-bold text-slate-600 dark:border-white/10 dark:bg-white/5">⌄</span>
+                    </span>
+                </summary>
+
+                <div class="pos-command-body border-t border-slate-200 p-4 dark:border-white/10">
+                    <div class="mb-3 flex flex-wrap gap-2 lg:hidden">
+                        <x-status-pill tone="primary">Prochaine vente {{ $nextSaleNumber }}</x-status-pill>
+                        <x-status-pill :tone="$resumeTicket ? 'warning' : 'info'">{{ $resumeTicket ? 'Reprise '.$resumeTicket->number : 'Attente '.$nextTicketNumber }}</x-status-pill>
+                        <x-status-pill tone="success">Stock temps réel</x-status-pill>
+                        <x-status-pill :tone="$priceEditable ? 'warning' : 'info'">{{ $priceEditable ? 'Prix modifiable' : 'Prix verrouillés' }}</x-status-pill>
+                        <x-status-pill :tone="$allowOversell ? 'warning' : 'success'">{{ $allowOversell ? 'Hors stock autorisé' : 'Stock bloquant' }}</x-status-pill>
+                    </div>
+
+                <div class="pos-search-row grid gap-2">
+                    <div class="relative">
+                        <input class="pos-search barcode-input h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-4 pe-28 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" value="{{ $query }}" placeholder="Scanner code-barres, ISBN, titre, SKU...">
+                        <button class="barcode-scan-btn absolute right-2 top-2 h-8 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:text-brand dark:border-white/10" type="button">Caméra</button>
+                    </div>
+                    <select class="pos-type-filter h-12 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                        @foreach ($productTypes as $value => $label)
+                            <option value="{{ $value }}" @selected($type === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                    <select class="pos-stock-filter h-12 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                        <option value="available" @selected($stock === 'available')>Disponible</option>
+                        <option value="all" @selected($stock === 'all')>Tout stock</option>
+                        <option value="low" @selected($stock === 'low')>Stock bas</option>
+                    </select>
+                    <a href="{{ route('catalog', ['panel' => 'ajouter']) }}" class="grid h-12 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Nouvel article</a>
+                </div>
+                <div class="pos-filter-row mt-2 grid gap-2">
+                    <select class="pos-category-filter h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                        <option value="all">Toutes les catégories</option>
+                        @foreach ($categories as $category)
+                            <option value="{{ $category->id }}">{{ $category->name }}</option>
+                        @endforeach
+                    </select>
+                    <select class="pos-brand-filter h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                        <option value="all">Toutes les marques / éditeurs</option>
+                        @foreach ($brands as $brand)
+                            <option value="{{ $brand->id }}">{{ $brand->name }}</option>
+                        @endforeach
+                    </select>
+                    <select class="pos-unit-filter h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                        <option value="all">Unités</option>
+                        @foreach ($units as $unit)
+                            <option value="{{ $unit->id }}">{{ $unit->name }}</option>
+                        @endforeach
+                    </select>
+                    <button class="pos-clear-filters rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10" type="button">Effacer</button>
+                </div>
+                </div>
+            </details>
+
+            <details class="pos-client-card pos-collapsible rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <summary class="pos-collapsible-summary flex cursor-pointer list-none items-center justify-between gap-3 p-3">
+                    <span>
+                        <span class="block text-xs font-semibold uppercase text-slate-500">Client</span>
+                        <span class="block text-sm font-semibold">{{ $resumeTicket ? 'Ticket '.$resumeTicket->number : 'Vente '.$nextSaleNumber }}</span>
+                    </span>
+                    <span class="pos-collapsible-chevron grid size-8 shrink-0 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-sm font-bold text-slate-600 dark:border-white/10 dark:bg-white/5">⌄</span>
+                </summary>
+                <div class="grid gap-3 border-t border-slate-200 p-3 dark:border-white/10 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start">
+                    <select form="pos-checkout-form" name="contact_id" class="pos-client h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                        <option value="">Client comptoir</option>
+                        @foreach ($clients as $client)
+                            <option value="{{ $client->id }}" data-advance="{{ $client->advance_balance }}" @selected($resumeTicket?->contact_id === $client->id)>{{ $client->name }} · avance {{ $money($client->advance_balance) }}</option>
+                        @endforeach
+                    </select>
+                    <details class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 dark:border-white/10 dark:bg-white/5">
+                        <summary class="cursor-pointer text-xs font-semibold text-slate-500">Créer un client rapide</summary>
+                        <div class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                            <input form="pos-checkout-form" name="client_name" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10" placeholder="Nouveau client">
+                            <input form="pos-checkout-form" name="client_phone" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10" placeholder="Téléphone">
+                        </div>
+                    </details>
+                </div>
+            </details>
+
+            @if ($heldTickets->isNotEmpty())
+                <details class="pos-held-tickets rounded-xl border border-amber-200 bg-amber-50/70 shadow-sm dark:border-amber-500/20 dark:bg-amber-500/10">
+                    <summary class="pos-held-summary flex cursor-pointer list-none items-center justify-between gap-3 p-4">
+                        <span class="min-w-0">
+                            <span class="block font-semibold">Tickets en attente</span>
+                            <span class="mt-0.5 block truncate text-sm text-slate-600 dark:text-slate-300">Reprendre un panier gardé pour un client qui revient plus tard.</span>
+                        </span>
+                        <span class="flex shrink-0 items-center gap-2">
+                            <span class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">{{ $heldTickets->count() }} ouvert(s)</span>
+                            <span class="pos-held-chevron grid size-8 place-items-center rounded-lg border border-amber-200 bg-white text-sm font-bold text-amber-700 dark:border-amber-500/20 dark:bg-slate-950/60">⌄</span>
+                        </span>
+                    </summary>
+                    <div class="pos-held-scroll grid gap-2 border-t border-amber-200 p-3 dark:border-amber-500/20">
+                        @foreach ($heldTickets as $ticket)
+                            <div class="pos-held-card rounded-lg border border-amber-200 bg-white p-3 dark:border-amber-500/20 dark:bg-slate-950/60">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <p class="font-semibold">{{ $ticket->number }}</p>
+                                        <p class="mt-0.5 truncate text-xs text-slate-500">{{ $ticket->contact?->name ?? 'Client comptoir' }} · {{ $ticket->held_at?->format('H:i') }}</p>
+                                    </div>
+                                    <strong class="shrink-0 text-sm">{{ $money($ticket->total_amount) }}</strong>
+                                </div>
+                                <div class="pos-held-actions mt-3 grid grid-cols-3 gap-1.5">
+                                    <a href="{{ route('pos', ['ticket' => $ticket->id]) }}" class="rounded-lg bg-brand px-2 py-2 text-center text-xs font-semibold text-white">Reprendre</a>
+                                    <button class="rounded-lg border border-slate-200 px-2 py-2 text-xs font-semibold dark:border-white/10" type="button" onclick="document.getElementById('held-ticket-{{ $ticket->id }}').showModal()">Détail</button>
+                                    <form action="{{ route('pos.tickets.destroy', $ticket) }}" method="POST" class="min-w-0">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button class="w-full rounded-lg border border-slate-200 px-2 py-2 text-xs font-semibold dark:border-white/10" type="submit">Annuler</button>
+                                    </form>
+                                </div>
+                            </div>
+                            <dialog id="held-ticket-{{ $ticket->id }}" class="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                                    <div class="flex items-start justify-between gap-4">
+                                        <div>
+                                            <p class="text-sm font-semibold text-amber-700">Ticket en attente</p>
+                                            <h3 class="mt-1 text-xl font-semibold">{{ $ticket->number }} · {{ $money($ticket->total_amount) }}</h3>
+                                            <p class="mt-1 text-sm text-slate-500">{{ $ticket->contact?->name ?? 'Client comptoir' }} · {{ $ticket->held_at?->format('d/m/Y H:i') }}</p>
+                                        </div>
+                                        <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                                    </div>
+                                </div>
+                                <div class="space-y-3 p-5">
+                                    <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
+                                        @foreach ($ticket->cart as $line)
+                                            @php($ticketItem = $heldTicketItems->get($line['item_id'] ?? null))
+                                            @php($ticketLinePrice = (float) ($line['unit_price'] ?? $ticketItem?->sale_price ?? 0))
+                                            <div class="grid grid-cols-[1fr_70px_100px] gap-3 border-b border-slate-200 px-3 py-2 text-sm last:border-b-0 dark:border-white/10">
+                                                <span class="font-medium">{{ $ticketItem?->title ?? 'Article supprimé' }}</span>
+                                                <span class="text-center">x{{ $line['quantity'] ?? 1 }}</span>
+                                                <strong class="text-right">{{ $money($ticketLinePrice * ($line['quantity'] ?? 1)) }}</strong>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                    <div class="grid gap-2 sm:grid-cols-3">
+                                        <a href="{{ route('pos', ['ticket' => $ticket->id]) }}" class="rounded-lg bg-brand px-4 py-2 text-center text-sm font-semibold text-white">Reprendre</a>
+                                        <form action="{{ route('pos.tickets.destroy', $ticket) }}" method="POST">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button class="w-full rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="submit">Annuler</button>
+                                        </form>
+                                        <button class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button">Fermer</button>
+                                    </div>
+                                </div>
+                            </dialog>
+                        @endforeach
+                    </div>
+                </details>
+            @endif
+
+            <article class="pos-catalog-panel rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <details class="pos-suggestions-menu mb-3 rounded-xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5" data-collapsible-menu data-menu-key="pos-suggestions">
+                    <summary class="pos-suggestions-summary flex cursor-pointer list-none items-center justify-between gap-3 p-3">
+                        <span class="min-w-0">
+                            <span class="block font-semibold">Suggestions caisse</span>
+                            <span class="mt-1 block truncate text-sm text-slate-500"><span class="pos-visible-count">{{ $items->count() }}</span> résultat(s). Favoris et plus vendus.</span>
+                        </span>
+                        <span class="flex shrink-0 items-center gap-2">
+                            <em data-collapsible-menu-state class="rounded-lg bg-brand/10 px-2.5 py-1 text-xs font-bold not-italic text-brand">Afficher</em>
+                            <span class="pos-suggestions-chevron grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-sm font-bold text-slate-600 dark:border-white/10 dark:bg-slate-950">⌄</span>
+                        </span>
+                    </summary>
+                    <div class="flex flex-wrap items-center gap-2 border-t border-slate-200 p-3 text-xs font-semibold text-slate-500 dark:border-white/10">
+                            <div class="pos-suggestion-toggle inline-flex rounded-lg border border-slate-200 bg-white p-1 dark:border-white/10">
+                                <button class="pos-suggestion-btn px-2.5 py-1 is-active" data-suggest="all" type="button">Tous</button>
+                                <button class="pos-suggestion-btn px-2.5 py-1" data-suggest="favorites" type="button">Favoris</button>
+                                <button class="pos-suggestion-btn px-2.5 py-1" data-suggest="top" type="button">Plus vendus</button>
+                            </div>
+                            <div class="pos-view-toggle inline-flex rounded-lg border border-slate-200 bg-white p-1 dark:border-white/10">
+                                <button class="pos-view-btn px-2.5 py-1" data-view="list" type="button">Liste</button>
+                                <button class="pos-view-btn px-2.5 py-1" data-view="compact" type="button">Petit</button>
+                                <button class="pos-view-btn px-2.5 py-1" data-view="medium" type="button">Moyen</button>
+                            </div>
+                            <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1 dark:border-white/10">Colonnes <input class="pos-grid-columns w-20 accent-[var(--brand-primary)]" type="range" min="2" max="6" value="4"></label>
+                    </div>
+                </details>
+
+                <div class="pos-products grid max-h-[calc(100vh-300px)] min-h-[420px] gap-2 overflow-y-auto pr-1" data-view="compact" style="--pos-columns: 4;">
+                    @foreach ($items as $item)
+                        @php($image = collect($item->images)->first())
+                            <button class="pos-product pos-item pos-product-card rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.03]"
+                            type="button"
+                            @disabled(! $allowOversell && $item->type !== 'service' && $item->stock_quantity <= 0)
+                            data-id="{{ $item->id }}"
+                            data-name="{{ $item->title }}"
+                            data-price="{{ $item->sale_price }}"
+                            data-stock="{{ $item->type === 'service' ? 999999 : $item->stock_quantity }}"
+                            data-low-threshold="{{ $item->min_stock_threshold }}"
+                            data-type="{{ $item->type }}"
+                            data-category-id="{{ $item->category_id ?? '' }}"
+                            data-brand-id="{{ $item->brand_id ?? '' }}"
+                            data-unit-id="{{ $item->unit_id ?? '' }}"
+                            data-sold="{{ (int) ($topSold[$item->id] ?? 0) }}"
+                            data-barcode="{{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->custom_barcode1 }}"
+                            data-search="{{ Str::lower($item->title.' '.$item->barcode.' '.$item->isbn.' '.$item->sku.' '.$item->custom_barcode1.' '.$item->item_code.' '.$item->category?->name.' '.$item->brand?->name.' '.$item->unit?->name) }}">
+                            <div class="pos-product-top flex items-start justify-between gap-3">
+                                @if ($image)
+                                    <img src="{{ asset('storage/'.$image) }}" alt="" class="size-12 rounded-lg object-cover">
+                                @else
+                                    <div class="grid size-12 place-items-center rounded-lg bg-slate-100 text-sm font-bold text-slate-500 dark:bg-white/10">{{ mb_substr($item->title, 0, 2) }}</div>
+                                @endif
+                                <x-status-pill :tone="$item->type === 'service' ? 'info' : ($item->is_low_stock ? 'warning' : 'success')">
+                                    {{ $item->type === 'service' ? 'Service' : $item->stock_quantity }}
+                                </x-status-pill>
+                            </div>
+                            <div class="pos-product-name mt-3 flex items-start gap-2">
+                                <span class="pos-favorite-star text-base text-slate-300" data-product-id="{{ $item->id }}">★</span>
+                                <p class="line-clamp-2 min-h-10 text-sm font-semibold">{{ $item->title }}</p>
+                            </div>
+                            <p class="pos-product-meta mt-2 truncate text-xs text-slate-500">{{ $item->category?->name ?? 'Sans catégorie' }} · {{ $item->barcode ?? $item->isbn ?? $item->sku ?? 'Sans code' }}</p>
+                            <div class="pos-product-footer mt-3 flex items-center justify-between gap-2">
+                                <p class="text-lg font-semibold">{{ $money($item->sale_price) }}</p>
+                                @if (($topSold[$item->id] ?? 0) > 0)
+                                    <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-white/10">{{ (int) $topSold[$item->id] }} vendus</span>
+                                @endif
+                            </div>
+                        </button>
+                    @endforeach
+                </div>
+                <div class="pos-empty-products hidden rounded-xl border border-dashed border-slate-200 p-10 text-center text-sm text-slate-500 dark:border-white/10">Aucun produit ne correspond à cette recherche.</div>
+            </article>
         </div>
 
-        <aside class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03] xl:sticky xl:top-24 xl:h-[calc(100vh-7rem)]">
-            <div class="flex items-center justify-between">
-                <h2 class="text-base font-semibold">Panier</h2>
-                <button class="pos-clear text-sm font-semibold text-rose-600" type="button">Vider</button>
-            </div>
-            <div class="pos-cart mt-4 space-y-3"></div>
-            <div class="pos-empty mt-8 rounded-lg border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-white/10">Scannez un article pour commencer.</div>
+        <aside class="pos-checkout-shell xl:sticky xl:top-20 xl:h-[calc(100vh-6rem)]">
+            <form id="pos-checkout-form" action="{{ route('pos.store') }}" method="POST" class="grid h-full min-h-0 gap-3 xl:grid-rows-[minmax(320px,1fr)_auto]" data-pos-checkout>
+                @csrf
+                <input class="pos-cart-json" name="cart" type="hidden" value="[]">
+                <input name="ticket_id" type="hidden" value="{{ $resumeTicket?->id }}">
 
-            <div class="mt-6 border-t border-slate-200 pt-4 dark:border-white/10">
-                <label class="text-xs font-semibold uppercase text-slate-500">Client</label>
-                <select class="mt-2 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                    <option>Client comptoir</option>
-                    @foreach ($clients as $client)
-                        <option>{{ $client->name }} · avance {{ $money($client->advance_balance) }}</option>
-                    @endforeach
-                </select>
-            </div>
-
-            <div class="mt-5 space-y-2 text-sm">
-                <div class="flex justify-between text-slate-500"><span>Sous-total</span><span class="pos-subtotal">0,00 DH</span></div>
-                <div class="flex justify-between text-slate-500"><span>TVA incluse</span><span class="pos-tax">0,00 DH</span></div>
-                <div class="flex justify-between text-lg font-semibold"><span>Total</span><span class="pos-total">0,00 DH</span></div>
-            </div>
-
-            <div class="mt-5 grid grid-cols-2 gap-2">
-                <button class="rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold dark:border-white/10">Carte</button>
-                <button class="rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold dark:border-white/10">Mixte</button>
-                <button class="rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold dark:border-white/10">Avoir</button>
-                <button class="rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white">Espèces</button>
-            </div>
-
-            <div class="mt-6">
-                <h3 class="text-sm font-semibold">Ventes récentes</h3>
-                <div class="mt-3 space-y-2">
-                    @foreach ($recentSales as $sale)
-                        <div class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs dark:bg-white/5">
-                            <span>{{ $sale->number }}</span>
-                            <strong>{{ $money($sale->total_amount) }}</strong>
+                <section class="pos-checkout-panel grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="border-b border-slate-200 p-4 dark:border-white/10">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <h2 class="text-lg font-semibold">Panier</h2>
+                                <p class="text-xs text-slate-500"><span class="pos-cart-count">0</span> ligne(s), panier en cours</p>
+                            </div>
+                            <button class="pos-clear rounded-lg px-3 py-1.5 text-sm font-semibold text-rose-600 hover:bg-rose-50" type="button">Vider</button>
                         </div>
-                    @endforeach
+                    </div>
+
+                    <div class="pos-cart-area min-h-0 overflow-y-auto bg-slate-50/70 p-3 dark:bg-slate-900/40">
+                        <div class="pos-cart space-y-2"></div>
+                        <div class="pos-empty rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 dark:border-white/10 dark:bg-white/[0.03]">Scannez un article pour commencer.</div>
+                    </div>
+                </section>
+
+                <section class="pos-payment-footer rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-white/10 dark:bg-slate-950">
+                    <div class="grid gap-2 sm:grid-cols-[118px_minmax(0,1fr)]">
+                        <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Remise</span><input name="discount_amount" value="0" min="0" step="0.01" type="number" class="pos-discount mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-sm dark:border-white/10"></label>
+                        <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+                            <div class="flex justify-between text-slate-500"><span>Sous-total</span><span class="pos-subtotal">0,00 DH</span></div>
+                            <div class="flex justify-between text-slate-500"><span>TVA</span><span class="pos-tax">0,00 DH</span></div>
+                            <div class="flex justify-between text-slate-500"><span>Remise</span><span class="pos-discount-label">0,00 DH</span></div>
+                            <div class="flex justify-between text-slate-500"><span>Monnaie</span><span class="pos-change">0,00 DH</span></div>
+                            <div class="col-span-2 flex justify-between text-base font-semibold"><span>Total</span><span class="pos-total">0,00 DH</span></div>
+                            <div class="col-span-2 flex justify-between text-xs font-semibold"><span>Reste à payer</span><span class="pos-remaining text-rose-600">0,00 DH</span></div>
+                        </div>
+                    </div>
+
+                    <div class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                        <label class="block rounded-lg border border-slate-200 px-2 py-1.5 dark:border-white/10"><span class="text-[11px] font-semibold text-slate-500">Espèces</span><input name="cash_amount" min="0" step="0.01" type="number" class="pos-payment h-6 w-full border-0 px-0 text-sm font-semibold" placeholder="0"></label>
+                        <label class="block rounded-lg border border-slate-200 px-2 py-1.5 dark:border-white/10"><span class="text-[11px] font-semibold text-slate-500">Carte</span><input name="card_amount" min="0" step="0.01" type="number" class="pos-payment h-6 w-full border-0 px-0 text-sm font-semibold" placeholder="0"></label>
+                        <label class="block rounded-lg border border-slate-200 px-2 py-1.5 dark:border-white/10"><span class="text-[11px] font-semibold text-slate-500">Virement</span><input name="transfer_amount" min="0" step="0.01" type="number" class="pos-payment h-6 w-full border-0 px-0 text-sm font-semibold" placeholder="0"></label>
+                        <label class="block rounded-lg border border-slate-200 px-2 py-1.5 dark:border-white/10"><span class="text-[11px] font-semibold text-slate-500">Avance</span><input name="advance_amount" min="0" step="0.01" type="number" class="pos-payment h-6 w-full border-0 px-0 text-sm font-semibold" placeholder="0"></label>
+                    </div>
+
+                    <div class="mt-2 grid grid-cols-3 gap-1.5">
+                        <button class="pos-fill-cash rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold dark:border-white/10" type="button">Espèces</button>
+                        <button class="pos-fill-card rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold dark:border-white/10" type="button">Carte</button>
+                        <button class="pos-exact-split rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold dark:border-white/10" type="button">50/50</button>
+                    </div>
+
+                    <div class="mt-2 grid grid-cols-[1fr_1.5fr] gap-2">
+                        <button class="pos-hold-submit rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50" type="submit" formaction="{{ route('pos.tickets.store') }}">
+                            Mettre en attente
+                        </button>
+                        <button class="pos-submit rounded-lg bg-brand px-4 py-2.5 text-base font-bold text-white shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled>
+                            <span class="pos-submit-label">Ajouter un paiement</span>
+                        </button>
+                    </div>
+                </section>
+            </form>
+        </aside>
+
+        <dialog class="pos-item-dialog w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+            <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-brand">Détail ligne caisse</p>
+                        <h2 class="pos-dialog-title mt-1 truncate text-xl font-semibold">Article</h2>
+                        <p class="pos-dialog-meta mt-1 text-sm text-slate-500">Code · stock</p>
+                    </div>
+                    <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
                 </div>
             </div>
-        </aside>
+            <div class="grid gap-4 p-5">
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <label class="block">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Quantité</span>
+                        <input class="pos-dialog-quantity mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" type="number" min="1" step="1" value="1">
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Prix de vente</span>
+                        <input class="pos-dialog-price mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-900" type="number" min="0" step="0.01" @disabled(! $priceEditable)>
+                    </label>
+                </div>
+                @unless ($priceEditable)
+                    <p class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-white/5">Le prix est verrouillé par les paramètres de caisse. Activez “Prix modifiable” dans Paramètres pour autoriser les changements au comptoir.</p>
+                @endunless
+                <label class="block">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Note ligne</span>
+                    <textarea class="pos-dialog-note mt-1 min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" maxlength="160" placeholder="Ex: remise manuelle, édition spéciale..."></textarea>
+                </label>
+                <div class="grid gap-2 sm:grid-cols-[1fr_1.4fr]">
+                    <button class="dialog-close rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold dark:border-white/10" type="button">Annuler</button>
+                    <button class="pos-dialog-save rounded-lg bg-brand px-4 py-3 text-sm font-bold text-white" type="button">Appliquer à la caisse</button>
+                </div>
+            </div>
+        </dialog>
     </section>
 </x-layouts.app>

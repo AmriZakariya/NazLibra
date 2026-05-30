@@ -18,6 +18,32 @@ if (localStorage.getItem('librairepro-theme') === 'dark') {
     document.documentElement.classList.add('dark');
 }
 
+const showToast = (message, actionLabel = null, action = null) => {
+    let container = document.querySelector('.app-toast-stack');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'app-toast-stack';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'app-toast';
+    toast.innerHTML = `
+        <span>${message}</span>
+        ${actionLabel ? `<button class="app-toast-action" type="button">${actionLabel}</button>` : ''}
+        <button class="app-toast-close" type="button" aria-label="Fermer">×</button>
+    `;
+    container.appendChild(toast);
+
+    const close = () => toast.remove();
+    toast.querySelector('.app-toast-close')?.addEventListener('click', close);
+    toast.querySelector('.app-toast-action')?.addEventListener('click', () => {
+        action?.();
+        close();
+    });
+    window.setTimeout(close, 6000);
+};
+
 document.querySelectorAll('[data-sidebar]').forEach((sidebar) => {
     const toggle = sidebar.querySelector('[data-sidebar-toggle]');
     const current = sidebar.querySelector('[data-current-nav], [aria-current="page"]');
@@ -31,7 +57,8 @@ document.querySelectorAll('[data-sidebar]').forEach((sidebar) => {
         toggle?.setAttribute('aria-label', collapsed ? 'Ouvrir le menu' : 'Réduire le menu');
     };
 
-    setCollapsed(localStorage.getItem('librairepro-sidebar') === 'collapsed');
+    const savedSidebarState = localStorage.getItem('librairepro-sidebar');
+    setCollapsed(savedSidebarState === null || savedSidebarState === 'collapsed');
 
     groups.forEach((group) => {
         if (openGroups.includes(group.dataset.sidebarGroup)) {
@@ -70,58 +97,531 @@ document.querySelectorAll('.app-rtl-toggle').forEach((button) => {
     });
 });
 
-const cart = [];
-const renderCart = () => {
-    const cartNode = document.querySelector('.pos-cart');
-    const emptyNode = document.querySelector('.pos-empty');
-    if (!cartNode) return;
+document.querySelectorAll('.pos-screen').forEach((screen) => {
+    const cart = [];
+    const cartNode = screen.querySelector('.pos-cart');
+    const emptyNode = screen.querySelector('.pos-empty');
+    const products = [...screen.querySelectorAll('.pos-product')];
+    const search = screen.querySelector('.pos-search');
+    const typeFilter = screen.querySelector('.pos-type-filter');
+    const stockFilter = screen.querySelector('.pos-stock-filter');
+    const categoryFilter = screen.querySelector('.pos-category-filter');
+    const brandFilter = screen.querySelector('.pos-brand-filter');
+    const unitFilter = screen.querySelector('.pos-unit-filter');
+    const checkout = screen.querySelector('[data-pos-checkout]');
+    const cartJson = screen.querySelector('.pos-cart-json');
+    const submit = screen.querySelector('.pos-submit');
+    const cartCount = screen.querySelector('.pos-cart-count');
+    const discountInput = screen.querySelector('.pos-discount');
+    const paymentInputs = [...screen.querySelectorAll('.pos-payment')];
+    const viewButtons = [...screen.querySelectorAll('.pos-view-btn')];
+    const productsGrid = screen.querySelector('.pos-products');
+    const columnsInput = screen.querySelector('.pos-grid-columns');
+    const submitLabel = screen.querySelector('.pos-submit-label');
+    const suggestionButtons = [...screen.querySelectorAll('.pos-suggestion-btn')];
+    const itemDialog = screen.querySelector('.pos-item-dialog');
+    const dialogTitle = itemDialog?.querySelector('.pos-dialog-title');
+    const dialogMeta = itemDialog?.querySelector('.pos-dialog-meta');
+    const dialogQuantity = itemDialog?.querySelector('.pos-dialog-quantity');
+    const dialogPrice = itemDialog?.querySelector('.pos-dialog-price');
+    const dialogNote = itemDialog?.querySelector('.pos-dialog-note');
+    const priceEditable = screen.dataset.priceEditable === '1';
+    const allowOversell = screen.dataset.allowOversell === '1';
+    const submitButtons = [...screen.querySelectorAll('button[type="submit"]')];
+    let activeSubmitter = null;
+    let submitting = false;
+    let suggestionMode = 'all';
+    let favoriteIds = JSON.parse(localStorage.getItem('librairepro-pos-favorites') || '[]').map(Number);
 
-    cartNode.innerHTML = cart.map((item, index) => `
-        <div class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 dark:border-white/10">
-            <div class="min-w-0">
-                <p class="truncate text-sm font-semibold">${item.name}</p>
-                <p class="text-xs text-slate-500">${item.quantity} × ${money.format(item.price)}</p>
-            </div>
-            <button class="pos-remove rounded-md px-2 py-1 text-xs font-semibold text-rose-600" data-index="${index}" type="button">Retirer</button>
-        </div>
-    `).join('');
+    const setProductView = (view) => {
+        if (!productsGrid) return;
+        productsGrid.dataset.view = view;
+        localStorage.setItem('librairepro-pos-view', view);
+        viewButtons.forEach((button) => button.classList.toggle('is-active', button.dataset.view === view));
+    };
 
-    emptyNode?.classList.toggle('hidden', cart.length > 0);
-    const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const tax = subtotal * 0.2 / 1.2;
-    document.querySelector('.pos-subtotal').textContent = money.format(subtotal);
-    document.querySelector('.pos-tax').textContent = money.format(tax);
-    document.querySelector('.pos-total').textContent = money.format(subtotal);
-};
+    const refreshFavorites = () => {
+        products.forEach((product) => {
+            const active = favoriteIds.includes(Number(product.dataset.id));
+            product.dataset.favorite = active ? '1' : '0';
+            product.querySelector('.pos-favorite-star')?.classList.toggle('is-active', active);
+        });
+    };
 
-document.querySelectorAll('.pos-item').forEach((button) => {
-    button.addEventListener('click', () => {
-        const name = button.dataset.name;
-        const price = Number(button.dataset.price || 0);
-        const existing = cart.find((item) => item.name === name);
+    const setSuggestionMode = (mode) => {
+        suggestionMode = mode;
+        suggestionButtons.forEach((button) => button.classList.toggle('is-active', button.dataset.suggest === mode));
+        filterProducts();
+    };
 
-        if (existing) {
-            existing.quantity += 1;
-        } else {
-            cart.push({ name, price, quantity: 1 });
+    const setProductColumns = (columns) => {
+        if (!productsGrid) return;
+        productsGrid.style.setProperty('--pos-columns', String(columns));
+        localStorage.setItem('librairepro-pos-columns', String(columns));
+        if (columnsInput) columnsInput.value = String(columns);
+    };
+
+    const totals = () => {
+        const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        const discount = Math.min(Number(discountInput?.value || 0), subtotal);
+        const total = Math.max(0, subtotal - discount);
+        const paid = paymentInputs.reduce((sum, input) => sum + Number(input.value || 0), 0);
+        return { subtotal, discount, total, paid, tax: total * 0.2 / 1.2, remaining: Math.max(0, total - paid), change: Math.max(0, paid - total) };
+    };
+
+    const stockLabel = (item) => item.stock >= 999999 ? 'illimité' : item.stock;
+
+    const canExceedStock = (item) => allowOversell || item.type === 'service' || item.stock >= 999999;
+
+    const normalizeQuantity = (item, quantity, warn = false) => {
+        const requested = Math.max(1, Number(quantity || 1));
+        if (canExceedStock(item)) return requested;
+
+        const limited = Math.min(item.stock, requested);
+        if (warn && requested > limited) {
+            showToast(`Stock disponible atteint pour ${item.name}: ${stockLabel(item)} unité(s).`);
         }
 
+        return limited;
+    };
+
+    const renderCart = () => {
+        if (!cartNode) return;
+
+        cartNode.innerHTML = cart.map((item, index) => `
+            <div class="pos-cart-line rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-950/60" data-index="${index}">
+                <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+                    <div class="min-w-0">
+                        <p class="pos-cart-title">${item.name}</p>
+                        <p class="pos-cart-meta">${item.barcode || 'Sans code'} · ${money.format(item.price)} · stock ${stockLabel(item)}${item.note ? ` · ${item.note}` : ''}</p>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button class="pos-cart-edit grid size-8 place-items-center rounded-md bg-slate-100 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-200" data-index="${index}" type="button" title="Modifier">✎</button>
+                        <button class="pos-remove grid size-8 place-items-center rounded-md bg-rose-50 text-base font-bold text-rose-600" data-index="${index}" type="button">×</button>
+                    </div>
+                </div>
+                <div class="mt-3 flex items-center justify-between gap-3">
+                    <div class="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5">
+                        <button class="pos-qty h-8 w-8 text-sm font-bold" data-index="${index}" data-delta="-1" type="button">-</button>
+                        <input class="pos-qty-input h-8 w-12 border-x border-slate-200 text-center text-sm font-semibold dark:border-white/10" data-index="${index}" value="${item.quantity}" inputmode="numeric">
+                        <button class="pos-qty h-8 w-8 text-sm font-bold" data-index="${index}" data-delta="1" type="button">+</button>
+                    </div>
+                    <div class="text-right">
+                        <span class="block text-[11px] font-semibold uppercase tracking-normal text-slate-500">Ligne</span>
+                        <strong class="text-base">${money.format(item.price * item.quantity)}</strong>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        emptyNode?.classList.toggle('hidden', cart.length > 0);
+        if (cartCount) {
+            cartCount.textContent = String(cart.length);
+        }
+        if (cartJson) {
+            cartJson.value = JSON.stringify(cart.map(({ id, quantity, price, originalPrice, note }) => ({ id, quantity, price, original_price: originalPrice, note })));
+        }
+
+        const total = totals();
+        screen.querySelector('.pos-subtotal').textContent = money.format(total.subtotal);
+        screen.querySelector('.pos-tax').textContent = money.format(total.tax);
+        screen.querySelector('.pos-discount-label').textContent = money.format(total.discount);
+        screen.querySelector('.pos-total').textContent = money.format(total.total);
+        screen.querySelector('.pos-remaining').textContent = money.format(total.remaining);
+        screen.querySelector('.pos-change').textContent = money.format(total.change);
+        if (submit) {
+            const blocked = cart.length === 0 || total.paid + 0.001 < total.total;
+            submit.disabled = false;
+            submit.classList.toggle('is-blocked', blocked);
+            submit.setAttribute('aria-disabled', blocked ? 'true' : 'false');
+        }
+        if (submitLabel) {
+            submitLabel.textContent = cart.length === 0
+                ? 'Panier vide'
+                : (total.paid + 0.001 < total.total ? `Reste ${money.format(total.remaining)}` : `Encaisser ${money.format(total.total)}`);
+        }
+    };
+
+    const addProduct = (button) => {
+        const id = Number(button.dataset.id || 0);
+        const stock = Number(button.dataset.stock || 0);
+        const existing = cart.find((item) => item.id === id);
+        if (existing) {
+            const nextQuantity = normalizeQuantity(existing, existing.quantity + 1, true);
+            existing.quantity = nextQuantity;
+        } else {
+            cart.push({
+                id,
+                name: button.dataset.name,
+                price: Number(button.dataset.price || 0),
+                originalPrice: Number(button.dataset.price || 0),
+                stock,
+                type: button.dataset.type || 'book',
+                barcode: button.dataset.barcode || '',
+                quantity: 1,
+                note: '',
+            });
+        }
         renderCart();
+    };
+
+    const openItemDialog = (item, index = null) => {
+        if (!itemDialog || !item) return;
+        itemDialog.dataset.mode = index === null ? 'add' : 'edit';
+        itemDialog.dataset.index = index === null ? '' : String(index);
+        itemDialog.dataset.productId = String(item.id);
+        itemDialog.dataset.productName = item.name;
+        itemDialog.dataset.productBarcode = item.barcode || '';
+        itemDialog.dataset.productStock = String(item.stock);
+        itemDialog.dataset.productType = item.type || 'book';
+        itemDialog.dataset.productOriginalPrice = String(item.originalPrice ?? item.price);
+        if (dialogTitle) dialogTitle.textContent = item.name;
+        if (dialogMeta) dialogMeta.textContent = `${item.barcode || 'Sans code'} · stock ${stockLabel(item)}${canExceedStock(item) ? ' · hors stock autorisé' : ''}`;
+        if (dialogQuantity) dialogQuantity.value = String(item.quantity || 1);
+        if (dialogPrice) {
+            dialogPrice.value = Number(item.price || 0).toFixed(2);
+            dialogPrice.disabled = !priceEditable;
+        }
+        if (dialogNote) dialogNote.value = item.note || '';
+        itemDialog.showModal();
+        window.setTimeout(() => dialogQuantity?.focus(), 40);
+    };
+
+    const productFromButton = (button) => ({
+        id: Number(button.dataset.id || 0),
+        name: button.dataset.name,
+        price: Number(button.dataset.price || 0),
+        originalPrice: Number(button.dataset.price || 0),
+        stock: Number(button.dataset.stock || 0),
+        type: button.dataset.type || 'book',
+        barcode: button.dataset.barcode || '',
+        quantity: 1,
+        note: '',
     });
-});
 
-document.addEventListener('click', (event) => {
-    const button = event.target.closest('.pos-remove');
-    if (!button) return;
-    cart.splice(Number(button.dataset.index), 1);
-    renderCart();
-});
+    const applyDialogItem = () => {
+        if (!itemDialog || !dialogQuantity || !dialogPrice) return;
+        const mode = itemDialog.dataset.mode;
+        const dialogItem = {
+            name: itemDialog.dataset.productName,
+            stock: Number(itemDialog.dataset.productStock || 0),
+            type: itemDialog.dataset.productType || 'book',
+        };
+        const quantity = normalizeQuantity(dialogItem, Number(dialogQuantity.value || 1), true);
+        const originalPrice = Number(itemDialog.dataset.productOriginalPrice || 0);
+        const price = priceEditable ? Math.max(0, Number(dialogPrice.value || 0)) : originalPrice;
+        const note = dialogNote?.value?.trim() || '';
 
-document.querySelectorAll('.pos-clear').forEach((button) => {
-    button.addEventListener('click', () => {
+        if (mode === 'edit') {
+            const item = cart[Number(itemDialog.dataset.index)];
+            if (!item) return;
+            item.quantity = quantity;
+            item.price = price;
+            item.note = note;
+        } else {
+            cart.push({
+                id: Number(itemDialog.dataset.productId || 0),
+                name: itemDialog.dataset.productName,
+                barcode: itemDialog.dataset.productBarcode || '',
+                stock: Number(itemDialog.dataset.productStock || 0),
+                type: itemDialog.dataset.productType || 'book',
+                originalPrice,
+                price,
+                quantity,
+                note,
+            });
+        }
+
+        itemDialog.close();
+        renderCart();
+    };
+
+    const filterProducts = () => {
+        const query = (search?.value || '').trim().toLowerCase();
+        const type = typeFilter?.value || 'all';
+        const stock = stockFilter?.value || 'available';
+        const category = categoryFilter?.value || 'all';
+        const brand = brandFilter?.value || 'all';
+        const unit = unitFilter?.value || 'all';
+        let visible = 0;
+
+        products.forEach((product) => {
+            const matchesQuery = !query || product.dataset.search?.includes(query) || product.dataset.barcode?.toLowerCase() === query;
+            const matchesType = type === 'all' || product.dataset.type === type;
+            const matchesCategory = category === 'all' || product.dataset.categoryId === category;
+            const matchesBrand = brand === 'all' || product.dataset.brandId === brand;
+            const matchesUnit = unit === 'all' || product.dataset.unitId === unit;
+            const productStock = Number(product.dataset.stock || 0);
+            const lowThreshold = Number(product.dataset.lowThreshold || 3);
+            const matchesStock = stock === 'all' || (stock === 'available' && (allowOversell || productStock > 0 || product.dataset.type === 'service')) || (stock === 'low' && product.dataset.type !== 'service' && productStock > 0 && productStock <= lowThreshold);
+            const matchesSuggestion = suggestionMode === 'all'
+                || (suggestionMode === 'favorites' && product.dataset.favorite === '1')
+                || (suggestionMode === 'top' && Number(product.dataset.sold || 0) > 0);
+            const show = matchesQuery && matchesType && matchesCategory && matchesBrand && matchesUnit && matchesStock && matchesSuggestion;
+            product.classList.toggle('hidden', !show);
+            if (show) visible += 1;
+        });
+
+        screen.querySelector('.pos-visible-count').textContent = String(visible);
+        screen.querySelector('.pos-empty-products')?.classList.toggle('hidden', visible > 0);
+        return visible;
+    };
+
+    const addBySearch = () => {
+        const query = (search?.value || '').trim().toLowerCase();
+        if (!query) return false;
+        const exact = products.find((product) => !product.disabled && product.dataset.barcode?.toLowerCase() === query);
+        if (exact) {
+            addProduct(exact);
+            search.value = '';
+            filterProducts();
+            return true;
+        }
+        const visibleProducts = products.filter((product) => !product.classList.contains('hidden') && !product.disabled);
+        if (visibleProducts.length === 1) {
+            addProduct(visibleProducts[0]);
+            search.value = '';
+            filterProducts();
+            return true;
+        }
+        return false;
+    };
+
+    products.forEach((button) => {
+        let pressTimer = null;
+        let longPress = false;
+
+        button.addEventListener('pointerdown', () => {
+            longPress = false;
+            pressTimer = window.setTimeout(() => {
+                longPress = true;
+                openItemDialog(productFromButton(button));
+            }, 520);
+        });
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach((eventName) => {
+            button.addEventListener(eventName, () => {
+                window.clearTimeout(pressTimer);
+            });
+        });
+        button.addEventListener('click', (event) => {
+            if (longPress) {
+                event.preventDefault();
+                return;
+            }
+            addProduct(button);
+        });
+    });
+    search?.addEventListener('input', filterProducts);
+    search?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            addBySearch();
+        }
+    });
+    typeFilter?.addEventListener('change', filterProducts);
+    stockFilter?.addEventListener('change', filterProducts);
+    categoryFilter?.addEventListener('change', filterProducts);
+    brandFilter?.addEventListener('change', filterProducts);
+    unitFilter?.addEventListener('change', filterProducts);
+
+    screen.addEventListener('click', (event) => {
+        const favorite = event.target.closest('.pos-favorite-star');
+        if (favorite) {
+            event.preventDefault();
+            event.stopPropagation();
+            const id = Number(favorite.dataset.productId);
+            favoriteIds = favoriteIds.includes(id) ? favoriteIds.filter((item) => item !== id) : [...favoriteIds, id];
+            localStorage.setItem('librairepro-pos-favorites', JSON.stringify(favoriteIds));
+            refreshFavorites();
+            filterProducts();
+            return;
+        }
+
+        const remove = event.target.closest('.pos-remove');
+        if (remove) {
+            cart.splice(Number(remove.dataset.index), 1);
+            renderCart();
+        }
+
+        const edit = event.target.closest('.pos-cart-edit');
+        if (edit) {
+            openItemDialog(cart[Number(edit.dataset.index)], Number(edit.dataset.index));
+        }
+
+        const qty = event.target.closest('.pos-qty');
+        if (qty) {
+            const item = cart[Number(qty.dataset.index)];
+            if (!item) return;
+            item.quantity = normalizeQuantity(item, item.quantity + Number(qty.dataset.delta), true);
+            renderCart();
+        }
+    });
+
+    screen.addEventListener('dblclick', (event) => {
+        const line = event.target.closest('.pos-cart-line');
+        if (line) openItemDialog(cart[Number(line.dataset.index)], Number(line.dataset.index));
+    });
+
+    itemDialog?.querySelector('.pos-dialog-save')?.addEventListener('click', applyDialogItem);
+    itemDialog?.querySelectorAll('.dialog-close').forEach((button) => {
+        button.addEventListener('click', () => itemDialog.close());
+    });
+
+    screen.addEventListener('input', (event) => {
+        const input = event.target.closest('.pos-qty-input');
+        if (input) {
+            const item = cart[Number(input.dataset.index)];
+            if (!item) return;
+            item.quantity = normalizeQuantity(item, Number(input.value || 1), true);
+            renderCart();
+        }
+        if (event.target.matches('.pos-payment, .pos-discount')) {
+            renderCart();
+        }
+    });
+
+    const setCheckoutBusy = (busy, submitter = null) => {
+        submitting = busy;
+        submitButtons.forEach((button) => {
+            button.disabled = busy;
+        });
+
+        if (busy && submitter) {
+            submitter.dataset.originalText = submitter.textContent.trim();
+            submitter.textContent = 'Traitement...';
+        }
+    };
+
+    screen.querySelector('.pos-clear')?.addEventListener('click', () => {
+        if (cart.length === 0) {
+            showToast('Le panier est déjà vide.');
+            return;
+        }
+
+        const previousCart = cart.map((item) => ({ ...item }));
         cart.splice(0, cart.length);
         renderCart();
+        showToast('Panier vidé.', 'Annuler', () => {
+            cart.splice(0, cart.length, ...previousCart);
+            renderCart();
+        });
     });
+
+    screen.querySelector('.pos-clear-filters')?.addEventListener('click', () => {
+        if (search) search.value = '';
+        if (typeFilter) typeFilter.value = 'all';
+        if (stockFilter) stockFilter.value = 'available';
+        if (categoryFilter) categoryFilter.value = 'all';
+        if (brandFilter) brandFilter.value = 'all';
+        if (unitFilter) unitFilter.value = 'all';
+        setSuggestionMode('all');
+        filterProducts();
+        search?.focus();
+    });
+
+    screen.querySelector('.pos-fill-cash')?.addEventListener('click', () => {
+        const total = totals();
+        screen.querySelector('input[name="cash_amount"]').value = total.total.toFixed(2);
+        screen.querySelector('input[name="card_amount"]').value = '';
+        screen.querySelector('input[name="transfer_amount"]').value = '';
+        renderCart();
+    });
+
+    screen.querySelector('.pos-fill-card')?.addEventListener('click', () => {
+        const total = totals();
+        screen.querySelector('input[name="card_amount"]').value = total.total.toFixed(2);
+        screen.querySelector('input[name="cash_amount"]').value = '';
+        screen.querySelector('input[name="transfer_amount"]').value = '';
+        renderCart();
+    });
+
+    screen.querySelector('.pos-exact-split')?.addEventListener('click', () => {
+        const total = totals();
+        const firstHalf = Math.floor(total.total * 100 / 2) / 100;
+        screen.querySelector('input[name="cash_amount"]').value = firstHalf.toFixed(2);
+        screen.querySelector('input[name="card_amount"]').value = (total.total - firstHalf).toFixed(2);
+        screen.querySelector('input[name="transfer_amount"]').value = '';
+        renderCart();
+    });
+
+    checkout?.addEventListener('submit', (event) => {
+        const submitter = event.submitter || activeSubmitter;
+        renderCart();
+
+        if (submitting) {
+            event.preventDefault();
+            return;
+        }
+
+        if (cart.length === 0) {
+            event.preventDefault();
+            showToast('Ajoutez au moins un article avant de valider.');
+            search?.focus();
+            return;
+        }
+
+        if (submitter?.classList.contains('pos-hold-submit')) {
+            setCheckoutBusy(true, submitter);
+            return;
+        }
+
+        const total = totals();
+        if (total.paid + 0.001 < total.total) {
+            event.preventDefault();
+            showToast(`Paiement insuffisant. Reste ${money.format(total.remaining)}.`);
+            screen.querySelector('input[name="cash_amount"]')?.focus();
+            return;
+        }
+
+        setCheckoutBusy(true, submitter);
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'F2') {
+            event.preventDefault();
+            search?.focus();
+        }
+        if (event.key === 'F4') {
+            event.preventDefault();
+            screen.querySelector('input[name="cash_amount"]')?.focus();
+        }
+    });
+
+    viewButtons.forEach((button) => button.addEventListener('click', () => setProductView(button.dataset.view)));
+    suggestionButtons.forEach((button) => button.addEventListener('click', () => setSuggestionMode(button.dataset.suggest)));
+    submitButtons.forEach((button) => button.addEventListener('click', () => {
+        activeSubmitter = button;
+    }));
+    columnsInput?.addEventListener('input', () => setProductColumns(columnsInput.value));
+    setProductView(localStorage.getItem('librairepro-pos-view') || 'compact');
+    setProductColumns(localStorage.getItem('librairepro-pos-columns') || columnsInput?.value || 4);
+    refreshFavorites();
+    screen.querySelectorAll('.pos-print-ticket, .pos-print-pdf').forEach((button) => {
+        button.addEventListener('click', () => window.print());
+    });
+
+    filterProducts();
+    try {
+        const resumeCart = JSON.parse(screen.dataset.resumeCart || '[]');
+        resumeCart.forEach((line) => {
+            const product = products.find((item) => Number(item.dataset.id) === Number(line.item_id || line.id));
+            const quantity = Math.max(1, Number(line.quantity || 1));
+            if (product) {
+                addProduct(product);
+                const added = cart.find((item) => item.id === Number(product.dataset.id));
+                if (added) {
+                    added.quantity = Math.min(added.stock, quantity);
+                    added.quantity = normalizeQuantity(added, quantity, false);
+                    added.price = Number(line.price || line.unit_price || product.dataset.price || added.price);
+                    added.originalPrice = Number(line.original_price || product.dataset.price || added.originalPrice);
+                    added.note = line.note || '';
+                }
+            }
+        });
+    } catch {
+        // Ignore malformed resume payloads; the server still owns the ticket.
+    }
+    renderCart();
 });
 
 document.querySelectorAll('.catalog-check-all').forEach((checkbox) => {
@@ -140,6 +640,62 @@ document.querySelectorAll('.catalog-labels').forEach((button) => {
             url.searchParams.set('items', ids.join(','));
         }
         window.location.href = url.toString();
+    });
+});
+
+document.querySelectorAll('.label-select-all').forEach((button) => {
+    button.addEventListener('click', () => {
+        const form = button.closest('form');
+        const checks = [...(form?.querySelectorAll('.label-item-check') || [])];
+        const shouldCheck = checks.some((check) => !check.checked);
+        checks.forEach((check) => {
+            check.checked = shouldCheck;
+        });
+        button.textContent = shouldCheck ? 'Tout désélectionner' : 'Tout sélectionner';
+        updateLabelSelection(form);
+    });
+});
+
+function updateLabelSelection(form) {
+    if (!form) return;
+
+    const checked = [...form.querySelectorAll('.label-item-check:checked')];
+    const selectedCount = form.querySelector('.label-selected-count');
+    const totalCount = form.querySelector('.label-total-count');
+    const selectAll = form.querySelector('.label-select-all');
+    const allChecks = [...form.querySelectorAll('.label-item-check')];
+    const total = checked.reduce((sum, checkbox) => {
+        const quantity = form.querySelector(`[name="quantities[${checkbox.value}]"]`);
+        return sum + Math.max(1, Number(quantity?.value || 1));
+    }, 0);
+
+    if (selectedCount) selectedCount.textContent = String(checked.length);
+    if (totalCount) totalCount.textContent = String(total);
+    if (selectAll) {
+        selectAll.textContent = allChecks.length > 0 && allChecks.every((check) => check.checked)
+            ? 'Tout désélectionner'
+            : 'Tout sélectionner';
+    }
+}
+
+document.querySelectorAll('.label-workbench').forEach((form) => {
+    updateLabelSelection(form);
+
+    form.querySelectorAll('[data-label-row]').forEach((row) => {
+        row.addEventListener('click', (event) => {
+            if (event.target.closest('input, button, select, textarea, a')) return;
+
+            const checkbox = row.querySelector('.label-item-check');
+            if (!checkbox) return;
+
+            checkbox.checked = !checkbox.checked;
+            checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
+
+    form.querySelectorAll('.label-item-check, .label-quantity').forEach((input) => {
+        input.addEventListener('change', () => updateLabelSelection(form));
+        input.addEventListener('input', () => updateLabelSelection(form));
     });
 });
 
@@ -213,6 +769,130 @@ document.querySelectorAll('[data-yajra-table]').forEach((table) => {
     });
 });
 
+document.querySelectorAll('[data-contact-table]').forEach((table) => {
+    const isSupplier = table.dataset.kind === 'supplier';
+    const clientColumns = [
+        { data: 'checkbox', name: 'checkbox', orderable: false, searchable: false },
+        { data: 'code', name: 'code', orderable: true, searchable: true },
+        { data: 'name', name: 'name', orderable: true, searchable: true },
+        { data: 'mobile', name: 'phone', orderable: true, searchable: true },
+        { data: 'email', name: 'email', orderable: true, searchable: true },
+        { data: 'location', name: 'city', orderable: true, searchable: true },
+        { data: 'credit_limit', name: 'credit_limit', orderable: true, searchable: false },
+        { data: 'outstanding_balance', name: 'outstanding_balance', orderable: true, searchable: false },
+        { data: 'advance_balance', name: 'advance_balance', orderable: true, searchable: false },
+        { data: 'status', name: 'status', orderable: true, searchable: false },
+        { data: 'action', name: 'action', orderable: false, searchable: false },
+    ];
+    const supplierColumns = [
+        { data: 'checkbox', name: 'checkbox', orderable: false, searchable: false },
+        { data: 'code', name: 'code', orderable: true, searchable: true },
+        { data: 'name', name: 'name', orderable: true, searchable: true },
+        { data: 'mobile', name: 'phone', orderable: true, searchable: true },
+        { data: 'email', name: 'email', orderable: true, searchable: true },
+        { data: 'previous_balance', name: 'opening_balance', orderable: true, searchable: false },
+        { data: 'purchase_due', name: 'purchases_due_sum', orderable: true, searchable: false },
+        { data: 'purchase_return_due', name: 'purchase_returns_due_sum', orderable: true, searchable: false },
+        { data: 'supplier_total', name: 'supplier_total', orderable: false, searchable: false },
+        { data: 'status', name: 'status', orderable: true, searchable: false },
+        { data: 'action', name: 'action', orderable: false, searchable: false },
+    ];
+
+    new DataTable(table, {
+        ajax: table.dataset.ajaxUrl,
+        columns: isSupplier ? supplierColumns : clientColumns,
+        order: [[2, 'asc']],
+        pageLength: Number(table.dataset.length || 25),
+        processing: true,
+        serverSide: true,
+        autoWidth: false,
+        scrollX: true,
+        language: {
+            search: 'Recherche table',
+            lengthMenu: 'Afficher _MENU_ lignes',
+            info: 'Affichage _START_-_END_ sur _TOTAL_',
+            infoEmpty: 'Aucune ligne',
+            infoFiltered: '(filtré depuis _MAX_ lignes)',
+            zeroRecords: 'Aucun contact trouvé',
+            processing: 'Chargement...',
+            emptyTable: 'Aucun contact disponible',
+            paginate: {
+                first: 'Début',
+                previous: 'Précédent',
+                next: 'Suivant',
+                last: 'Fin',
+            },
+        },
+        columnDefs: [
+            { targets: [0], className: 'dt-center' },
+            { targets: [1], className: 'font-mono text-xs' },
+            { targets: [-1], className: 'dt-right' },
+            { targets: '_all', defaultContent: '' },
+        ],
+    });
+});
+
+document.querySelectorAll('[data-advance-table]').forEach((table) => {
+    new DataTable(table, {
+        ajax: table.dataset.ajaxUrl,
+        columns: [
+            { data: 'checkbox', name: 'checkbox', orderable: false, searchable: false },
+            { data: 'paid_at', name: 'paid_at', orderable: true, searchable: false },
+            { data: 'number', name: 'number', orderable: true, searchable: true },
+            { data: 'customer', name: 'customer', orderable: false, searchable: true },
+            { data: 'mobile', name: 'mobile', orderable: false, searchable: true },
+            { data: 'payment_method', name: 'payment_method', orderable: true, searchable: true },
+            { data: 'reference', name: 'reference', orderable: true, searchable: true },
+            { data: 'amount', name: 'amount', orderable: true, searchable: false },
+            { data: 'status', name: 'status', orderable: true, searchable: false },
+            { data: 'action', name: 'action', orderable: false, searchable: false },
+        ],
+        order: [[1, 'desc']],
+        pageLength: Number(table.dataset.length || 25),
+        processing: true,
+        serverSide: true,
+        autoWidth: false,
+        scrollX: true,
+        language: {
+            search: 'Recherche table',
+            lengthMenu: 'Afficher _MENU_ lignes',
+            info: 'Affichage _START_-_END_ sur _TOTAL_',
+            infoEmpty: 'Aucune avance',
+            infoFiltered: '(filtré depuis _MAX_ lignes)',
+            zeroRecords: 'Aucune avance trouvée',
+            processing: 'Chargement...',
+            emptyTable: 'Aucune avance disponible',
+            paginate: {
+                first: 'Début',
+                previous: 'Précédent',
+                next: 'Suivant',
+                last: 'Fin',
+            },
+        },
+        columnDefs: [
+            { targets: [0], className: 'dt-center' },
+            { targets: [2], className: 'font-mono text-xs' },
+            { targets: [7], className: 'dt-right' },
+            { targets: [-1], className: 'dt-right' },
+            { targets: '_all', defaultContent: '' },
+        ],
+    });
+});
+
+document.addEventListener('click', (event) => {
+    const trigger = event.target.closest('[data-advance-detail]');
+    if (!trigger) return;
+
+    const dialog = document.querySelector('[data-advance-receipt-dialog]');
+    if (!dialog) return;
+
+    const details = JSON.parse(trigger.dataset.advanceDetail || '{}');
+    dialog.querySelectorAll('[data-advance-receipt-value]').forEach((node) => {
+        node.textContent = details[node.dataset.advanceReceiptValue] || '—';
+    });
+    dialog.showModal();
+});
+
 document.querySelectorAll('.theme-swatch').forEach((button) => {
     button.addEventListener('click', () => {
         document.documentElement.style.setProperty('--brand-primary', button.dataset.color);
@@ -221,6 +901,308 @@ document.querySelectorAll('.theme-swatch').forEach((button) => {
             primaryInput.value = button.dataset.color;
         }
     });
+});
+
+document.querySelectorAll('[data-collapsible-menu]').forEach((menu, index) => {
+    const key = `librairepro-menu:${menu.dataset.menuKey || index}`;
+    const stateNode = menu.querySelector('[data-collapsible-menu-state]');
+    const saved = localStorage.getItem(key);
+
+    if (saved === 'open') {
+        menu.open = true;
+    } else if (saved === 'closed') {
+        menu.open = false;
+    }
+
+    const refresh = () => {
+        if (stateNode) {
+            stateNode.textContent = menu.open ? 'Masquer' : 'Afficher';
+        }
+    };
+
+    menu.addEventListener('toggle', () => {
+        localStorage.setItem(key, menu.open ? 'open' : 'closed');
+        refresh();
+    });
+    refresh();
+});
+
+document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
+    const lines = form.querySelector('[data-stock-adjustment-lines]');
+    const template = form.querySelector('[data-stock-adjustment-row-template]');
+    const addButton = form.querySelector('[data-stock-adjustment-add]');
+    const addMatchButton = form.querySelector('[data-stock-adjustment-add-match]');
+    const clearSearchButton = form.querySelector('[data-stock-adjustment-clear]');
+    const searchInput = form.querySelector('[data-stock-adjustment-search]');
+    const searchCountNode = form.querySelector('[data-stock-adjustment-search-count]');
+    const countNode = form.querySelector('[data-stock-adjustment-count]');
+    const totalNode = form.querySelector('[data-stock-adjustment-total]');
+    const selectOptions = new WeakMap();
+    let nextIndex = Number(form.dataset.nextIndex || lines?.querySelectorAll('[data-stock-adjustment-row]').length || 0);
+
+    if (!lines || !template || !addButton) return;
+
+    const normalize = (value) => String(value || '').trim().toLowerCase();
+    const escapeHtml = (value) => String(value || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
+    const itemSelects = () => [...lines.querySelectorAll('[data-stock-adjustment-item-select]')];
+
+    const cacheSelect = (select) => {
+        if (selectOptions.has(select)) return selectOptions.get(select);
+
+        const options = [...select.options].map((option) => ({
+            value: option.value,
+            text: option.textContent,
+            selected: option.selected,
+        }));
+        selectOptions.set(select, options);
+        return options;
+    };
+
+    const selectedOptionText = (select) => cacheSelect(select).find((option) => option.value === select.value)?.text || '';
+
+    const renderComboOptions = (select, query = '') => {
+        const combo = select.nextElementSibling?.matches?.('[data-stock-combobox]') ? select.nextElementSibling : null;
+        if (!combo) return;
+
+        const list = combo.querySelector('[data-stock-combobox-list]');
+        const normalized = normalize(query);
+        const matches = cacheSelect(select)
+            .filter((option) => option.value)
+            .filter((option) => !normalized || normalize(option.text).includes(normalized) || normalize(option.value).includes(normalized))
+            .slice(0, 60);
+
+        list.innerHTML = matches.length
+            ? matches.map((option) => `
+                <button type="button" class="stock-combobox-option ${option.value === select.value ? 'is-selected' : ''}" data-value="${escapeHtml(option.value)}">
+                    <span>${escapeHtml(option.text)}</span>
+                </button>
+            `).join('')
+            : '<p class="stock-combobox-empty">Aucun article trouvé.</p>';
+    };
+
+    const syncComboDisplay = (select) => {
+        const combo = select.nextElementSibling?.matches?.('[data-stock-combobox]') ? select.nextElementSibling : null;
+        const input = combo?.querySelector('[data-stock-combobox-input]');
+        if (input && document.activeElement !== input) {
+            input.value = selectedOptionText(select);
+        }
+        renderComboOptions(select, input?.value || '');
+    };
+
+    const enhanceItemSelect = (select) => {
+        if (!select || select.dataset.stockComboReady === '1') return;
+        select.dataset.stockComboReady = '1';
+        select.classList.add('stock-combobox-native');
+
+        const combo = document.createElement('div');
+        combo.className = 'stock-combobox';
+        combo.dataset.stockCombobox = '1';
+        combo.innerHTML = `
+            <input type="search" class="stock-combobox-input" data-stock-combobox-input placeholder="Choisir un article..." autocomplete="off">
+            <div class="stock-combobox-list" data-stock-combobox-list hidden></div>
+        `;
+        select.insertAdjacentElement('afterend', combo);
+
+        const input = combo.querySelector('[data-stock-combobox-input]');
+        const list = combo.querySelector('[data-stock-combobox-list]');
+
+        input.value = selectedOptionText(select);
+        renderComboOptions(select);
+
+        const open = () => {
+            list.hidden = false;
+            renderComboOptions(select, input.value);
+        };
+        const close = () => {
+            list.hidden = true;
+            input.value = selectedOptionText(select);
+        };
+        const choose = (value) => {
+            select.value = String(value);
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            input.value = selectedOptionText(select);
+            list.hidden = true;
+        };
+
+        input.addEventListener('focus', () => {
+            input.select();
+            open();
+        });
+        input.addEventListener('input', () => {
+            select.value = '';
+            open();
+            renderComboOptions(select, input.value);
+        });
+        input.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                close();
+                return;
+            }
+
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            const firstOption = list.querySelector('[data-value]');
+            if (firstOption) {
+                choose(firstOption.dataset.value);
+                select.closest('[data-stock-adjustment-row]')?.querySelector('[data-stock-adjustment-quantity]')?.focus();
+            }
+        });
+        list.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            const option = event.target.closest('[data-value]');
+            if (option) {
+                choose(option.dataset.value);
+            }
+        });
+        document.addEventListener('click', (event) => {
+            if (!combo.contains(event.target)) close();
+        });
+    };
+
+    const getBaseOptions = () => {
+        const firstSelect = itemSelects()[0] || template.content?.querySelector?.('[data-stock-adjustment-item-select]');
+        if (!firstSelect) return [];
+        return cacheSelect(firstSelect).filter((option) => option.value);
+    };
+
+    const matchingOptions = (query) => {
+        const normalized = normalize(query);
+        return getBaseOptions().filter((option) => !normalized || normalize(option.text).includes(normalized) || normalize(option.value).includes(normalized));
+    };
+
+    const renderSelectOptions = (select, query = '') => {
+        const options = cacheSelect(select);
+        const currentValue = select.value;
+        const normalized = normalize(query);
+        const filtered = options.filter((option) => {
+            if (!option.value) return true;
+            return !normalized || normalize(option.text).includes(normalized) || normalize(option.value).includes(normalized) || option.value === currentValue;
+        });
+
+        select.innerHTML = '';
+        filtered.forEach((option) => {
+            select.add(new Option(option.text, option.value, false, option.value === currentValue));
+        });
+        syncComboDisplay(select);
+    };
+
+    const applySearch = () => {
+        const query = searchInput?.value || '';
+        const matches = matchingOptions(query);
+        itemSelects().forEach((select) => renderSelectOptions(select, query));
+        if (searchCountNode) {
+            searchCountNode.textContent = matches.length.toLocaleString('fr-FR');
+        }
+        addMatchButton?.toggleAttribute('disabled', matches.length === 0);
+        return matches;
+    };
+
+    const refreshSummary = () => {
+        const rows = [...lines.querySelectorAll('[data-stock-adjustment-row]')];
+        let selectedCount = 0;
+        let totalQuantity = 0;
+
+        rows.forEach((row, index) => {
+            const indexNode = row.querySelector('[data-stock-adjustment-index]');
+            const itemSelect = row.querySelector('select[name*="[item_id]"]');
+            const quantityInput = row.querySelector('[data-stock-adjustment-quantity]');
+            const removeButton = row.querySelector('[data-stock-adjustment-remove]');
+            const quantity = Number(quantityInput?.value || 0);
+
+            if (indexNode) {
+                indexNode.textContent = String(index + 1).padStart(2, '0');
+            }
+
+            if (itemSelect?.value && quantity > 0) {
+                selectedCount += 1;
+                totalQuantity += quantity;
+            }
+
+            if (removeButton) {
+                removeButton.disabled = rows.length === 1;
+            }
+        });
+
+        if (countNode) countNode.textContent = selectedCount.toLocaleString('fr-FR');
+        if (totalNode) totalNode.textContent = totalQuantity.toLocaleString('fr-FR');
+    };
+
+    const addRow = (preselectedValue = '') => {
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = template.innerHTML.trim().replaceAll('__INDEX__', String(nextIndex));
+        nextIndex += 1;
+        const row = wrapper.firstElementChild;
+        lines.append(row);
+        const itemSelect = row.querySelector('[data-stock-adjustment-item-select]');
+        cacheSelect(itemSelect);
+        enhanceItemSelect(itemSelect);
+        applySearch();
+        if (preselectedValue) {
+            itemSelect.value = String(preselectedValue);
+            syncComboDisplay(itemSelect);
+        }
+        row.querySelector('[data-stock-combobox-input]')?.focus();
+        refreshSummary();
+        return row;
+    };
+
+    const selectFirstMatch = () => {
+        const match = applySearch()[0];
+        if (!match) return;
+
+        let targetSelect = itemSelects().find((select) => !select.value);
+        if (!targetSelect) {
+            targetSelect = addRow().querySelector('[data-stock-adjustment-item-select]');
+        }
+
+        renderSelectOptions(targetSelect, searchInput?.value || '');
+        targetSelect.value = match.value;
+        syncComboDisplay(targetSelect);
+        targetSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        targetSelect.closest('[data-stock-adjustment-row]')?.querySelector('[data-stock-adjustment-quantity]')?.focus();
+    };
+
+    addButton.addEventListener('click', () => addRow());
+    addMatchButton?.addEventListener('click', selectFirstMatch);
+    clearSearchButton?.addEventListener('click', () => {
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.focus();
+        }
+        applySearch();
+    });
+    searchInput?.addEventListener('input', applySearch);
+    searchInput?.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        selectFirstMatch();
+    });
+    lines.addEventListener('click', (event) => {
+        const removeButton = event.target.closest('[data-stock-adjustment-remove]');
+        if (!removeButton) return;
+        const rows = lines.querySelectorAll('[data-stock-adjustment-row]');
+        if (rows.length <= 1) return;
+        removeButton.closest('[data-stock-adjustment-row]')?.remove();
+        refreshSummary();
+    });
+    lines.addEventListener('input', refreshSummary);
+    lines.addEventListener('change', () => {
+        applySearch();
+        refreshSummary();
+    });
+    itemSelects().forEach((select) => {
+        cacheSelect(select);
+        enhanceItemSelect(select);
+    });
+    applySearch();
+    refreshSummary();
 });
 
 document.querySelectorAll('[data-searchable-select]').forEach((select) => {
@@ -284,6 +1266,39 @@ document.querySelectorAll('.dialog-close').forEach((button) => {
             field.disabled = true;
         });
         dialog?.close();
+    });
+});
+
+document.querySelectorAll('[data-table-filter]').forEach((input) => {
+    const table = document.getElementById(input.dataset.tableFilter);
+    const rows = table ? Array.from(table.querySelectorAll('tbody tr')) : [];
+
+    input.addEventListener('input', () => {
+        const query = input.value.trim().toLowerCase();
+
+        rows.forEach((row) => {
+            row.hidden = query !== '' && !row.textContent.toLowerCase().includes(query);
+        });
+    });
+});
+
+document.querySelectorAll('[data-report-copy]').forEach((button) => {
+    button.addEventListener('click', async () => {
+        const table = document.getElementById(button.dataset.reportCopy);
+        if (!table) return;
+        const text = Array.from(table.querySelectorAll('tr')).map((row) =>
+            Array.from(row.children).map((cell) => cell.textContent.trim()).join('\t')
+        ).join('\n');
+
+        try {
+            await navigator.clipboard.writeText(text);
+            button.textContent = 'Copié';
+            setTimeout(() => {
+                button.textContent = 'Copier tableau';
+            }, 1600);
+        } catch {
+            button.textContent = 'Copie indisponible';
+        }
     });
 });
 

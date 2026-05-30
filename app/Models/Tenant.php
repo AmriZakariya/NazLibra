@@ -22,7 +22,7 @@ class Tenant extends Model
 
     public function users(): BelongsToMany
     {
-        return $this->belongsToMany(User::class)->withPivot(['role', 'permissions'])->withTimestamps();
+        return $this->belongsToMany(User::class)->withPivot(['role', 'permissions', 'store_access'])->withTimestamps();
     }
 
     public function items(): HasMany
@@ -40,8 +40,18 @@ class Tenant extends Model
         return $this->hasMany(Sale::class);
     }
 
+    public function posTickets(): HasMany
+    {
+        return $this->hasMany(PosTicket::class);
+    }
+
     public function loans(): HasMany
     {
         return $this->hasMany(Loan::class);
+    }
+
+    public function roles(): HasMany
+    {
+        return $this->hasMany(Role::class);
     }
 }
