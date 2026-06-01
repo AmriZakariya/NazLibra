@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -19,6 +20,43 @@ class AuthTest extends TestCase
             ->assertOk()
             ->assertSee('Connexion')
             ->assertSee('Se connecter');
+    }
+
+    public function test_guest_is_redirected_to_login_for_protected_pages(): void
+    {
+        $this->seed();
+
+        $this->get(route('dashboard'))
+            ->assertRedirect(route('login'));
+    }
+
+    public function test_authenticated_user_without_permission_sees_no_access_page(): void
+    {
+        $this->seed();
+
+        $cashier = User::where('email', 'caisse@librairie-atlas.ma')->firstOrFail();
+
+        $this->actingAs($cashier)
+            ->get(route('module', ['module' => 'reports']))
+            ->assertForbidden()
+            ->assertSee('Accès non autorisé')
+            ->assertSee('reports.view');
+    }
+
+    public function test_authenticated_user_without_tenant_access_sees_no_access_page(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $externalUser = User::factory()->create([
+            'current_tenant_id' => $tenant->id,
+            'email' => 'outside@example.test',
+        ]);
+
+        $this->actingAs($externalUser)
+            ->get(route('dashboard'))
+            ->assertForbidden()
+            ->assertSee('Accès non autorisé');
     }
 
     public function test_active_user_can_login_and_logout(): void
@@ -75,5 +113,22 @@ class AuthTest extends TestCase
         $this->assertSame('+212 600 111 222', $user->phone);
         $this->assertSame('#0D9488', $user->avatar_color);
         $this->assertTrue(Hash::check('new-password', $user->password));
+    }
+
+    public function test_profile_and_navbar_show_current_role_name(): void
+    {
+        $this->seed();
+        $user = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('profile'))
+            ->assertOk()
+            ->assertSee('Owner')
+            ->assertSee('Rôle: owner');
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('Owner');
     }
 }

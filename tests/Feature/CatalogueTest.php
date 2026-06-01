@@ -639,10 +639,10 @@ class CatalogueTest extends TestCase
 
         $theme = Tenant::firstOrFail()->fresh()->settings['theme'];
 
-        $this->assertSame('#2563EB', $theme['primary']);
-        $this->assertSame('#0D9488', $theme['accent']);
-        $this->assertSame('#F6F8FB', $theme['background']);
-        $this->assertSame('#D8E1EE', $theme['border']);
+        $this->assertSame('#3157D5', $theme['primary']);
+        $this->assertSame('#0F9F8A', $theme['accent']);
+        $this->assertSame('#F4F7FB', $theme['background']);
+        $this->assertSame('#D7DEE9', $theme['border']);
     }
 
     public function test_legacy_mylibrairie_catalogue_urls_redirect_to_new_catalogue(): void

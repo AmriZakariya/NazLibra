@@ -1012,15 +1012,18 @@
     @else
         @php
             $themeDefaults = [
-                'primary' => '#2563EB',
-                'accent' => '#0D9488',
+                'primary' => '#3157D5',
+                'accent' => '#0F9F8A',
                 'success' => '#16A34A',
-                'background' => '#F6F8FB',
+                'warning' => '#D97706',
+                'danger' => '#E11D48',
+                'info' => '#0284C7',
+                'background' => '#F4F7FB',
                 'surface_color' => '#FFFFFF',
-                'surface_muted' => '#EEF4FF',
-                'text' => '#111827',
-                'muted' => '#667085',
-                'border' => '#D8E1EE',
+                'surface_muted' => '#EEF3F8',
+                'text' => '#101828',
+                'muted' => '#64748B',
+                'border' => '#D7DEE9',
                 'font_scale' => '1',
                 'density' => 'comfortable',
                 'radius' => '12',
@@ -1030,13 +1033,14 @@
             $posEditablePrice = (bool) data_get($tenant->settings, 'pos.editable_price', true);
             $posAllowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
             $themePresets = [
-                'default' => ['name' => 'LibrairePro', 'hint' => 'Sapphire moderne, recommandé', 'colors' => ['#2563EB', '#0D9488', '#FFFFFF', '#F6F8FB']],
+                'default' => ['name' => 'LibrairePro', 'hint' => 'Bleu moderne, accent vert, recommandé', 'colors' => ['#3157D5', '#0F9F8A', '#FFFFFF', '#F4F7FB']],
                 'classic' => ['name' => 'Indigo classic', 'hint' => 'Plus proche du thème initial', 'colors' => ['#4F46E5', '#0EA5E9', '#FFFFFF', '#F8FAFC']],
                 'graphite' => ['name' => 'Graphite', 'hint' => 'Compact et sobre', 'colors' => ['#334155', '#0F766E', '#FFFFFF', '#F7F7F5']],
             ];
             $storeTypeLabels = ['store' => 'Magasin', 'warehouse' => 'Dépôt', 'area' => 'Rayon', 'branch' => 'Succursale'];
             $settingsSection = request('section', 'warehouses');
             $settingsTabs = [
+                'company' => 'Société',
                 'warehouses' => 'Magasins',
                 'users' => 'Utilisateurs',
                 'roles' => 'Rôles',
@@ -1049,6 +1053,68 @@
                 'theme' => 'Thème',
             ];
             $settingsReferenceSections = ['taxes', 'units', 'payment-types', 'countries', 'states', 'password'];
+            $companyProfile = array_merge([
+                'store_code' => $tenant->slug,
+                'store_name' => $tenant->name,
+                'mobile' => '',
+                'email' => $tenant->email,
+                'phone' => $tenant->phone,
+                'cnss' => '',
+                'rc' => '',
+                'gst_no' => $tenant->ice,
+                'vat_no' => '',
+                'pan_no' => '',
+                'store_website' => '',
+                'show_signature' => false,
+                'signature' => '',
+                'bank_details' => '',
+                'country' => 'Maroc',
+                'state' => '',
+                'city' => '',
+                'postcode' => '',
+                'address' => $tenant->address,
+                'store_logo' => '',
+                'timezone' => $tenant->timezone,
+                'date_format' => 'dd/mm/yyyy',
+                'time_format' => '24',
+                'currency' => $tenant->currency,
+                'currency_placement' => 'Right',
+                'decimals' => 2,
+                'qty_decimals' => 2,
+                'language_id' => 'fr',
+                'round_off' => false,
+                'default_account_id' => '',
+                'sales_discount' => 0,
+                'sales_invoice_format_id' => '3',
+                'pos_invoice_format_id' => '1',
+                'mrp_column' => false,
+                'change_return' => true,
+                'previous_balance_bit' => true,
+                'number_to_words' => 'Default',
+                'sales_invoice_footer_text' => '',
+                't_and_c_status' => true,
+                't_and_c_status_pos' => true,
+                'invoice_terms' => '',
+                'toggle_header_footer' => true,
+                'category_init' => 'CAT',
+                'item_init' => 'IT',
+                'supplier_init' => 'SUP',
+                'purchase_init' => 'PUR',
+                'purchase_return_init' => 'PR',
+                'customer_init' => 'CUST',
+                'sales_init' => 'SAL',
+                'sales_return_init' => 'SR',
+                'expense_init' => 'EXP',
+                'accounts_init' => 'ACC',
+                'quotation_init' => 'QUO',
+                'money_transfer_init' => 'MT',
+                'sales_payment_init' => 'SP',
+                'sales_return_payment_init' => 'SRP',
+                'purchase_payment_init' => 'PP',
+                'purchase_return_payment_init' => 'PRP',
+                'expense_payment_init' => 'EP',
+                'cust_advance_init' => 'ADV',
+            ], $tenant->settings['company_profile'] ?? []);
         @endphp
         <details class="app-collapsible-menu mt-6" data-collapsible-menu data-menu-key="module-settings-menu">
             <summary class="app-collapsible-menu-summary">
@@ -1061,7 +1127,7 @@
                 @endforeach
             </nav>
         </details>
-        <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section class="mt-6 grid gap-6 {{ $settingsSection === 'company' ? 'xl:grid-cols-[minmax(0,1fr)_360px]' : '' }}">
             @if (in_array($settingsSection, $settingsReferenceSections, true))
                 <div class="xl:col-span-2">
                     @if ($settingsSection === 'taxes')
@@ -1119,6 +1185,115 @@
                 </div>
             @else
             <div class="space-y-6">
+                @if ($settingsSection === 'company')
+                <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <h2 class="font-semibold">Profil société / magasin principal</h2>
+                            <p class="mt-1 text-sm text-slate-500">Informations légales, formats, documents et préfixes repris de l’ancien écran Société.</p>
+                        </div>
+                        <x-status-pill tone="primary">{{ strtoupper($companyProfile['currency']) }}</x-status-pill>
+                    </div>
+
+                    <form action="{{ route('settings.company.update') }}" method="POST" class="mt-5 space-y-5">
+                        @csrf
+                        <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            <h3 class="text-sm font-semibold">Identification</h3>
+                            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Code magasin</span><input name="store_code" value="{{ old('store_code', $companyProfile['store_code']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5 xl:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Nom société / magasin *</span><input name="store_name" required value="{{ old('store_name', $companyProfile['store_name']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Site web</span><input name="store_website" value="{{ old('store_website', $companyProfile['store_website']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="https://..."></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Mobile</span><input name="mobile" value="{{ old('mobile', $companyProfile['mobile']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" value="{{ old('phone', $companyProfile['phone']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5 xl:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Email</span><input name="email" type="email" value="{{ old('email', $companyProfile['email']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                            </div>
+                        </section>
+
+                        <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            <h3 class="text-sm font-semibold">Fiscalité & informations légales</h3>
+                            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                                @foreach (['cnss' => 'CNSS', 'rc' => 'RC', 'gst_no' => 'ICE / GST No', 'vat_no' => 'TVA / VAT No', 'pan_no' => 'PAN / identifiant fiscal'] as $field => $label)
+                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">{{ $label }}</span><input name="{{ $field }}" value="{{ old($field, $companyProfile[$field]) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                @endforeach
+                            </div>
+                        </section>
+
+                        <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            <h3 class="text-sm font-semibold">Adresse</h3>
+                            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Pays</span><input name="country" value="{{ old('country', $companyProfile['country']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">État / région</span><input name="state" value="{{ old('state', $companyProfile['state']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Ville</span><input name="city" value="{{ old('city', $companyProfile['city']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Code postal</span><input name="postcode" value="{{ old('postcode', $companyProfile['postcode']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5 md:col-span-2 xl:col-span-4"><span class="text-xs font-semibold uppercase text-slate-500">Adresse</span><textarea name="address" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900">{{ old('address', $companyProfile['address']) }}</textarea></label>
+                            </div>
+                        </section>
+
+                        <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            <h3 class="text-sm font-semibold">Branding, signature & banque</h3>
+                            <div class="mt-4 grid gap-3 md:grid-cols-2">
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Logo magasin (URL ou chemin fichier)</span><input name="store_logo" value="{{ old('store_logo', $companyProfile['store_logo']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Signature (URL ou chemin fichier)</span><input name="signature" value="{{ old('signature', $companyProfile['signature']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950/40"><input name="show_signature" value="1" type="checkbox" @checked(old('show_signature', $companyProfile['show_signature'])) class="size-4 accent-[var(--brand-primary)]"> Afficher la signature</label>
+                                <label class="space-y-1.5 md:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Coordonnées bancaires</span><textarea name="bank_details" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900">{{ old('bank_details', $companyProfile['bank_details']) }}</textarea></label>
+                            </div>
+                        </section>
+
+                        <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            <h3 class="text-sm font-semibold">Formats, devise & caisse</h3>
+                            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Fuseau horaire</span><input name="timezone" required value="{{ old('timezone', $companyProfile['timezone']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Format date</span><select name="date_format" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach(['dd/mm/yyyy','dd-mm-yyyy','mm-dd-yyyy','yyyy-mm-dd'] as $format)<option value="{{ $format }}" @selected(old('date_format', $companyProfile['date_format']) === $format)>{{ $format }}</option>@endforeach</select></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Format heure</span><select name="time_format" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="24" @selected(old('time_format', $companyProfile['time_format']) === '24')>24 heures</option><option value="12" @selected(old('time_format', $companyProfile['time_format']) === '12')>12 heures</option></select></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Langue</span><select name="language_id" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="fr" @selected(old('language_id', $companyProfile['language_id']) === 'fr')>Français</option><option value="ar" @selected(old('language_id', $companyProfile['language_id']) === 'ar')>العربية</option><option value="en" @selected(old('language_id', $companyProfile['language_id']) === 'en')>English</option></select></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Devise</span><input name="currency" required maxlength="3" value="{{ old('currency', strtoupper($companyProfile['currency'])) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm uppercase dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Placement devise</span><select name="currency_placement" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="Right" @selected(old('currency_placement', $companyProfile['currency_placement']) === 'Right')>Droite</option><option value="Left" @selected(old('currency_placement', $companyProfile['currency_placement']) === 'Left')>Gauche</option></select></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Décimales prix</span><input name="decimals" type="number" min="0" max="4" value="{{ old('decimals', $companyProfile['decimals']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Décimales quantité</span><input name="qty_decimals" type="number" min="0" max="4" value="{{ old('qty_decimals', $companyProfile['qty_decimals']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Compte par défaut</span><input name="default_account_id" value="{{ old('default_account_id', $companyProfile['default_account_id']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise vente par défaut (%)</span><input name="sales_discount" type="number" min="0" max="100" step="0.01" value="{{ old('sales_discount', $companyProfile['sales_discount']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Montant en lettres</span><select name="number_to_words" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach(['Default','Indian','Western','Off'] as $format)<option value="{{ $format }}" @selected(old('number_to_words', $companyProfile['number_to_words']) === $format)>{{ $format }}</option>@endforeach</select></label>
+                            </div>
+                            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                @foreach (['round_off' => 'Arrondir les montants', 'mrp_column' => 'Afficher colonne MRP', 'change_return' => 'Gérer monnaie rendue', 'previous_balance_bit' => 'Afficher ancien solde'] as $field => $label)
+                                    <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950/40"><input name="{{ $field }}" value="1" type="checkbox" @checked(old($field, $companyProfile[$field])) class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>
+                                @endforeach
+                            </div>
+                        </section>
+
+                        <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            <h3 class="text-sm font-semibold">Factures, tickets & conditions</h3>
+                            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Format facture vente</span><input name="sales_invoice_format_id" value="{{ old('sales_invoice_format_id', $companyProfile['sales_invoice_format_id']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Format ticket POS</span><input name="pos_invoice_format_id" value="{{ old('pos_invoice_format_id', $companyProfile['pos_invoice_format_id']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950/40"><input name="t_and_c_status" value="1" type="checkbox" @checked(old('t_and_c_status', $companyProfile['t_and_c_status'])) class="size-4 accent-[var(--brand-primary)]"> Conditions facture</label>
+                                <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950/40"><input name="t_and_c_status_pos" value="1" type="checkbox" @checked(old('t_and_c_status_pos', $companyProfile['t_and_c_status_pos'])) class="size-4 accent-[var(--brand-primary)]"> Conditions POS</label>
+                                <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950/40"><input name="toggle_header_footer" value="1" type="checkbox" @checked(old('toggle_header_footer', $companyProfile['toggle_header_footer'])) class="size-4 accent-[var(--brand-primary)]"> En-tête / pied de page</label>
+                                <label class="space-y-1.5 md:col-span-2 xl:col-span-4"><span class="text-xs font-semibold uppercase text-slate-500">Texte pied de facture</span><textarea name="sales_invoice_footer_text" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900">{{ old('sales_invoice_footer_text', $companyProfile['sales_invoice_footer_text']) }}</textarea></label>
+                                <label class="space-y-1.5 md:col-span-2 xl:col-span-4"><span class="text-xs font-semibold uppercase text-slate-500">Conditions générales</span><textarea name="invoice_terms" class="min-h-28 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900">{{ old('invoice_terms', $companyProfile['invoice_terms']) }}</textarea></label>
+                            </div>
+                        </section>
+
+                        <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            <h3 class="text-sm font-semibold">Préfixes de numérotation</h3>
+                            <div class="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+                                @foreach ([
+                                    'category_init' => 'Catégories', 'item_init' => 'Articles', 'supplier_init' => 'Fournisseurs', 'purchase_init' => 'Achats', 'purchase_return_init' => 'Retour achat', 'customer_init' => 'Clients',
+                                    'sales_init' => 'Ventes', 'sales_return_init' => 'Retour vente', 'expense_init' => 'Dépenses', 'accounts_init' => 'Comptes', 'quotation_init' => 'Devis', 'money_transfer_init' => 'Transfert argent',
+                                    'sales_payment_init' => 'Paiement vente', 'sales_return_payment_init' => 'Paiement retour vente', 'purchase_payment_init' => 'Paiement achat', 'purchase_return_payment_init' => 'Paiement retour achat', 'expense_payment_init' => 'Paiement dépense', 'cust_advance_init' => 'Avance client',
+                                ] as $field => $label)
+                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">{{ $label }}</span><input name="{{ $field }}" value="{{ old($field, $companyProfile[$field]) }}" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm uppercase dark:border-white/10 dark:bg-slate-900"></label>
+                                @endforeach
+                            </div>
+                        </section>
+
+                        <div class="flex justify-end">
+                            <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white">Enregistrer la société</button>
+                        </div>
+                    </form>
+                </article>
+
+                @elseif ($settingsSection === 'warehouses')
                 <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div>
@@ -1182,89 +1357,234 @@
                     </div>
                 </article>
 
-                <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                        <div>
-                            <h2 class="font-semibold">Utilisateurs & accès magasin</h2>
-                            <p class="mt-1 text-sm text-slate-500">Invitez l'équipe, attribuez un rôle, limitez les permissions et les magasins accessibles.</p>
+                @elseif ($settingsSection === 'users')
+                <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    @php
+                        $activeUsersCount = $settingsUsers->where('is_active', true)->count();
+                        $inactiveUsersCount = $settingsUsers->count() - $activeUsersCount;
+                    @endphp
+                    <div class="border-b border-slate-200 bg-gradient-to-br from-white via-slate-50 to-indigo-50/50 p-5 dark:border-white/10 dark:from-slate-950 dark:via-slate-950 dark:to-indigo-950/20">
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                                <p class="text-sm font-semibold text-brand">Paramètres · Équipe</p>
+                                <h2 class="mt-1 text-2xl font-semibold tracking-tight">Utilisateurs & accès magasin</h2>
+                                <p class="mt-1 max-w-2xl text-sm text-slate-500">Gérez les comptes de l'équipe, les rôles, les magasins autorisés et les permissions exceptionnelles sans perdre le contexte.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <x-status-pill tone="primary">{{ $settingsUsers->count() }} utilisateur(s)</x-status-pill>
+                                <x-status-pill tone="success">{{ $activeUsersCount }} actif(s)</x-status-pill>
+                                @if ($inactiveUsersCount > 0)
+                                    <x-status-pill tone="warning">{{ $inactiveUsersCount }} désactivé(s)</x-status-pill>
+                                @endif
+                            </div>
                         </div>
-                        <x-status-pill tone="primary">{{ $settingsUsers->count() }} utilisateur(s)</x-status-pill>
+                        <div class="mt-5 grid gap-3 sm:grid-cols-3">
+                            <div class="rounded-xl border border-white/70 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
+                                <span class="text-xs font-semibold uppercase text-slate-500">Rôles disponibles</span>
+                                <strong class="mt-2 block text-2xl">{{ $settingsRoles->count() }}</strong>
+                            </div>
+                            <div class="rounded-xl border border-white/70 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
+                                <span class="text-xs font-semibold uppercase text-slate-500">Magasins / dépôts</span>
+                                <strong class="mt-2 block text-2xl">{{ count($storeAccessOptions) }}</strong>
+                            </div>
+                            <div class="rounded-xl border border-white/70 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-white/5">
+                                <span class="text-xs font-semibold uppercase text-slate-500">Permissions suivies</span>
+                                <strong class="mt-2 block text-2xl">{{ count($permissionCatalog) }}</strong>
+                            </div>
+                        </div>
                     </div>
 
-                    <form action="{{ route('settings.users.store') }}" method="POST" class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                        @csrf
-                        <div class="grid gap-3 lg:grid-cols-4">
-                            <input name="name" required class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom complet">
-                            <input name="email" required type="email" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Email">
-                            <input name="phone" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Téléphone">
-                            <input name="password" required type="password" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Mot de passe temporaire">
-                            <select name="role" required class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                @foreach ($settingsRoles as $role)
-                                    <option value="{{ $role->key }}">{{ $role->name }}</option>
-                                @endforeach
-                            </select>
-                            <input name="avatar_color" type="color" value="#4F46E5" class="h-11 rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
-                            <label class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-900"><input name="is_active" value="1" checked type="checkbox" class="size-4 accent-[var(--brand-primary)]"> Actif</label>
-                            <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Ajouter utilisateur</button>
+                    <div class="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+                        <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
+                            <div class="grid gap-3 border-b border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5 sm:grid-cols-[1fr_auto]">
+                                <input data-table-filter="settings-users-table" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Rechercher nom, email, rôle, magasin...">
+                                <button type="button" onclick="document.getElementById('user-create-dialog').showModal()" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20">Ajouter utilisateur</button>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table id="settings-users-table" class="w-full min-w-[980px] text-left text-sm">
+                                    <thead class="bg-white text-xs uppercase text-slate-500 dark:bg-slate-950/40">
+                                        <tr>
+                                            <th class="px-4 py-3">Utilisateur</th>
+                                            <th class="px-4 py-3">Rôle</th>
+                                            <th class="px-4 py-3">Magasins</th>
+                                            <th class="px-4 py-3">Permissions directes</th>
+                                            <th class="px-4 py-3">Statut</th>
+                                            <th class="px-4 py-3 text-right">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                        @forelse ($settingsUsers as $user)
+                                            @php
+                                                $userPermissions = json_decode($user->pivot->permissions ?? '[]', true) ?: [];
+                                                $userStores = json_decode($user->pivot->store_access ?? '[]', true) ?: [];
+                                                $userRole = $settingsRoles->firstWhere('key', $user->pivot->role);
+                                                $visibleStores = collect($userStores)->take(2)->implode(', ');
+                                                $extraStoresCount = max(count($userStores) - 2, 0);
+                                            @endphp
+                                            <tr class="bg-white align-top transition hover:bg-slate-50 dark:bg-transparent dark:hover:bg-white/5">
+                                                <td class="px-4 py-4">
+                                                    <div class="flex min-w-0 items-center gap-3">
+                                                        <span class="grid size-11 shrink-0 place-items-center rounded-xl text-sm font-bold text-white shadow-sm" style="background: {{ $user->avatar_color }}">{{ Str::upper(Str::substr($user->name, 0, 2)) }}</span>
+                                                        <span class="min-w-0">
+                                                            <strong class="block truncate">{{ $user->name }}</strong>
+                                                            <small class="mt-1 block truncate text-slate-500">{{ $user->email }}{{ $user->phone ? ' · '.$user->phone : '' }}</small>
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-4">
+                                                    <x-status-pill tone="info">{{ $userRole?->name ?? $user->pivot->role }}</x-status-pill>
+                                                    <p class="mt-1 text-xs text-slate-500">{{ $user->pivot->role }}</p>
+                                                </td>
+                                                <td class="px-4 py-4">
+                                                    <span class="font-medium">{{ $visibleStores ?: 'Aucun accès' }}</span>
+                                                    @if ($extraStoresCount > 0)
+                                                        <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">+{{ $extraStoresCount }}</span>
+                                                    @endif
+                                                </td>
+                                                <td class="px-4 py-4">
+                                                    <span class="font-semibold">{{ count($userPermissions) }}</span>
+                                                    <span class="text-slate-500">permission(s)</span>
+                                                </td>
+                                                <td class="px-4 py-4">
+                                                    <x-status-pill :tone="$user->is_active ? 'success' : 'danger'">{{ $user->is_active ? 'Actif' : 'Désactivé' }}</x-status-pill>
+                                                </td>
+                                                <td class="px-4 py-4 text-right">
+                                                    <button type="button" onclick="document.getElementById('user-edit-{{ $user->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Gérer</button>
+                                                </td>
+                                            </tr>
+                                            <dialog id="user-edit-{{ $user->id }}" class="w-full max-w-5xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                                <form action="{{ route('settings.users.update', $user) }}" method="POST">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <div class="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-white/10">
+                                                        <div class="flex min-w-0 items-center gap-3">
+                                                            <span class="grid size-12 shrink-0 place-items-center rounded-xl text-sm font-bold text-white" style="background: {{ $user->avatar_color }}">{{ Str::upper(Str::substr($user->name, 0, 2)) }}</span>
+                                                            <div class="min-w-0">
+                                                                <p class="text-sm font-semibold text-brand">Modifier accès</p>
+                                                                <h3 class="truncate text-xl font-semibold">{{ $user->name }}</h3>
+                                                            </div>
+                                                        </div>
+                                                        <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                                                    </div>
+                                                    <div class="grid max-h-[72vh] gap-5 overflow-y-auto p-5 lg:grid-cols-[1fr_0.9fr]">
+                                                        <section class="space-y-4">
+                                                            <div class="grid gap-3 md:grid-cols-2">
+                                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nom complet *</span><input name="name" required value="{{ $user->name }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email *</span><input name="email" required type="email" value="{{ $user->email }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" value="{{ $user->phone }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nouveau mot de passe</span><input name="password" type="password" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Laisser vide si inchangé"></label>
+                                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Rôle *</span><select name="role" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($settingsRoles as $role)<option value="{{ $role->key }}" @selected($user->pivot->role === $role->key)>{{ $role->name }}</option>@endforeach</select></label>
+                                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Couleur avatar</span><input name="avatar_color" type="color" value="{{ $user->avatar_color }}" class="h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900"></label>
+                                                                <label class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10"><input name="is_active" value="1" type="checkbox" @checked($user->is_active) class="size-4 accent-[var(--brand-primary)]"> Compte actif</label>
+                                                            </div>
+                                                        </section>
+                                                        <section class="grid gap-4">
+                                                            <fieldset class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                                                <legend class="px-1 text-xs font-semibold uppercase text-slate-500">Accès magasin</legend>
+                                                                <div class="mt-2 grid max-h-40 gap-2 overflow-y-auto sm:grid-cols-2">
+                                                                    @foreach ($storeAccessOptions as $store)
+                                                                        <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-white/5"><input name="store_access[]" value="{{ $store }}" type="checkbox" @checked(in_array($store, $userStores, true)) class="size-4 accent-[var(--brand-primary)]"> {{ $store }}</label>
+                                                                    @endforeach
+                                                                </div>
+                                                            </fieldset>
+                                                            <fieldset class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                                                <legend class="px-1 text-xs font-semibold uppercase text-slate-500">Permissions directes</legend>
+                                                                <p class="mt-1 text-xs text-slate-500">À utiliser seulement pour les exceptions au rôle.</p>
+                                                                <div class="mt-3 grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
+                                                                    @foreach ($permissionCatalog as $key => $label)
+                                                                        <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-white/5"><input name="permissions[]" value="{{ $key }}" type="checkbox" @checked(in_array($key, $userPermissions, true)) class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>
+                                                                    @endforeach
+                                                                </div>
+                                                            </fieldset>
+                                                        </section>
+                                                    </div>
+                                                    <div class="flex flex-col gap-3 border-t border-slate-200 p-5 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
+                                                        <span class="text-xs text-slate-500">Les changements sont appliqués à la prochaine requête de l'utilisateur.</span>
+                                                        <div class="flex justify-end gap-2">
+                                                            <button type="button" class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Annuler</button>
+                                                            <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer</button>
+                                                        </div>
+                                                    </div>
+                                                </form>
+                                                <form action="{{ route('settings.users.destroy', $user) }}" method="POST" class="px-5 pb-5 text-right" onsubmit="return confirm('Retirer l’accès de cet utilisateur ?')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button class="text-sm font-semibold text-rose-600">Retirer accès</button>
+                                                </form>
+                                            </dialog>
+                                        @empty
+                                            <tr><td colspan="6" class="px-4 py-12 text-center text-slate-500">Aucun utilisateur configuré.</td></tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                        <div class="mt-4 grid gap-4 lg:grid-cols-2">
-                            <fieldset class="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950/40">
-                                <legend class="px-1 text-xs font-semibold uppercase text-slate-500">Permissions directes</legend>
-                                <div class="mt-2 grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">
-                                    @foreach ($permissionCatalog as $key => $label)
-                                        <label class="flex items-center gap-2 text-sm"><input name="permissions[]" value="{{ $key }}" type="checkbox" class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>
-                                    @endforeach
-                                </div>
-                            </fieldset>
-                            <fieldset class="rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950/40">
-                                <legend class="px-1 text-xs font-semibold uppercase text-slate-500">Accès magasin / dépôt</legend>
-                                <div class="mt-2 grid gap-2 sm:grid-cols-2">
-                                    @foreach ($storeAccessOptions as $store)
-                                        <label class="flex items-center gap-2 text-sm"><input name="store_access[]" value="{{ $store }}" type="checkbox" checked class="size-4 accent-[var(--brand-primary)]"> {{ $store }}</label>
-                                    @endforeach
-                                </div>
-                            </fieldset>
-                        </div>
-                    </form>
 
-                    <div class="mt-5 grid gap-3">
-                        @foreach ($settingsUsers as $user)
-                            @php
-                                $userPermissions = json_decode($user->pivot->permissions ?? '[]', true) ?: [];
-                                $userStores = json_decode($user->pivot->store_access ?? '[]', true) ?: [];
-                            @endphp
-                            <details class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
-                                <summary class="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                    <span class="flex min-w-0 items-center gap-3">
-                                        <span class="grid size-10 shrink-0 place-items-center rounded-lg text-sm font-bold text-white" style="background: {{ $user->avatar_color }}">{{ Str::upper(Str::substr($user->name, 0, 2)) }}</span>
-                                        <span class="min-w-0"><strong class="block truncate">{{ $user->name }}</strong><small class="mt-1 block truncate text-slate-500">{{ $user->email }} · rôle {{ $user->pivot->role }} · {{ $user->is_active ? 'actif' : 'désactivé' }}</small></span>
-                                    </span>
-                                    <span class="text-xs font-semibold text-brand">Modifier</span>
-                                </summary>
-                                <form action="{{ route('settings.users.update', $user) }}" method="POST" class="mt-4 grid gap-3 border-t border-slate-200 pt-4 dark:border-white/10">
-                                    @csrf
-                                    @method('PUT')
-                                    <div class="grid gap-3 lg:grid-cols-4">
-                                        <input name="name" required value="{{ $user->name }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                        <input name="email" required type="email" value="{{ $user->email }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                        <input name="phone" value="{{ $user->phone }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                        <input name="password" type="password" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nouveau mot de passe">
-                                        <select name="role" required class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($settingsRoles as $role)<option value="{{ $role->key }}" @selected($user->pivot->role === $role->key)>{{ $role->name }}</option>@endforeach</select>
-                                        <input name="avatar_color" type="color" value="{{ $user->avatar_color }}" class="h-10 rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
-                                        <label class="flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10"><input name="is_active" value="1" type="checkbox" @checked($user->is_active) class="size-4 accent-[var(--brand-primary)]"> Actif</label>
-                                    </div>
-                                    <div class="grid gap-4 lg:grid-cols-2">
-                                        <fieldset class="rounded-lg border border-slate-200 p-3 dark:border-white/10"><legend class="px-1 text-xs font-semibold uppercase text-slate-500">Permissions directes</legend><div class="mt-2 grid max-h-44 gap-2 overflow-y-auto sm:grid-cols-2">@foreach ($permissionCatalog as $key => $label)<label class="flex items-center gap-2 text-sm"><input name="permissions[]" value="{{ $key }}" type="checkbox" @checked(in_array($key, $userPermissions, true)) class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>@endforeach</div></fieldset>
-                                        <fieldset class="rounded-lg border border-slate-200 p-3 dark:border-white/10"><legend class="px-1 text-xs font-semibold uppercase text-slate-500">Accès magasin</legend><div class="mt-2 grid gap-2 sm:grid-cols-2">@foreach ($storeAccessOptions as $store)<label class="flex items-center gap-2 text-sm"><input name="store_access[]" value="{{ $store }}" type="checkbox" @checked(in_array($store, $userStores, true)) class="size-4 accent-[var(--brand-primary)]"> {{ $store }}</label>@endforeach</div></fieldset>
-                                    </div>
-                                    <div class="flex justify-end gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer</button></div>
-                                </form>
-                                <form action="{{ route('settings.users.destroy', $user) }}" method="POST" class="mt-2 flex justify-end" onsubmit="return confirm('Retirer l’accès de cet utilisateur ?')">@csrf @method('DELETE')<button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 dark:border-rose-500/30">Retirer accès</button></form>
-                            </details>
-                        @endforeach
+                        <aside class="space-y-4">
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                <h3 class="font-semibold">Flux recommandé</h3>
+                                <div class="mt-4 space-y-3 text-sm">
+                                    <div class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-lg bg-brand text-xs font-bold text-white">1</span><p><strong>Créer l'utilisateur</strong><span class="block text-slate-500">Mot de passe temporaire, rôle métier et accès magasin.</span></p></div>
+                                    <div class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-lg bg-slate-200 text-xs font-bold text-slate-700 dark:bg-white/10 dark:text-slate-200">2</span><p><strong>Limiter les exceptions</strong><span class="block text-slate-500">Les permissions directes complètent le rôle.</span></p></div>
+                                    <div class="flex gap-3"><span class="grid size-7 shrink-0 place-items-center rounded-lg bg-slate-200 text-xs font-bold text-slate-700 dark:bg-white/10 dark:text-slate-200">3</span><p><strong>Désactiver au besoin</strong><span class="block text-slate-500">Gardez l'historique sans supprimer le compte.</span></p></div>
+                                </div>
+                            </div>
+                            <button type="button" onclick="document.getElementById('user-create-dialog').showModal()" class="w-full rounded-lg bg-brand px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20">Nouvel utilisateur</button>
+                        </aside>
                     </div>
+
+                    <dialog id="user-create-dialog" class="w-full max-w-5xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                        <form action="{{ route('settings.users.store') }}" method="POST">
+                            @csrf
+                            <div class="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-white/10">
+                                <div>
+                                    <p class="text-sm font-semibold text-brand">Nouvel accès</p>
+                                    <h3 class="mt-1 text-xl font-semibold">Ajouter un utilisateur</h3>
+                                    <p class="mt-1 text-sm text-slate-500">Créez le compte avec un rôle, puis ajustez uniquement les exceptions nécessaires.</p>
+                                </div>
+                                <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                            </div>
+                            <div class="grid max-h-[72vh] gap-5 overflow-y-auto p-5 lg:grid-cols-[1fr_0.9fr]">
+                                <section class="space-y-4">
+                                    <div class="grid gap-3 md:grid-cols-2">
+                                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nom complet *</span><input name="name" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Ex: Amina El Fassi"></label>
+                                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email *</span><input name="email" required type="email" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="nom@librairie.ma"></label>
+                                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212 ..."></label>
+                                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Mot de passe temporaire *</span><input name="password" required type="password" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Minimum 8 caractères"></label>
+                                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Rôle *</span><select name="role" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($settingsRoles as $role)<option value="{{ $role->key }}">{{ $role->name }}</option>@endforeach</select></label>
+                                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Couleur avatar</span><input name="avatar_color" type="color" value="#3157D5" class="h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900"></label>
+                                        <label class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10"><input name="is_active" value="1" checked type="checkbox" class="size-4 accent-[var(--brand-primary)]"> Compte actif</label>
+                                    </div>
+                                </section>
+                                <section class="grid gap-4">
+                                    <fieldset class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                        <legend class="px-1 text-xs font-semibold uppercase text-slate-500">Accès magasin / dépôt</legend>
+                                        <div class="mt-2 grid max-h-40 gap-2 overflow-y-auto sm:grid-cols-2">
+                                            @foreach ($storeAccessOptions as $store)
+                                                <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-white/5"><input name="store_access[]" value="{{ $store }}" type="checkbox" checked class="size-4 accent-[var(--brand-primary)]"> {{ $store }}</label>
+                                            @endforeach
+                                        </div>
+                                    </fieldset>
+                                    <fieldset class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                        <legend class="px-1 text-xs font-semibold uppercase text-slate-500">Permissions directes</legend>
+                                        <p class="mt-1 text-xs text-slate-500">Laissez vide si le rôle couvre déjà l'accès.</p>
+                                        <div class="mt-3 grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
+                                            @foreach ($permissionCatalog as $key => $label)
+                                                <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-white/5"><input name="permissions[]" value="{{ $key }}" type="checkbox" class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>
+                                            @endforeach
+                                        </div>
+                                    </fieldset>
+                                </section>
+                            </div>
+                            <div class="flex justify-end gap-2 border-t border-slate-200 p-5 dark:border-white/10">
+                                <button type="button" class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Annuler</button>
+                                <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Créer utilisateur</button>
+                            </div>
+                        </form>
+                    </dialog>
                 </article>
 
+                @elseif ($settingsSection === 'roles')
                 <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="flex items-center justify-between gap-3"><div><h2 class="font-semibold">Rôles & permissions</h2><p class="mt-1 text-sm text-slate-500">Créez des profils métier réutilisables pour la caisse, le stock et la gestion.</p></div><x-status-pill tone="info">{{ $settingsRoles->count() }}</x-status-pill></div>
                     <form action="{{ route('settings.roles.store') }}" method="POST" class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">@csrf<div class="grid gap-3 lg:grid-cols-[1fr_1fr_auto]"><input name="name" required class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom du rôle"><input name="key" required class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="clé: manager_stock"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Créer rôle</button></div><div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">@foreach ($permissionCatalog as $key => $label)<label class="flex items-center gap-2 text-sm"><input name="permissions[]" value="{{ $key }}" type="checkbox" class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>@endforeach</div></form>
@@ -1275,6 +1595,7 @@
                     </div>
                 </article>
 
+                @elseif ($settingsSection === 'theme')
                 <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div>
@@ -1312,11 +1633,11 @@
                         @csrf
                         <label class="block">
                             <span class="text-xs font-semibold uppercase text-slate-500">Primaire</span>
-                            <input name="primary" type="color" value="{{ $theme['primary'] ?? '#2563EB' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
+                            <input name="primary" type="color" value="{{ $theme['primary'] ?? '#3157D5' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold uppercase text-slate-500">Accent</span>
-                            <input name="accent" type="color" value="{{ $theme['accent'] ?? '#0D9488' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
+                            <input name="accent" type="color" value="{{ $theme['accent'] ?? '#0F9F8A' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold uppercase text-slate-500">Succès</span>
@@ -1324,7 +1645,7 @@
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold uppercase text-slate-500">Fond</span>
-                            <input name="background" type="color" value="{{ $theme['background'] ?? '#F6F8FB' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
+                            <input name="background" type="color" value="{{ $theme['background'] ?? '#F4F7FB' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold uppercase text-slate-500">Surface</span>
@@ -1332,19 +1653,19 @@
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold uppercase text-slate-500">Surface légère</span>
-                            <input name="surface_muted" type="color" value="{{ $theme['surface_muted'] ?? '#EEF4FF' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
+                            <input name="surface_muted" type="color" value="{{ $theme['surface_muted'] ?? '#EEF3F8' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold uppercase text-slate-500">Texte</span>
-                            <input name="text" type="color" value="{{ $theme['text'] ?? '#111827' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
+                            <input name="text" type="color" value="{{ $theme['text'] ?? '#101828' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold uppercase text-slate-500">Texte secondaire</span>
-                            <input name="muted" type="color" value="{{ $theme['muted'] ?? '#667085' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
+                            <input name="muted" type="color" value="{{ $theme['muted'] ?? '#64748B' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold uppercase text-slate-500">Bordure</span>
-                            <input name="border" type="color" value="{{ $theme['border'] ?? '#D8E1EE' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
+                            <input name="border" type="color" value="{{ $theme['border'] ?? '#D7DEE9' }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900">
                         </label>
                         <label class="block">
                             <span class="text-xs font-semibold uppercase text-slate-500">Échelle texte</span>
@@ -1368,7 +1689,7 @@
                         </label>
                         <div class="lg:col-span-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4 dark:border-white/10">
                             <div class="flex gap-2">
-                                @foreach (['#4F46E5', '#0EA5E9', '#16A34A', '#DB2777', '#111827'] as $color)
+                                @foreach (['#3157D5', '#0F9F8A', '#16A34A', '#D97706', '#101828'] as $color)
                                     <button class="theme-swatch size-9 rounded-lg border border-slate-200 dark:border-white/10" style="background: {{ $color }}" data-color="{{ $color }}" type="button" aria-label="Couleur {{ $color }}"></button>
                                 @endforeach
                             </div>
@@ -1420,8 +1741,10 @@
                         <div class="rounded-lg bg-slate-50 p-4 dark:bg-white/5"><span class="text-xs font-semibold uppercase text-slate-500">Fuseau</span><p class="mt-2 text-sm font-semibold">{{ $tenant->timezone }}</p></div>
                     </div>
                 </article>
+                @endif
             </div>
 
+            @if ($settingsSection === 'company')
             <aside class="space-y-6">
                 <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <h2 class="font-semibold">Profil librairie</h2>
@@ -1459,6 +1782,7 @@
                     </div>
                 </article>
             </aside>
+            @endif
             @endif
         </section>
     @endif

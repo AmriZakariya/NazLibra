@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Tenant;
+use App\Models\Role;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -54,10 +55,17 @@ class AuthController extends Controller
 
     public function profile(): View
     {
+        $user = Auth::user();
+        $tenant = $user?->currentTenant ?: Tenant::query()->firstOrFail();
+        $tenantUser = $tenant->users()->whereKey($user?->id)->first();
+        $roleKey = (string) ($tenantUser?->pivot?->role ?? '');
+
         return view('auth.profile', [
-            'tenant' => Auth::user()?->currentTenant ?: Tenant::query()->firstOrFail(),
+            'tenant' => $tenant,
             'active' => 'settings',
-            'user' => Auth::user(),
+            'user' => $user,
+            'roleName' => Role::where('tenant_id', $tenant->id)->where('key', $roleKey)->value('name') ?: ucfirst($roleKey ?: 'Aucun rôle'),
+            'roleKey' => $roleKey,
         ]);
     }
 

@@ -1282,6 +1282,72 @@ document.querySelectorAll('[data-table-filter]').forEach((input) => {
     });
 });
 
+document.querySelectorAll('[data-smart-validation]').forEach((form) => {
+    const summary = form.querySelector('[data-validation-summary]');
+    const highlightField = (field) => {
+        field.classList.add('app-field-invalid');
+        field.closest('label')?.classList.add('app-field-invalid-label');
+    };
+    const clearHighlights = () => {
+        form.querySelectorAll('.app-field-invalid').forEach((field) => field.classList.remove('app-field-invalid'));
+        form.querySelectorAll('.app-field-invalid-label').forEach((label) => label.classList.remove('app-field-invalid-label'));
+    };
+    const fieldLabel = (field) => {
+        const explicitLabel = field.closest('label')?.querySelector('span')?.textContent;
+        return (explicitLabel || field.getAttribute('placeholder') || field.name || 'Champ').replace('*', '').trim();
+    };
+    const showSummary = (messages) => {
+        if (!summary) return;
+        summary.classList.remove('hidden');
+        summary.innerHTML = `
+            <strong class="block">Le formulaire contient des informations à corriger.</strong>
+            <p class="mt-1">Veuillez compléter les champs surlignés avant de continuer.</p>
+            <ul class="mt-2 list-disc space-y-1 pl-5">${messages.map((message) => `<li>${message}</li>`).join('')}</ul>
+        `;
+    };
+
+    try {
+        const serverFields = JSON.parse(form.dataset.errorFields || '[]');
+        serverFields.forEach((name) => {
+            const normalized = String(name).split('.')[0];
+            form.querySelectorAll(`[name="${CSS.escape(normalized)}"], [name^="${CSS.escape(normalized)}["]`).forEach(highlightField);
+        });
+        if (serverFields.length && summary) {
+            summary.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    } catch {
+        // Ignore malformed validation metadata.
+    }
+
+    form.addEventListener('input', (event) => {
+        if (event.target instanceof HTMLElement) {
+            event.target.classList.remove('app-field-invalid');
+            event.target.closest('label')?.classList.remove('app-field-invalid-label');
+        }
+    });
+
+    form.addEventListener('change', (event) => {
+        if (event.target instanceof HTMLElement) {
+            event.target.classList.remove('app-field-invalid');
+            event.target.closest('label')?.classList.remove('app-field-invalid-label');
+        }
+    });
+
+    form.addEventListener('submit', (event) => {
+        clearHighlights();
+        const invalidFields = Array.from(form.querySelectorAll('input, select, textarea'))
+            .filter((field) => field.willValidate && !field.checkValidity());
+
+        if (!invalidFields.length) return;
+
+        event.preventDefault();
+        invalidFields.forEach(highlightField);
+        showSummary(invalidFields.map((field) => `${fieldLabel(field)}: ${field.validationMessage}`));
+        invalidFields[0]?.focus({ preventScroll: true });
+        invalidFields[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+});
+
 document.querySelectorAll('[data-report-copy]').forEach((button) => {
     button.addEventListener('click', async () => {
         const table = document.getElementById(button.dataset.reportCopy);

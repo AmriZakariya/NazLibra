@@ -1,7 +1,7 @@
 @php
-    $input = 'mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900';
-    $select = 'mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900';
-    $section = 'lg:col-span-4 -mb-1 mt-2 border-t border-slate-200 pt-4 text-xs font-semibold uppercase text-slate-500 dark:border-white/10';
+    $input = 'mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900';
+    $select = 'mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900';
+    $section = 'lg:col-span-4 mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-500 shadow-sm dark:border-white/10 dark:bg-white/5';
     $required = '<span class="ms-1 text-rose-500">*</span>';
 @endphp
 
@@ -137,8 +137,8 @@
 <div class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Code à barre</span>
     <div class="mt-1 flex gap-2">
-        <input name="barcode" value="{{ old('barcode', $item?->barcode) }}" class="barcode-input h-10 min-w-0 flex-1 rounded-lg border border-slate-200 px-3 text-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="EAN / code scanner">
-        <button class="barcode-scan-btn h-10 shrink-0 rounded-lg border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:border-brand hover:text-brand dark:border-white/10 dark:text-slate-200" type="button">Scanner</button>
+        <input name="barcode" value="{{ old('barcode', $item?->barcode) }}" class="barcode-input h-11 min-w-0 flex-1 rounded-lg border border-slate-200 px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="EAN / code scanner">
+        <button class="barcode-scan-btn h-11 shrink-0 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-900 dark:text-slate-200" type="button">Scanner</button>
     </div>
 </div>
 <label class="block">
@@ -258,7 +258,7 @@
 </label>
 
 @if (! $item)
-    <dialog id="brand-dialog" class="w-[min(460px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40">
+    <dialog id="brand-dialog" class="app-dialog w-[min(460px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40">
         <div class="p-5">
             <div class="flex items-start justify-between gap-4">
                 <div><h3 class="font-semibold">Ajouter une marque / éditeur</h3><p class="mt-1 text-sm text-slate-500">Disponible immédiatement dans le champ Marque.</p></div>
@@ -274,7 +274,7 @@
         </div>
     </dialog>
 
-    <dialog id="category-dialog" class="w-[min(460px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40">
+    <dialog id="category-dialog" class="app-dialog w-[min(460px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40">
         <div class="p-5">
             <div class="flex items-start justify-between gap-4">
                 <div><h3 class="font-semibold">Ajouter une catégorie</h3><p class="mt-1 text-sm text-slate-500">La catégorie sera sélectionnée après création.</p></div>
@@ -291,7 +291,7 @@
         </div>
     </dialog>
 
-    <dialog id="unit-dialog" class="w-[min(420px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40">
+    <dialog id="unit-dialog" class="app-dialog w-[min(420px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40">
         <div class="p-5">
             <div class="flex items-start justify-between gap-4"><div><h3 class="font-semibold">Ajouter une unité</h3><p class="mt-1 text-sm text-slate-500">Ex: Pièce, Pack, Boîte.</p></div><button class="dialog-close text-2xl leading-none text-slate-400" type="button">&times;</button></div>
             <div class="mt-5 space-y-4" data-inline-create data-endpoint="{{ route('catalog.units.store') }}" data-target="unit_id">
@@ -303,7 +303,7 @@
         </div>
     </dialog>
 
-    <dialog id="tax-dialog" class="w-[min(420px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40">
+    <dialog id="tax-dialog" class="app-dialog w-[min(420px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40">
         <div class="p-5">
             <div class="flex items-start justify-between gap-4"><div><h3 class="font-semibold">Ajouter un impôt</h3><p class="mt-1 text-sm text-slate-500">Ex: TVA 20%, Sans TVA.</p></div><button class="dialog-close text-2xl leading-none text-slate-400" type="button">&times;</button></div>
             <div class="mt-5 space-y-4" data-inline-create data-endpoint="{{ route('catalog.taxes.store') }}" data-target="tax_id">

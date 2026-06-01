@@ -1295,6 +1295,105 @@ class LibraireProController extends Controller
         return back()->with('status', 'Thème mis à jour.');
     }
 
+    public function updateCompanyProfile(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+
+        $data = $request->validate([
+            'store_code' => ['nullable', 'string', 'max:60'],
+            'store_name' => ['required', 'string', 'max:160'],
+            'mobile' => ['nullable', 'string', 'max:60'],
+            'email' => ['nullable', 'email', 'max:190'],
+            'phone' => ['nullable', 'string', 'max:60'],
+            'cnss' => ['nullable', 'string', 'max:80'],
+            'rc' => ['nullable', 'string', 'max:80'],
+            'gst_no' => ['nullable', 'string', 'max:80'],
+            'vat_no' => ['nullable', 'string', 'max:80'],
+            'pan_no' => ['nullable', 'string', 'max:80'],
+            'store_website' => ['nullable', 'string', 'max:190'],
+            'show_signature' => ['nullable', 'boolean'],
+            'signature' => ['nullable', 'string', 'max:500'],
+            'bank_details' => ['nullable', 'string', 'max:2000'],
+            'country' => ['nullable', 'string', 'max:120'],
+            'state' => ['nullable', 'string', 'max:120'],
+            'city' => ['nullable', 'string', 'max:120'],
+            'postcode' => ['nullable', 'string', 'max:40'],
+            'address' => ['nullable', 'string', 'max:1000'],
+            'store_logo' => ['nullable', 'string', 'max:500'],
+            'timezone' => ['required', 'string', 'max:80'],
+            'date_format' => ['required', 'in:dd-mm-yyyy,dd/mm/yyyy,mm-dd-yyyy,yyyy-mm-dd'],
+            'time_format' => ['required', 'in:12,24'],
+            'currency' => ['required', 'string', 'size:3'],
+            'currency_placement' => ['required', 'in:Left,Right'],
+            'decimals' => ['required', 'integer', 'min:0', 'max:4'],
+            'qty_decimals' => ['required', 'integer', 'min:0', 'max:4'],
+            'language_id' => ['required', 'in:fr,ar,en'],
+            'round_off' => ['nullable', 'boolean'],
+            'default_account_id' => ['nullable', 'string', 'max:120'],
+            'sales_discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'sales_invoice_format_id' => ['nullable', 'string', 'max:40'],
+            'pos_invoice_format_id' => ['nullable', 'string', 'max:40'],
+            'mrp_column' => ['nullable', 'boolean'],
+            'change_return' => ['nullable', 'boolean'],
+            'previous_balance_bit' => ['nullable', 'boolean'],
+            'number_to_words' => ['required', 'in:Default,Indian,Western,Off'],
+            'sales_invoice_footer_text' => ['nullable', 'string', 'max:2000'],
+            't_and_c_status' => ['nullable', 'boolean'],
+            't_and_c_status_pos' => ['nullable', 'boolean'],
+            'invoice_terms' => ['nullable', 'string', 'max:4000'],
+            'toggle_header_footer' => ['nullable', 'boolean'],
+            'category_init' => ['nullable', 'string', 'max:20'],
+            'item_init' => ['nullable', 'string', 'max:20'],
+            'supplier_init' => ['nullable', 'string', 'max:20'],
+            'purchase_init' => ['nullable', 'string', 'max:20'],
+            'purchase_return_init' => ['nullable', 'string', 'max:20'],
+            'customer_init' => ['nullable', 'string', 'max:20'],
+            'sales_init' => ['nullable', 'string', 'max:20'],
+            'sales_return_init' => ['nullable', 'string', 'max:20'],
+            'expense_init' => ['nullable', 'string', 'max:20'],
+            'accounts_init' => ['nullable', 'string', 'max:20'],
+            'quotation_init' => ['nullable', 'string', 'max:20'],
+            'money_transfer_init' => ['nullable', 'string', 'max:20'],
+            'sales_payment_init' => ['nullable', 'string', 'max:20'],
+            'sales_return_payment_init' => ['nullable', 'string', 'max:20'],
+            'purchase_payment_init' => ['nullable', 'string', 'max:20'],
+            'purchase_return_payment_init' => ['nullable', 'string', 'max:20'],
+            'expense_payment_init' => ['nullable', 'string', 'max:20'],
+            'cust_advance_init' => ['nullable', 'string', 'max:20'],
+        ]);
+
+        foreach (['show_signature', 'round_off', 'mrp_column', 'change_return', 'previous_balance_bit', 't_and_c_status', 't_and_c_status_pos', 'toggle_header_footer'] as $boolean) {
+            $data[$boolean] = $request->boolean($boolean);
+        }
+
+        $settings = $tenant->settings ?? [];
+        $settings['company_profile'] = $data;
+        $settings['receipt_header'] = $data['store_name'];
+        $settings['locale'] = $data['language_id'] === 'ar' ? 'ar_MA' : ($data['language_id'] === 'en' ? 'en_US' : 'fr_MA');
+        $settings['number_format'] = [
+            'currency_placement' => $data['currency_placement'],
+            'decimals' => (int) $data['decimals'],
+            'qty_decimals' => (int) $data['qty_decimals'],
+            'round_off' => $data['round_off'],
+        ];
+
+        $tenant->update([
+            'name' => $data['store_name'],
+            'currency' => strtoupper($data['currency']),
+            'locale' => $settings['locale'],
+            'timezone' => $data['timezone'],
+            'phone' => $data['phone'] ?: $data['mobile'],
+            'email' => $data['email'],
+            'ice' => $data['gst_no'] ?: $tenant->ice,
+            'address' => $data['address'],
+            'settings' => $settings,
+        ]);
+
+        return redirect()
+            ->route('module', ['module' => 'settings', 'section' => 'company'])
+            ->with('status', 'Profil société mis à jour.');
+    }
+
     public function updatePosSettings(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();
@@ -3986,15 +4085,18 @@ class LibraireProController extends Controller
     {
         return [
             'default' => [
-                'primary' => '#2563EB',
-                'accent' => '#0D9488',
+                'primary' => '#3157D5',
+                'accent' => '#0F9F8A',
                 'success' => '#16A34A',
-                'background' => '#F6F8FB',
+                'warning' => '#D97706',
+                'danger' => '#E11D48',
+                'info' => '#0284C7',
+                'background' => '#F4F7FB',
                 'surface_color' => '#FFFFFF',
-                'surface_muted' => '#EEF4FF',
-                'text' => '#111827',
-                'muted' => '#667085',
-                'border' => '#D8E1EE',
+                'surface_muted' => '#EEF3F8',
+                'text' => '#101828',
+                'muted' => '#64748B',
+                'border' => '#D7DEE9',
                 'font_scale' => '1',
                 'density' => 'comfortable',
                 'radius' => '12',
@@ -4003,6 +4105,9 @@ class LibraireProController extends Controller
                 'primary' => '#4F46E5',
                 'accent' => '#0EA5E9',
                 'success' => '#059669',
+                'warning' => '#D97706',
+                'danger' => '#DC2626',
+                'info' => '#0284C7',
                 'background' => '#F8FAFC',
                 'surface_color' => '#FFFFFF',
                 'surface_muted' => '#F1F5F9',
@@ -4017,6 +4122,9 @@ class LibraireProController extends Controller
                 'primary' => '#334155',
                 'accent' => '#0F766E',
                 'success' => '#16A34A',
+                'warning' => '#B45309',
+                'danger' => '#BE123C',
+                'info' => '#0369A1',
                 'background' => '#F7F7F5',
                 'surface_color' => '#FFFFFF',
                 'surface_muted' => '#ECEDEA',

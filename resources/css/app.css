@@ -26,7 +26,8 @@
     body {
         font-family: var(--font-sans);
         background:
-            linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 50%, transparent) 0, transparent 280px),
+            linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 70%, transparent) 0, transparent 340px),
+            linear-gradient(90deg, color-mix(in srgb, var(--brand-primary) 3%, transparent), color-mix(in srgb, var(--brand-accent) 3%, transparent)),
             var(--app-bg);
         color: var(--text-main);
         font-size: calc(14px * var(--font-scale));
@@ -62,6 +63,16 @@
 
     summary::-webkit-details-marker {
         display: none;
+    }
+
+    dialog.app-dialog {
+        margin: auto;
+        max-height: calc(100dvh - 2rem);
+        overflow: auto;
+    }
+
+    dialog.app-dialog::backdrop {
+        backdrop-filter: blur(3px);
     }
 }
 
@@ -116,6 +127,17 @@
 
     .bg-white {
         background-color: var(--surface) !important;
+    }
+
+    .app-field-invalid {
+        border-color: var(--brand-danger) !important;
+        background-color: color-mix(in srgb, var(--brand-danger) 7%, var(--surface)) !important;
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-danger) 13%, transparent) !important;
+    }
+
+    .app-field-invalid-label > span:first-child,
+    label:has(.app-field-invalid) > span:first-child {
+        color: var(--brand-danger) !important;
     }
 
     .bg-slate-50 {
@@ -1536,6 +1558,250 @@
     .dt-container .dt-search {
         color: var(--text-muted);
         font-size: 13px;
+    }
+}
+
+@layer utilities {
+    .app-main-shell {
+        background:
+            linear-gradient(180deg, color-mix(in srgb, var(--surface) 42%, transparent) 0, transparent 220px),
+            transparent;
+    }
+
+    .app-topbar {
+        background: color-mix(in srgb, var(--surface) 90%, transparent);
+        border-color: color-mix(in srgb, var(--border-soft) 76%, transparent);
+        box-shadow: 0 1px 0 color-mix(in srgb, var(--surface) 76%, transparent), 0 16px 38px color-mix(in srgb, var(--text-main) 5%, transparent);
+    }
+
+    .dark .app-topbar {
+        background: color-mix(in srgb, #0b1220 88%, transparent);
+        border-color: color-mix(in srgb, #ffffff 10%, transparent);
+        box-shadow: 0 1px 0 color-mix(in srgb, #ffffff 5%, transparent), 0 18px 40px rgb(0 0 0 / 24%);
+    }
+
+    .topbar-quick-add summary {
+        border-radius: 15px;
+        box-shadow: 0 12px 26px color-mix(in srgb, var(--brand-primary) 24%, transparent);
+        transition: filter 160ms ease, transform 160ms ease;
+    }
+
+    .topbar-quick-add summary:hover {
+        filter: brightness(1.06);
+        transform: translateY(-1px);
+    }
+
+    .app-top-search input {
+        background: color-mix(in srgb, var(--surface) 88%, var(--surface-muted)) !important;
+        border-color: color-mix(in srgb, var(--border-soft) 82%, transparent) !important;
+        box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 72%, transparent);
+        color: var(--text-main) !important;
+    }
+
+    .app-top-search input:focus {
+        background: var(--surface) !important;
+        box-shadow:
+            0 0 0 4px color-mix(in srgb, var(--brand-primary) 11%, transparent),
+            inset 0 1px 0 color-mix(in srgb, #ffffff 72%, transparent);
+    }
+
+    .app-sidebar {
+        --sidebar-bg: #121722;
+        --sidebar-bg-raised: #171d29;
+        --sidebar-line: rgb(255 255 255 / 8%);
+        --sidebar-text: #e9eef7;
+        --sidebar-muted: #93a0b4;
+        --sidebar-hover: rgb(255 255 255 / 6%);
+        --sidebar-active: color-mix(in srgb, var(--brand-primary) 82%, #0f9f8a 18%);
+        background:
+            linear-gradient(180deg, color-mix(in srgb, var(--brand-primary) 18%, var(--sidebar-bg)) 0, var(--sidebar-bg) 245px),
+            linear-gradient(115deg, color-mix(in srgb, var(--brand-accent) 8%, transparent), transparent 46%),
+            var(--sidebar-bg) !important;
+        border-right: 1px solid var(--sidebar-line) !important;
+        box-shadow: 16px 0 42px rgb(15 23 42 / 12%);
+        color: var(--sidebar-text);
+        transition: width 220ms ease, box-shadow 220ms ease;
+        width: 292px !important;
+    }
+
+    .sidebar-brand {
+        border-bottom: 1px solid var(--sidebar-line) !important;
+        background: linear-gradient(180deg, rgb(255 255 255 / 5%), transparent);
+    }
+
+    .sidebar-brand-link {
+        color: var(--sidebar-text);
+        min-width: 0;
+    }
+
+    .sidebar-brand-link:hover {
+        background: rgb(255 255 255 / 5%) !important;
+    }
+
+    .sidebar-brand .sidebar-label span:first-child {
+        color: var(--sidebar-text);
+        font-size: 14px;
+        letter-spacing: 0;
+    }
+
+    .sidebar-brand .sidebar-label span:last-child {
+        color: var(--sidebar-muted) !important;
+    }
+
+    .sidebar-logo {
+        background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent)) !important;
+        border: 1px solid rgb(255 255 255 / 14%);
+        box-shadow: 0 14px 28px color-mix(in srgb, var(--brand-primary) 30%, transparent) !important;
+    }
+
+    .sidebar-toggle {
+        background: rgb(255 255 255 / 7%) !important;
+        border: 1px solid rgb(255 255 255 / 10%) !important;
+        color: var(--sidebar-muted) !important;
+        border-radius: 12px !important;
+    }
+
+    .sidebar-toggle:hover {
+        background: rgb(255 255 255 / 12%) !important;
+        color: white !important;
+        transform: translateY(-1px);
+    }
+
+    .sidebar-scroll {
+        padding-top: 12px !important;
+        scrollbar-color: rgb(255 255 255 / 18%) transparent;
+    }
+
+    .sidebar-scroll::-webkit-scrollbar-thumb {
+        background: rgb(255 255 255 / 18%) !important;
+    }
+
+    .sidebar-link {
+        border: 1px solid transparent;
+        border-radius: 14px !important;
+        color: var(--sidebar-muted) !important;
+        font-size: 13px;
+        font-weight: 680;
+        margin: 2px 0;
+        min-height: 44px;
+        padding: 8px 10px !important;
+    }
+
+    .sidebar-link:hover {
+        background: var(--sidebar-hover) !important;
+        border-color: rgb(255 255 255 / 7%);
+        color: var(--sidebar-text) !important;
+        transform: translateX(1px);
+    }
+
+    .sidebar-link.is-active {
+        background:
+            linear-gradient(135deg, color-mix(in srgb, var(--sidebar-active) 24%, transparent), rgb(255 255 255 / 8%)),
+            var(--sidebar-bg-raised) !important;
+        border-color: color-mix(in srgb, var(--brand-primary) 38%, rgb(255 255 255 / 12%));
+        box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%), 0 12px 24px rgb(0 0 0 / 16%) !important;
+        color: white !important;
+    }
+
+    .sidebar-link.is-active::before {
+        background: linear-gradient(180deg, var(--brand-accent), var(--brand-primary)) !important;
+        bottom: 10px !important;
+        left: 5px !important;
+        top: 10px !important;
+        width: 3px !important;
+    }
+
+    .sidebar-icon {
+        background: rgb(255 255 255 / 6%) !important;
+        border: 1px solid rgb(255 255 255 / 8%) !important;
+        border-radius: 12px !important;
+        color: var(--sidebar-muted) !important;
+        flex-basis: 30px !important;
+        height: 30px !important;
+        width: 30px !important;
+    }
+
+    .sidebar-link:hover .sidebar-icon,
+    .sidebar-link.is-active .sidebar-icon {
+        background: color-mix(in srgb, var(--brand-primary) 20%, rgb(255 255 255 / 8%)) !important;
+        border-color: color-mix(in srgb, var(--brand-primary) 34%, rgb(255 255 255 / 12%)) !important;
+        color: white !important;
+    }
+
+    .sidebar-chevron {
+        color: color-mix(in srgb, var(--sidebar-muted) 76%, transparent) !important;
+        font-size: 14px;
+    }
+
+    .sidebar-children {
+        border-left: 1px solid rgb(255 255 255 / 8%);
+        margin: 4px 0 10px 24px !important;
+        padding: 3px 0 3px 12px !important;
+    }
+
+    .sidebar-child {
+        border-radius: 11px !important;
+        color: color-mix(in srgb, var(--sidebar-muted) 88%, white) !important;
+        font-size: 12.5px;
+        font-weight: 620;
+        min-height: 34px !important;
+        padding: 7px 10px !important;
+    }
+
+    .sidebar-child:hover {
+        background: rgb(255 255 255 / 6%) !important;
+        color: white !important;
+    }
+
+    .sidebar-child.is-active {
+        background: color-mix(in srgb, var(--brand-primary) 22%, transparent) !important;
+        color: white !important;
+    }
+
+    .sidebar-child::before {
+        background: var(--brand-accent) !important;
+        left: -15px !important;
+        opacity: 0.85;
+    }
+
+    .sidebar-collapsed .app-sidebar {
+        width: 80px !important;
+        box-shadow: 10px 0 28px rgb(15 23 42 / 10%);
+    }
+
+    .sidebar-collapsed .app-sidebar > div:first-child {
+        justify-content: center;
+        padding-inline: 9px !important;
+    }
+
+    .sidebar-collapsed .app-sidebar .sidebar-brand-link {
+        padding: 5px !important;
+    }
+
+    .sidebar-collapsed .app-sidebar .sidebar-link {
+        min-height: 48px;
+        padding-inline: 8px !important;
+    }
+
+    .sidebar-collapsed .app-sidebar .sidebar-icon {
+        flex-basis: 38px !important;
+        height: 38px !important;
+        width: 38px !important;
+    }
+
+    .sidebar-collapsed .app-sidebar .sidebar-link.is-active::before {
+        left: 4px !important;
+    }
+
+    @media (max-width: 920px) {
+        .app-topbar > div {
+            flex-wrap: wrap;
+        }
+
+        .app-top-search {
+            flex-basis: 100%;
+            order: 8;
+        }
     }
 }
 

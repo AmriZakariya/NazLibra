@@ -284,9 +284,17 @@
                         </div>
                     </div>
 
-                    <form action="{{ route('catalog.items.update', $editItem) }}" method="POST" enctype="multipart/form-data" class="mt-5 grid gap-4 lg:grid-cols-4">
+                    <form action="{{ route('catalog.items.update', $editItem) }}" method="POST" enctype="multipart/form-data" data-smart-validation data-error-fields='@json($errors->keys())' class="mt-5 grid gap-4 lg:grid-cols-4">
                         @csrf
                         @method('PUT')
+                        <div data-validation-summary class="{{ $errors->any() ? '' : 'hidden' }} lg:col-span-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
+                            <strong class="block">Veuillez corriger les champs indiqués.</strong>
+                            <ul class="mt-2 list-disc space-y-1 pl-5">
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
                         @if ($editItem->type === 'service')
                             <input type="hidden" name="type" value="service">
                             @include('librairepro.partials.service-fields', ['item' => $editItem, 'categories' => $categories, 'brands' => $brands, 'units' => $units, 'taxes' => $taxes])
@@ -321,10 +329,43 @@
 
     @if ($panel === 'ajouter')
         <section class="mt-6">
-            <article id="form-article" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                <h2 class="text-base font-semibold">Ajouter un article</h2>
-                <p class="mt-1 text-sm text-slate-500">Les champs obligatoires sont marqués, les référentiels peuvent être créés depuis le formulaire.</p>
-                <form action="{{ route('catalog.items.store') }}" method="POST" enctype="multipart/form-data" class="mt-5 grid gap-4 lg:grid-cols-4">@csrf @include('librairepro.partials.item-fields', ['item' => null, 'categories' => $categories, 'brands' => $brands, 'units' => $units, 'taxes' => $taxes])<div class="lg:col-span-4 flex justify-end"><button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white">Ajouter au catalogue</button></div></form>
+            <article id="form-article" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="border-b border-slate-200 bg-slate-50/80 p-5 dark:border-white/10 dark:bg-white/[0.04]">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="flex items-start gap-3">
+                            <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-lg font-semibold text-white shadow-sm shadow-brand/20">+</span>
+                            <div>
+                                <p class="text-xs font-semibold uppercase tracking-wide text-brand">Catalogue · création</p>
+                                <h2 class="mt-1 text-xl font-semibold text-slate-950 dark:text-white">Ajouter un article</h2>
+                                <p class="mt-1 max-w-3xl text-sm text-slate-500">Créez un livre ou produit physique avec les champs utiles à la caisse, au stock, aux étiquettes et aux imports depuis l’ancienne solution.</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <x-status-pill tone="primary">Livre / produit</x-status-pill>
+                            <x-status-pill tone="info">Référentiels rapides</x-status-pill>
+                        </div>
+                    </div>
+                </div>
+                <form action="{{ route('catalog.items.store') }}" method="POST" enctype="multipart/form-data" data-smart-validation data-error-fields='@json($errors->keys())' class="grid gap-4 p-5 lg:grid-cols-4">
+                    @csrf
+                    <div data-validation-summary class="{{ $errors->any() ? '' : 'hidden' }} lg:col-span-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
+                        <strong class="block">Le formulaire contient des informations à corriger.</strong>
+                        <p class="mt-1">Les champs concernés sont surlignés ci-dessous.</p>
+                        <ul class="mt-2 list-disc space-y-1 pl-5">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                    @include('librairepro.partials.item-fields', ['item' => null, 'categories' => $categories, 'brands' => $brands, 'units' => $units, 'taxes' => $taxes])
+                    <div class="sticky bottom-0 z-10 -mx-5 -mb-5 mt-2 flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 backdrop-blur dark:border-white/10 dark:bg-slate-950/95 sm:flex-row sm:items-center sm:justify-between lg:col-span-4">
+                        <p class="text-sm text-slate-500">Les champs marqués <span class="font-semibold text-rose-500">*</span> sont obligatoires.</p>
+                        <div class="flex justify-end gap-2">
+                            <a href="{{ route('catalog', ['panel' => 'articles']) }}" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold dark:border-white/10">Annuler</a>
+                            <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20">Ajouter au catalogue</button>
+                        </div>
+                    </div>
+                </form>
             </article>
         </section>
     @endif

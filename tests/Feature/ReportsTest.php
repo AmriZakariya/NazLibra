@@ -26,6 +26,8 @@ class ReportsTest extends TestCase
 
     public function test_report_legacy_routes_redirect_to_new_sections(): void
     {
+        $this->seed();
+
         $this->get('/reports/profit_loss')
             ->assertRedirect('/modules/reports?section=profit-loss');
 

@@ -10,6 +10,7 @@ Route::post('/deconnexion', [AuthController::class, 'logout'])->middleware('auth
 Route::get('/profil', [AuthController::class, 'profile'])->middleware('auth')->name('profile');
 Route::put('/profil', [AuthController::class, 'updateProfile'])->middleware('auth')->name('profile.update');
 
+Route::middleware(['auth', 'tenant.access'])->group(function (): void {
 Route::get('/', [LibraireProController::class, 'dashboard'])->name('dashboard');
 
 Route::redirect('/items', '/catalogue?panel=articles')->name('legacy.items');
@@ -150,6 +151,7 @@ Route::delete('/comptes/{account}', [LibraireProController::class, 'destroyFinan
 Route::post('/comptes/depots', [LibraireProController::class, 'storeMoneyDeposit'])->name('accounts.deposits.store');
 Route::post('/comptes/transferts', [LibraireProController::class, 'storeMoneyTransfer'])->name('accounts.transfers.store');
 Route::post('/parametres/theme', [LibraireProController::class, 'updateTheme'])->name('settings.theme.update');
+Route::post('/parametres/societe', [LibraireProController::class, 'updateCompanyProfile'])->name('settings.company.update');
 Route::post('/parametres/caisse', [LibraireProController::class, 'updatePosSettings'])->name('settings.pos.update');
 Route::post('/parametres/magasin-courant', [LibraireProController::class, 'updateCurrentStore'])->name('settings.current-store.update');
 Route::post('/parametres/magasins', [LibraireProController::class, 'storeStore'])->name('settings.stores.store');
@@ -175,3 +177,4 @@ Route::post('/parametres/roles', [LibraireProController::class, 'storeRole'])->n
 Route::put('/parametres/roles/{role}', [LibraireProController::class, 'updateRole'])->name('settings.roles.update');
 Route::delete('/parametres/roles/{role}', [LibraireProController::class, 'destroyRole'])->name('settings.roles.destroy');
 Route::get('/modules/{module}', [LibraireProController::class, 'module'])->name('module');
+});

@@ -5,6 +5,12 @@
             <div>
             <p class="text-sm font-semibold text-brand">Compte utilisateur</p>
             <h1 class="mt-1 text-2xl font-semibold tracking-normal">Mon profil</h1>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+                <span class="rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand">{{ $roleName }}</span>
+                @if ($roleKey)
+                    <span class="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-500 dark:border-white/10">Rôle: {{ $roleKey }}</span>
+                @endif
+            </div>
             <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">Gérez vos informations personnelles et votre mot de passe de connexion.</p>
             </div>
         </div>
@@ -56,6 +62,7 @@
                 </div>
             </div>
             <dl class="mt-5 space-y-3 text-sm">
+                <div class="flex justify-between gap-3"><dt class="text-slate-500">Rôle</dt><dd class="font-semibold">{{ $roleName }}</dd></div>
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">Statut</dt><dd class="font-semibold">{{ $user->is_active ? 'Actif' : 'Désactivé' }}</dd></div>
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">Téléphone</dt><dd class="font-semibold">{{ $user->phone ?: '—' }}</dd></div>
                 <div class="flex justify-between gap-3"><dt class="text-slate-500">Compte créé</dt><dd class="font-semibold">{{ $user->created_at?->format('d/m/Y') }}</dd></div>
