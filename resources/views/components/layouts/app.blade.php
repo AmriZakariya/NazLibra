@@ -95,8 +95,7 @@
                 ['label' => 'Liste des impôts', 'icon' => '%', 'href' => route('catalog', ['panel' => 'impots'])],
                 ['label' => 'Liste des variantes', 'icon' => '≡', 'href' => route('catalog', ['panel' => 'variantes'])],
                 ['label' => 'Imprimer des étiquettes', 'icon' => '▥', 'href' => route('catalog.labels')],
-                ['label' => 'Importer des éléments', 'icon' => '↤', 'href' => route('catalog', ['panel' => 'import', 'kind' => 'items'])],
-                ['label' => "Services d'importation", 'icon' => '↤', 'href' => route('catalog', ['panel' => 'import', 'kind' => 'services'])],
+                ['label' => "Services d'importation", 'icon' => '↤', 'href' => route('catalog', ['panel' => 'import', 'kind' => 'items'])],
             ];
             $quickAdds = [
                 ['label' => 'Ventes', 'href' => route('module', ['module' => 'sales', 'section' => 'add'])],

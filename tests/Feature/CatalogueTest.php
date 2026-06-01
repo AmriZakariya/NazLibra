@@ -102,6 +102,22 @@ class CatalogueTest extends TestCase
             ->assertSee('IMP-STYLO-001');
     }
 
+    public function test_catalogue_import_examples_are_downloadable_xlsx_files(): void
+    {
+        $this->seed();
+
+        foreach (['items', 'services', 'categories', 'brands', 'variants'] as $kind) {
+            $response = $this->get(route('catalog.import.example', $kind));
+
+            $response->assertOk();
+            $response->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            $zip = new ZipArchive();
+            $this->assertTrue($zip->open($response->baseResponse->getFile()->getPathname()));
+            $this->assertNotFalse($zip->getFromName('xl/worksheets/sheet1.xml'));
+            $zip->close();
+        }
+    }
+
     public function test_label_search_matches_split_keywords_and_keeps_selection_active(): void
     {
         $this->seed();
@@ -236,7 +252,8 @@ class CatalogueTest extends TestCase
             ->assertSee("Quantité d'alerte", false)
             ->assertSee('Prix de vente')
             ->assertSee('Impôt')
-            ->assertSee('Exporter CSV');
+            ->assertSee('Exporter vue')
+            ->assertSee('Exporter tout');
 
         $this->get(route('catalog', ['panel' => 'services']))
             ->assertOk()
@@ -258,6 +275,12 @@ class CatalogueTest extends TestCase
         $csv = $response->streamedContent();
         $this->assertStringContainsString('Code de barre', $csv);
         $this->assertStringContainsString($item->title, $csv);
+
+        $allResponse = $this->get(route('catalog.export', ['all' => 1]));
+
+        $allResponse->assertOk();
+        $allResponse->assertHeader('content-type', 'text/csv; charset=UTF-8');
+        $this->assertStringContainsString('catalogue-complet-', $allResponse->headers->get('content-disposition'));
     }
 
     public function test_catalogue_accepts_legacy_item_and_service_fields(): void

@@ -157,6 +157,9 @@ class LibraireProController extends Controller
         $status = $request->query('status', 'all');
         $type = $request->query('type', 'all');
         $category = $request->query('category', 'all');
+        $brand = $request->query('brand', 'all');
+        $unit = $request->query('unit', 'all');
+        $tax = $request->query('tax', 'all');
         $stock = $request->query('stock', 'all');
         $perPage = (int) $request->query('per_page', 25);
         $perPage = in_array($perPage, [10, 25, 50, 100], true) ? $perPage : 25;
@@ -246,6 +249,9 @@ class LibraireProController extends Controller
                 ->get(),
             'stockAdjustments' => $stockAdjustments,
             'stockTransfers' => $stockTransfers,
+            'stores' => $this->storeCatalog($tenant),
+            'currentStore' => $this->currentStore($tenant),
+            'suggestedItemCode' => $this->nextItemCode($tenant->id),
             'stockStats' => [
                 'adjustments' => StockAdjustment::where('tenant_id', $tenant->id)->count(),
                 'transfers' => StockTransfer::where('tenant_id', $tenant->id)->count(),
@@ -263,6 +269,9 @@ class LibraireProController extends Controller
             'status' => $status,
             'type' => $type,
             'categoryFilter' => $category,
+            'brandFilter' => $brand,
+            'unitFilter' => $unit,
+            'taxFilter' => $tax,
             'stock' => $stock,
             'sort' => $sort,
             'direction' => $direction,
@@ -328,7 +337,7 @@ class LibraireProController extends Controller
 
                 return '<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$tone.'">'.e($this->statusLabel($item->status)).'</span>';
             })
-            ->addColumn('action', fn (Item $item): string => '<a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail / modifier</a>')
+            ->addColumn('action', fn (Item $item): string => '<div class="flex min-w-[160px] justify-end gap-2"><a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Voir</a><a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Modifier</a></div>')
             ->rawColumns(['checkbox', 'image', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'action'])
             ->toJson();
     }
@@ -685,15 +694,32 @@ class LibraireProController extends Controller
         $tenant = $this->tenant();
         $panel = $request->query('panel', 'articles');
 
-        $items = $this->catalogItemsQuery($tenant, $request)
+        $itemsRequest = $request;
+        if ($request->boolean('all')) {
+            $itemsRequest = $request->duplicate(array_merge($request->query(), [
+                'panel' => 'all',
+                'q' => '',
+                'status' => 'all',
+                'type' => 'all',
+                'category' => 'all',
+                'brand' => 'all',
+                'unit' => 'all',
+                'tax' => 'all',
+                'stock' => 'all',
+                'min_price' => '',
+                'max_price' => '',
+            ]));
+        }
+
+        $items = $this->catalogItemsQuery($tenant, $itemsRequest)
             ->orderBy('title')
             ->get();
 
-        $filename = 'catalogue-'.($panel === 'services' ? 'services' : 'articles').'-'.now()->format('Ymd-His').'.csv';
+        $filename = 'catalogue-'.($request->boolean('all') ? 'complet' : ($panel === 'services' ? 'services' : 'articles')).'-'.now()->format('Ymd-His').'.csv';
 
         return response()->streamDownload(function () use ($items, $panel): void {
             $handle = fopen('php://output', 'w');
-            $headers = ['Image', 'Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Stock'];
+            $headers = ['Image', 'Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Marque / éditeur', 'Unité', 'Stock'];
             if ($panel !== 'services') {
                 $headers[] = "Quantité d'alerte";
             }
@@ -706,6 +732,7 @@ class LibraireProController extends Controller
                     $item->barcode ?? $item->isbn ?? $item->sku ?? '',
                     $item->title,
                     ($item->category?->name ?? 'Sans catégorie').' / '.$this->typeLabel($item->type),
+                    $item->brand?->name ?? '',
                     $item->unit?->name ?? '',
                     $item->type === 'service' ? 'Illimité' : $item->stock_quantity,
                 ];
@@ -732,7 +759,12 @@ class LibraireProController extends Controller
         $status = $request->query('status', 'all');
         $type = $request->query('type', 'all');
         $category = $request->query('category', 'all');
+        $brand = $request->query('brand', 'all');
+        $unit = $request->query('unit', 'all');
+        $tax = $request->query('tax', 'all');
         $stock = $request->query('stock', 'all');
+        $minPrice = $request->query('min_price');
+        $maxPrice = $request->query('max_price');
 
         return Item::query()
             ->where('tenant_id', $tenant->id)
@@ -747,11 +779,16 @@ class LibraireProController extends Controller
             }))
             ->when($status !== 'all', fn (Builder $builder) => $builder->where('status', $status))
             ->when($category !== 'all', fn (Builder $builder) => $builder->where('category_id', $category))
+            ->when($brand !== 'all', fn (Builder $builder) => $builder->where('brand_id', $brand))
+            ->when($unit !== 'all', fn (Builder $builder) => $builder->where('unit_id', $unit))
+            ->when($tax !== 'all', fn (Builder $builder) => $builder->where('tax_id', $tax))
             ->when($stock === 'low', fn (Builder $builder) => $builder->whereColumn('stock_quantity', '<=', 'min_stock_threshold'))
             ->when($stock === 'out', fn (Builder $builder) => $builder->where('stock_quantity', '<=', 0))
+            ->when(is_numeric($minPrice), fn (Builder $builder) => $builder->where('sale_price', '>=', (float) $minPrice))
+            ->when(is_numeric($maxPrice), fn (Builder $builder) => $builder->where('sale_price', '<=', (float) $maxPrice))
             ->when(in_array($panel, ['services', 'ajouter-service'], true), fn (Builder $builder) => $builder->where('type', 'service'))
-            ->when(! in_array($panel, ['services', 'ajouter-service'], true) && $type !== 'all', fn (Builder $builder) => $builder->where('type', $type))
-            ->when(! in_array($panel, ['services', 'ajouter-service'], true) && $type === 'all', fn (Builder $builder) => $builder->where('type', '!=', 'service'));
+            ->when(! in_array($panel, ['services', 'ajouter-service', 'all'], true) && $type !== 'all', fn (Builder $builder) => $builder->where('type', $type))
+            ->when(! in_array($panel, ['services', 'ajouter-service', 'all'], true) && $type === 'all', fn (Builder $builder) => $builder->where('type', '!=', 'service'));
     }
 
     public function storeItem(Request $request): RedirectResponse
@@ -1154,6 +1191,20 @@ class LibraireProController extends Controller
         }
 
         return back()->with('status', "{$created} créée(s), {$updated} mise(s) à jour, {$skipped} ignorée(s).");
+    }
+
+    public function importExample(string $kind)
+    {
+        abort_unless(in_array($kind, ['items', 'services', 'categories', 'brands', 'variants'], true), 404);
+
+        $example = $this->importExampleRows($kind);
+        $path = $this->buildSimpleXlsx($example['title'], $example['headers'], $example['rows']);
+
+        return response()
+            ->download($path, $example['filename'], [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])
+            ->deleteFileAfterSend(true);
     }
 
     public function labels(Request $request): View
@@ -4522,6 +4573,118 @@ class LibraireProController extends Controller
         } while (Item::where('tenant_id', $tenantId)->where('item_code', $code)->when($ignoreItemId, fn (Builder $builder) => $builder->where('id', '!=', $ignoreItemId))->exists());
 
         return $code;
+    }
+
+    /**
+     * @return array{title: string, filename: string, headers: array<int, string>, rows: array<int, array<int, string|int|float>>}
+     */
+    private function importExampleRows(string $kind): array
+    {
+        return match ($kind) {
+            'categories' => [
+                'title' => 'Liste des catégories',
+                'filename' => 'exemple-import-categories.xlsx',
+                'headers' => ['Nom de catégorie', 'La description', 'Statut'],
+                'rows' => [
+                    ['FOURNITURE SCOLAIRE', 'Cahiers, cartables, trousses et rentrée scolaire', 'Active'],
+                    ['ROMANS', 'Livres de lecture', 'Active'],
+                ],
+            ],
+            'brands' => [
+                'title' => 'Liste des marques',
+                'filename' => 'exemple-import-marques.xlsx',
+                'headers' => ['Marque', 'La description', 'Statut'],
+                'rows' => [
+                    ['OXFORD', 'Papeterie et cahiers', 'Active'],
+                    ['BORDAS', 'Éditeur scolaire', 'Active'],
+                ],
+            ],
+            'variants' => [
+                'title' => 'Liste des variantes',
+                'filename' => 'exemple-import-variantes.xlsx',
+                'headers' => ['Nom de la variante', 'La description', 'Statut'],
+                'rows' => [
+                    ['BLEU MARINE', 'Couleur', 'Active'],
+                    ['RELIÉ', 'Format livre', 'Active'],
+                ],
+            ],
+            'services' => [
+                'title' => 'Liste des services',
+                'filename' => 'exemple-import-services.xlsx',
+                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Prix de vente', 'Impôt', 'Statut'],
+                'rows' => [
+                    ['', 'Photocopie A4 noir et blanc', 'Services[SERVICE]', 'Service', '0.50', 'Sans TVA(0.00%)', 'Active'],
+                    ['', 'Adhésion annuelle', 'Services[SERVICE]', 'Service', '100.00', 'Sans TVA(0.00%)', 'Active'],
+                ],
+            ],
+            default => [
+                'title' => "Liste d'articles",
+                'filename' => 'exemple-import-articles.xlsx',
+                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Stock', "Quantité d'alerte", 'Prix de vente', 'Impôt', 'Statut', 'Action'],
+                'rows' => [
+                    ['9780000000001', 'Cahier 96 pages grand format', 'FOURNITURE SCOLAIRE[ITEM]', 'Pièce', '50', '5', '12.00', 'Sans TVA(0.00%)', 'Active', ''],
+                    ['9780000000002', 'Roman exemple relié', 'ROMANS[ITEM]', 'Pièce', '8', '2', '85.00', 'TVA 7%(7.00%)', 'Active', ''],
+                ],
+            ],
+        };
+    }
+
+    /**
+     * @param  array<int, string>  $headers
+     * @param  array<int, array<int, string|int|float>>  $rows
+     */
+    private function buildSimpleXlsx(string $title, array $headers, array $rows): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'librairepro-import-').'.xlsx';
+        $zip = new ZipArchive();
+        $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
+        $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+        $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
+        $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Import" sheetId="1" r:id="rId1"/></sheets></workbook>');
+        $zip->addFromString('xl/worksheets/sheet1.xml', $this->simpleWorksheetXml($title, $headers, $rows));
+        $zip->close();
+
+        return $path;
+    }
+
+    /**
+     * @param  array<int, string>  $headers
+     * @param  array<int, array<int, string|int|float>>  $rows
+     */
+    private function simpleWorksheetXml(string $title, array $headers, array $rows): string
+    {
+        $sheetRows = [[$title], $headers, ...$rows];
+        $xmlRows = [];
+
+        foreach ($sheetRows as $rowIndex => $row) {
+            $cells = [];
+            foreach (array_values($row) as $columnIndex => $value) {
+                $reference = $this->columnLetters($columnIndex + 1).($rowIndex + 1);
+                $cells[] = '<c r="'.$reference.'" t="inlineStr"><is><t>'.$this->xmlEscape((string) $value).'</t></is></c>';
+            }
+            $xmlRows[] = '<row r="'.($rowIndex + 1).'">'.implode('', $cells).'</row>';
+        }
+
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'.implode('', $xmlRows).'</sheetData></worksheet>';
+    }
+
+    private function columnLetters(int $index): string
+    {
+        $letters = '';
+        while ($index > 0) {
+            $index--;
+            $letters = chr(65 + ($index % 26)).$letters;
+            $index = intdiv($index, 26);
+        }
+
+        return $letters;
+    }
+
+    private function xmlEscape(string $value): string
+    {
+        return htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8');
     }
 
     /**

@@ -1,23 +1,28 @@
 @php
     $input = 'mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900';
+    $readonlyInput = $input.' bg-slate-50 text-slate-500';
     $select = 'mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900';
     $section = 'lg:col-span-4 mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-500 shadow-sm dark:border-white/10 dark:bg-white/5';
     $required = '<span class="ms-1 text-rose-500">*</span>';
+    $typeValue = old('type', $item?->type ?? 'book');
+    $typeLabels = ['book' => 'Livre / article physique', 'supply' => 'Produit physique'];
+    $storeOptions = collect($stores ?? [])->filter(fn ($store) => data_get($store, 'is_active', true));
+    $defaultStoreName = data_get($currentStore ?? [], 'name', 'Magasin principal');
+    $warehouseValue = old('warehouse', $item?->warehouse ?? $defaultStoreName);
 @endphp
 
 <div class="{{ $section }}">Identification</div>
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Code de l'article</span>
-    <input name="item_code" value="{{ old('item_code', $item?->item_code) }}" class="{{ $input }}" placeholder="Auto si vide">
+    <input name="item_code" value="{{ old('item_code', $item?->item_code ?? $suggestedItemCode ?? '') }}" class="{{ $item ? $input : $readonlyInput }}" placeholder="Auto" @readonly(! $item)>
 </label>
-<label class="block">
-    <span class="text-xs font-semibold uppercase text-slate-500">Type {!! $required !!}</span>
-    <select name="type" required class="{{ $select }}">
-        @foreach (['book' => 'Livre', 'supply' => 'Produit physique', 'service' => 'Service'] as $value => $label)
-            <option value="{{ $value }}" @selected(old('type', $item?->type ?? 'book') === $value)>{{ $label }}</option>
-        @endforeach
-    </select>
-</label>
+<input type="hidden" name="type" value="{{ in_array($typeValue, ['book', 'supply'], true) ? $typeValue : 'book' }}">
+<div class="block">
+    <span class="text-xs font-semibold uppercase text-slate-500">Type</span>
+    <div class="mt-1 flex h-11 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-100">
+        {{ $typeLabels[$typeValue] ?? 'Livre / article physique' }}
+    </div>
+</div>
 <label class="block lg:col-span-2">
     <span class="text-xs font-semibold uppercase text-slate-500">Nom de l'article {!! $required !!}</span>
     <input name="title" required value="{{ old('title', $item?->title) }}" class="{{ $input }}" placeholder="Titre ou nom produit">
@@ -225,7 +230,13 @@
 <div class="{{ $section }}">Magasin et médias</div>
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Magasin</span>
-    <input name="warehouse" value="{{ old('warehouse', $item?->warehouse ?? 'Oubra store') }}" class="{{ $input }}">
+    <select name="warehouse" data-searchable-select data-placeholder="Choisir un magasin..." class="{{ $select }}">
+        @forelse ($storeOptions as $store)
+            <option value="{{ data_get($store, 'name') }}" @selected($warehouseValue === data_get($store, 'name'))>{{ data_get($store, 'name') }}{{ data_get($store, 'type') === 'warehouse' ? ' · Dépôt' : '' }}</option>
+        @empty
+            <option value="{{ $warehouseValue }}">{{ $warehouseValue }}</option>
+        @endforelse
+    </select>
 </label>
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Emplacement</span>

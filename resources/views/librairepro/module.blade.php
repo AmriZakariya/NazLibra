@@ -188,24 +188,24 @@
             </div>
 
             <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                <form class="grid gap-3 xl:grid-cols-[1fr_150px_150px_210px_160px_150px_120px_120px_auto]" method="GET" action="{{ route('module', 'sales') }}">
-                    <input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="Rechercher code, client, paiement...">
-                    <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                    <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                    <select name="client" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                <form class="flex flex-wrap items-end gap-3" method="GET" action="{{ route('module', 'sales') }}">
+                    <input name="q" value="{{ request('q') }}" class="h-11 min-w-[220px] flex-[1_1_260px] rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="Rechercher code, client, paiement...">
+                    <input name="from" value="{{ request('from') }}" type="date" class="h-11 min-w-[150px] flex-[1_1_150px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                    <input name="to" value="{{ request('to') }}" type="date" class="h-11 min-w-[150px] flex-[1_1_150px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                    <select name="client" class="h-11 min-w-[190px] flex-[1_1_210px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <option value="">Tous les clients</option>
                         @foreach ($salesClients as $client)
                             <option value="{{ $client->id }}" @selected((string) request('client') === (string) $client->id)>{{ $client->name }}</option>
                         @endforeach
                     </select>
-                    <select name="payment_status" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                    <select name="payment_status" class="h-11 min-w-[150px] flex-[1_1_160px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <option value="">Tous statuts</option>
                         <option value="paid" @selected(request('payment_status') === 'paid')>payé</option>
                         <option value="partial" @selected(request('payment_status') === 'partial')>Partiel</option>
                         <option value="unpaid" @selected(request('payment_status') === 'unpaid')>Impayé</option>
                         <option value="refunded" @selected(request('payment_status') === 'refunded')>Remboursé</option>
                     </select>
-                    <select name="payment_method" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                    <select name="payment_method" class="h-11 min-w-[150px] flex-[1_1_160px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <option value="">Tous paiements</option>
                         <option value="cash" @selected(request('payment_method') === 'cash')>Espèces</option>
                         <option value="card" @selected(request('payment_method') === 'card')>Carte</option>
@@ -213,11 +213,11 @@
                         <option value="advance" @selected(request('payment_method') === 'advance')>Avance</option>
                         <option value="mixed" @selected(request('payment_method') === 'mixed')>Mixte</option>
                     </select>
-                    <input name="min_total" value="{{ request('min_total') }}" inputmode="decimal" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Min DH">
-                    <input name="max_total" value="{{ request('max_total') }}" inputmode="decimal" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Max DH">
-                    <div class="flex gap-2">
-                        <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">Filtrer</button>
-                        <a href="{{ route('module', 'sales') }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a>
+                    <input name="min_total" value="{{ request('min_total') }}" inputmode="decimal" class="h-11 min-w-[105px] flex-[1_1_110px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Min DH">
+                    <input name="max_total" value="{{ request('max_total') }}" inputmode="decimal" class="h-11 min-w-[105px] flex-[1_1_110px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Max DH">
+                    <div class="grid min-w-[180px] flex-[0_1_220px] grid-cols-2 gap-2 max-sm:flex-1">
+                        <button class="h-11 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">Filtrer</button>
+                        <a href="{{ route('module', 'sales') }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a>
                     </div>
                 </form>
             </article>

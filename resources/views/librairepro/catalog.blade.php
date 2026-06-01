@@ -9,6 +9,13 @@
     $statusLabel = fn ($status) => ['active' => 'Actif', 'archived' => 'Archivé', 'out_of_stock' => 'Rupture'][$status] ?? $status;
     $typeLabel = fn ($type) => ['book' => 'Livre', 'supply' => 'Produit', 'service' => 'Service'][$type] ?? $type;
     $sortIndicator = fn ($key) => $sort === $key ? ($direction === 'asc' ? ' ↑' : ' ↓') : '';
+    $importLabels = [
+        'items' => ['title' => 'Importer articles', 'hint' => "Fichier Liste d'articles .xlsx", 'example' => 'Exemple articles'],
+        'services' => ['title' => 'Importer services', 'hint' => 'Prestations et services sans stock réel', 'example' => 'Exemple services'],
+        'categories' => ['title' => 'Importer catégories', 'hint' => 'Fichier Liste des catégories .xlsx', 'example' => 'Exemple catégories'],
+        'brands' => ['title' => 'Importer marques', 'hint' => 'Fichier Liste des marques .xlsx', 'example' => 'Exemple marques'],
+        'variants' => ['title' => 'Importer variantes', 'hint' => 'Fichier Liste des variantes .xlsx', 'example' => 'Exemple variantes'],
+    ];
     $sections = [
         'Gérer' => [
             'articles' => ['label' => 'Articles', 'hint' => 'Stock et prix', 'href' => route('catalog', ['panel' => 'articles'])],
@@ -220,15 +227,22 @@
     @elseif (in_array($panel, ['articles', 'services'], true))
         <section class="mt-6 space-y-6">
             <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                <form action="{{ route('catalog') }}" class="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_150px_190px_140px_130px_110px_120px] lg:items-end">
+                <form action="{{ route('catalog') }}" class="flex flex-wrap items-end gap-3">
                     <input type="hidden" name="panel" value="{{ $panel }}">
-                    <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Recherche rapide</span><input name="q" value="{{ $query }}" class="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="Nom, code barre, ISBN, SKU"></label>
-                    <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Type</span><select name="type" class="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" @disabled($panel === 'services')><option value="all" @selected($type === 'all')>Tous</option><option value="book" @selected($type === 'book')>Livre</option><option value="supply" @selected($type === 'supply')>Papeterie</option><option value="service" @selected($type === 'service')>Service</option></select></label>
-                    <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Catégorie</span><select name="category" class="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Toutes</option>@foreach ($categories as $category)<option value="{{ $category->id }}" @selected((string) $categoryFilter === (string) $category->id)>{{ $category->name }}</option>@endforeach</select></label>
-                    <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Stock</span><select name="stock" class="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all" @selected($stock === 'all')>Tout</option><option value="low" @selected($stock === 'low')>Stock bas</option><option value="out" @selected($stock === 'out')>Rupture</option></select></label>
-                    <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="status" class="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all" @selected($status === 'all')>Tous</option><option value="active" @selected($status === 'active')>Actif</option><option value="archived" @selected($status === 'archived')>Archivé</option><option value="out_of_stock" @selected($status === 'out_of_stock')>Rupture</option></select></label>
-                    <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Lignes</span><select name="per_page" class="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="10" @selected($perPage === 10)>10</option><option value="25" @selected($perPage === 25)>25</option><option value="50" @selected($perPage === 50)>50</option><option value="100" @selected($perPage === 100)>100</option></select></label>
-                    <button class="h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white" type="submit">Filtrer</button>
+                    <label class="block min-w-[220px] flex-[1_1_280px]"><span class="text-xs font-semibold uppercase text-slate-500">Recherche rapide</span><input name="q" value="{{ $query }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="Nom, code barre, ISBN, SKU"></label>
+                    <label class="block min-w-[135px] flex-[1_1_145px]"><span class="text-xs font-semibold uppercase text-slate-500">Type</span><select name="type" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" @disabled($panel === 'services')><option value="all" @selected($type === 'all')>Tous</option><option value="book" @selected($type === 'book')>Livre</option><option value="supply" @selected($type === 'supply')>Papeterie</option><option value="service" @selected($type === 'service')>Service</option></select></label>
+                    <label class="block min-w-[180px] flex-[1_1_210px]"><span class="text-xs font-semibold uppercase text-slate-500">Catégorie</span><select name="category" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Toutes</option>@foreach ($categories as $category)<option value="{{ $category->id }}" @selected((string) $categoryFilter === (string) $category->id)>{{ $category->name }}</option>@endforeach</select></label>
+                    <label class="block min-w-[170px] flex-[1_1_190px]"><span class="text-xs font-semibold uppercase text-slate-500">Marque / éditeur</span><select name="brand" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Toutes</option>@foreach ($brands as $brand)<option value="{{ $brand->id }}" @selected((string) $brandFilter === (string) $brand->id)>{{ $brand->name }}</option>@endforeach</select></label>
+                    <label class="block min-w-[140px] flex-[1_1_150px]"><span class="text-xs font-semibold uppercase text-slate-500">Unité</span><select name="unit" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Toutes</option>@foreach ($units as $unit)<option value="{{ $unit->id }}" @selected((string) $unitFilter === (string) $unit->id)>{{ $unit->name }}</option>@endforeach</select></label>
+                    <label class="block min-w-[140px] flex-[1_1_150px]"><span class="text-xs font-semibold uppercase text-slate-500">Impôt</span><select name="tax" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Tous</option>@foreach ($taxes as $tax)<option value="{{ $tax->id }}" @selected((string) $taxFilter === (string) $tax->id)>{{ $tax->name }}</option>@endforeach</select></label>
+                    <label class="block min-w-[135px] flex-[1_1_145px]"><span class="text-xs font-semibold uppercase text-slate-500">Stock</span><select name="stock" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all" @selected($stock === 'all')>Tout</option><option value="low" @selected($stock === 'low')>Stock bas</option><option value="out" @selected($stock === 'out')>Rupture</option></select></label>
+                    <label class="block min-w-[135px] flex-[1_1_145px]"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="status" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all" @selected($status === 'all')>Tous</option><option value="active" @selected($status === 'active')>Actif</option><option value="archived" @selected($status === 'archived')>Archivé</option><option value="out_of_stock" @selected($status === 'out_of_stock')>Rupture</option></select></label>
+                    <label class="block min-w-[105px] flex-[1_1_115px]"><span class="text-xs font-semibold uppercase text-slate-500">Prix min</span><input name="min_price" value="{{ request('min_price') }}" inputmode="decimal" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Min DH"></label>
+                    <label class="block min-w-[105px] flex-[1_1_115px]"><span class="text-xs font-semibold uppercase text-slate-500">Prix max</span><input name="max_price" value="{{ request('max_price') }}" inputmode="decimal" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Max DH"></label>
+                    <div class="grid min-w-[180px] flex-[0_1_220px] grid-cols-2 gap-2 max-sm:flex-1">
+                        <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white" type="submit">Filtrer</button>
+                        <a href="{{ route('catalog', ['panel' => $panel]) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Reset</a>
+                    </div>
                 </form>
             </article>
 
@@ -240,10 +254,28 @@
                     </div>
                     <div class="flex flex-wrap gap-2">
                         <button class="catalog-labels rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold dark:border-white/10" type="button">Étiquettes sélectionnées</button>
-                        <a href="{{ $exportLink }}" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold dark:border-white/10">Exporter CSV</a>
+                        <a href="{{ $exportLink }}" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold dark:border-white/10">Exporter vue</a>
+                        <a href="{{ route('catalog.export', ['all' => 1]) }}" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Exporter tout</a>
                         <a href="{{ route('catalog', ['panel' => $panel === 'services' ? 'ajouter-service' : 'ajouter']) }}" class="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">Ajouter</a>
                     </div>
                 </div>
+                @php($listImportKind = $panel === 'services' ? 'services' : 'items')
+                <details class="m-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                    <summary class="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <span>
+                            <span class="block text-sm font-semibold">{{ $importLabels[$listImportKind]['title'] }}</span>
+                            <span class="mt-1 block text-xs text-slate-500">{{ $importLabels[$listImportKind]['hint'] }}</span>
+                        </span>
+                        <span class="inline-flex items-center justify-center rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Uploader Excel</span>
+                    </summary>
+                    <form action="{{ route('catalog.import') }}" method="POST" enctype="multipart/form-data" class="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-center">
+                        @csrf
+                        <input type="hidden" name="kind" value="{{ $listImportKind }}">
+                        <input name="catalog_file" required type="file" accept=".csv,.tsv,.xlsx" class="rounded-lg border border-dashed border-slate-300 bg-white p-2 text-sm dark:border-white/10 dark:bg-slate-900">
+                        <a href="{{ route('catalog.import.example', $listImportKind) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $importLabels[$listImportKind]['example'] }}</a>
+                        <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Importer</button>
+                    </form>
+                </details>
                 <div class="overflow-x-auto">
                     <table class="catalog-data-table w-full min-w-[1180px] text-left text-sm" data-yajra-table data-ajax-url="{{ route('catalog.data', request()->query()) }}" data-panel="{{ $panel }}" data-length="{{ $perPage }}">
                         <thead class="sticky top-0 z-10 bg-slate-50 text-xs uppercase text-slate-500 shadow-[inset_0_-1px_0_var(--border-soft)] dark:bg-slate-900 dark:text-slate-400">
@@ -261,7 +293,7 @@
                                 <th class="px-4 py-3">Prix de vente</th>
                                 <th class="px-4 py-3">Impôt</th>
                                 <th class="px-4 py-3">Statut</th>
-                                <th class="px-4 py-3 text-right">Action</th>
+                                <th class="px-4 py-3 text-right min-w-[170px]">Action</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-200 dark:divide-white/10">
@@ -297,9 +329,9 @@
                         </div>
                         @if ($editItem->type === 'service')
                             <input type="hidden" name="type" value="service">
-                            @include('librairepro.partials.service-fields', ['item' => $editItem, 'categories' => $categories, 'brands' => $brands, 'units' => $units, 'taxes' => $taxes])
+                            @include('librairepro.partials.service-fields', ['item' => $editItem, 'categories' => $categories, 'brands' => $brands, 'units' => $units, 'taxes' => $taxes, 'suggestedItemCode' => $suggestedItemCode])
                         @else
-                            @include('librairepro.partials.item-fields', ['item' => $editItem, 'categories' => $categories, 'brands' => $brands, 'units' => $units, 'taxes' => $taxes])
+                            @include('librairepro.partials.item-fields', ['item' => $editItem, 'categories' => $categories, 'brands' => $brands, 'units' => $units, 'taxes' => $taxes, 'stores' => $stores, 'currentStore' => $currentStore, 'suggestedItemCode' => $suggestedItemCode])
                         @endif
                         <div class="lg:col-span-4 flex flex-wrap justify-between gap-3 border-t border-slate-200 pt-4 dark:border-white/10">
                             <a href="{{ route('catalog', ['panel' => $panel]) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Fermer</a>
@@ -357,11 +389,11 @@
                             @endforeach
                         </ul>
                     </div>
-                    @include('librairepro.partials.item-fields', ['item' => null, 'categories' => $categories, 'brands' => $brands, 'units' => $units, 'taxes' => $taxes])
-                    <div class="sticky bottom-0 z-10 -mx-5 -mb-5 mt-2 flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 backdrop-blur dark:border-white/10 dark:bg-slate-950/95 sm:flex-row sm:items-center sm:justify-between lg:col-span-4">
-                        <p class="text-sm text-slate-500">Les champs marqués <span class="font-semibold text-rose-500">*</span> sont obligatoires.</p>
+                    @include('librairepro.partials.item-fields', ['item' => null, 'categories' => $categories, 'brands' => $brands, 'units' => $units, 'taxes' => $taxes, 'stores' => $stores, 'currentStore' => $currentStore, 'suggestedItemCode' => $suggestedItemCode])
+                    <div class="sticky bottom-0 z-10 -mx-5 -mb-5 mt-2 flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 text-slate-700 shadow-[0_-10px_30px_rgba(15,23,42,0.06)] backdrop-blur dark:border-white/10 dark:bg-slate-950/95 dark:text-slate-100 sm:flex-row sm:items-center sm:justify-between lg:col-span-4">
+                        <p class="text-sm text-slate-600 dark:text-slate-300">Les champs marqués <span class="font-semibold text-rose-500">*</span> sont obligatoires.</p>
                         <div class="flex justify-end gap-2">
-                            <a href="{{ route('catalog', ['panel' => 'articles']) }}" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold dark:border-white/10">Annuler</a>
+                            <a href="{{ route('catalog', ['panel' => 'articles']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-100">Annuler</a>
                             <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20">Ajouter au catalogue</button>
                         </div>
                     </div>
@@ -372,10 +404,44 @@
 
     @if ($panel === 'ajouter-service')
         <section class="mt-6">
-            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                <h2 class="text-base font-semibold">Ajouter un service</h2>
-                <p class="mt-1 text-sm text-slate-500">Frais d’adhésion, impression, pénalités, livraison et prestations sans stock physique.</p>
-                <form action="{{ route('catalog.items.store') }}" method="POST" enctype="multipart/form-data" class="mt-5 grid gap-4 lg:grid-cols-4">@csrf <input type="hidden" name="type" value="service">@include('librairepro.partials.service-fields', ['categories' => $categories, 'brands' => $brands, 'units' => $units, 'taxes' => $taxes])<div class="lg:col-span-4 flex justify-end"><button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white">Ajouter le service</button></div></form>
+            <article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="border-b border-slate-200 bg-slate-50/80 p-5 dark:border-white/10 dark:bg-white/[0.04]">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="flex items-start gap-3">
+                            <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-lg font-semibold text-white shadow-sm shadow-brand/20">+</span>
+                            <div>
+                                <p class="text-xs font-semibold uppercase tracking-wide text-brand">Catalogue · prestation</p>
+                                <h2 class="mt-1 text-xl font-semibold text-slate-950 dark:text-white">Ajouter un service</h2>
+                                <p class="mt-1 max-w-3xl text-sm text-slate-500">Frais d’adhésion, impression, pénalités, livraison et prestations sans stock physique.</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <x-status-pill tone="info">Service</x-status-pill>
+                            <x-status-pill tone="primary">Référentiels rapides</x-status-pill>
+                        </div>
+                    </div>
+                </div>
+                <form action="{{ route('catalog.items.store') }}" method="POST" enctype="multipart/form-data" data-smart-validation data-error-fields='@json($errors->keys())' class="grid gap-4 p-5 lg:grid-cols-4">
+                    @csrf
+                    <input type="hidden" name="type" value="service">
+                    <div data-validation-summary class="{{ $errors->any() ? '' : 'hidden' }} lg:col-span-4 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
+                        <strong class="block">Le formulaire contient des informations à corriger.</strong>
+                        <p class="mt-1">Les champs concernés sont surlignés ci-dessous.</p>
+                        <ul class="mt-2 list-disc space-y-1 pl-5">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                    @include('librairepro.partials.service-fields', ['categories' => $categories, 'brands' => $brands, 'units' => $units, 'taxes' => $taxes, 'suggestedItemCode' => $suggestedItemCode])
+                    <div class="sticky bottom-0 z-10 -mx-5 -mb-5 mt-2 flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-5 text-slate-700 shadow-[0_-10px_30px_rgba(15,23,42,0.06)] backdrop-blur dark:border-white/10 dark:bg-slate-950/95 dark:text-slate-100 sm:flex-row sm:items-center sm:justify-between lg:col-span-4">
+                        <p class="text-sm text-slate-600 dark:text-slate-300">Les champs marqués <span class="font-semibold text-rose-500">*</span> sont obligatoires.</p>
+                        <div class="flex justify-end gap-2">
+                            <a href="{{ route('catalog', ['panel' => 'services']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-100">Annuler</a>
+                            <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20">Ajouter le service</button>
+                        </div>
+                    </div>
+                </form>
             </article>
         </section>
     @endif
@@ -385,7 +451,8 @@
             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 <h2 class="text-base font-semibold">Importer des articles ou services</h2>
                 <p class="mt-1 text-sm text-slate-500">Compatible avec les exports mylibrairie fournis: Liste d’articles, Liste des catégories, Liste des marques et Liste des variantes. La ligne titre est ignorée automatiquement.</p>
-                <form action="{{ route('catalog.import') }}" method="POST" enctype="multipart/form-data" class="mt-5 grid gap-4 lg:grid-cols-[220px_1fr_140px]">@csrf <select name="kind" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="items" @selected(request('kind', 'items') === 'items')>Articles</option><option value="services" @selected(request('kind') === 'services')>Services</option><option value="categories" @selected(request('kind') === 'categories')>Catégories</option><option value="brands" @selected(request('kind') === 'brands')>Marques / éditeurs</option><option value="variants" @selected(request('kind') === 'variants')>Variantes</option></select><input name="catalog_file" required type="file" accept=".csv,.tsv,.xlsx" class="rounded-lg border border-dashed border-slate-300 p-2 text-sm dark:border-white/10"><button class="rounded-lg bg-brand px-4 text-sm font-semibold text-white">Importer</button></form>
+                @php($selectedImportKind = request('kind', 'items'))
+                <form action="{{ route('catalog.import') }}" method="POST" enctype="multipart/form-data" class="mt-5 grid gap-4 lg:grid-cols-[220px_1fr_auto_140px]">@csrf <select name="kind" data-import-kind-select class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="items" @selected($selectedImportKind === 'items')>Articles</option><option value="services" @selected($selectedImportKind === 'services')>Services</option><option value="categories" @selected($selectedImportKind === 'categories')>Catégories</option><option value="brands" @selected($selectedImportKind === 'brands')>Marques / éditeurs</option><option value="variants" @selected($selectedImportKind === 'variants')>Variantes</option></select><input name="catalog_file" required type="file" accept=".csv,.tsv,.xlsx" class="rounded-lg border border-dashed border-slate-300 p-2 text-sm dark:border-white/10"><a href="{{ route('catalog.import.example', $selectedImportKind) }}" data-import-example-base="{{ url('/catalogue/import/exemple') }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Exemple Excel</a><button class="rounded-lg bg-brand px-4 text-sm font-semibold text-white">Importer</button></form>
                 <div class="mt-5 grid gap-3 md:grid-cols-3"><div class="rounded-lg bg-slate-50 p-4 text-sm dark:bg-white/5"><strong>Détection</strong><p class="mt-1 text-slate-500">Colonnes legacy FR/EN et accents reconnues.</p></div><div class="rounded-lg bg-slate-50 p-4 text-sm dark:bg-white/5"><strong>Mise à jour</strong><p class="mt-1 text-slate-500">Articles par barcode/ISBN, référentiels par nom.</p></div><div class="rounded-lg bg-slate-50 p-4 text-sm dark:bg-white/5"><strong>Rapport</strong><p class="mt-1 text-slate-500">Créés, mis à jour, ignorés après import.</p></div></div>
             </article>
             <aside class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h2 class="text-base font-semibold">Préparation</h2><ul class="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300"><li>1. Choisir le type qui correspond au fichier.</li><li>2. XLSX, CSV et TSV sont acceptés.</li><li>3. Les catégories d’articles suppriment automatiquement le suffixe [ITEM].</li><li>4. Les doublons mettent à jour au lieu de planter.</li></ul></aside>
@@ -452,6 +519,22 @@
                         <textarea name="description" rows="3" class="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Description"></textarea>
                         <button class="h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white">Ajouter</button>
                     </form>
+                @endif
+                @if (in_array($panel, ['categories', 'marques'], true))
+                    @php($referenceImportKind = $panel === 'categories' ? 'categories' : 'brands')
+                    <div class="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                        <h3 class="text-sm font-semibold">{{ $importLabels[$referenceImportKind]['title'] }}</h3>
+                        <p class="mt-1 text-xs text-slate-500">{{ $importLabels[$referenceImportKind]['hint'] }}</p>
+                        <form action="{{ route('catalog.import') }}" method="POST" enctype="multipart/form-data" class="mt-3 grid gap-2">
+                            @csrf
+                            <input type="hidden" name="kind" value="{{ $referenceImportKind }}">
+                            <input name="catalog_file" required type="file" accept=".csv,.tsv,.xlsx" class="rounded-lg border border-dashed border-slate-300 bg-white p-2 text-sm dark:border-white/10 dark:bg-slate-900">
+                            <div class="grid gap-2 sm:grid-cols-2">
+                                <a href="{{ route('catalog.import.example', $referenceImportKind) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $importLabels[$referenceImportKind]['example'] }}</a>
+                                <button class="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">Importer</button>
+                            </div>
+                        </form>
+                    </div>
                 @endif
             </aside>
 
@@ -585,6 +668,21 @@
     @if ($panel === 'variantes')
         <section class="mt-6">
             <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h2 class="text-base font-semibold">Gestion des variantes</h2><form action="{{ route('catalog.variants.store') }}" method="POST" class="mt-5 grid gap-4 lg:grid-cols-8">@csrf <select name="item_id" required data-searchable-select data-placeholder="Rechercher un article..." class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-2">@foreach ($variantItems as $item)<option value="{{ $item->id }}">{{ $item->title }}</option>@endforeach</select><input name="name" required class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom"><input name="format" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Format"><input name="size" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Taille"><input name="color" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Couleur"><input name="sale_price" required type="number" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Prix"><button class="h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white">Ajouter</button><input name="barcode" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-2" placeholder="Code-barres"><input name="purchase_price" required type="number" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Coût"><input name="stock_quantity" required type="number" value="0" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Stock"></form></article>
+            <article class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h2 class="text-base font-semibold">{{ $importLabels['variants']['title'] }}</h2>
+                        <p class="mt-1 text-sm text-slate-500">{{ $importLabels['variants']['hint'] }}</p>
+                    </div>
+                    <form action="{{ route('catalog.import') }}" method="POST" enctype="multipart/form-data" class="grid gap-2 lg:grid-cols-[minmax(240px,1fr)_auto_auto] lg:items-center">
+                        @csrf
+                        <input type="hidden" name="kind" value="variants">
+                        <input name="catalog_file" required type="file" accept=".csv,.tsv,.xlsx" class="rounded-lg border border-dashed border-slate-300 bg-white p-2 text-sm dark:border-white/10 dark:bg-slate-900">
+                        <a href="{{ route('catalog.import.example', 'variants') }}" class="rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $importLabels['variants']['example'] }}</a>
+                        <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Importer</button>
+                    </form>
+                </div>
+            </article>
             <article class="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 <h2 class="text-base font-semibold">Liste des variantes</h2>
                 @if ($variantOptions->isNotEmpty())

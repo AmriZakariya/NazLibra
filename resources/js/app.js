@@ -1259,13 +1259,24 @@ document.querySelectorAll('.inline-create-open').forEach((button) => {
     });
 });
 
+const closeDialogAndDisableInlineFields = (dialog) => {
+    dialog?.querySelectorAll('[data-inline-create] input, [data-inline-create] select, [data-inline-create] textarea').forEach((field) => {
+        field.disabled = true;
+    });
+    dialog?.close();
+};
+
 document.querySelectorAll('.dialog-close').forEach((button) => {
     button.addEventListener('click', () => {
-        const dialog = button.closest('dialog');
-        dialog?.querySelectorAll('[data-inline-create] input, [data-inline-create] select, [data-inline-create] textarea').forEach((field) => {
-            field.disabled = true;
-        });
-        dialog?.close();
+        closeDialogAndDisableInlineFields(button.closest('dialog'));
+    });
+});
+
+document.querySelectorAll('dialog').forEach((dialog) => {
+    dialog.addEventListener('click', (event) => {
+        if (event.target === dialog) {
+            closeDialogAndDisableInlineFields(dialog);
+        }
     });
 });
 
@@ -1282,27 +1293,56 @@ document.querySelectorAll('[data-table-filter]').forEach((input) => {
     });
 });
 
+document.querySelectorAll('[data-import-kind-select]').forEach((select) => {
+    const form = select.closest('form');
+    const link = form?.querySelector('[data-import-example-base]');
+    if (!link) return;
+
+    select.addEventListener('change', () => {
+        link.href = `${link.dataset.importExampleBase}/${encodeURIComponent(select.value)}`;
+    });
+});
+
 document.querySelectorAll('[data-smart-validation]').forEach((form) => {
+    form.noValidate = true;
+
     const summary = form.querySelector('[data-validation-summary]');
+    const visualFields = (field) => {
+        const fields = [field];
+        if (field.matches('select[data-searchable-select]')) {
+            const search = field.previousElementSibling;
+            if (search?.classList.contains('select-search-input')) {
+                fields.push(search);
+            }
+        }
+
+        return fields;
+    };
     const highlightField = (field) => {
-        field.classList.add('app-field-invalid');
-        field.closest('label')?.classList.add('app-field-invalid-label');
+        visualFields(field).forEach((visualField) => visualField.classList.add('app-field-invalid'));
+        field.closest('label, .block')?.classList.add('app-field-invalid-label');
     };
     const clearHighlights = () => {
         form.querySelectorAll('.app-field-invalid').forEach((field) => field.classList.remove('app-field-invalid'));
         form.querySelectorAll('.app-field-invalid-label').forEach((label) => label.classList.remove('app-field-invalid-label'));
     };
     const fieldLabel = (field) => {
-        const explicitLabel = field.closest('label')?.querySelector('span')?.textContent;
+        const explicitLabel = field.closest('label, .block')?.querySelector('span')?.textContent;
         return (explicitLabel || field.getAttribute('placeholder') || field.name || 'Champ').replace('*', '').trim();
     };
+    const escapeHtml = (value) => String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
     const showSummary = (messages) => {
         if (!summary) return;
         summary.classList.remove('hidden');
         summary.innerHTML = `
             <strong class="block">Le formulaire contient des informations à corriger.</strong>
-            <p class="mt-1">Veuillez compléter les champs surlignés avant de continuer.</p>
-            <ul class="mt-2 list-disc space-y-1 pl-5">${messages.map((message) => `<li>${message}</li>`).join('')}</ul>
+            <p class="mt-1">${messages.length} champ(s) nécessitent votre attention. Veuillez compléter les champs surlignés avant de continuer.</p>
+            <ul class="mt-2 list-disc space-y-1 pl-5">${messages.map((message) => `<li>${escapeHtml(message)}</li>`).join('')}</ul>
         `;
     };
 
@@ -1321,15 +1361,15 @@ document.querySelectorAll('[data-smart-validation]').forEach((form) => {
 
     form.addEventListener('input', (event) => {
         if (event.target instanceof HTMLElement) {
-            event.target.classList.remove('app-field-invalid');
-            event.target.closest('label')?.classList.remove('app-field-invalid-label');
+            visualFields(event.target).forEach((field) => field.classList.remove('app-field-invalid'));
+            event.target.closest('label, .block')?.classList.remove('app-field-invalid-label');
         }
     });
 
     form.addEventListener('change', (event) => {
         if (event.target instanceof HTMLElement) {
-            event.target.classList.remove('app-field-invalid');
-            event.target.closest('label')?.classList.remove('app-field-invalid-label');
+            visualFields(event.target).forEach((field) => field.classList.remove('app-field-invalid'));
+            event.target.closest('label, .block')?.classList.remove('app-field-invalid-label');
         }
     });
 

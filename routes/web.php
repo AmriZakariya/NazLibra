@@ -118,6 +118,7 @@ Route::put('/catalogue/taxes/{tax}', [LibraireProController::class, 'updateTax']
 Route::delete('/catalogue/taxes/{tax}', [LibraireProController::class, 'destroyTax'])->name('catalog.taxes.destroy');
 Route::post('/catalogue/variantes', [LibraireProController::class, 'storeVariant'])->name('catalog.variants.store');
 Route::post('/catalogue/import', [LibraireProController::class, 'importItems'])->name('catalog.import');
+Route::get('/catalogue/import/exemple/{kind}', [LibraireProController::class, 'importExample'])->name('catalog.import.example');
 Route::post('/catalogue/stock/ajustements', [LibraireProController::class, 'storeStockAdjustment'])->name('catalog.stock-adjustments.store');
 Route::post('/catalogue/stock/transferts', [LibraireProController::class, 'storeStockTransfer'])->name('catalog.stock-transfers.store');
 Route::get('/catalogue/export', [LibraireProController::class, 'exportCatalog'])->name('catalog.export');
