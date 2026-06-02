@@ -22,6 +22,7 @@ class AuthController extends Controller
 
         return view('auth.login', [
             'tenant' => Tenant::query()->first(),
+            'demoLoginEmail' => \App\Models\User::where('is_active', true)->orderBy('id')->value('email'),
         ]);
     }
 

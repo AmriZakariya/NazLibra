@@ -5,10 +5,17 @@
     $section = 'lg:col-span-4 mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-500 shadow-sm dark:border-white/10 dark:bg-white/5';
     $required = '<span class="ms-1 text-rose-500">*</span>';
     $typeValue = old('type', $item?->type ?? 'book');
-    $typeLabels = ['book' => 'Livre / article physique', 'supply' => 'Produit physique'];
+    $typeOptions = [
+        'book' => ['label' => 'Livre', 'hint' => 'ISBN, auteur, édition'],
+        'supply' => ['label' => 'Produit', 'hint' => 'Stock physique'],
+        'service' => ['label' => 'Service', 'hint' => 'Sans stock'],
+    ];
     $storeOptions = collect($stores ?? [])->filter(fn ($store) => data_get($store, 'is_active', true));
     $defaultStoreName = data_get($currentStore ?? [], 'name', 'Magasin principal');
     $warehouseValue = old('warehouse', $item?->warehouse ?? $defaultStoreName);
+    $isEnabled = old('is_enabled', $item?->is_enabled ?? true);
+    $checkoutVisible = old('checkout_visible', $item?->checkout_visible ?? true);
+    $currentImage = collect($item?->images ?? [])->first();
 @endphp
 
 <div class="{{ $section }}">Identification</div>
@@ -16,11 +23,18 @@
     <span class="text-xs font-semibold uppercase text-slate-500">Code de l'article</span>
     <input name="item_code" value="{{ old('item_code', $item?->item_code ?? $suggestedItemCode ?? '') }}" class="{{ $item ? $input : $readonlyInput }}" placeholder="Auto" @readonly(! $item)>
 </label>
-<input type="hidden" name="type" value="{{ in_array($typeValue, ['book', 'supply'], true) ? $typeValue : 'book' }}">
 <div class="block">
-    <span class="text-xs font-semibold uppercase text-slate-500">Type</span>
-    <div class="mt-1 flex h-11 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-100">
-        {{ $typeLabels[$typeValue] ?? 'Livre / article physique' }}
+    <span class="text-xs font-semibold uppercase text-slate-500">Type d'élément {!! $required !!}</span>
+    <div class="mt-1 grid gap-2 sm:grid-cols-3">
+        @foreach ($typeOptions as $value => $option)
+            <label class="app-type-choice">
+                <input type="radio" name="type" value="{{ $value }}" @checked($typeValue === $value)>
+                <span class="app-type-choice-card">
+                    {{ $option['label'] }}
+                    <small>{{ $option['hint'] }}</small>
+                </span>
+            </label>
+        @endforeach
     </div>
 </div>
 <label class="block lg:col-span-2">
@@ -258,11 +272,48 @@
         @endforeach
     </select>
 </label>
-<label class="block lg:col-span-3">
-    <span class="text-xs font-semibold uppercase text-slate-500">Sélectionnez une image</span>
-    <input name="item_image" type="file" accept="image/*" class="mt-1 block w-full rounded-lg border border-dashed border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900">
-    <span class="mt-1 block text-xs text-slate-500">Max 1 Mo. L’image est conservée avec la fiche article.</span>
+<label class="block rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900">
+    <input type="hidden" name="is_enabled" value="0">
+    <span class="flex items-start gap-3">
+        <input name="is_enabled" value="1" type="checkbox" @checked((bool) $isEnabled) class="mt-1 rounded border-slate-300 text-brand focus:ring-brand">
+        <span>
+            <span class="block text-xs font-semibold uppercase text-slate-500">Article activé</span>
+            <small class="mt-1 block text-xs text-slate-500">Décochez pour désactiver l'article sans le supprimer.</small>
+        </span>
+    </span>
 </label>
+<label class="block rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900">
+    <input type="hidden" name="checkout_visible" value="0">
+    <span class="flex items-start gap-3">
+        <input name="checkout_visible" value="1" type="checkbox" @checked((bool) $checkoutVisible) class="mt-1 rounded border-slate-300 text-brand focus:ring-brand">
+        <span>
+            <span class="block text-xs font-semibold uppercase text-slate-500">Visible sur la caisse</span>
+            <small class="mt-1 block text-xs text-slate-500">Décochez pour garder l'article au catalogue sans l'afficher au checkout.</small>
+        </span>
+    </span>
+</label>
+<div class="block lg:col-span-3">
+    <span class="text-xs font-semibold uppercase text-slate-500">Image article</span>
+    <div class="mt-1 grid gap-3 rounded-lg border border-dashed border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900 md:grid-cols-[96px_minmax(0,1fr)]">
+        <div class="grid size-24 place-items-center overflow-hidden rounded-lg bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-white/10">
+            @if ($currentImage)
+                <img src="{{ asset('storage/'.$currentImage) }}" alt="{{ $item?->title ? 'Image '.$item->title : 'Image article' }}" class="h-full w-full object-cover">
+            @else
+                Aucune image
+            @endif
+        </div>
+        <div class="min-w-0">
+            <input name="item_image" type="file" accept="image/*" class="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950">
+            <span class="mt-1 block text-xs text-slate-500">Max 1 Mo. Une nouvelle image devient l’image principale de la fiche.</span>
+            @if ($currentImage)
+                <label class="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" name="remove_item_image" value="1" class="rounded border-slate-300 text-brand focus:ring-brand">
+                    Supprimer l'image actuelle
+                </label>
+            @endif
+        </div>
+    </div>
+</div>
 <label class="block lg:col-span-4">
     <span class="text-xs font-semibold uppercase text-slate-500">Description</span>
     <textarea name="description" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Description, notes internes, détails d’édition">{{ old('description', $item?->description) }}</textarea>

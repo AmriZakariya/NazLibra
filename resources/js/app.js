@@ -97,6 +97,122 @@ document.querySelectorAll('.app-rtl-toggle').forEach((button) => {
     });
 });
 
+const positionSaleActionMenu = (menu) => {
+    const summary = menu.querySelector('summary');
+    const panel = menu.querySelector('.sale-action-panel');
+    if (!summary || !panel || !menu.open) return;
+
+    const summaryBox = summary.getBoundingClientRect();
+    const panelBox = panel.getBoundingClientRect();
+    const margin = 12;
+    const panelWidth = Math.min(panelBox.width || 280, window.innerWidth - margin * 2);
+    let left = summaryBox.right - panelWidth;
+    left = Math.max(margin, Math.min(left, window.innerWidth - panelWidth - margin));
+
+    let top = summaryBox.bottom + 8;
+    const panelHeight = Math.min(panelBox.height || 360, window.innerHeight - margin * 2);
+    if (top + panelHeight > window.innerHeight - margin) {
+        top = Math.max(margin, summaryBox.top - panelHeight - 8);
+    }
+
+    panel.style.setProperty('--sale-menu-left', `${left}px`);
+    panel.style.setProperty('--sale-menu-top', `${top}px`);
+    panel.style.setProperty('--sale-menu-max-height', `${Math.max(180, window.innerHeight - top - margin)}px`);
+};
+
+document.querySelectorAll('.sale-action-menu').forEach((menu) => {
+    menu.addEventListener('toggle', () => {
+        if (!menu.open) return;
+        document.querySelectorAll('.sale-action-menu[open]').forEach((other) => {
+            if (other !== menu) other.open = false;
+        });
+        requestAnimationFrame(() => positionSaleActionMenu(menu));
+    });
+});
+
+document.addEventListener('click', (event) => {
+    document.querySelectorAll('.sale-action-menu[open]').forEach((menu) => {
+        if (!menu.contains(event.target)) {
+            menu.open = false;
+        }
+    });
+});
+
+['resize', 'scroll'].forEach((eventName) => {
+    window.addEventListener(eventName, () => {
+        document.querySelectorAll('.sale-action-menu[open]').forEach(positionSaleActionMenu);
+    }, { passive: true });
+});
+
+document.querySelectorAll('[data-manual-sale-form]').forEach((screen) => {
+    const formatMoney = (amount) => money.format(Number.isFinite(amount) ? amount : 0);
+    const rows = [...screen.querySelectorAll('.manual-sale-line')];
+    const discountInput = screen.querySelector('[data-manual-sale-discount]');
+    const chargesInput = screen.querySelector('[data-manual-sale-charges]');
+    const paymentInputs = [...screen.querySelectorAll('[data-manual-sale-payment]')];
+    const statusInput = screen.querySelector('[data-manual-sale-status]');
+
+    const numberValue = (input) => Math.max(0, Number(input?.value || 0));
+
+    const calculate = () => {
+        let subtotal = 0;
+        let lineDiscount = 0;
+        let taxTotal = 0;
+
+        rows.forEach((row) => {
+            const select = row.querySelector('[data-manual-sale-item]');
+            const quantityInput = row.querySelector('[data-manual-sale-qty]');
+            const priceInput = row.querySelector('[data-manual-sale-price]');
+            const discountLineInput = row.querySelector('[data-manual-sale-line-discount]');
+            const taxInput = row.querySelector('[data-manual-sale-tax]');
+            const selected = select?.selectedOptions?.[0];
+
+            if (selected?.value && !priceInput.value) {
+                priceInput.value = Number(selected.dataset.price || 0).toFixed(2);
+            }
+            if (selected?.value && !taxInput.value) {
+                taxInput.value = Number(selected.dataset.tax || 20).toFixed(2);
+            }
+            if (selected?.value && !quantityInput.value) {
+                quantityInput.value = '1';
+            }
+
+            const quantity = selected?.value ? Math.max(1, Number(quantityInput.value || 1)) : 0;
+            const unitPrice = numberValue(priceInput);
+            const grossLine = unitPrice * quantity;
+            const discountLine = Math.min(numberValue(discountLineInput), grossLine);
+            const netLine = Math.max(0, grossLine - discountLine);
+            const taxRate = numberValue(taxInput);
+            const tax = taxRate > 0 ? netLine * taxRate / (100 + taxRate) : 0;
+
+            subtotal += grossLine;
+            lineDiscount += discountLine;
+            taxTotal += tax;
+            const totalNode = row.querySelector('[data-manual-sale-line-total]');
+            if (totalNode) totalNode.textContent = formatMoney(netLine);
+        });
+
+        const globalDiscount = Math.min(numberValue(discountInput), Math.max(0, subtotal - lineDiscount));
+        const charges = numberValue(chargesInput);
+        const total = Math.max(0, subtotal - lineDiscount - globalDiscount + charges);
+        const paid = statusInput?.value === 'unpaid'
+            ? 0
+            : Math.min(paymentInputs.reduce((sum, input) => sum + numberValue(input), 0), total);
+
+        screen.querySelector('[data-manual-sale-subtotal]').textContent = formatMoney(subtotal);
+        screen.querySelector('[data-manual-sale-discount-total]').textContent = formatMoney(lineDiscount + globalDiscount);
+        screen.querySelector('[data-manual-sale-tax-total]').textContent = formatMoney(taxTotal);
+        screen.querySelector('[data-manual-sale-charges-total]').textContent = formatMoney(charges);
+        screen.querySelector('[data-manual-sale-total]').textContent = formatMoney(total);
+        screen.querySelector('[data-manual-sale-paid]').textContent = formatMoney(paid);
+        screen.querySelector('[data-manual-sale-due]').textContent = formatMoney(Math.max(0, total - paid));
+    };
+
+    screen.addEventListener('input', calculate);
+    screen.addEventListener('change', calculate);
+    calculate();
+});
+
 document.querySelectorAll('.pos-screen').forEach((screen) => {
     const cart = [];
     const cartNode = screen.querySelector('.pos-cart');
@@ -1219,6 +1335,7 @@ document.querySelectorAll('[data-searchable-select]').forEach((select) => {
         value: option.value,
         text: option.textContent,
         selected: option.selected,
+        dataset: { ...option.dataset },
     }));
 
     const renderOptions = (query = '') => {
@@ -1230,6 +1347,9 @@ document.querySelectorAll('[data-searchable-select]').forEach((select) => {
             .filter((option) => !normalized || option.text.toLowerCase().includes(normalized) || option.value.toLowerCase().includes(normalized))
             .forEach((option) => {
                 const node = new Option(option.text, option.value, false, option.value === currentValue);
+                Object.entries(option.dataset || {}).forEach(([key, value]) => {
+                    node.dataset[key] = value;
+                });
                 select.add(node);
             });
     };
@@ -1237,7 +1357,7 @@ document.querySelectorAll('[data-searchable-select]').forEach((select) => {
     select.addEventListener('inline-option-added', (event) => {
         const exists = allOptions.some((option) => String(option.value) === String(event.detail.value));
         if (!exists) {
-            allOptions.push({ value: String(event.detail.value), text: event.detail.label, selected: false });
+            allOptions.push({ value: String(event.detail.value), text: event.detail.label, selected: false, dataset: {} });
         }
         search.value = '';
         renderOptions();
@@ -1340,9 +1460,14 @@ document.querySelectorAll('[data-smart-validation]').forEach((form) => {
         if (!summary) return;
         summary.classList.remove('hidden');
         summary.innerHTML = `
-            <strong class="block">Le formulaire contient des informations à corriger.</strong>
-            <p class="mt-1">${messages.length} champ(s) nécessitent votre attention. Veuillez compléter les champs surlignés avant de continuer.</p>
-            <ul class="mt-2 list-disc space-y-1 pl-5">${messages.map((message) => `<li>${escapeHtml(message)}</li>`).join('')}</ul>
+            <div class="app-validation-summary-heading">
+                <span class="app-validation-summary-icon">!</span>
+                <div>
+                    <strong>Le formulaire contient des informations à corriger.</strong>
+                    <p>${messages.length} champ(s) nécessitent votre attention. Veuillez compléter les champs surlignés avant de continuer.</p>
+                </div>
+            </div>
+            <ul>${messages.map((message) => `<li>${escapeHtml(message)}</li>`).join('')}</ul>
         `;
     };
 

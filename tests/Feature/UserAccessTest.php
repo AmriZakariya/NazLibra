@@ -35,6 +35,47 @@ class UserAccessTest extends TestCase
         $this->assertSame(['Magasin principal', 'Dépôt'], json_decode($pivot->store_access, true));
     }
 
+    public function test_user_can_be_updated_with_new_role_store_access_and_permissions(): void
+    {
+        $this->seed();
+        $tenant = Tenant::firstOrFail();
+
+        $user = User::create([
+            'current_tenant_id' => $tenant->id,
+            'name' => 'Caissier Test',
+            'email' => 'caissier@example.test',
+            'password' => bcrypt('password-test'),
+            'avatar_color' => '#3157D5',
+            'is_active' => true,
+        ]);
+
+        $tenant->users()->attach($user->id, [
+            'role' => 'cashier',
+            'permissions' => json_encode(['sales.view']),
+            'store_access' => json_encode(['Magasin principal']),
+        ]);
+
+        $this->put(route('settings.users.update', $user), [
+            'name' => 'Caissier Responsable',
+            'email' => 'caissier.responsable@example.test',
+            'phone' => '+212611111111',
+            'role' => 'manager',
+            'permissions' => ['sales.view', 'sales.refund'],
+            'store_access' => ['Magasin principal', 'Dépôt'],
+            'avatar_color' => '#0F766E',
+            'is_active' => '1',
+        ])->assertRedirect(route('module', ['module' => 'settings', 'section' => 'users']));
+
+        $user->refresh();
+        $pivot = $tenant->users()->whereKey($user->id)->firstOrFail()->pivot;
+
+        $this->assertSame('Caissier Responsable', $user->name);
+        $this->assertSame('caissier.responsable@example.test', $user->email);
+        $this->assertSame('manager', $pivot->role);
+        $this->assertSame(['sales.view', 'sales.refund'], json_decode($pivot->permissions, true));
+        $this->assertSame(['Magasin principal', 'Dépôt'], json_decode($pivot->store_access, true));
+    }
+
     public function test_role_can_be_created_with_permissions(): void
     {
         $this->seed();

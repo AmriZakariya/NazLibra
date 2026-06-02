@@ -329,15 +329,31 @@ class LibraireProController extends Controller
             ->editColumn('sale_price', fn (Item $item): string => '<strong>'.$this->money($item->sale_price).'</strong>')
             ->addColumn('tax_label', fn (Item $item): string => e($item->tax ? $item->tax->name.' ('.number_format((float) $item->tax->rate, 2, ',', ' ').'%)' : '—'))
             ->editColumn('status', function (Item $item): string {
-                $tone = match ($item->status) {
-                    'out_of_stock' => 'bg-rose-50 text-rose-700 ring-rose-200',
-                    'archived' => 'bg-slate-100 text-slate-700 ring-slate-200',
-                    default => 'bg-blue-50 text-blue-700 ring-blue-200',
-                };
+                $isEnabled = (bool) $item->is_enabled && $item->status !== 'archived';
+                $checkoutVisible = (bool) $item->checkout_visible;
+                $enabledTone = $isEnabled
+                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                    : 'bg-slate-100 text-slate-700 ring-slate-200';
+                $stateLabel = $item->type === 'service' ? 'Service' : $this->statusLabel($item->status);
+                $stateTone = $item->type === 'service'
+                    ? 'bg-violet-50 text-violet-700 ring-violet-200'
+                    : match ($item->status) {
+                        'out_of_stock' => 'bg-rose-50 text-rose-700 ring-rose-200',
+                        'archived' => 'bg-slate-100 text-slate-700 ring-slate-200',
+                        default => 'bg-blue-50 text-blue-700 ring-blue-200',
+                    };
+                $checkoutTone = $checkoutVisible && $isEnabled
+                    ? 'bg-blue-50 text-blue-700 ring-blue-200'
+                    : 'bg-amber-50 text-amber-700 ring-amber-200';
+                $checkoutLabel = $checkoutVisible && $isEnabled ? 'Visible caisse' : 'Caché caisse';
 
-                return '<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$tone.'">'.e($this->statusLabel($item->status)).'</span>';
+                return '<div class="flex min-w-[145px] flex-col items-start gap-1">'
+                    .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$enabledTone.'">'.e($isEnabled ? 'Activé' : 'Désactivé').'</span>'
+                    .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$stateTone.'">'.e($stateLabel).'</span>'
+                    .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$checkoutTone.'">'.e($checkoutLabel).'</span>'
+                    .'</div>';
             })
-            ->addColumn('action', fn (Item $item): string => '<div class="flex min-w-[160px] justify-end gap-2"><a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Voir</a><a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Modifier</a></div>')
+            ->addColumn('action', fn (Item $item): string => '<div class="flex min-w-[96px] justify-end"><a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-500/20">Modifier</a></div>')
             ->rawColumns(['checkbox', 'image', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'action'])
             ->toJson();
     }
@@ -573,9 +589,9 @@ class LibraireProController extends Controller
             ->addColumn('location', fn (Contact $contact): string => e(collect([$contact->city, $contact->state, $contact->country])->filter()->implode(', ') ?: ($contact->address ?? '—')))
             ->editColumn('credit_limit', fn (Contact $contact): string => '<span class="font-semibold">'.$this->money($contact->credit_limit).'</span>')
             ->addColumn('previous_balance', fn (Contact $contact): string => '<span class="font-semibold">'.$this->money($contact->opening_balance).'</span>')
-            ->addColumn('purchase_due', fn (Contact $contact): string => '<span class="font-semibold text-rose-600">'.$this->money((float) ($contact->purchases_due_sum ?? 0)).'</span>')
-            ->addColumn('purchase_return_due', fn (Contact $contact): string => '<span class="font-semibold text-emerald-600">'.$this->money((float) ($contact->purchase_returns_due_sum ?? 0)).'</span>')
-            ->addColumn('supplier_total', fn (Contact $contact): string => '<span class="font-semibold">'.$this->money((float) $contact->opening_balance + (float) ($contact->purchases_due_sum ?? 0) - (float) ($contact->purchase_returns_due_sum ?? 0)).'</span>')
+            ->addColumn('purchase_due', fn (Contact $contact): string => '<span class="font-semibold text-rose-600">'.$this->money((float) ($contact->purchases_due_sum ?? 0) + (float) $contact->outstanding_balance).'</span>')
+            ->addColumn('purchase_return_due', fn (Contact $contact): string => '<span class="font-semibold text-emerald-600">'.$this->money((float) ($contact->purchase_returns_due_sum ?? 0) + (float) $contact->advance_balance).'</span>')
+            ->addColumn('supplier_total', fn (Contact $contact): string => '<span class="font-semibold">'.$this->money((float) $contact->opening_balance + (float) $contact->outstanding_balance + (float) ($contact->purchases_due_sum ?? 0) - (float) $contact->advance_balance - (float) ($contact->purchase_returns_due_sum ?? 0)).'</span>')
             ->editColumn('outstanding_balance', fn (Contact $contact): string => '<span class="'.((float) $contact->outstanding_balance > 0 ? 'font-semibold text-rose-600' : 'text-slate-500').'">'.$this->money($contact->outstanding_balance).'</span>')
             ->editColumn('advance_balance', fn (Contact $contact): string => '<span class="'.((float) $contact->advance_balance > 0 ? 'font-semibold text-emerald-600' : 'text-slate-500').'">'.$this->money($contact->advance_balance).'</span>')
             ->editColumn('status', fn (Contact $contact): string => '<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.($contact->status === 'active' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-slate-100 text-slate-700 ring-slate-200').'">'.e($contact->status === 'active' ? 'Actif' : 'Archivé').'</span>')
@@ -689,6 +705,33 @@ class LibraireProController extends Controller
         return back()->with('status', 'Contact supprimé.');
     }
 
+    public function importContacts(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $request->validate([
+            'contact_file' => ['required', 'file', 'max:20480'],
+            'kind' => ['required', 'in:client,supplier'],
+        ]);
+
+        $rows = $this->rowsFromUpload($request->file('contact_file'));
+
+        return $this->importContactRows($tenant, $rows, $data['kind']);
+    }
+
+    public function contactImportExample(string $kind)
+    {
+        abort_unless(in_array($kind, ['client', 'supplier'], true), 404);
+
+        $example = $this->contactImportExampleRows($kind);
+        $path = $this->buildSimpleXlsx($example['title'], $example['headers'], $example['rows']);
+
+        return response()
+            ->download($path, $example['filename'], [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])
+            ->deleteFileAfterSend(true);
+    }
+
     public function exportCatalog(Request $request): StreamedResponse
     {
         $tenant = $this->tenant();
@@ -742,7 +785,7 @@ class LibraireProController extends Controller
                 array_push($row,
                     $item->sale_price,
                     $item->tax ? $item->tax->name.' ('.number_format((float) $item->tax->rate, 2, '.', '').'%)' : '',
-                    $this->statusLabel($item->status),
+                    ((bool) $item->is_enabled && $item->status !== 'archived' ? 'Activé' : 'Désactivé').' / '.($item->type === 'service' ? 'Service' : $this->statusLabel($item->status)).' / '.((bool) $item->checkout_visible && (bool) $item->is_enabled && $item->status === 'active' ? 'Visible caisse' : 'Caché caisse'),
                     route('catalog', ['panel' => $item->type === 'service' ? 'services' : 'articles', 'edit' => $item->id])
                 );
                 fputcsv($handle, $row);
@@ -796,7 +839,7 @@ class LibraireProController extends Controller
         $tenant = $this->tenant();
         $data = $this->validatedItem($request);
         $data['tenant_id'] = $tenant->id;
-        $data['status'] = $data['stock_quantity'] <= 0 && ($data['type'] ?? 'book') !== 'service' ? 'out_of_stock' : ($data['status'] ?? 'active');
+        $data['status'] = ($data['status'] ?? 'active') !== 'archived' && $data['stock_quantity'] <= 0 && ($data['type'] ?? 'book') !== 'service' ? 'out_of_stock' : ($data['status'] ?? 'active');
 
         Item::create($data);
 
@@ -807,7 +850,7 @@ class LibraireProController extends Controller
     {
         $this->authorizeTenantItem($item);
         $data = $this->validatedItem($request, $item);
-        $data['status'] = $data['stock_quantity'] <= 0 && ($data['type'] ?? $item->type) !== 'service' ? 'out_of_stock' : ($data['status'] ?? $item->status);
+        $data['status'] = ($data['status'] ?? $item->status) !== 'archived' && $data['stock_quantity'] <= 0 && ($data['type'] ?? $item->type) !== 'service' ? 'out_of_stock' : ($data['status'] ?? $item->status);
 
         $item->update($data);
 
@@ -1134,8 +1177,7 @@ class LibraireProController extends Controller
             $unit = $this->unitByName($tenant->id, (string) ($this->rowValue($row, ['unit', 'unit_name', 'unite', 'nom_unite']) ?: ($data['kind'] === 'services' ? 'Service' : 'Pièce')));
             [$taxName, $taxRate] = $this->taxParts((string) ($this->rowValue($row, ['tax', 'tax_name', 'taxe', 'impot']) ?: 'Sans TVA'), $this->rowValue($row, ['tax_rate', 'tax_value', 'taux_taxe']));
             $tax = $this->taxByName($tenant->id, $taxName, $taxRate);
-            $rawType = strtolower((string) ($this->rowValue($row, ['type', 'item_type']) ?: ''));
-            $type = $data['kind'] === 'services' ? 'service' : (str_contains($rawType, 'service') ? 'service' : (str_contains($rawType, 'item') || str_contains($rawType, 'supply') ? 'supply' : 'book'));
+            $type = $this->importedItemType($row, $data['kind']);
             $stock = $type === 'service' ? 9999 : (int) $this->decimalValue($this->rowValue($row, ['stock', 'stock_quantity', 'opening_stock', 'stock_ouverture']));
 
             $barcode = trim((string) $this->rowValue($row, ['barcode', 'custom_barcode', 'code_barres', 'code_de_barre'])) ?: null;
@@ -1150,7 +1192,9 @@ class LibraireProController extends Controller
                 'brand_id' => $brand?->id,
                 'unit_id' => $unit?->id,
                 'tax_id' => $tax?->id,
-                'type' => in_array($type, ['book', 'supply', 'service'], true) ? $type : 'book',
+                'type' => $type,
+                'is_enabled' => true,
+                'checkout_visible' => true,
                 'status' => $this->itemStatus($row, $stock, $type),
                 'item_code' => trim((string) $this->rowValue($row, ['item_code', 'code_article'])) ?: $this->nextItemCode($tenant->id),
                 'title' => $title,
@@ -1781,6 +1825,8 @@ class LibraireProController extends Controller
         $items = $tenant->items()
             ->with(['category', 'brand', 'unit', 'tax'])
             ->where('status', 'active')
+            ->where('is_enabled', true)
+            ->where('checkout_visible', true)
             ->when($query, fn (Builder $builder) => $builder->where(function (Builder $builder) use ($query): void {
                 $builder->where('title', 'like', "%{$query}%")
                     ->orWhere('item_code', 'like', "%{$query}%")
@@ -2132,6 +2178,317 @@ class LibraireProController extends Controller
         $ticket->update(['status' => 'void']);
 
         return redirect()->route('pos')->with('status', 'Ticket '.$number.' annulé.');
+    }
+
+    public function storeSale(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $request->validate([
+            'contact_id' => ['nullable', 'integer', Rule::exists('contacts', 'id')->where('tenant_id', $tenant->id)->where('kind', 'client')],
+            'client_name' => ['nullable', 'string', 'max:160'],
+            'client_phone' => ['nullable', 'string', 'max:60'],
+            'sold_at' => ['nullable', 'date'],
+            'due_date' => ['nullable', 'date'],
+            'reference_number' => ['nullable', 'string', 'max:120'],
+            'sale_status' => ['required', 'in:paid,partial,unpaid'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'other_charges' => ['nullable', 'numeric', 'min:0'],
+            'cash_amount' => ['nullable', 'numeric', 'min:0'],
+            'card_amount' => ['nullable', 'numeric', 'min:0'],
+            'transfer_amount' => ['nullable', 'numeric', 'min:0'],
+            'advance_amount' => ['nullable', 'numeric', 'min:0'],
+            'delivery_address' => ['nullable', 'string', 'max:1000'],
+            'delivery_note' => ['nullable', 'string', 'max:500'],
+            'note' => ['nullable', 'string', 'max:700'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.item_id' => ['nullable', 'integer', Rule::exists('items', 'id')->where('tenant_id', $tenant->id)],
+            'items.*.quantity' => ['nullable', 'integer', 'min:1'],
+            'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'items.*.tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'items.*.description' => ['nullable', 'string', 'max:300'],
+        ]);
+
+        $lines = collect($data['items'])
+            ->map(fn (array $line) => [
+                'item_id' => (int) ($line['item_id'] ?? 0),
+                'quantity' => max(0, (int) ($line['quantity'] ?? 0)),
+                'unit_price' => isset($line['unit_price']) && $line['unit_price'] !== '' ? round(max(0, (float) $line['unit_price']), 2) : null,
+                'discount_amount' => round(max(0, (float) ($line['discount_amount'] ?? 0)), 2),
+                'tax_rate' => round(max(0, (float) ($line['tax_rate'] ?? 20)), 2),
+                'description' => mb_substr(trim((string) ($line['description'] ?? '')), 0, 300),
+            ])
+            ->filter(fn (array $line) => $line['item_id'] > 0 && $line['quantity'] > 0)
+            ->values();
+
+        if ($lines->isEmpty()) {
+            return back()->withErrors(['items' => 'Ajoutez au moins un article à la vente.'])->withInput();
+        }
+
+        $allowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
+        $payments = [
+            'cash' => round((float) ($data['cash_amount'] ?? 0), 2),
+            'card' => round((float) ($data['card_amount'] ?? 0), 2),
+            'transfer' => round((float) ($data['transfer_amount'] ?? 0), 2),
+            'advance' => round((float) ($data['advance_amount'] ?? 0), 2),
+        ];
+
+        try {
+            $sale = DB::transaction(function () use ($tenant, $data, $lines, $payments, $allowOversell): Sale {
+                $contact = null;
+                if (! empty($data['contact_id'])) {
+                    $contact = Contact::where('tenant_id', $tenant->id)->whereKey($data['contact_id'])->lockForUpdate()->firstOrFail();
+                } elseif (filled($data['client_name'] ?? null)) {
+                    $contact = Contact::create([
+                        'tenant_id' => $tenant->id,
+                        'kind' => 'client',
+                        'name' => $data['client_name'],
+                        'phone' => $data['client_phone'] ?? null,
+                        'client_type' => 'individual',
+                    ]);
+                }
+
+                if (($payments['advance'] ?? 0) > 0 && ! $contact) {
+                    throw new \RuntimeException('Sélectionnez un client pour utiliser une avance.');
+                }
+
+                $items = Item::where('tenant_id', $tenant->id)
+                    ->whereIn('id', $lines->pluck('item_id'))
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
+
+                $saleLines = [];
+                $subtotal = 0.0;
+                $lineDiscountTotal = 0.0;
+                $taxAmount = 0.0;
+
+                foreach ($lines as $line) {
+                    $item = $items->get($line['item_id']);
+                    if (! $item || $item->status !== 'active') {
+                        throw new \RuntimeException('Un article de la vente est indisponible.');
+                    }
+
+                    if (! $allowOversell && $item->type !== 'service' && $item->stock_quantity < $line['quantity']) {
+                        throw new \RuntimeException("Stock insuffisant pour {$item->title}.");
+                    }
+
+                    $unitPrice = $line['unit_price'] ?? (float) $item->sale_price;
+                    $grossLine = round($unitPrice * $line['quantity'], 2);
+                    $lineDiscount = min($line['discount_amount'], $grossLine);
+                    $netLine = max(0, round($grossLine - $lineDiscount, 2));
+                    $lineTax = $line['tax_rate'] > 0 ? round($netLine * $line['tax_rate'] / (100 + $line['tax_rate']), 2) : 0.0;
+
+                    $subtotal += $grossLine;
+                    $lineDiscountTotal += $lineDiscount;
+                    $taxAmount += $lineTax;
+                    $saleLines[] = [
+                        'item' => $item,
+                        'quantity' => $line['quantity'],
+                        'unit_price' => $unitPrice,
+                        'gross_price' => $grossLine,
+                        'discount_amount' => $lineDiscount,
+                        'tax_rate' => $line['tax_rate'],
+                        'tax_amount' => $lineTax,
+                        'total_price' => $netLine,
+                        'description' => $line['description'],
+                    ];
+                }
+
+                $globalDiscount = min(round((float) ($data['discount_amount'] ?? 0), 2), max(0, $subtotal - $lineDiscountTotal));
+                $otherCharges = round((float) ($data['other_charges'] ?? 0), 2);
+                $total = max(0, round($subtotal - $lineDiscountTotal - $globalDiscount + $otherCharges, 2));
+                $paid = min(round(array_sum($payments), 2), $total);
+
+                if ($data['sale_status'] === 'unpaid') {
+                    $payments = array_fill_keys(array_keys($payments), 0.0);
+                    $paid = 0.0;
+                }
+
+                if ($contact && ($payments['advance'] ?? 0) > 0) {
+                    if ((float) $contact->advance_balance < $payments['advance']) {
+                        throw new \RuntimeException('Avance client insuffisante.');
+                    }
+                    $contact->decrement('advance_balance', min($payments['advance'], $paid));
+                }
+
+                $status = $paid <= 0.001 ? 'unpaid' : ($paid + 0.001 >= $total ? 'paid' : 'partial');
+                if ($data['sale_status'] === 'unpaid') {
+                    $status = 'unpaid';
+                } elseif ($data['sale_status'] === 'paid' && $paid + 0.001 < $total) {
+                    throw new \RuntimeException('Le montant payé doit couvrir le total pour une vente payée.');
+                } elseif ($data['sale_status'] === 'partial' && $paid <= 0.001) {
+                    throw new \RuntimeException('Ajoutez un paiement pour une vente partielle.');
+                }
+
+                $paymentMethod = collect($payments)->filter(fn ($amount) => $amount > 0.001)->keys()->join('+') ?: 'credit';
+                $saleNumber = $this->nextSaleNumber($tenant);
+                $sale = Sale::create([
+                    'tenant_id' => $tenant->id,
+                    'contact_id' => $contact?->id,
+                    'user_id' => auth()->id(),
+                    'number' => $saleNumber,
+                    'status' => $status,
+                    'payment_method' => $paymentMethod,
+                    'subtotal_amount' => round($subtotal, 2),
+                    'discount_amount' => round($lineDiscountTotal + $globalDiscount, 2),
+                    'tax_amount' => round($taxAmount, 2),
+                    'total_amount' => $total,
+                    'sold_at' => ! empty($data['sold_at']) ? Carbon::parse($data['sold_at']) : now(),
+                    'metadata' => [
+                        'invoice_number' => $this->invoiceNumber($saleNumber),
+                        'reference_number' => $data['reference_number'] ?? null,
+                        'paid_amount' => $paid,
+                        'due_date' => $data['due_date'] ?? null,
+                        'source' => 'manual_sale',
+                        'other_charges' => $otherCharges,
+                        'global_discount_amount' => $globalDiscount,
+                        'line_discount_amount' => round($lineDiscountTotal, 2),
+                        'payments' => $payments,
+                        'delivery_address' => $data['delivery_address'] ?? null,
+                        'delivery_note' => $data['delivery_note'] ?? null,
+                        'note' => $data['note'] ?? null,
+                    ],
+                ]);
+
+                foreach ($saleLines as $line) {
+                    $sale->items()->create([
+                        'item_id' => $line['item']->id,
+                        'name' => $line['item']->title,
+                        'quantity' => $line['quantity'],
+                        'unit_price' => $line['unit_price'],
+                        'total_price' => $line['total_price'],
+                    ]);
+
+                    if ($line['item']->type !== 'service') {
+                        $line['item']->decrement('stock_quantity', $line['quantity']);
+                        if (! $allowOversell && $line['item']->fresh()->stock_quantity <= 0) {
+                            $line['item']->update(['status' => 'out_of_stock']);
+                        }
+                    }
+                }
+
+                $remainingPaymentToAllocate = $paid;
+                foreach ($payments as $method => $amount) {
+                    $allocatedAmount = min($amount, $remainingPaymentToAllocate);
+                    if ($allocatedAmount <= 0.001) {
+                        continue;
+                    }
+
+                    SalePayment::create([
+                        'tenant_id' => $tenant->id,
+                        'sale_id' => $sale->id,
+                        'contact_id' => $contact?->id,
+                        'user_id' => auth()->id(),
+                        'number' => $this->nextPaymentNumber($tenant),
+                        'method' => $method,
+                        'amount' => $allocatedAmount,
+                        'paid_at' => $sale->sold_at,
+                        'reference' => $sale->number,
+                        'note' => 'Paiement vente manuelle',
+                    ]);
+                    $remainingPaymentToAllocate = max(0, round($remainingPaymentToAllocate - $allocatedAmount, 2));
+                }
+
+                if (! empty($data['delivery_address'])) {
+                    DeliveryOrder::create([
+                        'tenant_id' => $tenant->id,
+                        'sale_id' => $sale->id,
+                        'contact_id' => $sale->contact_id,
+                        'user_id' => auth()->id(),
+                        'number' => $this->nextDeliveryNumber($tenant),
+                        'status' => 'pending',
+                        'delivery_address' => $data['delivery_address'],
+                        'note' => $data['delivery_note'] ?? null,
+                    ]);
+                }
+
+                return $sale;
+            });
+        } catch (\RuntimeException $exception) {
+            return back()->withErrors(['sale' => $exception->getMessage()])->withInput();
+        }
+
+        return redirect()
+            ->route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $sale->id])
+            ->with('status', 'Vente '.$sale->number.' enregistrée.');
+    }
+
+    public function updateSale(Request $request, Sale $sale): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless($sale->tenant_id === $tenant->id, 404);
+
+        $data = $request->validate([
+            'contact_id' => ['nullable', 'integer', Rule::exists('contacts', 'id')->where('tenant_id', $tenant->id)->where('kind', 'client')],
+            'reference_number' => ['nullable', 'string', 'max:120'],
+            'due_date' => ['nullable', 'date'],
+            'note' => ['nullable', 'string', 'max:500'],
+            'status' => ['required', 'in:paid,partial,unpaid,refunded,cancelled'],
+        ]);
+
+        $metadata = $sale->metadata ?? [];
+        $metadata['reference_number'] = $data['reference_number'] ?? null;
+        $metadata['due_date'] = $data['due_date'] ?? null;
+        $metadata['note'] = $data['note'] ?? null;
+        $metadata['edited_at'] = now()->toIso8601String();
+        $metadata['edited_by'] = auth()->id();
+
+        $sale->update([
+            'contact_id' => $data['contact_id'] ?? null,
+            'status' => $data['status'],
+            'metadata' => $metadata,
+        ]);
+
+        return back()->with('status', 'Vente '.$sale->number.' mise à jour.');
+    }
+
+    public function createSaleInvoice(Request $request, Sale $sale): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless($sale->tenant_id === $tenant->id, 404);
+
+        $data = $request->validate([
+            'due_date' => ['nullable', 'date'],
+            'invoice_note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $metadata = $sale->metadata ?? [];
+        $metadata['invoice_number'] = $metadata['invoice_number'] ?? $this->invoiceNumber($sale->number);
+        $metadata['invoice_created_at'] = $metadata['invoice_created_at'] ?? now()->toIso8601String();
+        $metadata['invoice_created_by'] = $metadata['invoice_created_by'] ?? auth()->id();
+        $metadata['invoice_due_date'] = $data['due_date'] ?? ($metadata['invoice_due_date'] ?? $metadata['due_date'] ?? null);
+        $metadata['invoice_note'] = $data['invoice_note'] ?? ($metadata['invoice_note'] ?? null);
+
+        $sale->update(['metadata' => $metadata]);
+
+        return redirect()
+            ->route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $sale->id])
+            ->with('status', 'Facture '.$metadata['invoice_number'].' prête.');
+    }
+
+    public function destroySale(Sale $sale): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless($sale->tenant_id === $tenant->id, 404);
+
+        if (in_array($sale->status, ['refunded', 'cancelled'], true)) {
+            return back()->withErrors(['sale' => 'Cette vente est déjà clôturée.']);
+        }
+
+        $metadata = $sale->metadata ?? [];
+        $metadata['cancelled'] = [
+            'cancelled_at' => now()->toIso8601String(),
+            'cancelled_by' => auth()->id(),
+            'reason' => 'Annulation depuis la liste des ventes',
+        ];
+
+        $sale->update([
+            'status' => 'cancelled',
+            'metadata' => $metadata,
+        ]);
+
+        return back()->with('status', 'Vente '.$sale->number.' annulée.');
     }
 
     public function refundSale(Request $request, Sale $sale): RedirectResponse
@@ -3005,9 +3362,10 @@ class LibraireProController extends Controller
             'meta' => $modules[$module],
             'sales' => $module === 'sales' ? $sales : $tenant->sales()->with('contact')->latest('sold_at')->take(8)->get(),
             'salesTotals' => $salesTotals,
+            'nextSaleNumber' => $module === 'sales' ? $this->nextSaleNumber($tenant) : null,
             'salesClients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
             'quotations' => $quotations,
-            'quoteItems' => Item::where('tenant_id', $tenant->id)->where('status', 'active')->orderBy('title')->take(350)->get(),
+            'quoteItems' => Item::where('tenant_id', $tenant->id)->with('tax')->where('status', 'active')->orderBy('title')->take(350)->get(),
             'paymentSales' => $tenant->sales()->with('contact')->latest('sold_at')->take(80)->get(),
             'salePayments' => $this->salePaymentsQuery($tenant, $request)->paginate(25, ['*'], 'payments_page')->withQueryString(),
             'saleReturns' => $this->saleReturnsQuery($tenant, $request)->paginate(25, ['*'], 'returns_page')->withQueryString(),
@@ -3026,8 +3384,8 @@ class LibraireProController extends Controller
                 'receivable' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->sum('outstanding_balance'),
                 'advances' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->sum('advance_balance'),
                 'supplier_previous' => Contact::where('tenant_id', $tenant->id)->where('kind', 'supplier')->sum('opening_balance'),
-                'supplier_purchases' => Purchase::where('tenant_id', $tenant->id)->where('status', '!=', 'cancelled')->sum('total_amount'),
-                'supplier_returns' => PurchaseReturn::where('tenant_id', $tenant->id)->where('status', 'completed')->sum('total_amount'),
+                'supplier_purchases' => Purchase::where('tenant_id', $tenant->id)->where('status', '!=', 'cancelled')->sum('total_amount') + Contact::where('tenant_id', $tenant->id)->where('kind', 'supplier')->sum('outstanding_balance'),
+                'supplier_returns' => PurchaseReturn::where('tenant_id', $tenant->id)->where('status', 'completed')->sum('total_amount') + Contact::where('tenant_id', $tenant->id)->where('kind', 'supplier')->sum('advance_balance'),
             ],
             'editContact' => $editContact,
             'expenses' => $module === 'finance' ? $expenses : Expense::where('tenant_id', $tenant->id)->latest('spent_at')->take(8)->get(),
@@ -3433,7 +3791,7 @@ class LibraireProController extends Controller
         $maxTotal = $request->query('max_total');
 
         return Sale::query()
-            ->with(['contact', 'items'])
+            ->with(['contact', 'items', 'payments', 'deliveryOrders', 'returns'])
             ->where('tenant_id', $tenant->id)
             ->when($query !== '', function (Builder $builder) use ($query): void {
                 $builder->where(function (Builder $builder) use ($query): void {
@@ -3456,13 +3814,15 @@ class LibraireProController extends Controller
             })
             ->when(is_numeric($minTotal), fn (Builder $builder) => $builder->where('total_amount', '>=', (float) $minTotal))
             ->when(is_numeric($maxTotal), fn (Builder $builder) => $builder->where('total_amount', '<=', (float) $maxTotal))
-            ->when(in_array($paymentStatus, ['paid', 'partial', 'unpaid', 'refunded'], true), function (Builder $builder) use ($paymentStatus): void {
+            ->when(in_array($paymentStatus, ['paid', 'partial', 'unpaid', 'refunded', 'cancelled'], true), function (Builder $builder) use ($paymentStatus): void {
                 if ($paymentStatus === 'paid') {
                     $builder->where('status', 'paid');
                 } elseif ($paymentStatus === 'unpaid') {
                     $builder->where('status', 'unpaid');
                 } elseif ($paymentStatus === 'refunded') {
                     $builder->where('status', 'refunded');
+                } elseif ($paymentStatus === 'cancelled') {
+                    $builder->where('status', 'cancelled');
                 } else {
                     $builder->where('status', 'partial');
                 }
@@ -3930,6 +4290,8 @@ class LibraireProController extends Controller
             'stock.transfer' => 'Stock: transférer',
             'sales.view' => 'Ventes: voir',
             'sales.create' => 'Ventes: créer',
+            'sales.edit' => 'Ventes: modifier',
+            'sales.delete' => 'Ventes: annuler',
             'sales.refund' => 'Ventes: rembourser',
             'sales.payments' => 'Ventes: paiements',
             'purchases.view' => 'Achats: voir',
@@ -4280,6 +4642,9 @@ class LibraireProController extends Controller
             'min_stock_threshold' => ['required', 'integer', 'min:0'],
             'location' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'in:active,archived,out_of_stock'],
+            'is_enabled' => ['nullable', 'boolean'],
+            'checkout_visible' => ['nullable', 'boolean'],
+            'remove_item_image' => ['nullable', 'boolean'],
             'item_image' => ['nullable', 'image', 'max:1024'],
         ]);
 
@@ -4314,19 +4679,24 @@ class LibraireProController extends Controller
         $data['reseller_sale_price'] = $data['reseller_sale_price'] ?? 0;
         $data['mrp'] = $data['mrp'] ?? 0;
         $data['opening_stock'] = $data['opening_stock'] ?? ($item?->opening_stock ?? 0);
+        $data['is_enabled'] = $request->boolean('is_enabled', true);
+        $data['checkout_visible'] = $request->boolean('checkout_visible', true);
 
         if ($request->hasFile('item_image')) {
             $path = $request->file('item_image')->store('catalogue/items', 'public');
-            $data['images'] = array_values(array_filter(array_merge($item?->images ?? [], [$path])));
+            $data['images'] = array_values(array_filter(array_merge([$path], $item?->images ?? [])));
+        } elseif ($request->boolean('remove_item_image')) {
+            $data['images'] = [];
         } elseif ($item?->images) {
             $data['images'] = $item->images;
         }
-        unset($data['item_image']);
+        unset($data['item_image'], $data['remove_item_image']);
 
         if ($data['type'] === 'service') {
             $data['stock_quantity'] = 9999;
             $data['min_stock_threshold'] = 0;
             $data['purchase_price'] = $data['purchase_price'] ?? 0;
+            $data['status'] = ($data['status'] ?? 'active') === 'archived' ? 'archived' : 'active';
         }
 
         return $data;
@@ -4460,6 +4830,128 @@ class LibraireProController extends Controller
         return back()->with('status', "Variantes: {$created} créée(s), {$updated} mise(s) à jour, {$skipped} ignorée(s).");
     }
 
+    private function importContactRows(Tenant $tenant, array $rows, string $kind): RedirectResponse
+    {
+        $created = 0;
+        $updated = 0;
+        $skipped = 0;
+
+        foreach ($rows as $row) {
+            $code = trim((string) $this->rowValue($row, $kind === 'supplier'
+                ? ['id_du_fournisseur', 'id_fournisseur', 'supplier_id', 'supplier_code', 'code']
+                : ['n_de_client', 'numero_client', 'n_client', 'customer_id', 'customer_code', 'code']
+            ));
+            $name = trim((string) $this->rowValue($row, $kind === 'supplier'
+                ? ['nom_du_fournisseur', 'nom_fournisseur', 'supplier_name', 'fournisseur', 'name', 'nom']
+                : ['nom_du_client', 'nom_client', 'customer_name', 'client', 'name', 'nom']
+            ));
+
+            if ($name === '' || Str::lower($name) === 'total') {
+                $skipped++;
+                continue;
+            }
+
+            $location = trim((string) $this->rowValue($row, ['emplacement', 'location', 'ville', 'city']));
+            $status = $this->contactStatus($this->rowValue($row, ['statut', 'status']));
+            $email = trim((string) $this->rowValue($row, ['email', 'e_mail', 'courriel'])) ?: null;
+            $phone = trim((string) $this->rowValue($row, ['mobile', 'telephone', 'phone', 'tel'])) ?: null;
+            $previousDue = $this->decimalValue($this->rowValue($row, ['echeance_precedente', 'solde_precedent', 'previous_balance', 'opening_balance']));
+
+            if ($kind === 'supplier') {
+                $purchaseDue = $this->decimalValue($this->rowValue($row, ['achat_du', 'purchase_due']));
+                $purchaseReturnDue = $this->decimalValue($this->rowValue($row, ['retour_d_achat_du', 'purchase_return_due']));
+                $payload = [
+                    'tenant_id' => $tenant->id,
+                    'kind' => 'supplier',
+                    'code' => $code !== '' ? $code : $this->nextContactCode($tenant, 'supplier'),
+                    'name' => $name,
+                    'client_type' => 'company',
+                    'status' => $status,
+                    'phone' => $phone,
+                    'email' => $email,
+                    'opening_balance' => $previousDue,
+                    'outstanding_balance' => $purchaseDue,
+                    'advance_balance' => $purchaseReturnDue,
+                    'fine_balance' => 0,
+                    'credit_limit' => 0,
+                    'price_level_type' => 'increase',
+                    'price_level' => 0,
+                ];
+            } else {
+                $salesReturnDue = $this->decimalValue($this->rowValue($row, ['retour_des_ventes_du', 'sales_return_due']));
+                $advance = $this->decimalValue($this->rowValue($row, ['avance', 'advance', 'advance_balance']));
+                $creditLimitRaw = $this->rowValue($row, ['limite_de_credit', 'credit_limit']);
+                $creditLimit = Str::contains(Str::lower((string) $creditLimitRaw), ['aucune', 'no limit']) ? 0 : $this->decimalValue($creditLimitRaw);
+
+                $payload = [
+                    'tenant_id' => $tenant->id,
+                    'kind' => 'client',
+                    'code' => $code !== '' ? $code : $this->nextContactCode($tenant, 'client'),
+                    'name' => $name,
+                    'client_type' => 'individual',
+                    'status' => $status,
+                    'phone' => $phone,
+                    'email' => $email,
+                    'city' => $location ?: null,
+                    'credit_limit' => $creditLimit,
+                    'opening_balance' => $previousDue,
+                    'outstanding_balance' => $previousDue,
+                    'advance_balance' => $advance + $salesReturnDue,
+                    'fine_balance' => 0,
+                    'price_level_type' => 'increase',
+                    'price_level' => 0,
+                ];
+            }
+
+            $match = ['tenant_id' => $tenant->id, 'kind' => $kind];
+            if ($code !== '') {
+                $match['code'] = $code;
+            } elseif ($email) {
+                $match['email'] = $email;
+            } else {
+                $match['name'] = $name;
+            }
+
+            $contact = Contact::updateOrCreate($match, $payload);
+            $contact->wasRecentlyCreated ? $created++ : $updated++;
+        }
+
+        $label = $kind === 'supplier' ? 'Fournisseurs' : 'Clients';
+        $section = $kind === 'supplier' ? 'suppliers' : 'customers';
+
+        return redirect()
+            ->route('module', ['module' => 'contacts', 'section' => $section])
+            ->with('status', "{$label}: {$created} créé(s), {$updated} mis à jour, {$skipped} ignoré(s).");
+    }
+
+    /**
+     * @return array{title: string, filename: string, headers: array<int, string>, rows: array<int, array<int, string|int|float>>}
+     */
+    private function contactImportExampleRows(string $kind): array
+    {
+        if ($kind === 'supplier') {
+            return [
+                'title' => 'Liste des fournisseurs',
+                'filename' => 'exemple-import-fournisseurs.xlsx',
+                'headers' => ['ID du fournisseur', 'Nom du fournisseur', 'Mobile', 'Email', 'Solde précédent', 'Achat dû', "Retour d'achat dû", 'Total(+)', 'Statut'],
+                'rows' => [
+                    ['FR0001', 'FOURNISSEUR EXEMPLE', '+212600000000', 'fournisseur@example.test', 0, 1200, 0, 1200, 'Active'],
+                    ['FR0002', 'PAPETERIE GROSSISTE', '+212611111111', '', 250, 0, 50, 200, 'Active'],
+                ],
+            ];
+        }
+
+        return [
+            'title' => 'Liste des clients',
+            'filename' => 'exemple-import-clients.xlsx',
+            'headers' => ['N ° de client', 'Nom du client', 'Mobile', 'Email', 'Emplacement', 'Limite de crédit', 'Échéance précédente', 'Retour des ventes dû(+)', 'Avance', 'Statut'],
+            'rows' => [
+                ['CL0001', 'CLIENT EXEMPLE', '+212600000000', 'client@example.test', 'Casablanca', 'Aucune limite', 150, 0, 20, 'Active'],
+                ['CL0002', 'ÉCOLE ATLAS', '+212611111111', '', 'Rabat', 5000, 0, 0, 0, 'Active'],
+            ],
+        ];
+    }
+
     private function cleanLegacyCategoryName(string $name): string
     {
         $name = preg_replace('/\[(ITEM|SERVICE)\]\s*$/i', '', trim($name)) ?: $name;
@@ -4506,7 +4998,16 @@ class LibraireProController extends Controller
     {
         $status = Str::lower(trim((string) $status));
 
+        if (str_contains($status, 'inactive') || str_contains($status, 'inactif') || str_contains($status, 'archive')) {
+            return false;
+        }
+
         return $status === '' || str_contains($status, 'active');
+    }
+
+    private function contactStatus(mixed $status): string
+    {
+        return $this->legacyActive($status) ? 'active' : 'archived';
     }
 
     private function typeLabel(string $type): string
@@ -4536,6 +5037,63 @@ class LibraireProController extends Controller
         }
 
         return null;
+    }
+
+    private function importedItemType(array $row, string $kind): string
+    {
+        if ($kind === 'services') {
+            return 'service';
+        }
+
+        $rawType = Str::lower(Str::ascii((string) ($this->rowValue($row, [
+            'type',
+            'item_type',
+            'type_d_element',
+            'type_element',
+            'element_type',
+            'type_d_article',
+            'type_article',
+            'article_type',
+        ]) ?: '')));
+
+        $categoryType = Str::lower(Str::ascii((string) $this->rowValue($row, [
+            'categorie_type_d_element',
+            'category_type_d_element',
+            'category',
+            'categorie',
+            'category_name',
+            'nom_categorie',
+        ])));
+
+        if ($rawType !== '') {
+            if (str_contains($rawType, 'service') || str_contains($rawType, 'prestation') || str_contains($rawType, 'non physique')) {
+                return 'service';
+            }
+
+            if (str_contains($rawType, 'book') || str_contains($rawType, 'livre')) {
+                return 'book';
+            }
+
+            if (str_contains($rawType, 'article') || str_contains($rawType, 'item') || str_contains($rawType, 'product') || str_contains($rawType, 'produit') || str_contains($rawType, 'supply') || str_contains($rawType, 'fourniture')) {
+                return 'supply';
+            }
+        }
+
+        $combined = $categoryType;
+
+        if (preg_match('/\[(service|prestation)\]/i', $categoryType) || str_contains($combined, 'service') || str_contains($combined, 'prestation') || str_contains($combined, 'non physique')) {
+            return 'service';
+        }
+
+        if (preg_match('/\[(item|article|product|produit)\]/i', $categoryType) || str_contains($combined, 'article') || str_contains($combined, 'item') || str_contains($combined, 'product') || str_contains($combined, 'produit') || str_contains($combined, 'supply') || str_contains($combined, 'fourniture')) {
+            return 'supply';
+        }
+
+        if (str_contains($combined, 'book') || str_contains($combined, 'livre')) {
+            return 'book';
+        }
+
+        return $this->rowValue($row, ['isbn']) ? 'book' : 'supply';
     }
 
     private function unitByName(int $tenantId, string $name): ?Unit
@@ -4611,19 +5169,19 @@ class LibraireProController extends Controller
             'services' => [
                 'title' => 'Liste des services',
                 'filename' => 'exemple-import-services.xlsx',
-                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Prix de vente', 'Impôt', 'Statut'],
+                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Prix de vente', 'Impôt', 'Statut', "Type d'élément"],
                 'rows' => [
-                    ['', 'Photocopie A4 noir et blanc', 'Services[SERVICE]', 'Service', '0.50', 'Sans TVA(0.00%)', 'Active'],
-                    ['', 'Adhésion annuelle', 'Services[SERVICE]', 'Service', '100.00', 'Sans TVA(0.00%)', 'Active'],
+                    ['', 'Photocopie A4 noir et blanc', 'Services[SERVICE]', 'Service', '0.50', 'Sans TVA(0.00%)', 'Active', 'Service'],
+                    ['', 'Adhésion annuelle', 'Services[SERVICE]', 'Service', '100.00', 'Sans TVA(0.00%)', 'Active', 'Service'],
                 ],
             ],
             default => [
                 'title' => "Liste d'articles",
                 'filename' => 'exemple-import-articles.xlsx',
-                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Stock', "Quantité d'alerte", 'Prix de vente', 'Impôt', 'Statut', 'Action'],
+                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Stock', "Quantité d'alerte", 'Prix de vente', 'Impôt', 'Statut', 'Action', "Type d'élément"],
                 'rows' => [
-                    ['9780000000001', 'Cahier 96 pages grand format', 'FOURNITURE SCOLAIRE[ITEM]', 'Pièce', '50', '5', '12.00', 'Sans TVA(0.00%)', 'Active', ''],
-                    ['9780000000002', 'Roman exemple relié', 'ROMANS[ITEM]', 'Pièce', '8', '2', '85.00', 'TVA 7%(7.00%)', 'Active', ''],
+                    ['9780000000001', 'Cahier 96 pages grand format', 'FOURNITURE SCOLAIRE[ITEM]', 'Pièce', '50', '5', '12.00', 'Sans TVA(0.00%)', 'Active', '', 'Article'],
+                    ['9780000000002', 'Roman exemple relié', 'ROMANS[ITEM]', 'Pièce', '8', '2', '85.00', 'TVA 7%(7.00%)', 'Active', '', 'Livre'],
                 ],
             ],
         };

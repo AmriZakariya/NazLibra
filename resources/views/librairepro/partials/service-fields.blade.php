@@ -6,6 +6,18 @@
     $required = '<span class="ms-1 text-rose-500">*</span>';
     $item = $item ?? null;
     $serviceUnit = $units->firstWhere('name', 'Service') ?? $units->first();
+    $typeValue = old('type', $item?->type ?? 'service');
+    $typeOptions = [
+        'service' => ['label' => 'Service', 'hint' => 'Sans stock'],
+        'supply' => ['label' => 'Produit', 'hint' => 'Stock physique'],
+        'book' => ['label' => 'Livre', 'hint' => 'ISBN possible'],
+    ];
+    $storeOptions = collect($stores ?? [])->filter(fn ($store) => data_get($store, 'is_active', true));
+    $defaultStoreName = data_get($currentStore ?? [], 'name', 'Magasin principal');
+    $warehouseValue = old('warehouse', $item?->warehouse ?? $defaultStoreName);
+    $isEnabled = old('is_enabled', $item?->is_enabled ?? true);
+    $checkoutVisible = old('checkout_visible', $item?->checkout_visible ?? true);
+    $currentImage = collect($item?->images ?? [])->first();
 @endphp
 
 <div class="{{ $section }}">Identification</div>
@@ -14,8 +26,18 @@
     <input name="item_code" value="{{ old('item_code', $item?->item_code ?? $suggestedItemCode ?? '') }}" class="{{ $item ? $input : $readonlyInput }}" placeholder="Auto" @readonly(! $item)>
 </label>
 <div class="block">
-    <span class="text-xs font-semibold uppercase text-slate-500">Type</span>
-    <div class="mt-1 flex h-11 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-100">Service / prestation</div>
+    <span class="text-xs font-semibold uppercase text-slate-500">Type d'élément {!! $required !!}</span>
+    <div class="mt-1 grid gap-2 sm:grid-cols-3">
+        @foreach ($typeOptions as $value => $option)
+            <label class="app-type-choice">
+                <input type="radio" name="type" value="{{ $value }}" @checked($typeValue === $value)>
+                <span class="app-type-choice-card">
+                    {{ $option['label'] }}
+                    <small>{{ $option['hint'] }}</small>
+                </span>
+            </label>
+        @endforeach
+    </div>
 </div>
 <label class="block lg:col-span-2">
     <span class="text-xs font-semibold uppercase text-slate-500">Nom du service {!! $required !!}</span>
@@ -34,6 +56,14 @@
         @endforeach
     </select>
 </div>
+<label class="block">
+    <span class="text-xs font-semibold uppercase text-slate-500">Unité {!! $required !!}</span>
+    <select name="unit_id" required data-searchable-select data-placeholder="Rechercher une unité..." class="{{ $select }}">
+        @foreach ($units as $unit)
+            <option value="{{ $unit->id }}" @selected((string) old('unit_id', $item?->unit_id ?? $serviceUnit?->id) === (string) $unit->id)>{{ $unit->name }}</option>
+        @endforeach
+    </select>
+</label>
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Code à barre</span>
     <div class="mt-1 flex gap-2">
@@ -100,19 +130,80 @@
     <input name="sale_price" required type="number" step="0.01" min="0" value="{{ old('sale_price', $item?->sale_price ?? 0) }}" class="{{ $input }}">
 </label>
 
-<div class="{{ $section }}">Médias et notes</div>
+<div class="{{ $section }}">Magasin, médias et notes</div>
 <label class="block">
-    <span class="text-xs font-semibold uppercase text-slate-500">Sélectionnez une image</span>
-    <input name="item_image" type="file" accept="image/*" class="mt-1 block w-full rounded-lg border border-dashed border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900">
+    <span class="text-xs font-semibold uppercase text-slate-500">Stock si produit</span>
+    <input name="stock_quantity" type="number" min="0" value="{{ old('stock_quantity', $item?->type === 'service' ? 9999 : ($item?->stock_quantity ?? 0)) }}" class="{{ $input }}">
+    <span class="mt-1 block text-xs text-slate-500">Ignoré automatiquement pour les services.</span>
 </label>
-<label class="block lg:col-span-3">
+<label class="block">
+    <span class="text-xs font-semibold uppercase text-slate-500">Quantité d'alerte</span>
+    <input name="min_stock_threshold" type="number" min="0" value="{{ old('min_stock_threshold', $item?->type === 'service' ? 0 : ($item?->min_stock_threshold ?? 0)) }}" class="{{ $input }}">
+</label>
+<label class="block">
+    <span class="text-xs font-semibold uppercase text-slate-500">Magasin</span>
+    <select name="warehouse" data-searchable-select data-placeholder="Choisir un magasin..." class="{{ $select }}">
+        @forelse ($storeOptions as $store)
+            <option value="{{ data_get($store, 'name') }}" @selected($warehouseValue === data_get($store, 'name'))>{{ data_get($store, 'name') }}{{ data_get($store, 'type') === 'warehouse' ? ' · Dépôt' : '' }}</option>
+        @empty
+            <option value="{{ $warehouseValue }}">{{ $warehouseValue }}</option>
+        @endforelse
+    </select>
+</label>
+<div class="block lg:col-span-2">
+    <span class="text-xs font-semibold uppercase text-slate-500">Image service</span>
+    <div class="mt-1 grid gap-3 rounded-lg border border-dashed border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900 md:grid-cols-[88px_minmax(0,1fr)]">
+        <div class="grid size-20 place-items-center overflow-hidden rounded-lg bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-white/10">
+            @if ($currentImage)
+                <img src="{{ asset('storage/'.$currentImage) }}" alt="{{ $item?->title ? 'Image '.$item->title : 'Image service' }}" class="h-full w-full object-cover">
+            @else
+                Aucune image
+            @endif
+        </div>
+        <div class="min-w-0">
+            <input name="item_image" type="file" accept="image/*" class="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950">
+            <span class="mt-1 block text-xs text-slate-500">Une nouvelle image devient l’image principale.</span>
+            @if ($currentImage)
+                <label class="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" name="remove_item_image" value="1" class="rounded border-slate-300 text-brand focus:ring-brand">
+                    Supprimer l'image actuelle
+                </label>
+            @endif
+        </div>
+    </div>
+</div>
+<label class="block">
+    <span class="text-xs font-semibold uppercase text-slate-500">Statut</span>
+    <select name="status" class="{{ $select }}">
+        @foreach (['active' => 'Actif', 'archived' => 'Archivé'] as $value => $label)
+            <option value="{{ $value }}" @selected(old('status', $item?->status ?? 'active') === $value)>{{ $label }}</option>
+        @endforeach
+    </select>
+</label>
+<label class="block rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900">
+    <input type="hidden" name="is_enabled" value="0">
+    <span class="flex items-start gap-3">
+        <input name="is_enabled" value="1" type="checkbox" @checked((bool) $isEnabled) class="mt-1 rounded border-slate-300 text-brand focus:ring-brand">
+        <span>
+            <span class="block text-xs font-semibold uppercase text-slate-500">Service activé</span>
+            <small class="mt-1 block text-xs text-slate-500">Décochez pour désactiver ce service sans le supprimer.</small>
+        </span>
+    </span>
+</label>
+<label class="block rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900">
+    <input type="hidden" name="checkout_visible" value="0">
+    <span class="flex items-start gap-3">
+        <input name="checkout_visible" value="1" type="checkbox" @checked((bool) $checkoutVisible) class="mt-1 rounded border-slate-300 text-brand focus:ring-brand">
+        <span>
+            <span class="block text-xs font-semibold uppercase text-slate-500">Visible sur la caisse</span>
+            <small class="mt-1 block text-xs text-slate-500">Décochez pour masquer ce service pendant l'encaissement.</small>
+        </span>
+    </span>
+</label>
+<label class="block lg:col-span-2">
     <span class="text-xs font-semibold uppercase text-slate-500">La description</span>
     <textarea name="description" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Règles, taxe, note de caisse">{{ old('description', $item?->description) }}</textarea>
 </label>
-<input type="hidden" name="unit_id" value="{{ old('unit_id', $item?->unit_id ?? $serviceUnit?->id) }}">
-<input type="hidden" name="stock_quantity" value="9999">
-<input type="hidden" name="min_stock_threshold" value="0">
-<input type="hidden" name="status" value="active">
 
 @if (! $item)
     <dialog id="service-category-dialog" class="app-dialog w-[min(460px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40">

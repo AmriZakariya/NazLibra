@@ -72,11 +72,15 @@
                 </div>
             @endif
 
-            <details class="pos-command-center pos-collapsible rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+            <details open class="pos-command-center pos-collapsible overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 <summary class="pos-collapsible-summary flex cursor-pointer list-none items-center justify-between gap-3 p-4">
-                    <span class="min-w-0">
-                        <span class="block text-sm font-semibold text-brand">Caisse librairie</span>
-                        <span class="mt-1 block truncate text-xl font-semibold">Scanner, trouver, encaisser</span>
+                    <span class="flex min-w-0 items-center gap-3">
+                        <span class="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand text-xl font-black text-white shadow-sm shadow-brand/20">⌕</span>
+                        <span class="min-w-0">
+                            <span class="block text-sm font-semibold text-brand">Caisse librairie</span>
+                            <span class="mt-1 block truncate text-xl font-semibold">Scanner, trouver, encaisser</span>
+                            <span class="mt-1 block truncate text-xs text-slate-500">Recherche rapide, filtres utiles et création d’article sans quitter la caisse.</span>
+                        </span>
                     </span>
                     <span class="flex min-w-0 shrink items-center justify-end gap-2">
                         <span class="hidden flex-wrap justify-end gap-2 lg:flex">
@@ -90,7 +94,7 @@
                     </span>
                 </summary>
 
-                <div class="pos-command-body border-t border-slate-200 p-4 dark:border-white/10">
+                <div class="pos-command-body border-t border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-white/[0.02]">
                     <div class="mb-3 flex flex-wrap gap-2 lg:hidden">
                         <x-status-pill tone="primary">Prochaine vente {{ $nextSaleNumber }}</x-status-pill>
                         <x-status-pill :tone="$resumeTicket ? 'warning' : 'info'">{{ $resumeTicket ? 'Reprise '.$resumeTicket->number : 'Attente '.$nextTicketNumber }}</x-status-pill>
@@ -99,44 +103,63 @@
                         <x-status-pill :tone="$allowOversell ? 'warning' : 'success'">{{ $allowOversell ? 'Hors stock autorisé' : 'Stock bloquant' }}</x-status-pill>
                     </div>
 
-                <div class="pos-search-row grid gap-2">
-                    <div class="relative">
-                        <input class="pos-search barcode-input h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-4 pe-28 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" value="{{ $query }}" placeholder="Scanner code-barres, ISBN, titre, SKU...">
-                        <button class="barcode-scan-btn absolute right-2 top-2 h-8 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:text-brand dark:border-white/10" type="button">Caméra</button>
+                    <div class="pos-search-row grid gap-2">
+                        <label class="pos-control pos-search-control block">
+                            <span class="pos-control-label">Recherche / scan</span>
+                            <span class="relative block">
+                                <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base font-bold text-slate-400">⌕</span>
+                                <input class="pos-search barcode-input h-[52px] w-full rounded-xl border border-slate-200 bg-white px-10 pe-28 text-base font-semibold outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-950" value="{{ $query }}" placeholder="Code-barres, ISBN, titre, SKU...">
+                                <button class="barcode-scan-btn absolute right-2 top-1/2 h-9 -translate-y-1/2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 shadow-sm hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-900" type="button">Caméra</button>
+                            </span>
+                        </label>
+                        <label class="pos-control block">
+                            <span class="pos-control-label">Famille</span>
+                            <select class="pos-type-filter h-[52px] rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-950">
+                                @foreach ($productTypes as $value => $label)
+                                    <option value="{{ $value }}" @selected($type === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="pos-control block">
+                            <span class="pos-control-label">Stock</span>
+                            <select class="pos-stock-filter h-[52px] rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-950">
+                                <option value="available" @selected($stock === 'available')>Disponible</option>
+                                <option value="all" @selected($stock === 'all')>Tout stock</option>
+                                <option value="low" @selected($stock === 'low')>Stock bas</option>
+                            </select>
+                        </label>
+                        <a href="{{ route('catalog', ['panel' => 'ajouter']) }}" class="pos-new-item-link grid h-[52px] place-items-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">Nouvel article</a>
                     </div>
-                    <select class="pos-type-filter h-12 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                        @foreach ($productTypes as $value => $label)
-                            <option value="{{ $value }}" @selected($type === $value)>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                    <select class="pos-stock-filter h-12 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                        <option value="available" @selected($stock === 'available')>Disponible</option>
-                        <option value="all" @selected($stock === 'all')>Tout stock</option>
-                        <option value="low" @selected($stock === 'low')>Stock bas</option>
-                    </select>
-                    <a href="{{ route('catalog', ['panel' => 'ajouter']) }}" class="grid h-12 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Nouvel article</a>
-                </div>
-                <div class="pos-filter-row mt-2 grid gap-2">
-                    <select class="pos-category-filter h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                        <option value="all">Toutes les catégories</option>
-                        @foreach ($categories as $category)
-                            <option value="{{ $category->id }}">{{ $category->name }}</option>
-                        @endforeach
-                    </select>
-                    <select class="pos-brand-filter h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                        <option value="all">Toutes les marques / éditeurs</option>
-                        @foreach ($brands as $brand)
-                            <option value="{{ $brand->id }}">{{ $brand->name }}</option>
-                        @endforeach
-                    </select>
-                    <select class="pos-unit-filter h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                        <option value="all">Unités</option>
-                        @foreach ($units as $unit)
-                            <option value="{{ $unit->id }}">{{ $unit->name }}</option>
-                        @endforeach
-                    </select>
-                    <button class="pos-clear-filters rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10" type="button">Effacer</button>
-                </div>
+                    <div class="pos-filter-row mt-3 grid gap-2">
+                        <label class="pos-control block">
+                            <span class="pos-control-label">Catégorie</span>
+                            <select class="pos-category-filter h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-950">
+                                <option value="all">Toutes les catégories</option>
+                                @foreach ($categories as $category)
+                                    <option value="{{ $category->id }}">{{ $category->name }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="pos-control block">
+                            <span class="pos-control-label">Marque / éditeur</span>
+                            <select class="pos-brand-filter h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-950">
+                                <option value="all">Toutes les marques / éditeurs</option>
+                                @foreach ($brands as $brand)
+                                    <option value="{{ $brand->id }}">{{ $brand->name }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="pos-control block">
+                            <span class="pos-control-label">Unité</span>
+                            <select class="pos-unit-filter h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-950">
+                                <option value="all">Unités</option>
+                                @foreach ($units as $unit)
+                                    <option value="{{ $unit->id }}">{{ $unit->name }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <button class="pos-clear-filters h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button">Effacer</button>
+                    </div>
                 </div>
             </details>
 
@@ -334,7 +357,7 @@
 
                 <section class="pos-payment-footer rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-white/10 dark:bg-slate-950">
                     <div class="grid gap-2 sm:grid-cols-[118px_minmax(0,1fr)]">
-                        <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Remise</span><input name="discount_amount" value="0" min="0" step="0.01" type="number" class="pos-discount mt-1 h-9 w-full rounded-lg border border-slate-200 px-2 text-sm dark:border-white/10"></label>
+                        <label class="pos-discount-field block"><span class="text-xs font-semibold uppercase text-slate-500">Remise</span><input name="discount_amount" value="0" min="0" step="0.01" type="number" class="pos-discount mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10"></label>
                         <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
                             <div class="flex justify-between text-slate-500"><span>Sous-total</span><span class="pos-subtotal">0,00 DH</span></div>
                             <div class="flex justify-between text-slate-500"><span>TVA</span><span class="pos-tax">0,00 DH</span></div>
@@ -346,10 +369,10 @@
                     </div>
 
                     <div class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-                        <label class="block rounded-lg border border-slate-200 px-2 py-1.5 dark:border-white/10"><span class="text-[11px] font-semibold text-slate-500">Espèces</span><input name="cash_amount" min="0" step="0.01" type="number" class="pos-payment h-6 w-full border-0 px-0 text-sm font-semibold" placeholder="0"></label>
-                        <label class="block rounded-lg border border-slate-200 px-2 py-1.5 dark:border-white/10"><span class="text-[11px] font-semibold text-slate-500">Carte</span><input name="card_amount" min="0" step="0.01" type="number" class="pos-payment h-6 w-full border-0 px-0 text-sm font-semibold" placeholder="0"></label>
-                        <label class="block rounded-lg border border-slate-200 px-2 py-1.5 dark:border-white/10"><span class="text-[11px] font-semibold text-slate-500">Virement</span><input name="transfer_amount" min="0" step="0.01" type="number" class="pos-payment h-6 w-full border-0 px-0 text-sm font-semibold" placeholder="0"></label>
-                        <label class="block rounded-lg border border-slate-200 px-2 py-1.5 dark:border-white/10"><span class="text-[11px] font-semibold text-slate-500">Avance</span><input name="advance_amount" min="0" step="0.01" type="number" class="pos-payment h-6 w-full border-0 px-0 text-sm font-semibold" placeholder="0"></label>
+                        <label class="pos-money-field block rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10"><span class="text-[11px] font-bold uppercase text-slate-500">Espèces</span><input name="cash_amount" min="0" step="0.01" type="number" class="pos-payment h-8 w-full border-0 px-0 text-base font-bold" placeholder="0"></label>
+                        <label class="pos-money-field block rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10"><span class="text-[11px] font-bold uppercase text-slate-500">Carte</span><input name="card_amount" min="0" step="0.01" type="number" class="pos-payment h-8 w-full border-0 px-0 text-base font-bold" placeholder="0"></label>
+                        <label class="pos-money-field block rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10"><span class="text-[11px] font-bold uppercase text-slate-500">Virement</span><input name="transfer_amount" min="0" step="0.01" type="number" class="pos-payment h-8 w-full border-0 px-0 text-base font-bold" placeholder="0"></label>
+                        <label class="pos-money-field block rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10"><span class="text-[11px] font-bold uppercase text-slate-500">Avance</span><input name="advance_amount" min="0" step="0.01" type="number" class="pos-payment h-8 w-full border-0 px-0 text-base font-bold" placeholder="0"></label>
                     </div>
 
                     <div class="mt-2 grid grid-cols-3 gap-1.5">
@@ -370,7 +393,7 @@
             </form>
         </aside>
 
-        <dialog class="pos-item-dialog w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+        <dialog class="app-dialog pos-item-dialog w-[min(540px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
             <div class="border-b border-slate-200 p-5 dark:border-white/10">
                 <div class="flex items-start justify-between gap-4">
                     <div class="min-w-0">

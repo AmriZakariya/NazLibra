@@ -241,8 +241,102 @@ class PosTest extends TestCase
             ->assertSee('Code de vente')
             ->assertSee('Numéro de référence')
             ->assertSee('Paiement payé')
-            ->assertSee('Détail')
+            ->assertSee('Action')
+            ->assertSee('Voir détail')
+            ->assertSee('Facture')
             ->assertSee('FAC-', false);
+    }
+
+    public function test_manual_sale_add_screen_renders(): void
+    {
+        $this->seed();
+
+        $this->get(route('module', ['module' => 'sales', 'section' => 'add']))
+            ->assertOk()
+            ->assertSee('Ajouter une vente')
+            ->assertSee('Articles de la vente')
+            ->assertSee('Paiement')
+            ->assertSee('Résumé vente')
+            ->assertSee('data-manual-sale-form', false);
+    }
+
+    public function test_manual_sale_can_be_created_with_payment_and_stock_decrement(): void
+    {
+        $this->seed();
+
+        $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 3)->firstOrFail();
+        $client = Contact::where('kind', 'client')->firstOrFail();
+        $initialStock = $item->stock_quantity;
+        $unitPrice = (float) $item->sale_price;
+
+        $response = $this->post(route('sales.store'), [
+            'contact_id' => $client->id,
+            'sold_at' => now()->format('Y-m-d H:i:s'),
+            'due_date' => now()->addDays(7)->toDateString(),
+            'reference_number' => 'BC-TEST-001',
+            'sale_status' => 'paid',
+            'discount_amount' => 1,
+            'other_charges' => 2,
+            'cash_amount' => ($unitPrice * 2) + 1,
+            'items' => [
+                ['item_id' => $item->id, 'quantity' => 2, 'unit_price' => $unitPrice, 'discount_amount' => 1, 'tax_rate' => 20, 'description' => 'Test ligne'],
+            ],
+        ]);
+
+        $sale = Sale::orderByDesc('id')->firstOrFail();
+        $response->assertRedirect(route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $sale->id]));
+        $this->assertStringStartsWith('BL', $sale->number);
+        $this->assertSame($client->id, $sale->contact_id);
+        $this->assertSame('paid', $sale->status);
+        $this->assertSame('manual_sale', $sale->metadata['source']);
+        $this->assertSame('BC-TEST-001', $sale->metadata['reference_number']);
+        $this->assertSame($initialStock - 2, $item->fresh()->stock_quantity);
+        $this->assertSame(1, $sale->payments()->count());
+    }
+
+    public function test_sale_invoice_can_be_created_from_sales_list(): void
+    {
+        $this->seed();
+
+        $sale = Sale::firstOrFail();
+        $sale->update(['metadata' => []]);
+
+        $response = $this->post(route('sales.invoice.store', $sale), [
+            'due_date' => now()->addDays(15)->toDateString(),
+            'invoice_note' => 'Facture test client',
+        ]);
+
+        $response->assertRedirect(route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $sale->id]));
+        $sale->refresh();
+        $this->assertSame('FAC-'.$sale->number, $sale->metadata['invoice_number']);
+        $this->assertSame('Facture test client', $sale->metadata['invoice_note']);
+        $this->assertNotEmpty($sale->metadata['invoice_created_at']);
+    }
+
+    public function test_sale_list_actions_can_update_and_cancel_sale(): void
+    {
+        $this->seed();
+
+        $sale = Sale::firstOrFail();
+        $client = Contact::where('kind', 'client')->firstOrFail();
+
+        $this->patch(route('sales.update', $sale), [
+            'contact_id' => $client->id,
+            'reference_number' => 'REF-ACTION-001',
+            'due_date' => now()->addDays(7)->toDateString(),
+            'note' => 'Note action',
+            'status' => 'partial',
+        ])->assertRedirect();
+
+        $sale->refresh();
+        $this->assertSame($client->id, $sale->contact_id);
+        $this->assertSame('partial', $sale->status);
+        $this->assertSame('REF-ACTION-001', $sale->metadata['reference_number']);
+
+        $this->delete(route('sales.destroy', $sale))->assertRedirect();
+        $sale->refresh();
+        $this->assertSame('cancelled', $sale->status);
+        $this->assertNotEmpty($sale->metadata['cancelled']['cancelled_at']);
     }
 
     public function test_sales_subsections_render_payments_returns_and_delivery(): void

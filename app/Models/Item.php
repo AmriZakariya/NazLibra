@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'tax_id',
     'type',
     'status',
+    'is_enabled',
+    'checkout_visible',
     'item_code',
     'item_group',
     'nb_item',
@@ -63,6 +65,8 @@ class Item extends Model
         return [
             'images' => 'array',
             'metadata' => 'array',
+            'is_enabled' => 'boolean',
+            'checkout_visible' => 'boolean',
         ];
     }
 

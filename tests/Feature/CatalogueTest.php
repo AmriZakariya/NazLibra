@@ -64,6 +64,8 @@ class CatalogueTest extends TestCase
 
         $itemResponse->assertRedirect();
         $item = Item::where('barcode', 'TEST-BOOK-001')->firstOrFail();
+        $this->assertTrue($item->is_enabled);
+        $this->assertTrue($item->checkout_visible);
 
         $variantResponse = $this->post(route('catalog.variants.store'), [
             'item_id' => $item->id,
@@ -192,6 +194,28 @@ class CatalogueTest extends TestCase
         $this->assertDatabaseHas('taxes', ['name' => 'Tax 5%']);
     }
 
+    public function test_catalogue_import_reads_legacy_item_type_from_last_column(): void
+    {
+        $this->seed();
+
+        $file = UploadedFile::fake()->createWithContent('legacy-types.csv', implode("\n", [
+            "Code de barre,Nom de l'article,Catégorie/Type d'élément,Unité,Stock,Quantité d'alerte,Prix de vente,Impôt,Statut,Action,Type d'élément",
+            'TYPE-BOOK-001,Livre importé test,ROMANS[ITEM],Pièce,4,1,80,Sans TVA(0.00%),Active,,Livre',
+            'TYPE-PRODUCT-001,Produit importé test,FOURNITURE SCOLAIRE[ITEM],Pièce,20,5,6,Sans TVA(0.00%),Active,,Article',
+            'TYPE-SERVICE-001,Service importé test,Services[SERVICE],Service,0,0,2,Sans TVA(0.00%),Active,,Service',
+        ]));
+
+        $response = $this->post(route('catalog.import'), [
+            'kind' => 'items',
+            'catalog_file' => $file,
+        ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('items', ['barcode' => 'TYPE-BOOK-001', 'type' => 'book', 'stock_quantity' => 4]);
+        $this->assertDatabaseHas('items', ['barcode' => 'TYPE-PRODUCT-001', 'type' => 'supply', 'stock_quantity' => 20]);
+        $this->assertDatabaseHas('items', ['barcode' => 'TYPE-SERVICE-001', 'type' => 'service', 'stock_quantity' => 9999, 'min_stock_threshold' => 0]);
+    }
+
     public function test_catalogue_imports_legacy_mylibrairie_xlsx_exports(): void
     {
         $this->seed();
@@ -242,6 +266,8 @@ class CatalogueTest extends TestCase
         $this->seed();
 
         $item = Item::where('type', '!=', 'service')->firstOrFail();
+        $hiddenItem = Item::where('type', '!=', 'service')->where('id', '!=', $item->id)->firstOrFail();
+        $hiddenItem->update(['checkout_visible' => false]);
 
         $this->get(route('catalog', ['panel' => 'articles', 'q' => $item->barcode ?? $item->title]))
             ->assertOk()
@@ -267,6 +293,22 @@ class CatalogueTest extends TestCase
             'length' => 10,
         ]))->assertOk()
             ->assertJsonStructure(['draw', 'recordsTotal', 'recordsFiltered', 'data']);
+
+        $hiddenStatusResponse = $this->getJson(route('catalog.data', [
+            'panel' => 'articles',
+            'draw' => 1,
+            'start' => 0,
+            'length' => 25,
+            'search' => ['value' => $hiddenItem->title],
+        ]))->assertOk();
+
+        $hiddenStatusHtml = data_get($hiddenStatusResponse->json(), 'data.0.status');
+        $this->assertStringContainsString('Activé', $hiddenStatusHtml);
+        $this->assertStringContainsString('Caché caisse', $hiddenStatusHtml);
+
+        $this->get(route('pos', ['q' => $hiddenItem->title]))
+            ->assertOk()
+            ->assertDontSee('data-id="'.$hiddenItem->id.'"', false);
 
         $response = $this->get(route('catalog.export', ['panel' => 'articles', 'q' => $item->barcode ?? $item->title]));
 
@@ -353,9 +395,13 @@ class CatalogueTest extends TestCase
         ]);
 
         $serviceResponse->assertRedirect();
+        $service = Item::where('item_code', 'SRV-LEGACY-001')->firstOrFail();
+        $this->assertTrue($service->is_enabled);
+        $this->assertTrue($service->checkout_visible);
         $this->assertDatabaseHas('items', [
             'item_code' => 'SRV-LEGACY-001',
             'type' => 'service',
+            'status' => 'active',
             'stock_quantity' => 9999,
             'min_stock_threshold' => 0,
         ]);

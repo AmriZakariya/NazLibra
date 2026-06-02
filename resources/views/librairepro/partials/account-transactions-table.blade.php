@@ -1,5 +1,5 @@
 <div class="border-b border-slate-200 p-4 dark:border-white/10">
-    <form method="GET" action="{{ url()->current() }}" class="grid gap-3 lg:grid-cols-[1fr_180px_150px_150px_auto]">
+    <form method="GET" action="{{ url()->current() }}" class="app-action-form">
         <input type="hidden" name="section" value="{{ request('section') }}">
         <input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Rechercher n°, compte, référence...">
         <select name="transaction_type" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">

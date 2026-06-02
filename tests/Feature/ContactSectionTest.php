@@ -7,6 +7,7 @@ use App\Models\Item;
 use App\Models\Purchase;
 use App\Models\PurchaseReturn;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class ContactSectionTest extends TestCase
@@ -167,5 +168,57 @@ class ContactSectionTest extends TestCase
         $this->assertStringContainsString('300,00', $json['data'][0]['purchase_due']);
         $this->assertStringContainsString('80,00', $json['data'][0]['purchase_return_due']);
         $this->assertStringContainsString('370,00', $json['data'][0]['supplier_total']);
+    }
+
+    public function test_clients_and_suppliers_can_be_imported_from_oubra_exports(): void
+    {
+        $this->seed();
+
+        $clientCsv = implode("\n", [
+            'N ° de client,Nom du client,Mobile,Email,Emplacement,Limite de crédit,Échéance précédente,Retour des ventes dû(+),Avance,Statut',
+            'CL9001,Client Import Test,0600000001,client.import@example.test,Casablanca,Aucune limite,73,5,10,Active',
+        ]);
+
+        $this->post(route('contacts.import'), [
+            'kind' => 'client',
+            'contact_file' => UploadedFile::fake()->createWithContent('clients.csv', $clientCsv),
+        ])->assertRedirect(route('module', ['module' => 'contacts', 'section' => 'customers']));
+
+        $this->assertDatabaseHas('contacts', [
+            'kind' => 'client',
+            'code' => 'CL9001',
+            'name' => 'Client Import Test',
+            'city' => 'Casablanca',
+            'status' => 'active',
+        ]);
+        $client = Contact::where('code', 'CL9001')->firstOrFail();
+        $this->assertSame('73.00', $client->outstanding_balance);
+        $this->assertSame('15.00', $client->advance_balance);
+
+        $supplierCsv = implode("\n", [
+            'ID du fournisseur,Nom du fournisseur,Mobile,Email,Solde précédent,Achat dû,Retour d\'achat dû,Total(+),Statut',
+            'FR9001,Fournisseur Import Test,+212600000002,supplier.import@example.test,20,9,3,26,Active',
+            ',,Total,0,20,9,3,26,',
+        ]);
+
+        $this->post(route('contacts.import'), [
+            'kind' => 'supplier',
+            'contact_file' => UploadedFile::fake()->createWithContent('fournisseurs.csv', $supplierCsv),
+        ])->assertRedirect(route('module', ['module' => 'contacts', 'section' => 'suppliers']));
+
+        $supplier = Contact::where('code', 'FR9001')->firstOrFail();
+        $this->assertSame('supplier', $supplier->kind);
+        $this->assertSame('20.00', $supplier->opening_balance);
+        $this->assertSame('9.00', $supplier->outstanding_balance);
+        $this->assertSame('3.00', $supplier->advance_balance);
+
+        $this->get(route('module', ['module' => 'contacts', 'section' => 'customers']))
+            ->assertOk()
+            ->assertSee('Télécharger modèle')
+            ->assertSee('Importer clients');
+
+        $this->get(route('contacts.import.example', 'client'))
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     }
 }

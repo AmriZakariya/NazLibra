@@ -104,6 +104,8 @@ return new class extends Migration
             $table->foreignId('brand_id')->nullable()->constrained()->nullOnDelete();
             $table->string('type')->default('book');
             $table->string('status')->default('active');
+            $table->boolean('is_enabled')->default(true)->index();
+            $table->boolean('checkout_visible')->default(true)->index();
             $table->string('title');
             $table->string('isbn')->nullable();
             $table->string('barcode')->nullable();
