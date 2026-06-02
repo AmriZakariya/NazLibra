@@ -1341,6 +1341,7 @@
             $themePreset = $tenant->settings['theme_preset'] ?? 'default';
             $posEditablePrice = (bool) data_get($tenant->settings, 'pos.editable_price', true);
             $posAllowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
+            $posShowOutOfStock = (bool) data_get($tenant->settings, 'pos.show_out_of_stock', false);
             $themePresets = [
                 'default' => ['name' => 'LibrairePro', 'hint' => 'Bleu moderne, accent vert, recommandé', 'colors' => ['#3157D5', '#0F9F8A', '#FFFFFF', '#F4F7FB']],
                 'classic' => ['name' => 'Indigo classic', 'hint' => 'Plus proche du thème initial', 'colors' => ['#4F46E5', '#0EA5E9', '#FFFFFF', '#F8FAFC']],
@@ -1351,6 +1352,7 @@
             $settingsTabs = [
                 'company' => 'Société',
                 'warehouses' => 'Magasins',
+                'store' => 'Caisse & stock',
                 'users' => 'Utilisateurs',
                 'roles' => 'Rôles',
                 'taxes' => 'Taxes',
@@ -1494,7 +1496,83 @@
                 </div>
             @else
             <div class="space-y-6">
-                @if ($settingsSection === 'company')
+                @if ($settingsSection === 'store')
+                <article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="border-b border-slate-200 bg-slate-50/70 p-5 dark:border-white/10 dark:bg-white/[0.04]">
+                        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div class="flex items-start gap-3">
+                                <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-lg font-semibold text-white">₧</span>
+                                <div>
+                                    <p class="text-xs font-semibold uppercase tracking-wide text-brand">Paramètres · magasin</p>
+                                    <h2 class="mt-1 text-xl font-semibold">Caisse, stock & comportement comptoir</h2>
+                                    <p class="mt-1 max-w-2xl text-sm text-slate-500 dark:text-slate-400">Centralisez les règles qui impactent directement la vente: prix, rupture, survente, devise et préférences opérationnelles.</p>
+                                </div>
+                            </div>
+                            <div class="app-action-row">
+                                <x-status-pill :tone="$posEditablePrice ? 'warning' : 'info'">{{ $posEditablePrice ? 'Prix modifiables' : 'Prix verrouillés' }}</x-status-pill>
+                                <x-status-pill :tone="$posAllowOversell ? 'warning' : 'success'">{{ $posAllowOversell ? 'Hors stock autorisé' : 'Stock bloquant' }}</x-status-pill>
+                                <x-status-pill :tone="$posShowOutOfStock ? 'warning' : 'info'">{{ $posShowOutOfStock ? 'Ruptures visibles' : 'Ruptures masquées' }}</x-status-pill>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
+                        <form action="{{ route('settings.pos.update') }}" method="POST" class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            @csrf
+                            <input type="hidden" name="editable_price" value="0">
+                            <input type="hidden" name="allow_oversell" value="0">
+                            <input type="hidden" name="show_out_of_stock" value="0">
+                            <div class="grid gap-3">
+                                <label class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                    <span class="flex items-start gap-3">
+                                        <input name="editable_price" value="1" type="checkbox" @checked($posEditablePrice) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                        <span>
+                                            <span class="block text-sm font-semibold">Autoriser la modification du prix en caisse</span>
+                                            <span class="mt-1 block text-sm text-slate-500">Un appui long sur un produit ou le bouton modifier du panier ouvre le détail ligne pour ajuster prix, quantité et note.</span>
+                                        </span>
+                                    </span>
+                                </label>
+                                <label class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                    <span class="flex items-start gap-3">
+                                        <input name="allow_oversell" value="1" type="checkbox" @checked($posAllowOversell) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                        <span>
+                                            <span class="block text-sm font-semibold">Autoriser la vente hors stock</span>
+                                            <span class="mt-1 block text-sm text-slate-500">Permet d’encaisser une quantité supérieure au stock disponible. Le stock peut devenir négatif et devra être régularisé ensuite.</span>
+                                        </span>
+                                    </span>
+                                </label>
+                                <label class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                    <span class="flex items-start gap-3">
+                                        <input name="show_out_of_stock" value="1" type="checkbox" @checked($posShowOutOfStock) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                        <span>
+                                            <span class="block text-sm font-semibold">Afficher les articles hors stock dans la caisse</span>
+                                            <span class="mt-1 block text-sm text-slate-500">Les articles sans stock restent visibles et grisés. Un clic ouvre le détail stock avec un raccourci vers l’ajustement préfiltré.</span>
+                                        </span>
+                                    </span>
+                                </label>
+                            </div>
+                            <button class="mt-4 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white" type="submit">Enregistrer caisse & stock</button>
+                        </form>
+
+                        <div class="grid gap-4">
+                            <article class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                <h3 class="font-semibold">Préférences magasin</h3>
+                                <div class="mt-4 grid gap-3 text-sm">
+                                    <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Magasin courant</span><strong class="text-right">{{ $currentStore['name'] ?? $tenant->name }}</strong></div>
+                                    <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Devise</span><strong>{{ strtoupper($tenant->currency) }} · DH</strong></div>
+                                    <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Fuseau</span><strong>{{ $tenant->timezone }}</strong></div>
+                                    <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Langues</span><strong>Français · العربية</strong></div>
+                                </div>
+                            </article>
+                            <article class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                                <h3 class="font-semibold">Règle conseillée</h3>
+                                <p class="mt-2">Pour la rentrée, gardez “Afficher les articles hors stock” actif afin que la recherche caisse explique clairement les ruptures, tout en laissant “vente hors stock” désactivé si vous voulez bloquer les sorties négatives.</p>
+                            </article>
+                        </div>
+                    </div>
+                </article>
+
+                @elseif ($settingsSection === 'company')
                 <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div>
@@ -2013,49 +2091,6 @@
                     </form>
                 </article>
 
-                <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <h2 class="font-semibold">Paramètres caisse</h2>
-                            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Contrôlez le comportement du POS pour les ventes comptoir.</p>
-                        </div>
-                        <div class="app-action-row">
-                            <x-status-pill :tone="$posEditablePrice ? 'warning' : 'info'">{{ $posEditablePrice ? 'Prix modifiables' : 'Prix verrouillés' }}</x-status-pill>
-                            <x-status-pill :tone="$posAllowOversell ? 'warning' : 'success'">{{ $posAllowOversell ? 'Hors stock autorisé' : 'Stock bloquant' }}</x-status-pill>
-                        </div>
-                    </div>
-                    <form action="{{ route('settings.pos.update') }}" method="POST" class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                        @csrf
-                        <input type="hidden" name="editable_price" value="0">
-                        <input type="hidden" name="allow_oversell" value="0">
-                        <div class="grid gap-4 md:grid-cols-2">
-                            <label class="flex items-start gap-3">
-                                <input name="editable_price" value="1" type="checkbox" @checked($posEditablePrice) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
-                                <span>
-                                    <span class="block text-sm font-semibold">Autoriser la modification du prix en caisse</span>
-                                    <span class="mt-1 block text-sm text-slate-500">Un appui long sur un produit ou le bouton modifier dans le panier ouvre le détail ligne pour ajuster prix, quantité et note.</span>
-                                </span>
-                            </label>
-                            <label class="flex items-start gap-3">
-                                <input name="allow_oversell" value="1" type="checkbox" @checked($posAllowOversell) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
-                                <span>
-                                    <span class="block text-sm font-semibold">Autoriser la vente hors stock</span>
-                                    <span class="mt-1 block text-sm text-slate-500">Permet d’encaisser une quantité supérieure au stock disponible. Le stock peut devenir négatif et devra être régularisé ensuite.</span>
-                                </span>
-                            </label>
-                        </div>
-                        <button class="mt-4 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white" type="submit">Enregistrer caisse</button>
-                    </form>
-                </article>
-
-                <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <h2 class="font-semibold">Préférences système</h2>
-                    <div class="mt-5 grid gap-3 md:grid-cols-3">
-                        <div class="rounded-lg bg-slate-50 p-4 dark:bg-white/5"><span class="text-xs font-semibold uppercase text-slate-500">Langues</span><p class="mt-2 text-sm font-semibold">Français · العربية</p></div>
-                        <div class="rounded-lg bg-slate-50 p-4 dark:bg-white/5"><span class="text-xs font-semibold uppercase text-slate-500">Devise</span><p class="mt-2 text-sm font-semibold">{{ strtoupper($tenant->currency) }} · DH</p></div>
-                        <div class="rounded-lg bg-slate-50 p-4 dark:bg-white/5"><span class="text-xs font-semibold uppercase text-slate-500">Fuseau</span><p class="mt-2 text-sm font-semibold">{{ $tenant->timezone }}</p></div>
-                    </div>
-                </article>
                 @endif
             </div>
 

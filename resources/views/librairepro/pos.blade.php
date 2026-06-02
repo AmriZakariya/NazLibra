@@ -4,7 +4,7 @@
 @endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · Caisse">
-    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? [])' data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}">
+    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? [])' data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}" data-show-out-of-stock="{{ $showOutOfStock ? '1' : '0' }}">
         <div class="min-w-0 space-y-5">
             @if ($lastSale)
                 @php
@@ -103,63 +103,87 @@
                         <x-status-pill :tone="$allowOversell ? 'warning' : 'success'">{{ $allowOversell ? 'Hors stock autorisé' : 'Stock bloquant' }}</x-status-pill>
                     </div>
 
-                    <div class="pos-search-row grid gap-2">
+                    <!-- Main Search Section -->
+                    <div class="pos-search-row mb-4">
                         <label class="pos-control pos-search-control block">
-                            <span class="pos-control-label">Recherche / scan</span>
-                            <span class="relative block">
-                                <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base font-bold text-slate-400">⌕</span>
-                                <input class="pos-search barcode-input h-[52px] w-full rounded-xl border border-slate-200 bg-white px-10 pe-28 text-base font-semibold outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-950" value="{{ $query }}" placeholder="Code-barres, ISBN, titre, SKU...">
-                                <button class="barcode-scan-btn absolute right-2 top-1/2 h-9 -translate-y-1/2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 shadow-sm hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-900" type="button">Caméra</button>
+                            <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">Recherche rapide</span>
+                            <span class="relative mt-2 block group">
+                                <span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg text-slate-400">🔍</span>
+                                <input class="pos-search barcode-input h-[52px] w-full rounded-xl border border-slate-200 bg-white px-12 pe-32 text-base font-semibold outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 group-hover:border-slate-300 dark:border-white/10 dark:bg-slate-950 dark:group-hover:border-white/20" value="{{ $query }}" placeholder="Code-barres, ISBN, titre, SKU...">
+                                <button class="barcode-scan-btn absolute right-2 top-1/2 h-9 -translate-y-1/2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 shadow-sm transition hover:border-brand hover:text-brand hover:bg-brand/5 active:scale-95 dark:border-white/10 dark:bg-slate-900 dark:hover:bg-brand/10" type="button" title="Scanner avec caméra">📷</button>
                             </span>
                         </label>
+                    </div>
+
+                    <!-- Primary Filters Section -->
+                    <div class="pos-primary-filters mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                         <label class="pos-control block">
-                            <span class="pos-control-label">Famille</span>
-                            <select class="pos-type-filter h-[52px] rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-950">
+                            <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">📚 Famille</span>
+                            <select class="pos-type-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par famille de produit">
                                 @foreach ($productTypes as $value => $label)
                                     <option value="{{ $value }}" @selected($type === $value)>{{ $label }}</option>
                                 @endforeach
                             </select>
                         </label>
+
                         <label class="pos-control block">
-                            <span class="pos-control-label">Stock</span>
-                            <select class="pos-stock-filter h-[52px] rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-950">
+                            <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">📦 Stock</span>
+                            <select class="pos-stock-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par statut stock">
                                 <option value="available" @selected($stock === 'available')>Disponible</option>
                                 <option value="all" @selected($stock === 'all')>Tout stock</option>
                                 <option value="low" @selected($stock === 'low')>Stock bas</option>
                             </select>
                         </label>
-                        <a href="{{ route('catalog', ['panel' => 'ajouter']) }}" class="pos-new-item-link grid h-[52px] place-items-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">Nouvel article</a>
-                    </div>
-                    <div class="pos-filter-row mt-3 grid gap-2">
+
                         <label class="pos-control block">
-                            <span class="pos-control-label">Catégorie</span>
-                            <select class="pos-category-filter h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-950">
+                            <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">📂 Catégorie</span>
+                            <select class="pos-category-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par catégorie">
                                 <option value="all">Toutes les catégories</option>
                                 @foreach ($categories as $category)
                                     <option value="{{ $category->id }}">{{ $category->name }}</option>
                                 @endforeach
                             </select>
                         </label>
-                        <label class="pos-control block">
-                            <span class="pos-control-label">Marque / éditeur</span>
-                            <select class="pos-brand-filter h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-950">
-                                <option value="all">Toutes les marques / éditeurs</option>
-                                @foreach ($brands as $brand)
-                                    <option value="{{ $brand->id }}">{{ $brand->name }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                        <label class="pos-control block">
-                            <span class="pos-control-label">Unité</span>
-                            <select class="pos-unit-filter h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-950">
-                                <option value="all">Unités</option>
-                                @foreach ($units as $unit)
-                                    <option value="{{ $unit->id }}">{{ $unit->name }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                        <button class="pos-clear-filters h-12 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button">Effacer</button>
                     </div>
+
+                    <!-- Advanced Filters Section -->
+                    <details class="pos-advanced-filters group rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/5">
+                        <summary class="flex cursor-pointer select-none items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-200">
+                            <span class="flex items-center gap-2">
+                                ⚙️ Filtres avancés
+                                <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">3</span>
+                            </span>
+                            <span class="transition group-open:rotate-180">▼</span>
+                        </summary>
+
+                        <div class="mt-3 grid gap-2 border-t border-slate-200 pt-3 dark:border-white/10 sm:grid-cols-3">
+                            <label class="pos-control block">
+                                <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">🏢 Marque / Éditeur</span>
+                                <select class="pos-brand-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par marque ou éditeur">
+                                    <option value="all">Toutes les marques / éditeurs</option>
+                                    @foreach ($brands as $brand)
+                                        <option value="{{ $brand->id }}">{{ $brand->name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+
+                            <label class="pos-control block">
+                                <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">📏 Unité</span>
+                                <select class="pos-unit-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par unité de mesure">
+                                    <option value="all">Tous les types</option>
+                                    @foreach ($units as $unit)
+                                        <option value="{{ $unit->id }}">{{ $unit->name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+
+                            <div class="flex items-end">
+                                <button class="pos-clear-filters w-full h-[44px] rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-600 shadow-sm transition hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50 active:scale-95 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-rose-500/10" type="button" title="Effacer tous les filtres">
+                                    ✕ Effacer
+                                </button>
+                            </div>
+                        </div>
+                    </details>
                 </div>
             </details>
 
@@ -289,13 +313,17 @@
                 <div class="pos-products grid max-h-[calc(100vh-300px)] min-h-[420px] gap-2 overflow-y-auto pr-1" data-view="compact" style="--pos-columns: 4;">
                     @foreach ($items as $item)
                         @php($image = collect($item->images)->first())
-                            <button class="pos-product pos-item pos-product-card rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.03]"
+                        @php($isOutOfStock = $item->type !== 'service' && $item->stock_quantity <= 0)
+                        @php($isSellable = $allowOversell || $item->type === 'service' || ! $isOutOfStock)
+                            <button class="pos-product pos-item pos-product-card rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md dark:border-white/10 dark:bg-white/[0.03] {{ $isSellable ? '' : 'opacity-60 grayscale hover:translate-y-0 hover:border-rose-200 hover:shadow-sm dark:hover:border-rose-500/30' }}"
                             type="button"
-                            @disabled(! $allowOversell && $item->type !== 'service' && $item->stock_quantity <= 0)
+                            aria-disabled="{{ $isSellable ? 'false' : 'true' }}"
                             data-id="{{ $item->id }}"
                             data-name="{{ $item->title }}"
                             data-price="{{ $item->sale_price }}"
                             data-stock="{{ $item->type === 'service' ? 999999 : $item->stock_quantity }}"
+                            data-sellable="{{ $isSellable ? '1' : '0' }}"
+                            data-stock-url="{{ route('catalog', ['panel' => 'stock-adjustment-add', 'stock_q' => $item->barcode ?? $item->isbn ?? $item->item_code ?? $item->title]) }}"
                             data-low-threshold="{{ $item->min_stock_threshold }}"
                             data-type="{{ $item->type }}"
                             data-category-id="{{ $item->category_id ?? '' }}"
@@ -310,8 +338,8 @@
                                 @else
                                     <div class="grid size-12 place-items-center rounded-lg bg-slate-100 text-sm font-bold text-slate-500 dark:bg-white/10">{{ mb_substr($item->title, 0, 2) }}</div>
                                 @endif
-                                <x-status-pill :tone="$item->type === 'service' ? 'info' : ($item->is_low_stock ? 'warning' : 'success')">
-                                    {{ $item->type === 'service' ? 'Service' : $item->stock_quantity }}
+                                <x-status-pill :tone="$isOutOfStock ? 'danger' : ($item->type === 'service' ? 'info' : ($item->is_low_stock ? 'warning' : 'success'))">
+                                    {{ $isOutOfStock ? 'Rupture' : ($item->type === 'service' ? 'Service' : $item->stock_quantity) }}
                                 </x-status-pill>
                             </div>
                             <div class="pos-product-name mt-3 flex items-start gap-2">
@@ -319,6 +347,9 @@
                                 <p class="line-clamp-2 min-h-10 text-sm font-semibold">{{ $item->title }}</p>
                             </div>
                             <p class="pos-product-meta mt-2 truncate text-xs text-slate-500">{{ $item->category?->name ?? 'Sans catégorie' }} · {{ $item->barcode ?? $item->isbn ?? $item->sku ?? 'Sans code' }}</p>
+                            @unless ($isSellable)
+                                <p class="mt-2 rounded-lg bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20">Non vendable · cliquer pour gérer le stock</p>
+                            @endunless
                             <div class="pos-product-footer mt-3 flex items-center justify-between gap-2">
                                 <p class="text-lg font-semibold">{{ $money($item->sale_price) }}</p>
                                 @if (($topSold[$item->id] ?? 0) > 0)
@@ -425,6 +456,33 @@
                 <div class="grid gap-2 sm:grid-cols-[1fr_1.4fr]">
                     <button class="dialog-close rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold dark:border-white/10" type="button">Annuler</button>
                     <button class="pos-dialog-save rounded-lg bg-brand px-4 py-3 text-sm font-bold text-white" type="button">Appliquer à la caisse</button>
+                </div>
+            </div>
+        </dialog>
+
+        <dialog class="app-dialog pos-stock-dialog w-[min(520px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+            <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-rose-600 dark:text-rose-300">Article non disponible</p>
+                        <h2 class="pos-stock-dialog-title mt-1 truncate text-xl font-semibold">Article</h2>
+                        <p class="pos-stock-dialog-meta mt-1 text-sm text-slate-500">Stock à vérifier</p>
+                    </div>
+                    <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                </div>
+            </div>
+            <div class="grid gap-4 p-5">
+                <div class="rounded-xl bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-100 dark:bg-rose-500/10 dark:text-rose-200 dark:ring-rose-500/20">
+                    Cet article est visible dans la caisse, mais le stock disponible est à zéro. Il ne peut pas être ajouté au panier tant que la vente hors stock est désactivée.
+                </div>
+                <div class="grid gap-3 sm:grid-cols-3">
+                    <div class="rounded-lg bg-slate-50 p-3 dark:bg-white/5"><span class="text-xs font-semibold uppercase text-slate-500">Stock</span><p class="pos-stock-dialog-stock mt-1 text-lg font-bold">0</p></div>
+                    <div class="rounded-lg bg-slate-50 p-3 dark:bg-white/5"><span class="text-xs font-semibold uppercase text-slate-500">Code</span><p class="pos-stock-dialog-code mt-1 truncate text-sm font-semibold">—</p></div>
+                    <div class="rounded-lg bg-slate-50 p-3 dark:bg-white/5"><span class="text-xs font-semibold uppercase text-slate-500">Prix</span><p class="pos-stock-dialog-price mt-1 text-sm font-semibold">—</p></div>
+                </div>
+                <div class="grid gap-2 sm:grid-cols-[1fr_1.4fr]">
+                    <button class="dialog-close rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold dark:border-white/10" type="button">Fermer</button>
+                    <a class="pos-stock-dialog-link rounded-lg bg-brand px-4 py-3 text-center text-sm font-bold text-white" href="{{ route('catalog', ['panel' => 'stock-adjustment-add']) }}">Ajuster le stock</a>
                 </div>
             </div>
         </dialog>

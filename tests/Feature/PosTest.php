@@ -23,6 +23,11 @@ class PosTest extends TestCase
 
         $this->get(route('pos'))
             ->assertOk()
+            ->assertSee('data-command-menu', false)
+            ->assertSee('Trouver une section, une action, un paramètre...')
+            ->assertSee('data-command-input', false)
+            ->assertDontSee('app-top-search', false)
+            ->assertDontSee('name="q"', false)
             ->assertSee('Suggestions caisse')
             ->assertSee('Toutes les catégories')
             ->assertSee('Toutes les marques / éditeurs')
@@ -178,11 +183,83 @@ class PosTest extends TestCase
         $this->post(route('settings.pos.update'), [
             'editable_price' => '0',
             'allow_oversell' => '1',
+            'show_out_of_stock' => '1',
         ])->assertRedirect();
 
         $settings = Tenant::firstOrFail()->fresh()->settings;
         $this->assertFalse((bool) data_get($settings, 'pos.editable_price'));
         $this->assertTrue((bool) data_get($settings, 'pos.allow_oversell'));
+        $this->assertTrue((bool) data_get($settings, 'pos.show_out_of_stock'));
+    }
+
+    public function test_settings_store_section_groups_pos_and_stock_settings(): void
+    {
+        $this->seed();
+
+        $this->get(route('module', ['module' => 'settings', 'section' => 'store']))
+            ->assertOk()
+            ->assertSeeText('Caisse, stock & comportement comptoir')
+            ->assertSee('Autoriser la vente hors stock')
+            ->assertSee('Afficher les articles hors stock dans la caisse')
+            ->assertSee('Préférences magasin');
+    }
+
+    public function test_pos_hides_out_of_stock_items_by_default(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $item = Item::create([
+            'tenant_id' => $tenant->id,
+            'type' => 'book',
+            'status' => 'out_of_stock',
+            'is_enabled' => true,
+            'checkout_visible' => true,
+            'item_code' => 'RUPTURE-TEST',
+            'title' => 'Roman rupture test caisse',
+            'barcode' => 'RUPTURE-POS-001',
+            'purchase_price' => 10,
+            'sale_price' => 25,
+            'stock_quantity' => 0,
+            'min_stock_threshold' => 2,
+        ]);
+
+        $this->get(route('pos', ['q' => 'RUPTURE-POS-001']))
+            ->assertOk()
+            ->assertDontSee($item->title);
+    }
+
+    public function test_pos_can_display_out_of_stock_items_as_unsellable_when_setting_is_enabled(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $settings = $tenant->settings ?? [];
+        $settings['pos'] = array_merge($settings['pos'] ?? [], ['show_out_of_stock' => true, 'allow_oversell' => false]);
+        $tenant->update(['settings' => $settings]);
+
+        $item = Item::create([
+            'tenant_id' => $tenant->id,
+            'type' => 'book',
+            'status' => 'out_of_stock',
+            'is_enabled' => true,
+            'checkout_visible' => true,
+            'item_code' => 'RUPTURE-VISIBLE',
+            'title' => 'Manuel visible rupture caisse',
+            'barcode' => 'RUPTURE-POS-002',
+            'purchase_price' => 12,
+            'sale_price' => 30,
+            'stock_quantity' => 0,
+            'min_stock_threshold' => 2,
+        ]);
+
+        $this->get(route('pos', ['q' => 'RUPTURE-POS-002']))
+            ->assertOk()
+            ->assertSee($item->title)
+            ->assertSee('Rupture')
+            ->assertSee('data-sellable="0"', false)
+            ->assertSee('Article non disponible')
+            ->assertSee('stock_q=RUPTURE-POS-002', false);
     }
 
     public function test_pos_rejects_oversell_when_setting_is_disabled(): void

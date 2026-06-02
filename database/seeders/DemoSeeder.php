@@ -151,6 +151,7 @@ class DemoSeeder extends Seeder
                     'pos' => [
                         'editable_price' => true,
                         'allow_oversell' => false,
+                        'show_out_of_stock' => false,
                     ],
                 ],
             ]);

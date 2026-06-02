@@ -18,6 +18,89 @@ if (localStorage.getItem('librairepro-theme') === 'dark') {
     document.documentElement.classList.add('dark');
 }
 
+document.querySelectorAll('[data-command-menu]').forEach((menu) => {
+    const input = menu.querySelector('[data-command-input]');
+    const panel = menu.querySelector('[data-command-panel]');
+    const empty = menu.querySelector('[data-command-empty]');
+    const items = [...menu.querySelectorAll('[data-command-item]')];
+
+    if (!input || !panel) return;
+
+    const normalize = (value) => (value || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toLowerCase()
+        .trim();
+
+    const visibleItems = () => items.filter((item) => !item.classList.contains('hidden'));
+
+    const open = () => {
+        panel.classList.remove('hidden');
+        menu.classList.add('is-open');
+    };
+
+    const close = () => {
+        panel.classList.add('hidden');
+        menu.classList.remove('is-open');
+    };
+
+    const filter = () => {
+        const query = normalize(input.value);
+        let visibleCount = 0;
+
+        items.forEach((item) => {
+            const haystack = normalize(item.dataset.commandSearch);
+            const visible = !query || query.split(/\s+/).every((token) => haystack.includes(token));
+            item.classList.toggle('hidden', !visible);
+            if (visible) visibleCount += 1;
+        });
+
+        empty?.classList.toggle('hidden', visibleCount !== 0);
+    };
+
+    input.addEventListener('focus', () => {
+        filter();
+        open();
+    });
+
+    input.addEventListener('input', () => {
+        filter();
+        open();
+    });
+
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            input.value = '';
+            filter();
+            close();
+            input.blur();
+            return;
+        }
+
+        if (event.key === 'Enter') {
+            const first = visibleItems()[0];
+            if (first) {
+                event.preventDefault();
+                window.location.assign(first.href);
+            }
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+            event.preventDefault();
+            input.focus();
+            input.select();
+            open();
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!menu.contains(event.target)) close();
+    });
+});
+
 const showToast = (message, actionLabel = null, action = null) => {
     let container = document.querySelector('.app-toast-stack');
     if (!container) {
@@ -241,8 +324,16 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const dialogQuantity = itemDialog?.querySelector('.pos-dialog-quantity');
     const dialogPrice = itemDialog?.querySelector('.pos-dialog-price');
     const dialogNote = itemDialog?.querySelector('.pos-dialog-note');
+    const stockDialog = screen.querySelector('.pos-stock-dialog');
+    const stockDialogTitle = stockDialog?.querySelector('.pos-stock-dialog-title');
+    const stockDialogMeta = stockDialog?.querySelector('.pos-stock-dialog-meta');
+    const stockDialogStock = stockDialog?.querySelector('.pos-stock-dialog-stock');
+    const stockDialogCode = stockDialog?.querySelector('.pos-stock-dialog-code');
+    const stockDialogPrice = stockDialog?.querySelector('.pos-stock-dialog-price');
+    const stockDialogLink = stockDialog?.querySelector('.pos-stock-dialog-link');
     const priceEditable = screen.dataset.priceEditable === '1';
     const allowOversell = screen.dataset.allowOversell === '1';
+    const showOutOfStock = screen.dataset.showOutOfStock === '1';
     const submitButtons = [...screen.querySelectorAll('button[type="submit"]')];
     let activeSubmitter = null;
     let submitting = false;
@@ -359,6 +450,11 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     };
 
     const addProduct = (button) => {
+        if (button.dataset.sellable === '0') {
+            openStockDialog(button);
+            return;
+        }
+
         const id = Number(button.dataset.id || 0);
         const stock = Number(button.dataset.stock || 0);
         const existing = cart.find((item) => item.id === id);
@@ -379,6 +475,20 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             });
         }
         renderCart();
+    };
+
+    const openStockDialog = (button) => {
+        if (!stockDialog || !button) return;
+
+        const stock = Number(button.dataset.stock || 0);
+        const barcode = button.dataset.barcode || 'Sans code';
+        if (stockDialogTitle) stockDialogTitle.textContent = button.dataset.name || 'Article';
+        if (stockDialogMeta) stockDialogMeta.textContent = `${barcode} · stock ${stockLabel({ stock })}`;
+        if (stockDialogStock) stockDialogStock.textContent = stockLabel({ stock });
+        if (stockDialogCode) stockDialogCode.textContent = barcode;
+        if (stockDialogPrice) stockDialogPrice.textContent = money.format(Number(button.dataset.price || 0));
+        if (stockDialogLink && button.dataset.stockUrl) stockDialogLink.href = button.dataset.stockUrl;
+        stockDialog.showModal();
     };
 
     const openItemDialog = (item, index = null) => {
@@ -463,13 +573,13 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
         products.forEach((product) => {
             const matchesQuery = !query || product.dataset.search?.includes(query) || product.dataset.barcode?.toLowerCase() === query;
-            const matchesType = type === 'all' || product.dataset.type === type;
-            const matchesCategory = category === 'all' || product.dataset.categoryId === category;
-            const matchesBrand = brand === 'all' || product.dataset.brandId === brand;
-            const matchesUnit = unit === 'all' || product.dataset.unitId === unit;
+            const matchesType = query || type === 'all' || product.dataset.type === type;
+            const matchesCategory = query || category === 'all' || product.dataset.categoryId === category;
+            const matchesBrand = query || brand === 'all' || product.dataset.brandId === brand;
+            const matchesUnit = query || unit === 'all' || product.dataset.unitId === unit;
             const productStock = Number(product.dataset.stock || 0);
             const lowThreshold = Number(product.dataset.lowThreshold || 3);
-            const matchesStock = stock === 'all' || (stock === 'available' && (allowOversell || productStock > 0 || product.dataset.type === 'service')) || (stock === 'low' && product.dataset.type !== 'service' && productStock > 0 && productStock <= lowThreshold);
+            const matchesStock = stock === 'all' || (stock === 'available' && (allowOversell || showOutOfStock || productStock > 0 || product.dataset.type === 'service')) || (stock === 'low' && product.dataset.type !== 'service' && productStock > 0 && productStock <= lowThreshold);
             const matchesSuggestion = suggestionMode === 'all'
                 || (suggestionMode === 'favorites' && product.dataset.favorite === '1')
                 || (suggestionMode === 'top' && Number(product.dataset.sold || 0) > 0);
@@ -483,17 +593,48 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         return visible;
     };
 
+    let serverSearchTimer = null;
+    const requestServerSearch = () => {
+        const query = (search?.value || '').trim();
+        if (serverSearchTimer) window.clearTimeout(serverSearchTimer);
+
+        serverSearchTimer = window.setTimeout(() => {
+            if (query.length < 2) return;
+            const visible = filterProducts();
+            const current = new URL(window.location.href);
+            if (visible > 0 && current.searchParams.get('q') === query) return;
+            if (visible > 0 && current.searchParams.get('q') !== query) return;
+
+            current.searchParams.set('q', query);
+            current.searchParams.set('type', 'all');
+            current.searchParams.set('stock', stockFilter?.value || 'available');
+            window.location.href = current.toString();
+        }, 450);
+    };
+
     const addBySearch = () => {
         const query = (search?.value || '').trim().toLowerCase();
         if (!query) return false;
-        const exact = products.find((product) => !product.disabled && product.dataset.barcode?.toLowerCase() === query);
+        const exactUnavailable = products.find((product) => product.dataset.sellable === '0' && product.dataset.barcode?.toLowerCase() === query);
+        if (exactUnavailable) {
+            openStockDialog(exactUnavailable);
+            return true;
+        }
+
+        const exact = products.find((product) => product.dataset.sellable !== '0' && product.dataset.barcode?.toLowerCase() === query);
         if (exact) {
             addProduct(exact);
             search.value = '';
             filterProducts();
             return true;
         }
-        const visibleProducts = products.filter((product) => !product.classList.contains('hidden') && !product.disabled);
+        const unavailableVisibleProducts = products.filter((product) => !product.classList.contains('hidden') && product.dataset.sellable === '0');
+        if (unavailableVisibleProducts.length === 1) {
+            openStockDialog(unavailableVisibleProducts[0]);
+            return true;
+        }
+
+        const visibleProducts = products.filter((product) => !product.classList.contains('hidden') && product.dataset.sellable !== '0');
         if (visibleProducts.length === 1) {
             addProduct(visibleProducts[0]);
             search.value = '';
@@ -511,6 +652,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             longPress = false;
             pressTimer = window.setTimeout(() => {
                 longPress = true;
+                if (button.dataset.sellable === '0') {
+                    openStockDialog(button);
+                    return;
+                }
                 openItemDialog(productFromButton(button));
             }, 520);
         });
@@ -524,10 +669,18 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 event.preventDefault();
                 return;
             }
+            if (button.dataset.sellable === '0') {
+                event.preventDefault();
+                openStockDialog(button);
+                return;
+            }
             addProduct(button);
         });
     });
-    search?.addEventListener('input', filterProducts);
+    search?.addEventListener('input', () => {
+        filterProducts();
+        requestServerSearch();
+    });
     search?.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
@@ -581,6 +734,9 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     itemDialog?.querySelector('.pos-dialog-save')?.addEventListener('click', applyDialogItem);
     itemDialog?.querySelectorAll('.dialog-close').forEach((button) => {
         button.addEventListener('click', () => itemDialog.close());
+    });
+    stockDialog?.querySelectorAll('.dialog-close').forEach((button) => {
+        button.addEventListener('click', () => stockDialog.close());
     });
 
     screen.addEventListener('input', (event) => {
@@ -1053,6 +1209,7 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
     const searchCountNode = form.querySelector('[data-stock-adjustment-search-count]');
     const countNode = form.querySelector('[data-stock-adjustment-count]');
     const totalNode = form.querySelector('[data-stock-adjustment-total]');
+    const initialStockQuery = String(form.dataset.stockAdjustmentInitialQuery || '').trim();
     const selectOptions = new WeakMap();
     let nextIndex = Number(form.dataset.nextIndex || lines?.querySelectorAll('[data-stock-adjustment-row]').length || 0);
 
@@ -1317,7 +1474,11 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
         cacheSelect(select);
         enhanceItemSelect(select);
     });
-    applySearch();
+    if (initialStockQuery && searchInput?.value) {
+        selectFirstMatch();
+    } else {
+        applySearch();
+    }
     refreshSummary();
 });
 

@@ -325,6 +325,50 @@ class CatalogueTest extends TestCase
         $this->assertStringContainsString('catalogue-complet-', $allResponse->headers->get('content-disposition'));
     }
 
+    public function test_catalogue_and_pos_search_find_services_from_article_search(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $category = Category::where('name', 'Services')->firstOrFail();
+        $unit = Unit::where('name', 'Service')->firstOrFail();
+        $tax = Tax::firstOrFail();
+
+        $service = Item::create([
+            'tenant_id' => $tenant->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'tax_id' => $tax->id,
+            'type' => 'service',
+            'status' => 'active',
+            'is_enabled' => true,
+            'checkout_visible' => true,
+            'item_code' => 'SRV-PASSEPORT-TEST',
+            'title' => 'Photo passeport express',
+            'barcode' => 'SRV-PASSEPORT-BAR',
+            'purchase_price' => 0,
+            'sale_price' => 30,
+            'stock_quantity' => 9999,
+            'min_stock_threshold' => 0,
+        ]);
+
+        $catalogResponse = $this->getJson(route('catalog.data', [
+            'panel' => 'articles',
+            'draw' => 1,
+            'start' => 0,
+            'length' => 10,
+            'search' => ['value' => 'passeport'],
+        ]));
+
+        $catalogResponse->assertOk();
+        $this->assertStringContainsString('Photo passeport express', data_get($catalogResponse->json(), 'data.0.title'));
+
+        $this->get(route('pos', ['q' => 'passeport']))
+            ->assertOk()
+            ->assertSee('data-id="'.$service->id.'"', false)
+            ->assertSee('Photo passeport express');
+    }
+
     public function test_catalogue_accepts_legacy_item_and_service_fields(): void
     {
         $this->seed();

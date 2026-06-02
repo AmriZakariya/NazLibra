@@ -153,7 +153,7 @@ class LibraireProController extends Controller
     {
         $tenant = $this->tenant();
         $panel = $request->query('panel', 'articles');
-        $query = trim((string) $request->query('q'));
+        $query = trim((string) ($request->query('q') ?: data_get($request->input('search', []), 'value', '')));
         $status = $request->query('status', 'all');
         $type = $request->query('type', 'all');
         $category = $request->query('category', 'all');
@@ -168,6 +168,7 @@ class LibraireProController extends Controller
         $sorts = ['title', 'barcode', 'stock_quantity', 'min_stock_threshold', 'sale_price', 'status', 'created_at'];
         $sort = in_array($sort, $sorts, true) ? $sort : 'title';
         $referenceQuery = trim((string) $request->query('reference_q'));
+        $stockItemSearch = trim((string) $request->query('stock_q'));
         $stockAdjustments = $this->stockAdjustmentsQuery($tenant, $request)->paginate($perPage, ['*'], 'adjustments_page')->withQueryString();
         $stockTransfers = $this->stockTransfersQuery($tenant, $request)->paginate($perPage, ['*'], 'transfers_page')->withQueryString();
 
@@ -244,8 +245,16 @@ class LibraireProController extends Controller
             'variantOptions' => VariantOption::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'stockItems' => $tenant->items()
                 ->where('type', '!=', 'service')
+                ->when($stockItemSearch !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($stockItemSearch): void {
+                    $builder->where('title', 'like', "%{$stockItemSearch}%")
+                        ->orWhere('item_code', 'like', "%{$stockItemSearch}%")
+                        ->orWhere('sku', 'like', "%{$stockItemSearch}%")
+                        ->orWhere('isbn', 'like', "%{$stockItemSearch}%")
+                        ->orWhere('barcode', 'like', "%{$stockItemSearch}%")
+                        ->orWhere('custom_barcode1', 'like', "%{$stockItemSearch}%");
+                }))
                 ->orderBy('title')
-                ->take(500)
+                ->take($stockItemSearch !== '' ? 80 : 500)
                 ->get(),
             'stockAdjustments' => $stockAdjustments,
             'stockTransfers' => $stockTransfers,
@@ -298,7 +307,10 @@ class LibraireProController extends Controller
                         ->orWhere('sku', 'like', "%{$search}%")
                         ->orWhere('isbn', 'like', "%{$search}%")
                         ->orWhere('barcode', 'like', "%{$search}%")
+                        ->orWhere('custom_barcode1', 'like', "%{$search}%")
                         ->orWhere('author', 'like', "%{$search}%")
+                        ->orWhere('editor', 'like', "%{$search}%")
+                        ->orWhere('description', 'like', "%{$search}%")
                         ->orWhereHas('category', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"))
                         ->orWhereHas('brand', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"))
                         ->orWhereHas('unit', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"))
@@ -798,7 +810,9 @@ class LibraireProController extends Controller
     private function catalogItemsQuery(Tenant $tenant, Request $request): Builder
     {
         $panel = $request->query('panel', 'articles');
-        $query = trim((string) $request->query('q'));
+        $quickSearch = trim((string) $request->query('q'));
+        $tableSearch = trim((string) data_get($request->input('search', []), 'value', ''));
+        $hasSearch = $quickSearch !== '' || $tableSearch !== '';
         $status = $request->query('status', 'all');
         $type = $request->query('type', 'all');
         $category = $request->query('category', 'all');
@@ -812,13 +826,19 @@ class LibraireProController extends Controller
         return Item::query()
             ->where('tenant_id', $tenant->id)
             ->with(['category', 'brand', 'unit', 'tax', 'variants'])
-            ->when($query, fn (Builder $builder) => $builder->where(function (Builder $builder) use ($query): void {
-                $builder->where('title', 'like', "%{$query}%")
-                    ->orWhere('item_code', 'like', "%{$query}%")
-                    ->orWhere('sku', 'like', "%{$query}%")
-                    ->orWhere('isbn', 'like', "%{$query}%")
-                    ->orWhere('barcode', 'like', "%{$query}%")
-                    ->orWhere('author', 'like', "%{$query}%");
+            ->when($quickSearch !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($quickSearch): void {
+                $builder->where('title', 'like', "%{$quickSearch}%")
+                    ->orWhere('item_code', 'like', "%{$quickSearch}%")
+                    ->orWhere('sku', 'like', "%{$quickSearch}%")
+                    ->orWhere('isbn', 'like', "%{$quickSearch}%")
+                    ->orWhere('barcode', 'like', "%{$quickSearch}%")
+                    ->orWhere('custom_barcode1', 'like', "%{$quickSearch}%")
+                    ->orWhere('author', 'like', "%{$quickSearch}%")
+                    ->orWhere('editor', 'like', "%{$quickSearch}%")
+                    ->orWhere('description', 'like', "%{$quickSearch}%")
+                    ->orWhereHas('category', fn (Builder $categoryQuery) => $categoryQuery->where('name', 'like', "%{$quickSearch}%"))
+                    ->orWhereHas('brand', fn (Builder $brandQuery) => $brandQuery->where('name', 'like', "%{$quickSearch}%"))
+                    ->orWhereHas('unit', fn (Builder $unitQuery) => $unitQuery->where('name', 'like', "%{$quickSearch}%"));
             }))
             ->when($status !== 'all', fn (Builder $builder) => $builder->where('status', $status))
             ->when($category !== 'all', fn (Builder $builder) => $builder->where('category_id', $category))
@@ -831,7 +851,7 @@ class LibraireProController extends Controller
             ->when(is_numeric($maxPrice), fn (Builder $builder) => $builder->where('sale_price', '<=', (float) $maxPrice))
             ->when(in_array($panel, ['services', 'ajouter-service'], true), fn (Builder $builder) => $builder->where('type', 'service'))
             ->when(! in_array($panel, ['services', 'ajouter-service', 'all'], true) && $type !== 'all', fn (Builder $builder) => $builder->where('type', $type))
-            ->when(! in_array($panel, ['services', 'ajouter-service', 'all'], true) && $type === 'all', fn (Builder $builder) => $builder->where('type', '!=', 'service'));
+            ->when(! in_array($panel, ['services', 'ajouter-service', 'all'], true) && $type === 'all' && ! $hasSearch, fn (Builder $builder) => $builder->where('type', '!=', 'service'));
     }
 
     public function storeItem(Request $request): RedirectResponse
@@ -1496,6 +1516,7 @@ class LibraireProController extends Controller
         $settings['pos'] = array_merge($settings['pos'] ?? [], [
             'editable_price' => $request->boolean('editable_price'),
             'allow_oversell' => $request->boolean('allow_oversell'),
+            'show_out_of_stock' => $request->boolean('show_out_of_stock'),
         ]);
         $tenant->update(['settings' => $settings]);
 
@@ -1805,6 +1826,7 @@ class LibraireProController extends Controller
         $type = $request->query('type', 'all');
         $stock = $request->query('stock', 'available');
         $allowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
+        $showOutOfStock = (bool) data_get($tenant->settings, 'pos.show_out_of_stock', false);
         $lastSaleId = $request->query('sale', session('last_pos_sale_id'));
         $resumeTicket = null;
         if ($request->filled('ticket')) {
@@ -1824,26 +1846,45 @@ class LibraireProController extends Controller
 
         $items = $tenant->items()
             ->with(['category', 'brand', 'unit', 'tax'])
-            ->where('status', 'active')
+            ->when(
+                $showOutOfStock,
+                fn (Builder $builder) => $builder->whereIn('status', ['active', 'out_of_stock']),
+                fn (Builder $builder) => $builder->where('status', 'active')
+            )
             ->where('is_enabled', true)
             ->where('checkout_visible', true)
+            // Search filter - searches across multiple fields
             ->when($query, fn (Builder $builder) => $builder->where(function (Builder $builder) use ($query): void {
                 $builder->where('title', 'like', "%{$query}%")
                     ->orWhere('item_code', 'like', "%{$query}%")
                     ->orWhere('sku', 'like', "%{$query}%")
                     ->orWhere('isbn', 'like', "%{$query}%")
                     ->orWhere('barcode', 'like', "%{$query}%")
-                    ->orWhere('custom_barcode1', 'like', "%{$query}%");
+                    ->orWhere('custom_barcode1', 'like', "%{$query}%")
+                    ->orWhere('author', 'like', "%{$query}%")
+                    ->orWhere('editor', 'like', "%{$query}%")
+                    ->orWhere('description', 'like', "%{$query}%")
+                    ->orWhereHas('category', fn (Builder $categoryQuery) => $categoryQuery->where('name', 'like', "%{$query}%"))
+                    ->orWhereHas('brand', fn (Builder $brandQuery) => $brandQuery->where('name', 'like', "%{$query}%"))
+                    ->orWhereHas('unit', fn (Builder $unitQuery) => $unitQuery->where('name', 'like', "%{$query}%"));
             }))
-            ->when($type !== 'all', fn (Builder $builder) => $builder->where('type', $type))
-            ->when($stock === 'available' && ! $allowOversell, fn (Builder $builder) => $builder->where(function (Builder $builder): void {
-                $builder->where('type', 'service')->orWhere('stock_quantity', '>', 0);
+            // Type filter - only apply when not searching
+            ->when($type !== 'all' && !$query, fn (Builder $builder) => $builder->where('type', $type))
+            // Stock filter - handle services specially
+            ->when($stock === 'available' && ! $allowOversell && ! $showOutOfStock, fn (Builder $builder) => $builder->where(function (Builder $builder): void {
+                $builder->where('type', 'service')->orWhereRaw('stock_quantity > 0');
             }))
-            ->when($stock === 'low', fn (Builder $builder) => $builder->where('type', '!=', 'service')->whereColumn('stock_quantity', '<=', 'min_stock_threshold'))
-            ->orderByRaw("case when type != 'service' and stock_quantity <= 0 then 2 when type != 'service' and stock_quantity <= min_stock_threshold then 0 else 1 end")
+            ->when($stock === 'low' && ! $allowOversell, fn (Builder $builder) => $builder->where('type', '!=', 'service')->whereColumn('stock_quantity', '<=', 'min_stock_threshold'))
+            ->when($stock === 'all', function (Builder $builder) {
+                // Show everything when "all" is selected
+            })
+            // Order by: services first, then by stock status, then by title
+            ->orderByRaw("case when type = 'service' then 0 when stock_quantity <= 0 then 2 when stock_quantity <= min_stock_threshold then 1 else 0 end")
             ->orderBy('title')
-            ->take(120)
+            // Fetch enough items to ensure services are included (frontend search filters from these)
+            ->take($query !== '' ? 90 : 240)
             ->get()
+            // Sort by popularity after database query
             ->sortByDesc(fn (Item $item) => (int) ($topSold[$item->id] ?? 0))
             ->values();
 
@@ -1874,6 +1915,7 @@ class LibraireProController extends Controller
             'stock' => $stock,
             'priceEditable' => (bool) data_get($tenant->settings, 'pos.editable_price', true),
             'allowOversell' => $allowOversell,
+            'showOutOfStock' => $showOutOfStock,
         ]);
     }
 
@@ -5197,10 +5239,11 @@ class LibraireProController extends Controller
         $zip = new ZipArchive();
         $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
 
-        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
-        $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
-        $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
-        $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Import" sheetId="1" r:id="rId1"/></sheets></workbook>');
+        $xmlDeclaration = '<'.'?xml version="1.0" encoding="UTF-8" standalone="yes"?'.'>';
+        $zip->addFromString('[Content_Types].xml', $xmlDeclaration.'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
+        $zip->addFromString('_rels/.rels', $xmlDeclaration.'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $xmlDeclaration.'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
+        $zip->addFromString('xl/workbook.xml', $xmlDeclaration.'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Import" sheetId="1" r:id="rId1"/></sheets></workbook>');
         $zip->addFromString('xl/worksheets/sheet1.xml', $this->simpleWorksheetXml($title, $headers, $rows));
         $zip->close();
 
@@ -5225,7 +5268,7 @@ class LibraireProController extends Controller
             $xmlRows[] = '<row r="'.($rowIndex + 1).'">'.implode('', $cells).'</row>';
         }
 
-        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'.implode('', $xmlRows).'</sheetData></worksheet>';
+        return '<'.'?xml version="1.0" encoding="UTF-8" standalone="yes"?'.'><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'.implode('', $xmlRows).'</sheetData></worksheet>';
     }
 
     private function columnLetters(int $index): string

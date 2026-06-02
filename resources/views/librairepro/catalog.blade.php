@@ -94,7 +94,7 @@
             }
         @endphp
         <section class="mt-6 grid gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]">
-            <form action="{{ route('catalog.stock-adjustments.store') }}" method="POST" data-stock-adjustment-builder data-next-index="{{ $adjustmentLines->count() }}" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+            <form action="{{ route('catalog.stock-adjustments.store') }}" method="POST" data-stock-adjustment-builder data-stock-adjustment-initial-query="{{ request('stock_q') }}" data-next-index="{{ $adjustmentLines->count() }}" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 @csrf
                 <div class="border-b border-slate-200 bg-slate-50/70 p-5 dark:border-white/10 dark:bg-white/[0.04]">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -131,7 +131,7 @@
                             <div class="stock-adjustment-toolbar mt-4">
                                 <label class="stock-adjustment-search">
                                     <span>Rechercher article, code-barres, ISBN...</span>
-                                    <input type="search" data-stock-adjustment-search placeholder="Ex: cahier, 978..., code article" autocomplete="off">
+                                    <input type="search" data-stock-adjustment-search value="{{ request('stock_q') }}" placeholder="Ex: cahier, 978..., code article" autocomplete="off">
                                 </label>
                                 <button type="button" data-stock-adjustment-add-match class="stock-adjustment-tool-button">Ajouter résultat</button>
                                 <button type="button" data-stock-adjustment-clear class="stock-adjustment-tool-button is-muted">Effacer</button>

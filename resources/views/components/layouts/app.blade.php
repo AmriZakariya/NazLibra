@@ -185,6 +185,28 @@
                     ['label' => 'Changer le mot de passe', 'icon' => '⌐', 'href' => route('module', ['module' => 'settings', 'section' => 'password'])],
                 ]],
             ];
+            $commandLinks = collect($nav)
+                ->flatMap(function (array $item) {
+                    $links = [[
+                        'label' => $item['label'],
+                        'section' => 'Module',
+                        'icon' => $item['icon'],
+                        'href' => $item['href'],
+                    ]];
+
+                    foreach (($item['children'] ?? []) as $child) {
+                        $links[] = [
+                            'label' => $child['label'],
+                            'section' => $item['label'],
+                            'icon' => $child['icon'],
+                            'href' => $child['href'],
+                        ];
+                    }
+
+                    return $links;
+                })
+                ->unique(fn (array $link) => $link['href'].'|'.$link['label'])
+                ->values();
         @endphp
 
         <div class="flex min-h-screen">
@@ -256,9 +278,37 @@
                                 @endforeach
                             </div>
                         </details>
-                        <form action="{{ route('catalog') }}" class="app-top-search relative flex-1">
-                            <input name="q" value="{{ request('q') }}" class="h-11 w-full rounded-lg border px-4 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10" placeholder="Rechercher titre, ISBN, code-barres, client...">
-                        </form>
+                        <div class="app-command-menu relative flex-1" data-command-menu>
+                            <label class="app-command-input">
+                                <span class="app-command-icon">⌕</span>
+                                <input type="search" data-command-input autocomplete="off" placeholder="Trouver une section, une action, un paramètre...">
+                                <kbd>⌘K</kbd>
+                            </label>
+                            <div class="app-command-panel hidden" data-command-panel>
+                                <div class="flex items-center justify-between border-b border-slate-200 px-3 py-2 dark:border-white/10">
+                                    <span class="text-xs font-semibold uppercase text-slate-500">Accès rapide</span>
+                                    <span class="text-[11px] font-medium text-slate-400">Entrée pour ouvrir</span>
+                                </div>
+                                <div class="max-h-[360px] overflow-y-auto p-2">
+                                    @foreach ($commandLinks as $commandLink)
+                                        @php
+                                            $commandSearch = Str::lower($commandLink['label'].' '.$commandLink['section'].' '.$commandLink['href']);
+                                        @endphp
+                                        <a href="{{ $commandLink['href'] }}" class="app-command-item" data-command-item data-command-search="{{ $commandSearch }}">
+                                            <span class="app-command-item-icon">{{ $commandLink['icon'] }}</span>
+                                            <span class="min-w-0 flex-1">
+                                                <strong>{{ $commandLink['label'] }}</strong>
+                                                <small>{{ $commandLink['section'] }}</small>
+                                            </span>
+                                        </a>
+                                    @endforeach
+                                    <div class="app-command-empty hidden" data-command-empty>
+                                        <strong>Aucun raccourci trouvé</strong>
+                                        <span>Essayez “caisse”, “taxes”, “article”, “stock” ou “utilisateurs”.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <button class="app-theme-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="Basculer le thème">◐</button>
                         <details class="relative hidden sm:block">
                             <summary class="current-store-trigger flex h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
