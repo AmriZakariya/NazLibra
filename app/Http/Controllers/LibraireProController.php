@@ -29,6 +29,7 @@ use App\Models\Tax;
 use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\VariantOption;
+use App\Support\Locale;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -44,6 +45,26 @@ use ZipArchive;
 
 class LibraireProController extends Controller
 {
+    public function switchLocale(Request $request, string $locale): RedirectResponse
+    {
+        abort_unless(in_array($locale, Locale::SUPPORTED, true), 404);
+
+        $tenant = $this->tenant();
+        $settings = $tenant->settings ?? [];
+        $settings['language_id'] = $locale;
+        $settings['locale'] = $locale === 'ar' ? 'ar_MA' : 'fr_MA';
+
+        $tenant->forceFill([
+            'locale' => $settings['locale'],
+            'settings' => $settings,
+        ])->save();
+
+        session(['librairepro_locale' => $locale]);
+        Locale::apply($tenant->fresh());
+
+        return redirect()->back()->with('status', $locale === 'ar' ? 'تم تغيير اللغة إلى العربية.' : 'Langue changée en français.');
+    }
+
     public function dashboard(): View
     {
         $tenant = $this->tenant();

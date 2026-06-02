@@ -7,6 +7,74 @@ const money = new Intl.NumberFormat('fr-MA', {
     currencyDisplay: 'narrowSymbol',
 });
 
+const appLocale = document.documentElement.dataset.locale || window.libraireProLocale || 'fr';
+const translations = window.libraireProTranslations || {};
+const translate = (text) => {
+    const value = (text || '').toString().replace(/\s+/g, ' ').trim();
+    if (appLocale === 'ar') {
+        if (value.startsWith('Bonjour, ')) return `مرحبا، ${value.replace('Bonjour, ', '')}`;
+        if (/^\d+ alerte\(s\), \d+ rupture\(s\)$/.test(value)) {
+            return value.replace(' alerte(s), ', ' تنبيه، ').replace(' rupture(s)', ' نفاد مخزون');
+        }
+        if (/^\d+ résultat\(s\)/.test(value)) return value.replace('résultat(s)', 'نتيجة');
+        if (/^\+\d+% vs hier$/.test(value)) return value.replace('vs hier', 'مقارنة بأمس');
+    }
+
+    return translations[value] || value;
+};
+
+const dataTableLanguage = (overrides = {}) => ({
+    search: translate('Recherche table'),
+    lengthMenu: translate('Afficher _MENU_ lignes'),
+    info: translate('Affichage _START_-_END_ sur _TOTAL_'),
+    infoEmpty: translate('Aucune ligne'),
+    infoFiltered: translate('(filtré depuis _MAX_ lignes)'),
+    zeroRecords: translate('Aucune donnée trouvée'),
+    processing: translate('Chargement...'),
+    emptyTable: translate('Aucune donnée disponible'),
+    paginate: {
+        first: translate('Début'),
+        previous: translate('Précédent'),
+        next: translate('Suivant'),
+        last: translate('Fin'),
+    },
+    ...overrides,
+});
+
+const translateStaticPage = () => {
+    if (appLocale !== 'ar') return;
+
+    const ignored = 'script,style,textarea,code,pre,[data-no-translate],[data-command-search]';
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+            if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+            if (node.parentElement?.closest(ignored)) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+        },
+    });
+
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    textNodes.forEach((node) => {
+        const original = node.nodeValue;
+        const leading = original.match(/^\s*/)?.[0] || '';
+        const trailing = original.match(/\s*$/)?.[0] || '';
+        const translated = translate(original);
+        if (translated !== original.trim()) {
+            node.nodeValue = `${leading}${translated}${trailing}`;
+        }
+    });
+
+    document.querySelectorAll('[placeholder],[title],[aria-label]').forEach((element) => {
+        ['placeholder', 'title', 'aria-label'].forEach((attribute) => {
+            if (!element.hasAttribute(attribute)) return;
+            const translated = translate(element.getAttribute(attribute));
+            if (translated) element.setAttribute(attribute, translated);
+        });
+    });
+};
+
 document.querySelectorAll('.app-theme-toggle').forEach((button) => {
     button.addEventListener('click', () => {
         document.documentElement.classList.toggle('dark');
@@ -172,13 +240,7 @@ document.querySelectorAll('[data-sidebar]').forEach((sidebar) => {
     });
 });
 
-document.querySelectorAll('.app-rtl-toggle').forEach((button) => {
-    button.addEventListener('click', () => {
-        const html = document.documentElement;
-        html.dir = html.dir === 'rtl' ? 'ltr' : 'rtl';
-        button.textContent = html.dir === 'rtl' ? 'Français' : 'العربية';
-    });
-});
+translateStaticPage();
 
 const positionSaleActionMenu = (menu) => {
     const summary = menu.querySelector('summary');
@@ -1011,22 +1073,7 @@ document.querySelectorAll('[data-yajra-table]').forEach((table) => {
         serverSide: true,
         autoWidth: false,
         scrollX: true,
-        language: {
-            search: 'Recherche table',
-            lengthMenu: 'Afficher _MENU_ lignes',
-            info: 'Affichage _START_-_END_ sur _TOTAL_',
-            infoEmpty: 'Aucune ligne',
-            infoFiltered: '(filtré depuis _MAX_ lignes)',
-            zeroRecords: 'Aucune donnée trouvée',
-            processing: 'Chargement...',
-            emptyTable: 'Aucune donnée disponible',
-            paginate: {
-                first: 'Début',
-                previous: 'Précédent',
-                next: 'Suivant',
-                last: 'Fin',
-            },
-        },
+        language: dataTableLanguage(),
         columnDefs: [
             { targets: [0, 1], className: 'dt-center' },
             { targets: [2], className: 'font-mono text-xs' },
@@ -1079,22 +1126,10 @@ document.querySelectorAll('[data-contact-table]').forEach((table) => {
         serverSide: true,
         autoWidth: false,
         scrollX: true,
-        language: {
-            search: 'Recherche table',
-            lengthMenu: 'Afficher _MENU_ lignes',
-            info: 'Affichage _START_-_END_ sur _TOTAL_',
-            infoEmpty: 'Aucune ligne',
-            infoFiltered: '(filtré depuis _MAX_ lignes)',
-            zeroRecords: 'Aucun contact trouvé',
-            processing: 'Chargement...',
-            emptyTable: 'Aucun contact disponible',
-            paginate: {
-                first: 'Début',
-                previous: 'Précédent',
-                next: 'Suivant',
-                last: 'Fin',
-            },
-        },
+        language: dataTableLanguage({
+            zeroRecords: translate('Aucun contact trouvé'),
+            emptyTable: translate('Aucun contact disponible'),
+        }),
         columnDefs: [
             { targets: [0], className: 'dt-center' },
             { targets: [1], className: 'font-mono text-xs' },
@@ -1125,22 +1160,11 @@ document.querySelectorAll('[data-advance-table]').forEach((table) => {
         serverSide: true,
         autoWidth: false,
         scrollX: true,
-        language: {
-            search: 'Recherche table',
-            lengthMenu: 'Afficher _MENU_ lignes',
-            info: 'Affichage _START_-_END_ sur _TOTAL_',
-            infoEmpty: 'Aucune avance',
-            infoFiltered: '(filtré depuis _MAX_ lignes)',
-            zeroRecords: 'Aucune avance trouvée',
-            processing: 'Chargement...',
-            emptyTable: 'Aucune avance disponible',
-            paginate: {
-                first: 'Début',
-                previous: 'Précédent',
-                next: 'Suivant',
-                last: 'Fin',
-            },
-        },
+        language: dataTableLanguage({
+            infoEmpty: translate('Aucune avance'),
+            zeroRecords: translate('Aucune avance trouvée'),
+            emptyTable: translate('Aucune avance disponible'),
+        }),
         columnDefs: [
             { targets: [0], className: 'dt-center' },
             { targets: [2], className: 'font-mono text-xs' },

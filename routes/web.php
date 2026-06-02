@@ -11,6 +11,7 @@ Route::get('/profil', [AuthController::class, 'profile'])->middleware('auth')->n
 Route::put('/profil', [AuthController::class, 'updateProfile'])->middleware('auth')->name('profile.update');
 
 Route::middleware(['auth', 'tenant.access'])->group(function (): void {
+Route::post('/langue/{locale}', [LibraireProController::class, 'switchLocale'])->name('locale.switch');
 Route::get('/', [LibraireProController::class, 'dashboard'])->name('dashboard');
 
 Route::redirect('/items', '/catalogue?panel=articles')->name('legacy.items');

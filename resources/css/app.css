@@ -2102,6 +2102,78 @@
         margin-top: 4px;
     }
 
+    [dir="rtl"] body {
+        text-align: right;
+    }
+
+    [dir="rtl"] input,
+    [dir="rtl"] textarea,
+    [dir="rtl"] select {
+        text-align: right;
+    }
+
+    [dir="rtl"] input[type="number"],
+    [dir="rtl"] input[type="date"],
+    [dir="rtl"] .font-mono {
+        direction: ltr;
+        text-align: left;
+    }
+
+    [dir="rtl"] .app-command-panel,
+    [dir="rtl"] .topbar-quick-add > div {
+        text-align: right;
+    }
+
+    [dir="rtl"] .topbar-quick-add > div {
+        right: 0;
+        left: auto;
+    }
+
+    [dir="rtl"] details.relative > div.absolute.right-0 {
+        right: auto;
+        left: 0;
+    }
+
+    [dir="rtl"] .sidebar-chevron {
+        margin-inline-start: auto;
+        margin-inline-end: 0;
+    }
+
+    [dir="rtl"] .sidebar-link.is-active::before {
+        right: 6px;
+        left: auto;
+    }
+
+    [dir="rtl"] .sidebar-child.is-active::before {
+        right: 0;
+        left: auto;
+    }
+
+    [dir="rtl"] .sidebar-children {
+        border-left: 0;
+        border-right: 1px solid var(--sidebar-line);
+        margin-left: 0;
+        margin-right: 17px;
+        padding-left: 0;
+        padding-right: 12px;
+    }
+
+    [dir="rtl"] .sale-action-panel {
+        text-align: right;
+    }
+
+    [dir="rtl"] .dt-container,
+    [dir="rtl"] table.dataTable {
+        direction: rtl;
+    }
+
+    [dir="rtl"] .dt-container .dt-search,
+    [dir="rtl"] .dt-container .dt-length,
+    [dir="rtl"] .dt-container .dt-info,
+    [dir="rtl"] .dt-container .dt-paging {
+        text-align: right;
+    }
+
     .app-sidebar {
         --sidebar-bg: #121722;
         --sidebar-bg-raised: #171d29;

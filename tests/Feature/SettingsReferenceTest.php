@@ -42,6 +42,27 @@ class SettingsReferenceTest extends TestCase
         $this->assertTrue(Unit::where('name', 'Boîte')->firstOrFail()->is_active);
     }
 
+    public function test_arabic_locale_switch_persists_and_renders_rtl_shell(): void
+    {
+        $this->seed();
+
+        $this->post(route('locale.switch', 'ar'))
+            ->assertRedirect();
+
+        $settings = Tenant::firstOrFail()->fresh()->settings;
+        $this->assertSame('ar', $settings['language_id']);
+        $this->assertSame('ar_MA', $settings['locale']);
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('lang="ar"', false)
+            ->assertSee('dir="rtl"', false)
+            ->assertSee('لوحة التحكم')
+            ->assertSee('المقالات')
+            ->assertSee('ابحث عن قسم أو إجراء أو إعداد...')
+            ->assertSee('Français');
+    }
+
     public function test_settings_payment_country_state_and_tax_group_records_are_persisted(): void
     {
         $this->seed();

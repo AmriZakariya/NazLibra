@@ -17,6 +17,9 @@
         'density' => 'comfortable',
     ];
     $theme = array_merge($themeDefaults, $tenant->settings['theme'] ?? []);
+    $locale = \App\Support\Locale::current($tenant);
+    $direction = \App\Support\Locale::dir($locale);
+    $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
     $layoutStores = collect($tenant->settings['stores'] ?? [])
         ->map(fn ($store) => is_array($store) ? $store : ['name' => (string) $store])
         ->map(function (array $store) use ($tenant) {
@@ -41,7 +44,7 @@
     $layoutCurrentStore = $layoutStores->firstWhere('key', $tenant->settings['current_store'] ?? null) ?? $layoutStores->first();
 @endphp
 <!DOCTYPE html>
-<html lang="fr" dir="ltr" style="--brand-primary: {{ $theme['primary'] }}; --brand-accent: {{ $theme['accent'] }}; --brand-success: {{ $theme['success'] }}; --brand-warning: {{ $theme['warning'] ?? '#D97706' }}; --brand-danger: {{ $theme['danger'] ?? '#E11D48' }}; --brand-info: {{ $theme['info'] ?? '#0284C7' }}; --app-bg: {{ $theme['background'] }}; --surface: {{ $theme['surface_color'] }}; --surface-muted: {{ $theme['surface_muted'] }}; --text-main: {{ $theme['text'] }}; --text-muted: {{ $theme['muted'] }}; --border-soft: {{ $theme['border'] }}; --font-scale: {{ $theme['font_scale'] }}; --brand-radius: {{ $theme['radius'] }}px;">
+<html lang="{{ $locale }}" dir="{{ $direction }}" data-locale="{{ $locale }}" style="--brand-primary: {{ $theme['primary'] }}; --brand-accent: {{ $theme['accent'] }}; --brand-success: {{ $theme['success'] }}; --brand-warning: {{ $theme['warning'] ?? '#D97706' }}; --brand-danger: {{ $theme['danger'] ?? '#E11D48' }}; --brand-info: {{ $theme['info'] ?? '#0284C7' }}; --app-bg: {{ $theme['background'] }}; --surface: {{ $theme['surface_color'] }}; --surface-muted: {{ $theme['surface_muted'] }}; --text-main: {{ $theme['text'] }}; --text-muted: {{ $theme['muted'] }}; --border-soft: {{ $theme['border'] }}; --font-scale: {{ $theme['font_scale'] }}; --brand-radius: {{ $theme['radius'] }}px;">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -57,6 +60,10 @@
             if (libraireProSidebarState === null || libraireProSidebarState === 'collapsed') {
                 document.documentElement.classList.add('sidebar-collapsed');
             }
+        </script>
+        <script>
+            window.libraireProLocale = @json($locale);
+            window.libraireProTranslations = @json($locale === 'ar' ? \App\Support\Locale::arabic() : []);
         </script>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
@@ -186,10 +193,12 @@
                 ]],
             ];
             $commandLinks = collect($nav)
-                ->flatMap(function (array $item) {
+                ->flatMap(function (array $item) use ($tr) {
                     $links = [[
                         'label' => $item['label'],
+                        'translated_label' => $tr($item['label']),
                         'section' => 'Module',
+                        'translated_section' => $tr('Module'),
                         'icon' => $item['icon'],
                         'href' => $item['href'],
                     ]];
@@ -197,7 +206,9 @@
                     foreach (($item['children'] ?? []) as $child) {
                         $links[] = [
                             'label' => $child['label'],
+                            'translated_label' => $tr($child['label']),
                             'section' => $item['label'],
+                            'translated_section' => $tr($item['label']),
                             'icon' => $child['icon'],
                             'href' => $child['href'],
                         ];
@@ -216,7 +227,7 @@
                         <span class="sidebar-logo grid size-10 shrink-0 place-items-center bg-brand text-sm font-bold text-white shadow-sm">LP</span>
                         <span class="sidebar-label min-w-0">
                             <span class="block truncate text-sm font-semibold">{{ $tenant->name }}</span>
-                            <span class="block truncate text-xs text-slate-500 dark:text-slate-400">SaaS librairie · {{ strtoupper($tenant->currency) }}</span>
+                            <span class="block truncate text-xs text-slate-500 dark:text-slate-400">{{ $tr('SaaS librairie') }} · {{ strtoupper($tenant->currency) }}</span>
                         </span>
                     </a>
                     <button class="sidebar-toggle grid size-9 shrink-0 place-items-center" type="button" aria-label="Réduire le menu" aria-pressed="false" data-sidebar-toggle>
@@ -234,31 +245,31 @@
                         @endphp
                         @if (! empty($item['children']))
                             <details class="sidebar-group" data-sidebar-group="{{ Str::slug($item['label']) }}" @if($childrenActive || $linkActive) open @endif>
-                                <summary class="sidebar-link group {{ $itemActive ? 'is-active' : '' }}" title="{{ $item['label'] }}">
+                                <summary class="sidebar-link group {{ $itemActive ? 'is-active' : '' }}" title="{{ $tr($item['label']) }}">
                                     <span class="sidebar-icon" data-initial="{{ Str::upper(Str::substr($item['label'], 0, 1)) }}">{{ $item['icon'] }}</span>
-                                    <span class="sidebar-label truncate">{{ $item['label'] }}</span>
+                                    <span class="sidebar-label truncate">{{ $tr($item['label']) }}</span>
                                     <span class="sidebar-chevron ms-auto">⌄</span>
                                 </summary>
                                 <div class="sidebar-children">
                                     <a href="{{ $item['href'] }}" class="sidebar-child {{ $linkActive ? 'is-active' : '' }}" @if($linkActive) aria-current="page" data-current-nav @endif>
                                         <span class="sidebar-child-dot"></span>
-                                        <span class="truncate">Vue principale</span>
+                                        <span class="truncate">{{ $tr('Vue principale') }}</span>
                                     </a>
                                 @foreach ($item['children'] as $child)
                                     @php
                                         $childActive = $isCurrentLink($child['href']);
                                     @endphp
-                                    <a href="{{ $child['href'] }}" class="sidebar-child {{ $childActive ? 'is-active' : '' }}" title="{{ $child['label'] }}" @if($childActive) aria-current="page" data-current-nav @endif>
+                                    <a href="{{ $child['href'] }}" class="sidebar-child {{ $childActive ? 'is-active' : '' }}" title="{{ $tr($child['label']) }}" @if($childActive) aria-current="page" data-current-nav @endif>
                                         <span class="sidebar-child-icon">{{ $child['icon'] }}</span>
-                                        <span class="truncate">{{ $child['label'] }}</span>
+                                        <span class="truncate">{{ $tr($child['label']) }}</span>
                                     </a>
                                 @endforeach
                                 </div>
                             </details>
                         @else
-                            <a href="{{ $item['href'] }}" class="sidebar-link group {{ $itemActive ? 'is-active' : '' }}" title="{{ $item['label'] }}" @if($itemActive) aria-current="page" data-current-nav @endif>
+                            <a href="{{ $item['href'] }}" class="sidebar-link group {{ $itemActive ? 'is-active' : '' }}" title="{{ $tr($item['label']) }}" @if($itemActive) aria-current="page" data-current-nav @endif>
                                 <span class="sidebar-icon" data-initial="{{ Str::upper(Str::substr($item['label'], 0, 1)) }}">{{ $item['icon'] }}</span>
-                                <span class="sidebar-label truncate">{{ $item['label'] }}</span>
+                                <span class="sidebar-label truncate">{{ $tr($item['label']) }}</span>
                             </a>
                         @endif
                     @endforeach
@@ -274,49 +285,49 @@
                             <summary class="grid size-11 cursor-pointer list-none place-items-center bg-brand text-lg font-semibold text-white shadow-sm">+</summary>
                             <div class="absolute left-0 top-12 z-40 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-2 shadow-xl dark:border-white/10 dark:bg-slate-950">
                                 @foreach ($quickAdds as $quickAdd)
-                                    <a href="{{ $quickAdd['href'] }}" class="block px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $quickAdd['label'] }}</a>
+                                    <a href="{{ $quickAdd['href'] }}" class="block px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr($quickAdd['label']) }}</a>
                                 @endforeach
                             </div>
                         </details>
                         <div class="app-command-menu relative flex-1" data-command-menu>
                             <label class="app-command-input">
                                 <span class="app-command-icon">⌕</span>
-                                <input type="search" data-command-input autocomplete="off" placeholder="Trouver une section, une action, un paramètre...">
+                                <input type="search" data-command-input autocomplete="off" placeholder="{{ $tr('Trouver une section, une action, un paramètre...') }}">
                                 <kbd>⌘K</kbd>
                             </label>
                             <div class="app-command-panel hidden" data-command-panel>
                                 <div class="flex items-center justify-between border-b border-slate-200 px-3 py-2 dark:border-white/10">
-                                    <span class="text-xs font-semibold uppercase text-slate-500">Accès rapide</span>
-                                    <span class="text-[11px] font-medium text-slate-400">Entrée pour ouvrir</span>
+                                    <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Accès rapide') }}</span>
+                                    <span class="text-[11px] font-medium text-slate-400">{{ $tr('Entrée pour ouvrir') }}</span>
                                 </div>
                                 <div class="max-h-[360px] overflow-y-auto p-2">
                                     @foreach ($commandLinks as $commandLink)
                                         @php
-                                            $commandSearch = Str::lower($commandLink['label'].' '.$commandLink['section'].' '.$commandLink['href']);
+                                            $commandSearch = Str::lower($commandLink['label'].' '.$commandLink['translated_label'].' '.$commandLink['section'].' '.$commandLink['translated_section'].' '.$commandLink['href']);
                                         @endphp
                                         <a href="{{ $commandLink['href'] }}" class="app-command-item" data-command-item data-command-search="{{ $commandSearch }}">
                                             <span class="app-command-item-icon">{{ $commandLink['icon'] }}</span>
                                             <span class="min-w-0 flex-1">
-                                                <strong>{{ $commandLink['label'] }}</strong>
-                                                <small>{{ $commandLink['section'] }}</small>
+                                                <strong>{{ $commandLink['translated_label'] }}</strong>
+                                                <small>{{ $commandLink['translated_section'] }}</small>
                                             </span>
                                         </a>
                                     @endforeach
                                     <div class="app-command-empty hidden" data-command-empty>
-                                        <strong>Aucun raccourci trouvé</strong>
-                                        <span>Essayez “caisse”, “taxes”, “article”, “stock” ou “utilisateurs”.</span>
+                                        <strong>{{ $tr('Aucun raccourci trouvé') }}</strong>
+                                        <span>{{ $tr('Essayez “caisse”, “taxes”, “article”, “stock” ou “utilisateurs”.') }}</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <button class="app-theme-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="Basculer le thème">◐</button>
+                        <button class="app-theme-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Basculer le thème') }}">◐</button>
                         <details class="relative hidden sm:block">
                             <summary class="current-store-trigger flex h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
                                 <span class="grid size-6 place-items-center rounded-md bg-brand/10 text-xs text-brand">▣</span>
                                 <span class="max-w-36 truncate">{{ $layoutCurrentStore['name'] }}</span>
                             </summary>
                             <div class="absolute right-0 top-12 z-40 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-slate-950">
-                                <p class="px-1 pb-2 text-xs font-semibold uppercase text-slate-500">Magasin courant</p>
+                                <p class="px-1 pb-2 text-xs font-semibold uppercase text-slate-500">{{ $tr('Magasin courant') }}</p>
                                 <form action="{{ route('settings.current-store.update') }}" method="POST" class="space-y-2">
                                     @csrf
                                     <select name="current_store" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
@@ -324,13 +335,16 @@
                                             <option value="{{ $store['key'] }}" @selected($layoutCurrentStore['key'] === $store['key'])>{{ $store['name'] }}</option>
                                         @endforeach
                                     </select>
-                                    <button class="w-full rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">Changer</button>
+                                    <button class="w-full rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">{{ $tr('Changer') }}</button>
                                 </form>
-                                <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="mt-2 block rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">Gérer les magasins</a>
+                                <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="mt-2 block rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $tr('Gérer les magasins') }}</a>
                             </div>
                         </details>
-                        <button class="app-rtl-toggle hidden rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 sm:block dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button">العربية</button>
-                        <a href="{{ route('pos') }}" class="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition brightness-100 hover:brightness-110">Caisse</a>
+                        <form action="{{ route('locale.switch', \App\Support\Locale::opposite($locale)) }}" method="POST" class="hidden sm:block">
+                            @csrf
+                            <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="submit">{{ $locale === 'ar' ? 'Français' : 'العربية' }}</button>
+                        </form>
+                        <a href="{{ route('pos') }}" class="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition brightness-100 hover:brightness-110">{{ $tr('Caisse') }}</a>
                         @auth
                             @php
                                 $accountUser = auth()->user();
@@ -350,11 +364,11 @@
                                             <span class="mt-1 inline-flex max-w-full items-center rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">{{ $accountRoleName }}</span>
                                         </span>
                                     </div>
-                                    <a href="{{ route('profile') }}" class="mt-2 block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">Mon profil</a>
-                                    <a href="{{ route('module', ['module' => 'settings', 'section' => 'users']) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">Utilisateurs & rôles</a>
+                                    <a href="{{ route('profile') }}" class="mt-2 block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Mon profil') }}</a>
+                                    <a href="{{ route('module', ['module' => 'settings', 'section' => 'users']) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Utilisateurs & rôles') }}</a>
                                     <form action="{{ route('logout') }}" method="POST" class="mt-2 border-t border-slate-200 pt-2 dark:border-white/10">
                                         @csrf
-                                        <button class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10">Déconnexion</button>
+                                        <button class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10">{{ $tr('Déconnexion') }}</button>
                                     </form>
                                 </div>
                             </details>
