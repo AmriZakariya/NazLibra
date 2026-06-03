@@ -481,7 +481,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         products.forEach((product) => {
             const active = favoriteIds.includes(Number(product.dataset.id));
             product.dataset.favorite = active ? '1' : '0';
-            product.querySelector('.pos-favorite-star')?.classList.toggle('is-active', active);
+            const favoriteButton = product.querySelector('.pos-favorite-star');
+            favoriteButton?.classList.toggle('is-active', active);
+            favoriteButton?.setAttribute('aria-pressed', active ? 'true' : 'false');
+            favoriteButton?.setAttribute('title', active ? 'Retirer des favoris' : 'Ajouter aux favoris');
         });
     };
 
@@ -779,12 +782,27 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             });
         });
         button.addEventListener('click', (event) => {
+            if (event.target.closest('.pos-favorite-star')) {
+                return;
+            }
             if (longPress) {
                 event.preventDefault();
                 return;
             }
             if (button.dataset.sellable === '0') {
                 event.preventDefault();
+                openStockDialog(button);
+                return;
+            }
+            addProduct(button);
+        });
+        button.addEventListener('keydown', (event) => {
+            if (!['Enter', ' '].includes(event.key) || event.target.closest('.pos-favorite-star')) {
+                return;
+            }
+
+            event.preventDefault();
+            if (button.dataset.sellable === '0') {
                 openStockDialog(button);
                 return;
             }
@@ -1031,7 +1049,7 @@ document.querySelectorAll('.catalog-labels').forEach((button) => {
 document.querySelectorAll('.label-select-all').forEach((button) => {
     button.addEventListener('click', () => {
         const form = button.closest('form');
-        const checks = [...(form?.querySelectorAll('.label-item-check') || [])];
+        const checks = [...(form?.querySelectorAll('[data-label-row]:not([hidden]) .label-item-check') || [])];
         const shouldCheck = checks.some((check) => !check.checked);
         checks.forEach((check) => {
             check.checked = shouldCheck;
@@ -1045,17 +1063,24 @@ function updateLabelSelection(form) {
     if (!form) return;
 
     const checked = [...form.querySelectorAll('.label-item-check:checked')];
-    const selectedCount = form.querySelector('.label-selected-count');
-    const totalCount = form.querySelector('.label-total-count');
+    const selectedCounts = [...form.querySelectorAll('.label-selected-count')];
+    const totalCounts = [...form.querySelectorAll('.label-total-count')];
     const selectAll = form.querySelector('.label-select-all');
-    const allChecks = [...form.querySelectorAll('.label-item-check')];
+    const allChecks = [...form.querySelectorAll('[data-label-row]:not([hidden]) .label-item-check')];
+    const visibleRows = [...form.querySelectorAll('[data-label-row]:not([hidden])')];
+    const visibleCount = form.querySelector('[data-label-visible-count]');
     const total = checked.reduce((sum, checkbox) => {
         const quantity = form.querySelector(`[name="quantities[${checkbox.value}]"]`);
         return sum + Math.max(1, Number(quantity?.value || 1));
     }, 0);
 
-    if (selectedCount) selectedCount.textContent = String(checked.length);
-    if (totalCount) totalCount.textContent = String(total);
+    selectedCounts.forEach((node) => {
+        node.textContent = String(checked.length);
+    });
+    totalCounts.forEach((node) => {
+        node.textContent = String(total);
+    });
+    if (visibleCount) visibleCount.textContent = String(visibleRows.length);
     if (selectAll) {
         selectAll.textContent = allChecks.length > 0 && allChecks.every((check) => check.checked)
             ? 'Tout désélectionner'
@@ -1064,7 +1089,35 @@ function updateLabelSelection(form) {
 }
 
 document.querySelectorAll('.label-workbench').forEach((form) => {
+    const normalizeLabelSearch = (value) => (value || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toLowerCase()
+        .trim();
+    const searchInput = form.querySelector('[data-label-search-input]');
+
+    const refreshTemplateOptions = () => {
+        form.querySelectorAll('[data-label-template-option]').forEach((option) => {
+            const input = option.querySelector('input[type="radio"]');
+            option.classList.toggle('is-active', Boolean(input?.checked));
+        });
+    };
+
+    const filterLoadedRows = () => {
+        const query = normalizeLabelSearch(searchInput?.value || '');
+        const tokens = query.split(/\s+/).filter(Boolean);
+
+        form.querySelectorAll('[data-label-row]').forEach((row) => {
+            const haystack = normalizeLabelSearch(row.dataset.labelSearch || row.textContent);
+            row.hidden = tokens.length > 0 && !tokens.every((token) => haystack.includes(token));
+        });
+
+        updateLabelSelection(form);
+    };
+
     updateLabelSelection(form);
+    refreshTemplateOptions();
 
     form.querySelectorAll('[data-label-row]').forEach((row) => {
         row.addEventListener('click', (event) => {
@@ -1082,6 +1135,12 @@ document.querySelectorAll('.label-workbench').forEach((form) => {
         input.addEventListener('change', () => updateLabelSelection(form));
         input.addEventListener('input', () => updateLabelSelection(form));
     });
+
+    form.querySelectorAll('[data-label-template-option] input[type="radio"]').forEach((input) => {
+        input.addEventListener('change', refreshTemplateOptions);
+    });
+
+    searchInput?.addEventListener('input', filterLoadedRows);
 });
 
 document.querySelectorAll('[data-yajra-table]').forEach((table) => {
@@ -1258,8 +1317,14 @@ const findRowPrimaryAction = (row) => row.querySelector(
     ].join(', ')
 );
 
+const decodeRowHref = (href) => {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = href || '';
+    return textarea.value;
+};
+
 const openInteractiveRow = (row) => {
-    const href = row.dataset.rowHref;
+    const href = decodeRowHref(row.dataset.rowHref);
     if (href) {
         window.location.assign(href);
         return true;

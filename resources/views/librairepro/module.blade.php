@@ -29,6 +29,7 @@
                 'list' => ['label' => 'Liste des ventes', 'href' => route('module', 'sales')],
                 'quote-add' => ['label' => 'Nouveau devis', 'href' => route('module', ['module' => 'sales', 'section' => 'quote-add'])],
                 'quotes' => ['label' => 'Liste de devis', 'href' => route('module', ['module' => 'sales', 'section' => 'quotes'])],
+                'invoices' => ['label' => 'Factures', 'href' => route('module', ['module' => 'sales', 'section' => 'invoices'])],
                 'payments' => ['label' => 'Paiements', 'href' => route('module', ['module' => 'sales', 'section' => 'payments'])],
                 'returns' => ['label' => 'Retours', 'href' => route('module', ['module' => 'sales', 'section' => 'returns'])],
                 'delivery' => ['label' => 'Livraison', 'href' => route('module', ['module' => 'sales', 'section' => 'delivery'])],
@@ -41,7 +42,7 @@
             </summary>
             <nav class="app-tab-nav">
                 @foreach ($salesTabs as $key => $tab)
-                    <a href="{{ $tab['href'] }}" class="app-tab-link {{ $salesSection === $key || ($key === 'list' && ! in_array($salesSection, ['add', 'quote-add', 'quotes', 'payments', 'returns', 'delivery'], true)) ? 'is-active' : '' }}">{{ $tab['label'] }}</a>
+                    <a href="{{ $tab['href'] }}" class="app-tab-link {{ $salesSection === $key || ($key === 'list' && ! in_array($salesSection, ['add', 'quote-add', 'quotes', 'invoices', 'payments', 'returns', 'delivery'], true)) ? 'is-active' : '' }}">{{ $tab['label'] }}</a>
                 @endforeach
             </nav>
         </details>
@@ -222,6 +223,42 @@
                     <div class="overflow-x-auto"><table class="w-full min-w-[1120px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N° devis</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Expiration</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Référence</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($quotations as $quote)<tr><td class="px-3 py-3 font-semibold">{{ $quote->number }}</td><td class="px-3 py-3">{{ $quote->quoted_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3">{{ $quote->expires_at?->format('d/m/Y') ?? '—' }}</td><td class="px-3 py-3">{{ $quote->contact?->name ?? data_get($quote->metadata, 'client_name', 'Client comptoir') }}</td><td class="px-3 py-3 text-slate-500">{{ data_get($quote->metadata, 'reference', '—') }}</td><td class="px-3 py-3"><x-status-pill :tone="$quote->status === 'accepted' ? 'success' : ($quote->status === 'rejected' ? 'danger' : 'warning')">{{ $quote->status }}</x-status-pill></td><td class="px-3 py-3 text-right font-semibold">{{ $money($quote->total_amount) }}</td><td class="px-3 py-3"><div class="flex justify-end gap-2"><button type="button" onclick="document.getElementById('quote-detail-{{ $quote->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</button>@if (! $quote->converted_sale_id)<form action="{{ route('quotations.convert', $quote) }}" method="POST">@csrf<button class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Convertir</button></form>@endif</div></td></tr><dialog id="quote-detail-{{ $quote->id }}" class="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"><div class="border-b border-slate-200 p-5 dark:border-white/10"><div class="flex justify-between gap-4"><div><p class="text-sm font-semibold text-brand">Détail devis</p><h3 class="mt-1 text-xl font-semibold">{{ $quote->number }} · {{ $money($quote->total_amount) }}</h3><p class="mt-1 text-sm text-slate-500">{{ $quote->contact?->name ?? data_get($quote->metadata, 'client_name', 'Client comptoir') }}</p></div><button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button></div></div><div class="grid gap-4 p-5 lg:grid-cols-[1fr_240px]"><div class="space-y-2">@foreach ($quote->lines as $line)<div class="grid grid-cols-[1fr_70px_110px] gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-white/5"><span>{{ $line['name'] }}</span><span>x{{ $line['quantity'] }}</span><strong class="text-right">{{ $money($line['total_price']) }}</strong></div>@endforeach</div><aside class="space-y-3"><div class="rounded-xl bg-slate-50 p-4 dark:bg-white/5"><dl class="space-y-2 text-sm"><div class="flex justify-between"><dt>Sous-total</dt><dd class="font-semibold">{{ $money($quote->subtotal_amount) }}</dd></div><div class="flex justify-between"><dt>Remise</dt><dd class="font-semibold">{{ $money($quote->discount_amount) }}</dd></div><div class="flex justify-between text-base"><dt class="font-semibold">Total</dt><dd class="font-bold">{{ $money($quote->total_amount) }}</dd></div></dl></div><form action="{{ route('quotations.update', $quote) }}" method="POST" class="space-y-2">@csrf @method('PATCH')<select name="status" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach (['draft' => 'Brouillon', 'sent' => 'Envoyé', 'accepted' => 'Accepté', 'rejected' => 'Rejeté', 'expired' => 'Expiré'] as $key => $label)<option value="{{ $key }}" @selected($quote->status === $key)>{{ $label }}</option>@endforeach</select><button class="w-full rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Mettre à jour</button></form></aside></div></dialog>@empty<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun devis trouvé.</td></tr>@endforelse</tbody></table></div><div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $quotations->links() }}</div>
                 </article>
             </section>
+        @elseif ($salesSection === 'invoices')
+            <section class="mt-6 space-y-4">
+                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <form method="GET" action="{{ route('module', 'sales') }}" class="flex flex-wrap items-center gap-3">
+                        <input type="hidden" name="section" value="invoices">
+                        <input name="q" value="{{ request('q') }}" class="h-11 min-w-[260px] flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Rechercher facture, ticket, client...">
+                        <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white" type="submit">Filtrer</button>
+                        <a href="{{ route('module', ['module' => 'sales', 'section' => 'invoices']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Reset</a>
+                    </form>
+                </article>
+                <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[960px] text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                                <tr><th class="px-3 py-3">N° facture</th><th class="px-3 py-3">Ticket</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Échéance</th><th class="px-3 py-3">Client</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Action</th></tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                @forelse ($saleInvoices as $invoice)
+                                    <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5" data-row-url="{{ route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $invoice->id]) }}">
+                                        <td class="px-3 py-3 font-mono text-xs font-semibold">{{ $invoice->number }}</td>
+                                        <td class="px-3 py-3 font-semibold">{{ $invoice->sale?->number ?? '—' }}</td>
+                                        <td class="px-3 py-3">{{ $invoice->issued_at?->format('d/m/Y H:i') ?? '—' }}</td>
+                                        <td class="px-3 py-3">{{ $invoice->due_date?->format('d/m/Y') ?? '—' }}</td>
+                                        <td class="px-3 py-3">{{ $invoice->contact?->name ?? $invoice->sale?->contact?->name ?? 'Client Grand Public' }}</td>
+                                        <td class="px-3 py-3 text-right font-semibold">{{ $money($invoice->total_amount) }}</td>
+                                        <td class="px-3 py-3 text-right"><a href="{{ route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $invoice->id]) }}" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Voir facture</a></td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="7" class="px-4 py-12 text-center text-sm text-slate-500">Aucune facture créée. Créez une facture depuis la liste des ventes.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $saleInvoices->links() }}</div>
+                </article>
+            </section>
         @elseif ($salesSection === 'payments')
             <section class="mt-6 space-y-5">
                 <div class="grid gap-3 md:grid-cols-3">
@@ -370,13 +407,14 @@
                                         default => $due <= 0.001 ? 'payé' : ((float) $paid > 0 ? 'Partiel' : 'Impayé'),
                                     };
                                     $statusTone = $paymentStatus === 'payé' ? 'success' : ($paymentStatus === 'Partiel' ? 'warning' : (in_array($paymentStatus, ['Remboursé', 'Annulé'], true) ? 'info' : 'danger'));
-                                    $invoiceNumber = data_get($sale->metadata, 'invoice_number', 'FAC-'.$sale->number);
-                                    $invoiceDueDate = data_get($sale->metadata, 'invoice_due_date', data_get($sale->metadata, 'due_date'));
-                                    $invoiceGenerated = filled(data_get($sale->metadata, 'invoice_created_at')) || filled(data_get($sale->metadata, 'invoice_number'));
+                                    $invoice = $sale->invoice;
+                                    $invoiceNumber = $invoice?->number;
+                                    $invoiceDueDate = $invoice?->due_date?->toDateString() ?? data_get($sale->metadata, 'due_date');
+                                    $invoiceGenerated = (bool) $invoice;
                                 @endphp
                                 <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5">
                                     <td class="px-3 py-3"><input type="checkbox" class="rounded border-slate-300" value="{{ $sale->id }}"></td>
-                                    <td class="px-3 py-3 whitespace-nowrap text-slate-500">{{ $invoiceNumber }}</td>
+                                    <td class="px-3 py-3 whitespace-nowrap text-slate-500">{{ $invoiceNumber ?? '—' }}</td>
                                     <td class="px-3 py-3 whitespace-nowrap">{{ $sale->sold_at?->format('d/m/Y H:i') }}</td>
                                     <td class="px-3 py-3 whitespace-nowrap">{{ $invoiceDueDate ? \Illuminate\Support\Carbon::parse($invoiceDueDate)->format('d/m/Y') : '—' }}</td>
                                     <td class="px-3 py-3 whitespace-nowrap font-mono text-xs font-semibold">{{ $sale->number }}</td>
@@ -393,8 +431,8 @@
                                                 <button type="button" onclick="document.getElementById('sale-edit-{{ $sale->id }}').showModal()"><span>ED</span> Modifier vente</button>
                                                 <button type="button" onclick="document.getElementById('sale-payments-{{ $sale->id }}').showModal()"><span>PY</span> Voir paiements</button>
                                                 <button type="button" onclick="document.getElementById('sale-payment-add-{{ $sale->id }}').showModal()"><span>RC</span> Recevoir paiement</button>
-                                                <form action="{{ route('sales.invoice.store', $sale) }}" method="POST">@csrf<button type="submit"><span>FA</span> Créer facture</button></form>
-                                                <button type="button" onclick="document.getElementById('sale-invoice-{{ $sale->id }}').showModal()"><span>BL</span> Imprimer facture / BL</button>
+                                                <form action="{{ route('sales.invoice.store', $sale) }}" method="POST">@csrf<button type="submit"><span>FA</span> {{ $invoiceGenerated ? 'Mettre à jour facture' : 'Créer facture' }}</button></form>
+                                                <button type="button" onclick="document.getElementById('sale-invoice-{{ $sale->id }}').showModal()"><span>{{ $invoiceGenerated ? 'FA' : 'BL' }}</span> {{ $invoiceGenerated ? 'Voir facture' : 'Préparer facture / BL' }}</button>
                                                 <button type="button" onclick="document.getElementById('sale-detail-{{ $sale->id }}').showModal()"><span>TP</span> Imprimer ticket POS</button>
                                                 @if ($sale->status !== 'refunded' && $sale->status !== 'cancelled')
                                                     <button type="button" onclick="document.getElementById('sale-refund-{{ $sale->id }}').showModal()"><span>RT</span> Retour vente</button>
@@ -410,7 +448,7 @@
                                         <div class="flex items-start justify-between gap-4">
                                             <div>
                                                 <p class="text-sm font-semibold text-brand">Détail ticket</p>
-                                                <h3 class="mt-1 text-xl font-semibold">{{ $sale->number }} · {{ $invoiceNumber }}</h3>
+                                                <h3 class="mt-1 text-xl font-semibold">{{ $sale->number }}</h3>
                                                 <p class="mt-1 text-sm text-slate-500">{{ $sale->contact?->name ?? 'Client Grand Public' }} · {{ $sale->sold_at?->format('d/m/Y H:i') }}</p>
                                             </div>
                                             <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
@@ -424,7 +462,7 @@
                                                     <strong class="block">{{ $tenant->name }}</strong>
                                                     <span class="text-xs text-slate-500">{{ $tenant->phone }} · {{ $tenant->ice }}</span>
                                                     <p class="mt-2 font-semibold">Ticket {{ $sale->number }}</p>
-                                                    <p class="text-xs text-slate-500">Facture {{ $invoiceNumber }}</p>
+                                                    <p class="text-xs text-slate-500">{{ $invoiceGenerated ? 'Facture '.$invoiceNumber : 'Facture non créée' }}</p>
                                                 </div>
                                             </div>
                                             <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
@@ -554,7 +592,7 @@
                                 <dialog id="sale-invoice-{{ $sale->id }}" class="app-dialog w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
                                     <div class="border-b border-slate-200 p-5 dark:border-white/10">
                                         <div class="flex items-start justify-between gap-4">
-                                            <div><p class="text-sm font-semibold text-brand">Facture client</p><h3 class="mt-1 text-xl font-semibold">{{ $invoiceNumber }}</h3></div>
+                                            <div><p class="text-sm font-semibold text-brand">{{ $invoiceGenerated ? 'Facture client' : 'Création facture' }}</p><h3 class="mt-1 text-xl font-semibold">{{ $invoiceNumber ?? 'Facture à créer' }}</h3></div>
                                             <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
                                         </div>
                                     </div>
@@ -562,7 +600,7 @@
                                         <div class="sale-invoice-sheet rounded-2xl border border-slate-200 bg-white p-6 text-slate-950 dark:border-white/10">
                                             <div class="flex flex-wrap items-start justify-between gap-6 border-b border-slate-200 pb-5">
                                                 <div><strong class="text-lg">{{ $tenant->name }}</strong><p class="mt-1 text-sm text-slate-500">{{ $tenant->phone }} · ICE {{ $tenant->ice }}</p></div>
-                                                <div class="text-right"><p class="text-xs font-semibold uppercase text-slate-500">Facture</p><h4 class="text-2xl font-bold">{{ $invoiceNumber }}</h4><p class="text-sm text-slate-500">{{ $sale->sold_at?->format('d/m/Y') }}{{ $invoiceDueDate ? ' · échéance '.\Illuminate\Support\Carbon::parse($invoiceDueDate)->format('d/m/Y') : '' }}</p></div>
+                                                <div class="text-right"><p class="text-xs font-semibold uppercase text-slate-500">{{ $invoiceGenerated ? 'Facture' : 'Pro forma' }}</p><h4 class="text-2xl font-bold">{{ $invoiceNumber ?? 'Non créée' }}</h4><p class="text-sm text-slate-500">{{ $sale->sold_at?->format('d/m/Y') }}{{ $invoiceDueDate ? ' · échéance '.\Illuminate\Support\Carbon::parse($invoiceDueDate)->format('d/m/Y') : '' }}</p></div>
                                             </div>
                                             <div class="mt-5 grid gap-4 sm:grid-cols-2">
                                                 <div class="rounded-xl bg-slate-50 p-4"><span class="text-xs font-semibold uppercase text-slate-500">Client</span><p class="mt-1 font-semibold">{{ $sale->contact?->name ?? 'Client Grand Public' }}</p><p class="text-sm text-slate-500">{{ $sale->contact?->phone ?? '' }}</p></div>
@@ -581,20 +619,20 @@
                                                 <div class="flex justify-between"><span class="text-slate-500">TVA incluse</span><strong>{{ $money($sale->tax_amount) }}</strong></div>
                                                 <div class="flex justify-between border-t border-slate-200 pt-2 text-lg"><span>Total</span><strong>{{ $money($sale->total_amount) }}</strong></div>
                                             </div>
-                                            @if (data_get($sale->metadata, 'invoice_note'))
-                                                <p class="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{{ data_get($sale->metadata, 'invoice_note') }}</p>
+                                            @if ($invoice?->note)
+                                                <p class="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{{ $invoice->note }}</p>
                                             @endif
                                         </div>
                                         <form action="{{ route('sales.invoice.store', $sale) }}" method="POST" class="mt-4 grid gap-3 sm:grid-cols-[180px_1fr_auto_auto]">
                                             @csrf
                                             <input name="due_date" value="{{ $invoiceDueDate }}" type="date" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                            <input name="invoice_note" value="{{ data_get($sale->metadata, 'invoice_note') }}" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note facture">
+                                            <input name="invoice_note" value="{{ $invoice?->note }}" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note facture">
                                             <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">{{ $invoiceGenerated ? 'Mettre à jour' : 'Créer facture' }}</button>
                                             <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button" onclick="window.print()">Imprimer</button>
                                         </form>
                                     </div>
                                 </dialog>
-                                @if ((string) request('invoice') === (string) $sale->id)
+                                @if (($invoice && (string) request('invoice') === (string) $invoice->id) || (string) request('ticket') === (string) $sale->id)
                                     <script>window.addEventListener('DOMContentLoaded', () => document.getElementById('sale-invoice-{{ $sale->id }}')?.showModal());</script>
                                 @endif
                                 @if ($sale->status !== 'refunded' && $sale->status !== 'cancelled')

@@ -19,7 +19,7 @@
                             <div>
                                 <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Paiement validé</p>
                                 <h2 class="mt-1 text-2xl font-semibold">{{ $lastSale->number }} · {{ $money($lastSale->total_amount) }}</h2>
-                                <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Facture {{ data_get($lastSale->metadata, 'invoice_number', 'FAC-'.$lastSale->number) }} · {{ $lastSale->sold_at->format('d/m/Y H:i') }}</p>
+                                <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Ticket {{ $lastSale->number }} · {{ $lastSale->sold_at->format('d/m/Y H:i') }}</p>
                             </div>
                             <a href="{{ route('pos') }}" class="grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10">×</a>
                         </div>
@@ -315,8 +315,9 @@
                         @php($image = collect($item->images)->first())
                         @php($isOutOfStock = $item->type !== 'service' && $item->stock_quantity <= 0)
                         @php($isSellable = $allowOversell || $item->type === 'service' || ! $isOutOfStock)
-                            <button class="pos-product pos-item pos-product-card rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md dark:border-white/10 dark:bg-white/[0.03] {{ $isSellable ? '' : 'opacity-60 grayscale hover:translate-y-0 hover:border-rose-200 hover:shadow-sm dark:hover:border-rose-500/30' }}"
-                            type="button"
+                            <article class="pos-product pos-item pos-product-card rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md dark:border-white/10 dark:bg-white/[0.03] {{ $isSellable ? '' : 'opacity-60 grayscale hover:translate-y-0 hover:border-rose-200 hover:shadow-sm dark:hover:border-rose-500/30' }}"
+                            role="button"
+                            tabindex="0"
                             aria-disabled="{{ $isSellable ? 'false' : 'true' }}"
                             data-id="{{ $item->id }}"
                             data-name="{{ $item->title }}"
@@ -343,7 +344,7 @@
                                 </x-status-pill>
                             </div>
                             <div class="pos-product-name mt-3 flex items-start gap-2">
-                                <span class="pos-favorite-star text-base text-slate-300" data-product-id="{{ $item->id }}">★</span>
+                                <button class="pos-favorite-star text-base text-slate-300" data-product-id="{{ $item->id }}" type="button" aria-label="Basculer favori" title="Basculer favori">★</button>
                                 <p class="line-clamp-2 min-h-10 text-sm font-semibold">{{ $item->title }}</p>
                             </div>
                             <p class="pos-product-meta mt-2 truncate text-xs text-slate-500">{{ $item->category?->name ?? 'Sans catégorie' }} · {{ $item->barcode ?? $item->isbn ?? $item->sku ?? 'Sans code' }}</p>
@@ -356,7 +357,7 @@
                                     <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-white/10">{{ (int) $topSold[$item->id] }} vendus</span>
                                 @endif
                             </div>
-                        </button>
+                        </article>
                     @endforeach
                 </div>
                 <div class="pos-empty-products hidden rounded-xl border border-dashed border-slate-200 p-10 text-center text-sm text-slate-500 dark:border-white/10">Aucun produit ne correspond à cette recherche.</div>

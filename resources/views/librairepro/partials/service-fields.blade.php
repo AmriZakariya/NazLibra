@@ -18,6 +18,8 @@
     $isEnabled = old('is_enabled', $item?->is_enabled ?? true);
     $checkoutVisible = old('checkout_visible', $item?->checkout_visible ?? true);
     $currentImage = collect($item?->images ?? [])->first();
+    $defaultTax = $taxes->firstWhere('name', 'Sans TVA') ?? $taxes->first(fn ($tax) => (float) $tax->rate === 0.0);
+    $taxValue = old('tax_id', $item?->tax_id ?? $defaultTax?->id);
 @endphp
 
 <div class="{{ $section }}">Identification</div>
@@ -110,7 +112,7 @@
     <select name="tax_id" required data-searchable-select data-placeholder="Rechercher une taxe..." class="{{ $select }}">
         <option value="">- choisir -</option>
         @foreach ($taxes as $tax)
-            <option value="{{ $tax->id }}" @selected((string) old('tax_id', $item?->tax_id) === (string) $tax->id)>{{ $tax->name }} ({{ number_format((float) $tax->rate, 2, ',', ' ') }}%)</option>
+            <option value="{{ $tax->id }}" @selected((string) $taxValue === (string) $tax->id)>{{ $tax->name }} ({{ number_format((float) $tax->rate, 2, ',', ' ') }}%)</option>
         @endforeach
     </select>
 </div>

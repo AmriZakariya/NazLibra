@@ -294,6 +294,8 @@ class CatalogueTest extends TestCase
         ]))->assertOk()
             ->assertJsonStructure(['draw', 'recordsTotal', 'recordsFiltered', 'data']);
         $this->assertStringContainsString('#edit-item', data_get($servicesData->json(), 'data.0.row_url', ''));
+        $this->assertStringContainsString('&edit=', data_get($servicesData->json(), 'data.0.row_url', ''));
+        $this->assertStringNotContainsString('&amp;edit=', data_get($servicesData->json(), 'data.0.row_url', ''));
 
         $hiddenStatusResponse = $this->getJson(route('catalog.data', [
             'panel' => 'articles',

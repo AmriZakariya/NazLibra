@@ -7,6 +7,7 @@ use App\Models\DeliveryOrder;
 use App\Models\Item;
 use App\Models\PosTicket;
 use App\Models\Sale;
+use App\Models\SaleInvoice;
 use App\Models\SalePayment;
 use App\Models\SaleReturn;
 use App\Models\Tenant;
@@ -41,6 +42,9 @@ class PosTest extends TestCase
             ->assertSee('Toutes les catégories')
             ->assertSee('Toutes les marques / éditeurs')
             ->assertSee('Plus vendus')
+            ->assertSee('pos-favorite-star', false)
+            ->assertSee('type="button" aria-label="Basculer favori"', false)
+            ->assertSee('role="button"', false)
             ->assertSee('Effacer')
             ->assertSee('Espèces')
             ->assertSee('50/50')
@@ -103,7 +107,8 @@ class PosTest extends TestCase
         $sale = Sale::orderByDesc('id')->firstOrFail();
         $response->assertRedirect(route('pos', ['sale' => $sale->id]));
         $this->assertStringStartsWith('BL', $sale->number);
-        $this->assertSame('FAC-'.$sale->number, $sale->metadata['invoice_number']);
+        $this->assertNull($sale->invoice);
+        $this->assertArrayNotHasKey('invoice_number', $sale->metadata);
         $this->assertSame($client->id, $sale->contact_id);
         $this->assertSame('cash+advance', $sale->payment_method);
         $this->assertSame($total, (float) $sale->total_amount);
@@ -330,7 +335,7 @@ class PosTest extends TestCase
             ->assertSee('Action')
             ->assertSee('Voir détail')
             ->assertSee('Facture')
-            ->assertSee('FAC-', false);
+            ->assertSee('Créer facture');
     }
 
     public function test_manual_sale_add_screen_renders(): void
@@ -370,8 +375,9 @@ class PosTest extends TestCase
         ]);
 
         $sale = Sale::orderByDesc('id')->firstOrFail();
-        $response->assertRedirect(route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $sale->id]));
+        $response->assertRedirect(route('module', ['module' => 'sales', 'section' => 'list', 'ticket' => $sale->id]));
         $this->assertStringStartsWith('BL', $sale->number);
+        $this->assertNull($sale->invoice);
         $this->assertSame($client->id, $sale->contact_id);
         $this->assertSame('paid', $sale->status);
         $this->assertSame('manual_sale', $sale->metadata['source']);
@@ -392,11 +398,12 @@ class PosTest extends TestCase
             'invoice_note' => 'Facture test client',
         ]);
 
-        $response->assertRedirect(route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $sale->id]));
-        $sale->refresh();
-        $this->assertSame('FAC-'.$sale->number, $sale->metadata['invoice_number']);
-        $this->assertSame('Facture test client', $sale->metadata['invoice_note']);
-        $this->assertNotEmpty($sale->metadata['invoice_created_at']);
+        $invoice = SaleInvoice::where('sale_id', $sale->id)->firstOrFail();
+
+        $response->assertRedirect(route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $invoice->id]));
+        $this->assertStringStartsWith('FAC', $invoice->number);
+        $this->assertSame('Facture test client', $invoice->note);
+        $this->assertSame((float) $sale->total_amount, (float) $invoice->total_amount);
     }
 
     public function test_sale_list_actions_can_update_and_cancel_sale(): void

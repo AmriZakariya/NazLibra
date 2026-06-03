@@ -21,6 +21,7 @@ use App\Models\PurchaseReturn;
 use App\Models\Quotation;
 use App\Models\Role;
 use App\Models\Sale;
+use App\Models\SaleInvoice;
 use App\Models\SalePayment;
 use App\Models\SaleReturn;
 use App\Models\StockAdjustment;
@@ -397,7 +398,7 @@ class LibraireProController extends Controller
             })
             ->addColumn('action', fn (Item $item): string => '<div class="flex min-w-[96px] justify-end"><a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-500/20">Modifier</a></div>')
             ->addColumn('row_url', fn (Item $item): string => route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id]).'#edit-item')
-            ->rawColumns(['checkbox', 'image', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'action'])
+            ->rawColumns(['checkbox', 'image', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'action', 'row_url'])
             ->toJson();
     }
 
@@ -645,7 +646,7 @@ class LibraireProController extends Controller
                 return '<div class="flex justify-end gap-2"><a href="'.e($editUrl).'#contact-form" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Modifier</a><form action="'.e($deleteUrl).'" method="POST" onsubmit="return confirm(\'Supprimer ou archiver ce contact ?\')"><input type="hidden" name="_token" value="'.e(csrf_token()).'"><input type="hidden" name="_method" value="DELETE"><button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 dark:border-rose-500/20" type="submit">Supprimer</button></form></div>';
             })
             ->addColumn('row_url', fn (Contact $contact): string => route('module', ['module' => 'contacts', 'section' => $contact->kind === 'supplier' ? 'supplier-add' : 'customer-add', 'edit' => $contact->id]).'#contact-form')
-            ->rawColumns(['checkbox', 'name', 'credit_limit', 'previous_balance', 'purchase_due', 'purchase_return_due', 'supplier_total', 'outstanding_balance', 'advance_balance', 'status', 'action']);
+            ->rawColumns(['checkbox', 'name', 'credit_limit', 'previous_balance', 'purchase_due', 'purchase_return_due', 'supplier_total', 'outstanding_balance', 'advance_balance', 'status', 'action', 'row_url']);
 
         return $dataTable->toJson();
     }
@@ -1318,6 +1319,7 @@ class LibraireProController extends Controller
         $template = in_array($request->query('template'), ['small', 'medium', 'large'], true) ? $request->query('template') : 'medium';
         $query = trim((string) $request->query('q'));
         $category = $request->query('category');
+        $brand = $request->query('brand');
         $type = $request->query('type', 'all');
         $quantities = collect($request->query('quantities', []))->mapWithKeys(fn ($quantity, $id) => [(int) $id => min(100, max(1, (int) $quantity))]);
         $defaultCopies = min(100, max(1, (int) $request->query('copies', 1)));
@@ -1363,9 +1365,10 @@ class LibraireProController extends Controller
                 });
             })
             ->when($category, fn (Builder $builder) => $builder->where('category_id', $category))
+            ->when($brand, fn (Builder $builder) => $builder->where('brand_id', $brand))
             ->when(in_array($type, ['book', 'supply', 'service'], true), fn (Builder $builder) => $builder->where('type', $type))
             ->orderBy('title')
-            ->take(80)
+            ->take(160)
             ->get();
 
         if ($ids->isNotEmpty()) {
@@ -1392,12 +1395,14 @@ class LibraireProController extends Controller
             'items' => $items,
             'productOptions' => $productOptions,
             'categories' => Category::where('tenant_id', $tenant->id)->orderBy('name')->get(),
+            'brands' => Brand::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'template' => $template,
             'selectedIds' => $ids,
             'quantities' => $quantities,
             'defaultCopies' => $defaultCopies,
             'query' => $query,
             'categoryFilter' => $category,
+            'brandFilter' => $brand,
             'type' => $type,
         ]);
     }
@@ -2086,7 +2091,6 @@ class LibraireProController extends Controller
                     'total_amount' => $total,
                     'sold_at' => now(),
                     'metadata' => [
-                        'invoice_number' => $this->invoiceNumber($saleNumber),
                         'reference_number' => ! empty($data['ticket_id']) ? PosTicket::whereKey($data['ticket_id'])->value('number') : null,
                         'payments' => $payments,
                         'paid_amount' => $paid,
@@ -2410,7 +2414,6 @@ class LibraireProController extends Controller
                     'total_amount' => $total,
                     'sold_at' => ! empty($data['sold_at']) ? Carbon::parse($data['sold_at']) : now(),
                     'metadata' => [
-                        'invoice_number' => $this->invoiceNumber($saleNumber),
                         'reference_number' => $data['reference_number'] ?? null,
                         'paid_amount' => $paid,
                         'due_date' => $data['due_date'] ?? null,
@@ -2484,7 +2487,7 @@ class LibraireProController extends Controller
         }
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $sale->id])
+            ->route('module', ['module' => 'sales', 'section' => 'list', 'ticket' => $sale->id])
             ->with('status', 'Vente '.$sale->number.' enregistrée.');
     }
 
@@ -2527,18 +2530,39 @@ class LibraireProController extends Controller
             'invoice_note' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $metadata = $sale->metadata ?? [];
-        $metadata['invoice_number'] = $metadata['invoice_number'] ?? $this->invoiceNumber($sale->number);
-        $metadata['invoice_created_at'] = $metadata['invoice_created_at'] ?? now()->toIso8601String();
-        $metadata['invoice_created_by'] = $metadata['invoice_created_by'] ?? auth()->id();
-        $metadata['invoice_due_date'] = $data['due_date'] ?? ($metadata['invoice_due_date'] ?? $metadata['due_date'] ?? null);
-        $metadata['invoice_note'] = $data['invoice_note'] ?? ($metadata['invoice_note'] ?? null);
+        $invoice = DB::transaction(function () use ($tenant, $sale, $data): SaleInvoice {
+            $sale->loadMissing('invoice');
+            $invoice = $sale->invoice;
 
-        $sale->update(['metadata' => $metadata]);
+            if (! $invoice) {
+                $invoice = new SaleInvoice([
+                    'tenant_id' => $tenant->id,
+                    'sale_id' => $sale->id,
+                    'number' => $this->nextSaleInvoiceNumber($tenant),
+                    'issued_at' => now(),
+                    'metadata' => ['source' => 'sales_list'],
+                ]);
+            }
+
+            $invoice->fill([
+                'contact_id' => $sale->contact_id,
+                'user_id' => $invoice->user_id ?: auth()->id(),
+                'status' => 'issued',
+                'due_date' => $data['due_date'] ?? data_get($sale->metadata, 'due_date'),
+                'subtotal_amount' => $sale->subtotal_amount,
+                'discount_amount' => $sale->discount_amount,
+                'tax_amount' => $sale->tax_amount,
+                'total_amount' => $sale->total_amount,
+                'note' => $data['invoice_note'] ?? $invoice->note,
+            ]);
+            $invoice->save();
+
+            return $invoice;
+        });
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $sale->id])
-            ->with('status', 'Facture '.$metadata['invoice_number'].' prête.');
+            ->route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $invoice->id])
+            ->with('status', 'Facture '.$invoice->number.' prête.');
     }
 
     public function destroySale(Sale $sale): RedirectResponse
@@ -2894,7 +2918,6 @@ class LibraireProController extends Controller
                     'total_amount' => $quotation->total_amount,
                     'sold_at' => now(),
                     'metadata' => [
-                        'invoice_number' => $this->invoiceNumber($saleNumber),
                         'reference_number' => $quotation->number,
                         'paid_amount' => 0,
                         'due_date' => $quotation->expires_at?->toDateString(),
@@ -3404,6 +3427,20 @@ class LibraireProController extends Controller
 
         $section = $request->query('section', 'list');
         $sales = $this->salesListQuery($tenant, $request)->paginate(25)->withQueryString();
+        $saleInvoices = SaleInvoice::query()
+            ->with(['sale.contact', 'contact'])
+            ->where('tenant_id', $tenant->id)
+            ->when(trim((string) $request->query('q')) !== '', function (Builder $builder) use ($request): void {
+                $query = trim((string) $request->query('q'));
+                $builder->where(function (Builder $builder) use ($query): void {
+                    $builder->where('number', 'like', "%{$query}%")
+                        ->orWhereHas('sale', fn (Builder $sale) => $sale->where('number', 'like', "%{$query}%"))
+                        ->orWhereHas('contact', fn (Builder $contact) => $contact->where('name', 'like', "%{$query}%"));
+                });
+            })
+            ->latest('issued_at')
+            ->paginate(25, ['*'], 'invoices_page')
+            ->withQueryString();
         $quotations = $this->quotationsQuery($tenant, $request)->paginate(25, ['*'], 'quotes_page')->withQueryString();
         $salesTotals = (clone $this->salesListQuery($tenant, $request))
             ->get()
@@ -3435,6 +3472,7 @@ class LibraireProController extends Controller
             'section' => $section,
             'meta' => $modules[$module],
             'sales' => $module === 'sales' ? $sales : $tenant->sales()->with('contact')->latest('sold_at')->take(8)->get(),
+            'saleInvoices' => $saleInvoices,
             'salesTotals' => $salesTotals,
             'nextSaleNumber' => $module === 'sales' ? $this->nextSaleNumber($tenant) : null,
             'salesClients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
@@ -3865,14 +3903,14 @@ class LibraireProController extends Controller
         $maxTotal = $request->query('max_total');
 
         return Sale::query()
-            ->with(['contact', 'items', 'payments', 'deliveryOrders', 'returns'])
+            ->with(['contact', 'items', 'payments', 'deliveryOrders', 'returns', 'invoice'])
             ->where('tenant_id', $tenant->id)
             ->when($query !== '', function (Builder $builder) use ($query): void {
                 $builder->where(function (Builder $builder) use ($query): void {
                     $builder->where('number', 'like', "%{$query}%")
                         ->orWhere('payment_method', 'like', "%{$query}%")
-                        ->orWhere('metadata->invoice_number', 'like', "%{$query}%")
                         ->orWhere('metadata->reference_number', 'like', "%{$query}%")
+                        ->orWhereHas('invoice', fn (Builder $invoiceQuery) => $invoiceQuery->where('number', 'like', "%{$query}%"))
                         ->orWhereHas('contact', fn (Builder $contactQuery) => $contactQuery->where('name', 'like', "%{$query}%"));
                 });
             })
@@ -4292,9 +4330,15 @@ class LibraireProController extends Controller
         return $sale->status === 'paid' ? (float) $sale->total_amount : 0.0;
     }
 
-    private function invoiceNumber(string $saleNumber): string
+    private function nextSaleInvoiceNumber(Tenant $tenant): string
     {
-        return 'FAC-'.$saleNumber;
+        $max = SaleInvoice::where('tenant_id', $tenant->id)
+            ->where('number', 'like', 'FAC%')
+            ->pluck('number')
+            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
+            ->max() ?? 0;
+
+        return 'FAC'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
     }
 
     private function tenant(): Tenant
