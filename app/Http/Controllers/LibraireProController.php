@@ -213,7 +213,7 @@ class LibraireProController extends Controller
 
         return view('librairepro.catalog', [
             'tenant' => $tenant,
-            'active' => 'catalog',
+            'active' => $request->routeIs('stock') ? 'stock' : 'catalog',
             'items' => $items,
             'categories' => Category::where('tenant_id', $tenant->id)->with(['parent'])->withCount('items')->orderBy('name')->get(),
             'brands' => Brand::where('tenant_id', $tenant->id)->orderBy('name')->get(),
@@ -310,6 +310,15 @@ class LibraireProController extends Controller
         ]);
     }
 
+    public function stock(Request $request): View
+    {
+        if (! $request->query('panel')) {
+            $request->query->set('panel', 'stock-adjustments');
+        }
+
+        return $this->catalog($request);
+    }
+
     public function catalogData(Request $request): \Illuminate\Http\JsonResponse
     {
         $tenant = $this->tenant();
@@ -387,6 +396,7 @@ class LibraireProController extends Controller
                     .'</div>';
             })
             ->addColumn('action', fn (Item $item): string => '<div class="flex min-w-[96px] justify-end"><a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-500/20">Modifier</a></div>')
+            ->addColumn('row_url', fn (Item $item): string => route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id]).'#edit-item')
             ->rawColumns(['checkbox', 'image', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'action'])
             ->toJson();
     }
@@ -490,7 +500,7 @@ class LibraireProController extends Controller
         }
 
         return redirect()
-            ->route('catalog', ['panel' => 'stock-adjustments'])
+            ->route('stock', ['panel' => 'stock-adjustments'])
             ->with('status', 'Ajustement '.$adjustment->number.' enregistré.');
     }
 
@@ -583,7 +593,7 @@ class LibraireProController extends Controller
         }
 
         return redirect()
-            ->route('catalog', ['panel' => 'stock-transfers'])
+            ->route('stock', ['panel' => 'stock-transfers'])
             ->with('status', 'Transfert '.$transfer->number.' enregistré.');
     }
 
@@ -634,6 +644,7 @@ class LibraireProController extends Controller
 
                 return '<div class="flex justify-end gap-2"><a href="'.e($editUrl).'#contact-form" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Modifier</a><form action="'.e($deleteUrl).'" method="POST" onsubmit="return confirm(\'Supprimer ou archiver ce contact ?\')"><input type="hidden" name="_token" value="'.e(csrf_token()).'"><input type="hidden" name="_method" value="DELETE"><button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 dark:border-rose-500/20" type="submit">Supprimer</button></form></div>';
             })
+            ->addColumn('row_url', fn (Contact $contact): string => route('module', ['module' => 'contacts', 'section' => $contact->kind === 'supplier' ? 'supplier-add' : 'customer-add', 'edit' => $contact->id]).'#contact-form')
             ->rawColumns(['checkbox', 'name', 'credit_limit', 'previous_balance', 'purchase_due', 'purchase_return_due', 'supplier_total', 'outstanding_balance', 'advance_balance', 'status', 'action']);
 
         return $dataTable->toJson();

@@ -56,6 +56,7 @@ class Locale
         return [
             'Tableau de bord' => 'لوحة التحكم',
             'Module' => 'الوحدة',
+            'Sous-module' => 'قسم فرعي',
             'Articles' => 'المقالات',
             'Ventes' => 'المبيعات',
             'Facture' => 'الفواتير',
@@ -282,6 +283,7 @@ class Locale
             'Imprimer PDF' => 'طباعة PDF',
             'Partager ticket' => 'مشاركة التذكرة',
             'Fermer' => 'إغلاق',
+            'Ouvrir' => 'فتح',
             'Reprendre' => 'استئناف',
             'Détail' => 'التفاصيل',
             'Annuler' => 'إلغاء',

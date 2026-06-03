@@ -90,7 +90,9 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
     const input = menu.querySelector('[data-command-input]');
     const panel = menu.querySelector('[data-command-panel]');
     const empty = menu.querySelector('[data-command-empty]');
+    const count = menu.querySelector('[data-command-count]');
     const items = [...menu.querySelectorAll('[data-command-item]')];
+    let activeIndex = 0;
 
     if (!input || !panel) return;
 
@@ -99,32 +101,84 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
         .normalize('NFD')
         .replace(/\p{Diacritic}/gu, '')
         .toLowerCase()
+        .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
         .trim();
 
-    const visibleItems = () => items.filter((item) => !item.classList.contains('hidden'));
+    const visibleItems = () => items.filter((item) => !item.classList.contains('is-hidden'));
+
+    const scoreItem = (haystack, tokens, title, label, moduleName, kind) => {
+        if (tokens.length === 0) return 1;
+        let score = 0;
+        const query = tokens.join(' ');
+
+        if (title === query) score += 80;
+        if (title.startsWith(query)) score += 35;
+
+        for (const token of tokens) {
+            if (!haystack.includes(token)) return -1;
+            score += label === token ? 40 : 0;
+            score += label.startsWith(token) ? 22 : 0;
+            score += moduleName === token ? 18 : 0;
+            score += moduleName.startsWith(token) ? 12 : 0;
+            score += kind === 'module' ? 3 : 0;
+            score += haystack.startsWith(token) ? 8 : 1;
+            score += haystack.split(' ').some((part) => part.startsWith(token)) ? 4 : 0;
+        }
+
+        return score;
+    };
+
+    const setActive = (nextIndex) => {
+        const visible = visibleItems();
+        if (visible.length === 0) {
+            activeIndex = 0;
+            items.forEach((item) => item.classList.remove('is-active'));
+            return;
+        }
+
+        activeIndex = ((nextIndex % visible.length) + visible.length) % visible.length;
+        items.forEach((item) => item.classList.remove('is-active'));
+        visible[activeIndex].classList.add('is-active');
+        visible[activeIndex].scrollIntoView({ block: 'nearest' });
+    };
 
     const open = () => {
         panel.classList.remove('hidden');
         menu.classList.add('is-open');
+        setActive(activeIndex);
     };
 
     const close = () => {
         panel.classList.add('hidden');
         menu.classList.remove('is-open');
+        items.forEach((item) => item.classList.remove('is-active'));
     };
 
     const filter = () => {
         const query = normalize(input.value);
-        let visibleCount = 0;
+        const tokens = query.split(/\s+/).filter(Boolean);
+        const scored = [];
 
         items.forEach((item) => {
             const haystack = normalize(item.dataset.commandSearch);
-            const visible = !query || query.split(/\s+/).every((token) => haystack.includes(token));
-            item.classList.toggle('hidden', !visible);
-            if (visible) visibleCount += 1;
+            const title = normalize(item.dataset.commandTitle);
+            const label = normalize(item.dataset.commandLabel);
+            const moduleName = normalize(item.dataset.commandModule);
+            const kind = normalize(item.dataset.commandKind);
+            const score = scoreItem(haystack, tokens, title, label, moduleName, kind);
+            item.dataset.commandScore = String(score);
+            item.classList.toggle('is-hidden', score < 0);
+            item.classList.remove('is-active');
+            if (score >= 0) scored.push(item);
         });
 
-        empty?.classList.toggle('hidden', visibleCount !== 0);
+        scored
+            .sort((a, b) => Number(b.dataset.commandScore) - Number(a.dataset.commandScore))
+            .forEach((item) => item.parentElement?.insertBefore(item, empty || null));
+
+        count && (count.textContent = scored.length.toLocaleString(appLocale === 'ar' ? 'ar-MA' : 'fr-FR'));
+        empty?.classList.toggle('hidden', scored.length !== 0);
+        setActive(0);
     };
 
     input.addEventListener('focus', () => {
@@ -146,11 +200,25 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
             return;
         }
 
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            open();
+            setActive(activeIndex + 1);
+            return;
+        }
+
+        if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            open();
+            setActive(activeIndex - 1);
+            return;
+        }
+
         if (event.key === 'Enter') {
-            const first = visibleItems()[0];
-            if (first) {
+            const target = visibleItems()[activeIndex] || visibleItems()[0];
+            if (target) {
                 event.preventDefault();
-                window.location.assign(first.href);
+                window.location.assign(target.href);
             }
         }
     });
@@ -635,10 +703,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
         products.forEach((product) => {
             const matchesQuery = !query || product.dataset.search?.includes(query) || product.dataset.barcode?.toLowerCase() === query;
-            const matchesType = query || type === 'all' || product.dataset.type === type;
-            const matchesCategory = query || category === 'all' || product.dataset.categoryId === category;
-            const matchesBrand = query || brand === 'all' || product.dataset.brandId === brand;
-            const matchesUnit = query || unit === 'all' || product.dataset.unitId === unit;
+            const matchesType = type === 'all' || product.dataset.type === type;
+            const matchesCategory = category === 'all' || product.dataset.categoryId === category;
+            const matchesBrand = brand === 'all' || product.dataset.brandId === brand;
+            const matchesUnit = unit === 'all' || product.dataset.unitId === unit;
             const productStock = Number(product.dataset.stock || 0);
             const lowThreshold = Number(product.dataset.lowThreshold || 3);
             const matchesStock = stock === 'all' || (stock === 'available' && (allowOversell || showOutOfStock || productStock > 0 || product.dataset.type === 'service')) || (stock === 'low' && product.dataset.type !== 'service' && productStock > 0 && productStock <= lowThreshold);
@@ -655,24 +723,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         return visible;
     };
 
-    let serverSearchTimer = null;
-    const requestServerSearch = () => {
-        const query = (search?.value || '').trim();
-        if (serverSearchTimer) window.clearTimeout(serverSearchTimer);
-
-        serverSearchTimer = window.setTimeout(() => {
-            if (query.length < 2) return;
-            const visible = filterProducts();
-            const current = new URL(window.location.href);
-            if (visible > 0 && current.searchParams.get('q') === query) return;
-            if (visible > 0 && current.searchParams.get('q') !== query) return;
-
-            current.searchParams.set('q', query);
-            current.searchParams.set('type', 'all');
-            current.searchParams.set('stock', stockFilter?.value || 'available');
-            window.location.href = current.toString();
-        }, 450);
-    };
+    // Removed server search - POS system should use instant client-side filtering only
+    // All products are already loaded (300 items), so no server request needed
 
     const addBySearch = () => {
         const query = (search?.value || '').trim().toLowerCase();
@@ -741,7 +793,6 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     });
     search?.addEventListener('input', () => {
         filterProducts();
-        requestServerSearch();
     });
     search?.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
@@ -1080,6 +1131,13 @@ document.querySelectorAll('[data-yajra-table]').forEach((table) => {
             { targets: [-1], className: 'dt-right' },
             { targets: '_all', defaultContent: '' },
         ],
+        createdRow: (row, data) => {
+            if (data?.row_url) {
+                row.dataset.rowHref = data.row_url;
+                row.dataset.rowActionLabel = translate('Modifier');
+                row.classList.add('app-row-openable');
+            }
+        },
         drawCallback: () => {
             document.querySelectorAll('.catalog-check-all').forEach((checkbox) => {
                 checkbox.checked = false;
@@ -1136,6 +1194,13 @@ document.querySelectorAll('[data-contact-table]').forEach((table) => {
             { targets: [-1], className: 'dt-right' },
             { targets: '_all', defaultContent: '' },
         ],
+        createdRow: (row, data) => {
+            if (data?.row_url) {
+                row.dataset.rowHref = data.row_url;
+                row.dataset.rowActionLabel = translate('Modifier');
+                row.classList.add('app-row-openable');
+            }
+        },
     });
 });
 
@@ -1172,8 +1237,68 @@ document.querySelectorAll('[data-advance-table]').forEach((table) => {
             { targets: [-1], className: 'dt-right' },
             { targets: '_all', defaultContent: '' },
         ],
+        createdRow: (row) => {
+            row.classList.add('app-row-openable');
+            row.dataset.rowActionLabel = translate('Reçu');
+        },
     });
 });
+
+const isInteractiveTableTarget = (target) => target.closest('a, button, input, select, textarea, label, summary, details, form, [role="button"], [contenteditable="true"]');
+
+const findRowPrimaryAction = (row) => row.querySelector(
+    [
+        '[data-row-primary-action]',
+        'a[href*="edit"]',
+        'a[href*="#edit"]',
+        'a[href*="#contact-form"]',
+        'button[data-advance-detail]',
+        'button[onclick*="showModal"]',
+        'a[href]',
+    ].join(', ')
+);
+
+const openInteractiveRow = (row) => {
+    const href = row.dataset.rowHref;
+    if (href) {
+        window.location.assign(href);
+        return true;
+    }
+
+    const dialogId = row.dataset.rowDialog;
+    if (dialogId) {
+        document.getElementById(dialogId)?.showModal();
+        return true;
+    }
+
+    const action = findRowPrimaryAction(row);
+    if (!action) return false;
+
+    action.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    return true;
+};
+
+const markOpenableRows = (root = document) => {
+    root.querySelectorAll('tbody tr').forEach((row) => {
+        if (row.classList.contains('app-row-openable')) return;
+        if (row.dataset.rowHref || row.dataset.rowDialog || findRowPrimaryAction(row)) {
+            row.classList.add('app-row-openable');
+        }
+    });
+};
+
+document.addEventListener('dblclick', (event) => {
+    if (isInteractiveTableTarget(event.target)) return;
+
+    const row = event.target.closest('tbody tr');
+    if (!row || !row.closest('table')) return;
+
+    if (openInteractiveRow(row)) {
+        event.preventDefault();
+    }
+});
+
+markOpenableRows();
 
 document.addEventListener('click', (event) => {
     const trigger = event.target.closest('[data-advance-detail]');

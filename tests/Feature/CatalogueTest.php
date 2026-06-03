@@ -286,13 +286,14 @@ class CatalogueTest extends TestCase
             ->assertSee('Liste des services')
             ->assertDontSee("Quantité d'alerte", false);
 
-        $this->getJson(route('catalog.data', [
+        $servicesData = $this->getJson(route('catalog.data', [
             'panel' => 'services',
             'draw' => 1,
             'start' => 0,
             'length' => 10,
         ]))->assertOk()
             ->assertJsonStructure(['draw', 'recordsTotal', 'recordsFiltered', 'data']);
+        $this->assertStringContainsString('#edit-item', data_get($servicesData->json(), 'data.0.row_url', ''));
 
         $hiddenStatusResponse = $this->getJson(route('catalog.data', [
             'panel' => 'articles',
@@ -638,6 +639,25 @@ class CatalogueTest extends TestCase
         $this->assertDatabaseMissing('taxes', ['id' => $tax->id]);
     }
 
+    public function test_stock_route_opens_stock_workspace(): void
+    {
+        $this->seed();
+
+        $this->get(route('stock'))
+            ->assertOk()
+            ->assertSee('Stock opérationnel')
+            ->assertSee('Liste d&#039;ajustement', false)
+            ->assertSee('Sections stock')
+            ->assertSee('data-nav-key="stock"', false)
+            ->assertSee('data-command-title="stock"', false)
+            ->assertDontSee('href="http://localhost/catalogue?panel=ajouter" class="sidebar-child is-active"', false);
+
+        $this->get(route('stock', ['panel' => 'stock-transfer-add']))
+            ->assertOk()
+            ->assertSee('Transfert de stock')
+            ->assertSee('Liste de transfert');
+    }
+
     public function test_stock_adjustment_changes_stock_and_is_listed(): void
     {
         $this->seed();
@@ -645,7 +665,7 @@ class CatalogueTest extends TestCase
         $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 5)->firstOrFail();
         $initialStock = (int) $item->stock_quantity;
 
-        $this->get(route('catalog', ['panel' => 'stock-adjustment-add']))
+        $this->get(route('stock', ['panel' => 'stock-adjustment-add']))
             ->assertOk()
             ->assertSee('Ajustement des stocks')
             ->assertSee("Liste d&#039;ajustement", false);
@@ -660,7 +680,7 @@ class CatalogueTest extends TestCase
         ]);
 
         $adjustment = StockAdjustment::firstOrFail();
-        $response->assertRedirect(route('catalog', ['panel' => 'stock-adjustments']));
+        $response->assertRedirect(route('stock', ['panel' => 'stock-adjustments']));
         $this->assertStringStartsWith('AJS', $adjustment->number);
         $this->assertSame($initialStock - 2, (int) $item->fresh()->stock_quantity);
 
@@ -671,7 +691,7 @@ class CatalogueTest extends TestCase
             'quantity_after' => $initialStock - 2,
         ]);
 
-        $this->get(route('catalog', ['panel' => 'stock-adjustments', 'q' => 'Inventaire test']))
+        $this->get(route('stock', ['panel' => 'stock-adjustments', 'q' => 'Inventaire test']))
             ->assertOk()
             ->assertSee($adjustment->number)
             ->assertSee('Inventaire test');
@@ -684,7 +704,7 @@ class CatalogueTest extends TestCase
         $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 5)->firstOrFail();
         $initialStock = (int) $item->stock_quantity;
 
-        $this->get(route('catalog', ['panel' => 'stock-transfer-add']))
+        $this->get(route('stock', ['panel' => 'stock-transfer-add']))
             ->assertOk()
             ->assertSee('Transfert de stock')
             ->assertSee('Liste de transfert');
@@ -701,12 +721,12 @@ class CatalogueTest extends TestCase
         ]);
 
         $transfer = StockTransfer::firstOrFail();
-        $response->assertRedirect(route('catalog', ['panel' => 'stock-transfers']));
+        $response->assertRedirect(route('stock', ['panel' => 'stock-transfers']));
         $this->assertStringStartsWith('TRS', $transfer->number);
         $this->assertSame($initialStock, (int) $item->fresh()->stock_quantity);
         $this->assertSame(3, (int) $transfer->total_quantity);
 
-        $this->get(route('catalog', ['panel' => 'stock-transfers', 'q' => 'Magasin B']))
+        $this->get(route('stock', ['panel' => 'stock-transfers', 'q' => 'Magasin B']))
             ->assertOk()
             ->assertSee($transfer->number)
             ->assertSee('Magasin B');

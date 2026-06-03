@@ -92,6 +92,17 @@
 
                 return count($query) > 0 || count($currentQuery) === 0;
             };
+            $canActivateNavItem = function (array $item): bool {
+                if (request()->routeIs('stock')) {
+                    return ($item['key'] ?? null) === 'stock';
+                }
+
+                if (request()->routeIs('catalog', 'catalog.labels')) {
+                    return ($item['key'] ?? null) === 'catalog';
+                }
+
+                return ($item['key'] ?? null) !== 'stock';
+            };
             $articleLinks = [
                 ['label' => 'Ajouter un article', 'icon' => '+', 'href' => route('catalog', ['panel' => 'ajouter'])],
                 ['label' => 'Ajouter un service', 'icon' => '+', 'href' => route('catalog', ['panel' => 'ajouter-service'])],
@@ -165,11 +176,11 @@
                     ['label' => 'Liste de dépôt', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'deposits'])],
                     ['label' => 'Transactions en espèces', 'icon' => '⇄', 'href' => route('module', ['module' => 'finance', 'section' => 'cash'])],
                 ]],
-                ['key' => 'catalog', 'label' => 'Stock', 'icon' => '⌛', 'href' => route('catalog', ['panel' => 'articles', 'stock' => 'low']), 'children' => [
-                    ['label' => "Ajouter ajustement", 'icon' => '+', 'href' => route('catalog', ['panel' => 'stock-adjustment-add'])],
-                    ['label' => "Liste d'ajustement", 'icon' => '≡', 'href' => route('catalog', ['panel' => 'stock-adjustments'])],
-                    ['label' => 'Ajouter transfert', 'icon' => '+', 'href' => route('catalog', ['panel' => 'stock-transfer-add'])],
-                    ['label' => 'Liste de transfert', 'icon' => '≡', 'href' => route('catalog', ['panel' => 'stock-transfers'])],
+                ['key' => 'stock', 'label' => 'Stock', 'icon' => '⌛', 'href' => route('stock'), 'children' => [
+                    ['label' => "Ajouter ajustement", 'icon' => '+', 'href' => route('stock', ['panel' => 'stock-adjustment-add'])],
+                    ['label' => "Liste d'ajustement", 'icon' => '≡', 'href' => route('stock', ['panel' => 'stock-adjustments'])],
+                    ['label' => 'Ajouter transfert', 'icon' => '+', 'href' => route('stock', ['panel' => 'stock-transfer-add'])],
+                    ['label' => 'Liste de transfert', 'icon' => '≡', 'href' => route('stock', ['panel' => 'stock-transfers'])],
                 ]],
                 ['key' => 'settings', 'label' => 'Utilisateurs', 'icon' => '♙', 'href' => route('module', ['module' => 'settings', 'section' => 'users']), 'children' => [
                     ['label' => 'Liste des utilisateurs', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'users'])],
@@ -199,6 +210,7 @@
                         'translated_label' => $tr($item['label']),
                         'section' => 'Module',
                         'translated_section' => $tr('Module'),
+                        'kind' => 'Module',
                         'icon' => $item['icon'],
                         'href' => $item['href'],
                     ]];
@@ -209,6 +221,7 @@
                             'translated_label' => $tr($child['label']),
                             'section' => $item['label'],
                             'translated_section' => $tr($item['label']),
+                            'kind' => 'Sous-module',
                             'icon' => $child['icon'],
                             'href' => $child['href'],
                         ];
@@ -218,6 +231,45 @@
                 })
                 ->unique(fn (array $link) => $link['href'].'|'.$link['label'])
                 ->values();
+            $commandAliases = [
+                'Point de vente' => 'pos caisse encaisser barcode scan ticket paiement cash carte comptoir',
+                'Ajouter une vente' => 'vente manuelle facture client paiement',
+                'Liste des ventes' => 'ticket facture historique remboursement retour paiement',
+                'Paiements des ventes' => 'encaissement cash carte virement avance reçu',
+                'Liste de livraison' => 'delivery bl bon livraison expédition',
+                'Ajouter un article' => 'item produit livre isbn barcode stock prix catalogue',
+                'Liste d\'articles' => 'items produits livres services catalogue recherche filtre export',
+                'Ajouter un service' => 'prestation service sans stock frais abonnement',
+                'Services d\'importation' => 'import excel csv migration mylibrairie upload',
+                'Imprimer des étiquettes' => 'labels barcode etiquette zpl prix impression',
+                'Liste des catégories' => 'categorie famille structure rayon',
+                'Liste des marques' => 'marque éditeur publisher brand',
+                'Liste des variantes' => 'variant attribut format taille couleur',
+                'Liste des unités' => 'unite mesure piece pack boite',
+                'Liste des impôts' => 'taxe tva fiscal impôt',
+                'Ajouter ajustement' => 'stock correction inventaire quantité rupture',
+                'Liste d\'ajustement' => 'historique stock inventaire correction',
+                'Ajouter transfert' => 'stock magasin depot déplacement',
+                'Liste de transfert' => 'transfert stock suivi depot magasin',
+                'Stock' => 'stock inventaire rupture alerte quantité ajustement transfert magasin depot valorisation',
+                'Ajouter un client' => 'customer contact crm téléphone cin',
+                'Liste des clients' => 'contacts clients crm solde avance crédit',
+                'Ajouter un fournisseur' => 'supplier fournisseur achat ice rc',
+                'Liste des fournisseurs' => 'suppliers fournisseurs achats solde',
+                'Ajouter une avance' => 'client avance crédit acompte solde',
+                'Liste des avances' => 'avances paiements client crédit',
+                'Ajouter un compte' => 'banque caisse compte rib',
+                'Liste des comptes' => 'banque comptes cash trésorerie',
+                'Transactions en espèces' => 'cash mouvements caisse monnaie',
+                'Rapports' => 'analytics statistiques ventes stock profit perte taxe',
+                'Liste des utilisateurs' => 'user équipe staff accès permission',
+                'Liste des rôles' => 'role permission accès droit',
+                'Magasin' => 'store warehouse depot current magasin courant',
+                'Société' => 'profil magasin store profile logo ice adresse facture ticket',
+                'Types de paiement' => 'paiement cash carte virement avance',
+                'Changer le mot de passe' => 'password sécurité compte profil',
+                'Paramètres' => 'settings configuration thème langue caisse stock',
+            ];
         @endphp
 
         <div class="flex min-h-screen">
@@ -239,12 +291,13 @@
                     @foreach ($nav as $item)
                         @php
                             $children = $item['children'] ?? [];
-                            $childrenActive = collect($children)->contains(fn ($child) => $isCurrentLink($child['href']));
-                            $linkActive = $isCurrentLink($item['href']);
+                            $navCanBeActive = $canActivateNavItem($item);
+                            $childrenActive = $navCanBeActive && collect($children)->contains(fn ($child) => $isCurrentLink($child['href']));
+                            $linkActive = $navCanBeActive && $isCurrentLink($item['href']);
                             $itemActive = $linkActive || $childrenActive;
                         @endphp
                         @if (! empty($item['children']))
-                            <details class="sidebar-group" data-sidebar-group="{{ Str::slug($item['label']) }}" @if($childrenActive || $linkActive) open @endif>
+                            <details class="sidebar-group" data-sidebar-group="{{ Str::slug($item['label']) }}" data-nav-key="{{ $item['key'] }}" @if($childrenActive || $linkActive) open @endif>
                                 <summary class="sidebar-link group {{ $itemActive ? 'is-active' : '' }}" title="{{ $tr($item['label']) }}">
                                     <span class="sidebar-icon" data-initial="{{ Str::upper(Str::substr($item['label'], 0, 1)) }}">{{ $item['icon'] }}</span>
                                     <span class="sidebar-label truncate">{{ $tr($item['label']) }}</span>
@@ -267,7 +320,7 @@
                                 </div>
                             </details>
                         @else
-                            <a href="{{ $item['href'] }}" class="sidebar-link group {{ $itemActive ? 'is-active' : '' }}" title="{{ $tr($item['label']) }}" @if($itemActive) aria-current="page" data-current-nav @endif>
+                            <a href="{{ $item['href'] }}" class="sidebar-link group {{ $itemActive ? 'is-active' : '' }}" title="{{ $tr($item['label']) }}" data-nav-key="{{ $item['key'] }}" @if($itemActive) aria-current="page" data-current-nav @endif>
                                 <span class="sidebar-icon" data-initial="{{ Str::upper(Str::substr($item['label'], 0, 1)) }}">{{ $item['icon'] }}</span>
                                 <span class="sidebar-label truncate">{{ $tr($item['label']) }}</span>
                             </a>
@@ -298,19 +351,22 @@
                             <div class="app-command-panel hidden" data-command-panel>
                                 <div class="flex items-center justify-between border-b border-slate-200 px-3 py-2 dark:border-white/10">
                                     <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Accès rapide') }}</span>
-                                    <span class="text-[11px] font-medium text-slate-400">{{ $tr('Entrée pour ouvrir') }}</span>
+                                    <span class="text-[11px] font-medium text-slate-400"><strong data-command-count>{{ $commandLinks->count() }}</strong> · {{ $tr('Entrée pour ouvrir') }}</span>
                                 </div>
                                 <div class="max-h-[360px] overflow-y-auto p-2">
                                     @foreach ($commandLinks as $commandLink)
                                         @php
-                                            $commandSearch = Str::lower($commandLink['label'].' '.$commandLink['translated_label'].' '.$commandLink['section'].' '.$commandLink['translated_section'].' '.$commandLink['href']);
+                                            $labelAliases = $commandAliases[$commandLink['label']] ?? '';
+                                            $sectionAliases = $commandAliases[$commandLink['section']] ?? '';
+                                            $commandSearch = Str::lower($commandLink['label'].' '.$commandLink['translated_label'].' '.$commandLink['section'].' '.$commandLink['translated_section'].' '.$commandLink['kind'].' '.$labelAliases.' '.$sectionAliases);
                                         @endphp
-                                        <a href="{{ $commandLink['href'] }}" class="app-command-item" data-command-item data-command-search="{{ $commandSearch }}">
+                                        <a href="{{ $commandLink['href'] }}" class="app-command-item" data-command-item data-command-kind="{{ $commandLink['kind'] }}" data-command-title="{{ Str::lower($commandLink['label']) }}" data-command-label="{{ Str::lower($commandLink['label'].' '.$commandLink['translated_label']) }}" data-command-module="{{ $commandLink['section'] }}" data-command-search="{{ $commandSearch }}">
                                             <span class="app-command-item-icon">{{ $commandLink['icon'] }}</span>
                                             <span class="min-w-0 flex-1">
                                                 <strong>{{ $commandLink['translated_label'] }}</strong>
-                                                <small>{{ $commandLink['translated_section'] }}</small>
+                                                <small>{{ $tr($commandLink['kind']) }} · {{ $commandLink['translated_section'] }}</small>
                                             </span>
+                                            <em>{{ $tr('Ouvrir') }}</em>
                                         </a>
                                     @endforeach
                                     <div class="app-command-empty hidden" data-command-empty>

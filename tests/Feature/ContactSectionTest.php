@@ -63,9 +63,10 @@ class ContactSectionTest extends TestCase
         $this->assertSame('school', $contact->client_type);
         $this->assertSame('Rue test', $contact->shipping_address);
 
-        $this->getJson(route('contacts.data', ['kind' => 'client', 'search' => ['value' => 'CRM Test']]))
+        $contactsData = $this->getJson(route('contacts.data', ['kind' => 'client', 'search' => ['value' => 'CRM Test']]))
             ->assertOk()
             ->assertJsonPath('recordsFiltered', 1);
+        $this->assertStringContainsString('#contact-form', data_get($contactsData->json(), 'data.0.row_url', ''));
 
         $update = $this->put(route('contacts.update', $contact), [
             'kind' => 'client',

@@ -56,10 +56,10 @@ Route::redirect('/accounts', '/modules/finance?section=accounts')->name('legacy.
 Route::redirect('/money_transfer', '/modules/finance?section=transfers')->name('legacy.money_transfer');
 Route::redirect('/money_deposit', '/modules/finance?section=deposits')->name('legacy.money_deposit');
 Route::redirect('/accounts/cash_transactions', '/modules/finance?section=cash')->name('legacy.cash_transactions');
-Route::redirect('/stock_adjustment/add', '/catalogue?panel=stock-adjustment-add')->name('legacy.stock_adjustment.add');
-Route::redirect('/stock_adjustment', '/catalogue?panel=stock-adjustments')->name('legacy.stock_adjustment');
-Route::redirect('/stock_transfer/add', '/catalogue?panel=stock-transfer-add')->name('legacy.stock_transfer.add');
-Route::redirect('/stock_transfer/view', '/catalogue?panel=stock-transfers')->name('legacy.stock_transfer');
+Route::redirect('/stock_adjustment/add', '/stock?panel=stock-adjustment-add')->name('legacy.stock_adjustment.add');
+Route::redirect('/stock_adjustment', '/stock?panel=stock-adjustments')->name('legacy.stock_adjustment');
+Route::redirect('/stock_transfer/add', '/stock?panel=stock-transfer-add')->name('legacy.stock_transfer.add');
+Route::redirect('/stock_transfer/view', '/stock?panel=stock-transfers')->name('legacy.stock_transfer');
 Route::redirect('/users/view', '/modules/settings?section=users')->name('legacy.users');
 Route::redirect('/roles/view', '/modules/settings?section=roles')->name('legacy.roles');
 Route::redirect('/sms', '/modules/settings?section=messaging')->name('legacy.sms');
@@ -101,6 +101,7 @@ Route::redirect('/state', '/modules/settings?section=states')->name('legacy.stat
 Route::redirect('/users/password_reset', '/modules/settings?section=password')->name('legacy.password');
 
 Route::get('/catalogue', [LibraireProController::class, 'catalog'])->name('catalog');
+Route::get('/stock', [LibraireProController::class, 'stock'])->name('stock');
 Route::get('/catalogue/data', [LibraireProController::class, 'catalogData'])->name('catalog.data');
 Route::post('/catalogue/articles', [LibraireProController::class, 'storeItem'])->name('catalog.items.store');
 Route::put('/catalogue/articles/{item}', [LibraireProController::class, 'updateItem'])->name('catalog.items.update');

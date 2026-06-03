@@ -1348,6 +1348,20 @@
         background-color: color-mix(in srgb, var(--surface-muted) 38%, transparent);
     }
 
+    .app-row-openable {
+        cursor: pointer;
+        transition: background-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .app-row-openable:hover {
+        background-color: color-mix(in srgb, var(--brand-primary) 7%, var(--surface)) !important;
+        box-shadow: inset 3px 0 0 color-mix(in srgb, var(--brand-primary) 72%, transparent);
+    }
+
+    [dir="rtl"] .app-row-openable:hover {
+        box-shadow: inset -3px 0 0 color-mix(in srgb, var(--brand-primary) 72%, transparent);
+    }
+
     .catalog-reference-scroll {
         scrollbar-gutter: stable;
     }
@@ -2046,6 +2060,16 @@
         transform: translateY(-1px);
     }
 
+    .app-command-item.is-hidden {
+        display: none;
+    }
+
+    .app-command-item.is-active {
+        background: color-mix(in srgb, var(--brand-primary) 12%, var(--surface-muted));
+        color: var(--brand-primary);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-primary) 18%, transparent);
+    }
+
     .app-command-item-icon {
         display: grid;
         width: 34px;
@@ -2077,6 +2101,26 @@
         color: var(--text-muted);
         font-size: 0.75rem;
         font-weight: 600;
+    }
+
+    .app-command-item em {
+        flex: 0 0 auto;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--brand-primary) 8%, transparent);
+        color: var(--brand-primary);
+        font-size: 0.68rem;
+        font-style: normal;
+        font-weight: 800;
+        padding: 4px 8px;
+        opacity: 0;
+        transform: translateX(-4px);
+        transition: opacity 140ms ease, transform 140ms ease;
+    }
+
+    .app-command-item:hover em,
+    .app-command-item.is-active em {
+        opacity: 1;
+        transform: translateX(0);
     }
 
     .app-command-empty {
