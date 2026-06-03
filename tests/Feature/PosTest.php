@@ -41,6 +41,7 @@ class PosTest extends TestCase
             ->assertSee('Suggestions caisse')
             ->assertSee('Toutes les catégories')
             ->assertSee('Toutes les marques / éditeurs')
+            ->assertSee('data-pos-search-url', false)
             ->assertSee('Plus vendus')
             ->assertSee('pos-favorite-star', false)
             ->assertSee('type="button" aria-label="Basculer favori"', false)
@@ -241,6 +242,36 @@ class PosTest extends TestCase
         $this->get(route('pos', ['q' => 'RUPTURE-POS-001']))
             ->assertOk()
             ->assertDontSee($item->title);
+    }
+
+    public function test_pos_search_endpoint_finds_service_by_name(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $service = Item::create([
+            'tenant_id' => $tenant->id,
+            'type' => 'service',
+            'status' => 'active',
+            'is_enabled' => true,
+            'checkout_visible' => true,
+            'item_code' => 'SRV-PASSEPORT',
+            'title' => 'Photo passeport biométrique',
+            'barcode' => 'PASS-SERVICE-001',
+            'purchase_price' => 0,
+            'sale_price' => 35,
+            'stock_quantity' => 0,
+            'min_stock_threshold' => 0,
+        ]);
+
+        $this->getJson(route('pos.search', ['q' => 'passeport']))
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $service->id,
+                'name' => 'Photo passeport biométrique',
+                'type' => 'service',
+                'sellable' => true,
+            ]);
     }
 
     public function test_pos_can_display_out_of_stock_items_as_unsellable_when_setting_is_enabled(): void

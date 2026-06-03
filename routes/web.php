@@ -126,6 +126,7 @@ Route::post('/catalogue/stock/transferts', [LibraireProController::class, 'store
 Route::get('/catalogue/export', [LibraireProController::class, 'exportCatalog'])->name('catalog.export');
 Route::get('/catalogue/etiquettes', [LibraireProController::class, 'labels'])->name('catalog.labels');
 Route::get('/caisse', [LibraireProController::class, 'pos'])->name('pos');
+Route::get('/caisse/recherche', [LibraireProController::class, 'posSearch'])->name('pos.search');
 Route::post('/caisse', [LibraireProController::class, 'storePosSale'])->name('pos.store');
 Route::post('/caisse/tickets', [LibraireProController::class, 'holdPosTicket'])->name('pos.tickets.store');
 Route::delete('/caisse/tickets/{ticket}', [LibraireProController::class, 'destroyPosTicket'])->name('pos.tickets.destroy');

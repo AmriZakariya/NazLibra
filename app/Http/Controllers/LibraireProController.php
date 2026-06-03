@@ -33,6 +33,7 @@ use App\Models\VariantOption;
 use App\Support\Locale;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -1956,6 +1957,71 @@ class LibraireProController extends Controller
         ]);
     }
 
+    public function posSearch(Request $request): JsonResponse
+    {
+        $tenant = $this->tenant();
+        $query = trim((string) $request->query('q'));
+        $type = $request->query('type', 'all');
+        $stock = $request->query('stock', 'available');
+        $category = $request->query('category', 'all');
+        $brand = $request->query('brand', 'all');
+        $unit = $request->query('unit', 'all');
+        $allowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
+        $showOutOfStock = (bool) data_get($tenant->settings, 'pos.show_out_of_stock', false);
+
+        $topSold = DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->where('sales.tenant_id', $tenant->id)
+            ->whereNotNull('sale_items.item_id')
+            ->selectRaw('sale_items.item_id, sum(sale_items.quantity) as sold_quantity')
+            ->groupBy('sale_items.item_id')
+            ->pluck('sold_quantity', 'item_id');
+
+        $items = $tenant->items()
+            ->with(['category', 'brand', 'unit'])
+            ->when(
+                $showOutOfStock,
+                fn (Builder $builder) => $builder->whereIn('status', ['active', 'out_of_stock']),
+                fn (Builder $builder) => $builder->where('status', 'active')
+            )
+            ->where('is_enabled', true)
+            ->where('checkout_visible', true)
+            ->when($query !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($query): void {
+                $builder->where('title', 'like', "%{$query}%")
+                    ->orWhere('item_code', 'like', "%{$query}%")
+                    ->orWhere('sku', 'like', "%{$query}%")
+                    ->orWhere('isbn', 'like', "%{$query}%")
+                    ->orWhere('barcode', 'like', "%{$query}%")
+                    ->orWhere('custom_barcode1', 'like', "%{$query}%")
+                    ->orWhere('author', 'like', "%{$query}%")
+                    ->orWhere('editor', 'like', "%{$query}%")
+                    ->orWhere('description', 'like', "%{$query}%")
+                    ->orWhereHas('category', fn (Builder $categoryQuery) => $categoryQuery->where('name', 'like', "%{$query}%"))
+                    ->orWhereHas('brand', fn (Builder $brandQuery) => $brandQuery->where('name', 'like', "%{$query}%"))
+                    ->orWhereHas('unit', fn (Builder $unitQuery) => $unitQuery->where('name', 'like', "%{$query}%"));
+            }))
+            ->when(in_array($type, ['book', 'supply', 'service'], true), fn (Builder $builder) => $builder->where('type', $type))
+            ->when($category !== 'all', fn (Builder $builder) => $builder->where('category_id', $category))
+            ->when($brand !== 'all', fn (Builder $builder) => $builder->where('brand_id', $brand))
+            ->when($unit !== 'all', fn (Builder $builder) => $builder->where('unit_id', $unit))
+            ->when($stock === 'available' && ! $allowOversell && ! $showOutOfStock, fn (Builder $builder) => $builder->where(function (Builder $builder): void {
+                $builder->where('type', 'service')->orWhereRaw('stock_quantity > 0');
+            }))
+            ->when($stock === 'low' && ! $allowOversell, fn (Builder $builder) => $builder->where('type', '!=', 'service')->whereColumn('stock_quantity', '<=', 'min_stock_threshold'))
+            ->orderByRaw("case when type = 'service' then 0 when stock_quantity <= 0 then 2 when stock_quantity <= min_stock_threshold then 1 else 0 end")
+            ->orderBy('title')
+            ->limit($query === '' ? 240 : 80)
+            ->get()
+            ->sortByDesc(fn (Item $item) => (int) ($topSold[$item->id] ?? 0))
+            ->values()
+            ->map(fn (Item $item): array => $this->posItemPayload($item, $topSold, $allowOversell));
+
+        return response()->json([
+            'items' => $items,
+            'count' => $items->count(),
+        ]);
+    }
+
     public function storePosSale(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();
@@ -3556,6 +3622,51 @@ class LibraireProController extends Controller
             ];
         })->filter(fn ($line) => $line['item_id'] > 0)
             ->values();
+    }
+
+    private function posItemPayload(Item $item, \Illuminate\Support\Collection $topSold, bool $allowOversell): array
+    {
+        $image = collect($item->images)->first();
+        $isOutOfStock = $item->type !== 'service' && (int) $item->stock_quantity <= 0;
+        $isSellable = $allowOversell || $item->type === 'service' || ! $isOutOfStock;
+        $primaryCode = $item->barcode ?? $item->isbn ?? $item->sku ?? $item->custom_barcode1 ?? $item->item_code;
+        $searchText = collect([
+            $item->title,
+            $item->barcode,
+            $item->isbn,
+            $item->sku,
+            $item->custom_barcode1,
+            $item->item_code,
+            $item->author,
+            $item->editor,
+            $item->description,
+            $item->category?->name,
+            $item->brand?->name,
+            $item->unit?->name,
+        ])->filter()->join(' ');
+
+        return [
+            'id' => $item->id,
+            'name' => $item->title,
+            'price' => (float) $item->sale_price,
+            'stock' => $item->type === 'service' ? 999999 : (int) $item->stock_quantity,
+            'sellable' => $isSellable,
+            'out_of_stock' => $isOutOfStock,
+            'type' => $item->type,
+            'type_label' => $item->type === 'service' ? 'Service' : ($item->type === 'book' ? 'Livre' : 'Produit'),
+            'category_id' => $item->category_id,
+            'brand_id' => $item->brand_id,
+            'unit_id' => $item->unit_id,
+            'category_name' => $item->category?->name ?? 'Sans catégorie',
+            'brand_name' => $item->brand?->name,
+            'unit_name' => $item->unit?->name,
+            'low_threshold' => (int) $item->min_stock_threshold,
+            'sold' => (int) ($topSold[$item->id] ?? 0),
+            'barcode' => $primaryCode,
+            'image_url' => $image ? asset('storage/'.$image) : null,
+            'stock_url' => route('catalog', ['panel' => 'stock-adjustment-add', 'stock_q' => $primaryCode ?? $item->title]),
+            'search' => Str::lower($searchText),
+        ];
     }
 
     private function reportContext(Tenant $tenant, Request $request): array

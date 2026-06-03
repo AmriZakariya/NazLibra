@@ -4,7 +4,7 @@
 @endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · Caisse">
-    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? [])' data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}" data-show-out-of-stock="{{ $showOutOfStock ? '1' : '0' }}">
+    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? [])' data-pos-search-url="{{ route('pos.search') }}" data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}" data-show-out-of-stock="{{ $showOutOfStock ? '1' : '0' }}">
         <div class="min-w-0 space-y-5">
             @if ($lastSale)
                 @php
@@ -288,7 +288,7 @@
                     <summary class="pos-suggestions-summary flex cursor-pointer list-none items-center justify-between gap-3 p-3">
                         <span class="min-w-0">
                             <span class="block font-semibold">Suggestions caisse</span>
-                            <span class="mt-1 block truncate text-sm text-slate-500"><span class="pos-visible-count">{{ $items->count() }}</span> résultat(s). Favoris et plus vendus.</span>
+                            <span class="mt-1 block truncate text-sm text-slate-500"><span class="pos-visible-count">{{ $items->count() }}</span> résultat(s). <span class="pos-search-state">Favoris et plus vendus.</span></span>
                         </span>
                         <span class="flex shrink-0 items-center gap-2">
                             <em data-collapsible-menu-state class="rounded-lg bg-brand/10 px-2.5 py-1 text-xs font-bold not-italic text-brand">Afficher</em>
@@ -473,7 +473,7 @@
                 </div>
             </div>
             <div class="grid gap-4 p-5">
-                <div class="rounded-xl bg-rose-50 p-4 text-sm text-rose-700 ring-1 ring-rose-100 dark:bg-rose-500/10 dark:text-rose-200 dark:ring-rose-500/20">
+                <div class="rounded-xl bg-rose-50 p-4 text-sm text-black ring-1 dark:ring-rose-500/20">
                     Cet article est visible dans la caisse, mais le stock disponible est à zéro. Il ne peut pas être ajouté au panier tant que la vente hors stock est désactivée.
                 </div>
                 <div class="grid gap-3 sm:grid-cols-3">

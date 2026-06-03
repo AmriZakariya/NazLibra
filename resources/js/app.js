@@ -430,7 +430,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const cart = [];
     const cartNode = screen.querySelector('.pos-cart');
     const emptyNode = screen.querySelector('.pos-empty');
-    const products = [...screen.querySelectorAll('.pos-product')];
+    let products = [...screen.querySelectorAll('.pos-product')];
     const search = screen.querySelector('.pos-search');
     const typeFilter = screen.querySelector('.pos-type-filter');
     const stockFilter = screen.querySelector('.pos-stock-filter');
@@ -449,6 +449,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const submitLabel = screen.querySelector('.pos-submit-label');
     const suggestionButtons = [...screen.querySelectorAll('.pos-suggestion-btn')];
     const itemDialog = screen.querySelector('.pos-item-dialog');
+    const initialProductsHtml = productsGrid?.innerHTML || '';
     const dialogTitle = itemDialog?.querySelector('.pos-dialog-title');
     const dialogMeta = itemDialog?.querySelector('.pos-dialog-meta');
     const dialogQuantity = itemDialog?.querySelector('.pos-dialog-quantity');
@@ -464,11 +465,32 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const priceEditable = screen.dataset.priceEditable === '1';
     const allowOversell = screen.dataset.allowOversell === '1';
     const showOutOfStock = screen.dataset.showOutOfStock === '1';
+    const searchUrl = screen.dataset.posSearchUrl;
+    const searchState = screen.querySelector('.pos-search-state');
     const submitButtons = [...screen.querySelectorAll('button[type="submit"]')];
     let activeSubmitter = null;
     let submitting = false;
     let suggestionMode = 'all';
     let favoriteIds = JSON.parse(localStorage.getItem('librairepro-pos-favorites') || '[]').map(Number);
+    let searchTimer = null;
+    let searchSequence = 0;
+
+    const normalizeText = (value) => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
+    const setSearchState = (message) => {
+        if (searchState) searchState.textContent = message;
+    };
 
     const setProductView = (view) => {
         if (!productsGrid) return;
@@ -486,6 +508,68 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             favoriteButton?.setAttribute('aria-pressed', active ? 'true' : 'false');
             favoriteButton?.setAttribute('title', active ? 'Retirer des favoris' : 'Ajouter aux favoris');
         });
+    };
+
+    const productCardHtml = (item) => {
+        const stock = Number(item.stock || 0);
+        const lowThreshold = Number(item.low_threshold || 3);
+        const isService = item.type === 'service';
+        const isOutOfStock = Boolean(item.out_of_stock);
+        const isSellable = Boolean(item.sellable);
+        const statusTone = isOutOfStock ? 'danger' : (isService ? 'info' : (stock <= lowThreshold ? 'warning' : 'success'));
+        const statusLabel = isOutOfStock ? 'Rupture' : (isService ? 'Service' : stock);
+        const statusClasses = {
+            success: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
+            warning: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
+            danger: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20',
+            info: 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/20',
+        }[statusTone];
+        const initials = escapeHtml(String(item.name || 'AR').slice(0, 2).toUpperCase());
+        const image = item.image_url
+            ? `<img src="${escapeHtml(item.image_url)}" alt="" class="size-12 rounded-lg object-cover">`
+            : `<div class="grid size-12 place-items-center rounded-lg bg-slate-100 text-sm font-bold text-slate-500 dark:bg-white/10">${initials}</div>`;
+        const soldBadge = Number(item.sold || 0) > 0
+            ? `<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-white/10">${Number(item.sold || 0)} vendus</span>`
+            : '';
+        const unavailable = !isSellable
+            ? '<p class="mt-2 rounded-lg bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20">Non vendable · cliquer pour gérer le stock</p>'
+            : '';
+
+        return `
+            <article class="pos-product pos-item pos-product-card rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md dark:border-white/10 dark:bg-white/[0.03] ${isSellable ? '' : 'opacity-60 grayscale hover:translate-y-0 hover:border-rose-200 hover:shadow-sm dark:hover:border-rose-500/30'}"
+                role="button"
+                tabindex="0"
+                aria-disabled="${isSellable ? 'false' : 'true'}"
+                data-id="${escapeHtml(item.id)}"
+                data-name="${escapeHtml(item.name)}"
+                data-price="${escapeHtml(item.price)}"
+                data-stock="${escapeHtml(stock)}"
+                data-sellable="${isSellable ? '1' : '0'}"
+                data-stock-url="${escapeHtml(item.stock_url || '')}"
+                data-low-threshold="${escapeHtml(lowThreshold)}"
+                data-type="${escapeHtml(item.type || 'book')}"
+                data-category-id="${escapeHtml(item.category_id || '')}"
+                data-brand-id="${escapeHtml(item.brand_id || '')}"
+                data-unit-id="${escapeHtml(item.unit_id || '')}"
+                data-sold="${escapeHtml(item.sold || 0)}"
+                data-barcode="${escapeHtml(item.barcode || '')}"
+                data-search="${escapeHtml(normalizeText(item.search || `${item.name} ${item.barcode || ''} ${item.category_name || ''} ${item.brand_name || ''} ${item.unit_name || ''}`))}">
+                <div class="pos-product-top flex items-start justify-between gap-3">
+                    ${image}
+                    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${statusClasses}">${escapeHtml(statusLabel)}</span>
+                </div>
+                <div class="pos-product-name mt-3 flex items-start gap-2">
+                    <button class="pos-favorite-star text-base text-slate-300" data-product-id="${escapeHtml(item.id)}" type="button" aria-label="Basculer favori" title="Basculer favori">★</button>
+                    <p class="line-clamp-2 min-h-10 text-sm font-semibold">${escapeHtml(item.name)}</p>
+                </div>
+                <p class="pos-product-meta mt-2 truncate text-xs text-slate-500">${escapeHtml(item.category_name || 'Sans catégorie')} · ${escapeHtml(item.barcode || 'Sans code')}</p>
+                ${unavailable}
+                <div class="pos-product-footer mt-3 flex items-center justify-between gap-2">
+                    <p class="text-lg font-semibold">${money.format(Number(item.price || 0))}</p>
+                    ${soldBadge}
+                </div>
+            </article>
+        `;
     };
 
     const setSuggestionMode = (mode) => {
@@ -696,7 +780,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     };
 
     const filterProducts = () => {
-        const query = (search?.value || '').trim().toLowerCase();
+        const query = normalizeText(search?.value || '');
+        const queryTokens = query.split(/\s+/).filter(Boolean);
         const type = typeFilter?.value || 'all';
         const stock = stockFilter?.value || 'available';
         const category = categoryFilter?.value || 'all';
@@ -705,7 +790,9 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         let visible = 0;
 
         products.forEach((product) => {
-            const matchesQuery = !query || product.dataset.search?.includes(query) || product.dataset.barcode?.toLowerCase() === query;
+            const searchable = normalizeText(product.dataset.search || '');
+            const barcode = normalizeText(product.dataset.barcode || '');
+            const matchesQuery = !query || barcode === query || queryTokens.every((token) => searchable.includes(token) || barcode.includes(token));
             const matchesType = type === 'all' || product.dataset.type === type;
             const matchesCategory = category === 'all' || product.dataset.categoryId === category;
             const matchesBrand = brand === 'all' || product.dataset.brandId === brand;
@@ -761,7 +848,9 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         return false;
     };
 
-    products.forEach((button) => {
+    const bindProductInteractions = (button) => {
+        if (button.dataset.bound === '1') return;
+        button.dataset.bound = '1';
         let pressTimer = null;
         let longPress = false;
 
@@ -808,21 +897,82 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             }
             addProduct(button);
         });
-    });
-    search?.addEventListener('input', () => {
+    };
+
+    const hydrateProducts = () => {
+        products = [...screen.querySelectorAll('.pos-product')];
+        products.forEach(bindProductInteractions);
+        refreshFavorites();
         filterProducts();
+    };
+
+    const fetchServerProducts = async () => {
+        if (!searchUrl || !productsGrid || !search) return;
+        const query = search.value.trim();
+        const sequence = ++searchSequence;
+
+        if (query === '') {
+            if (productsGrid && initialProductsHtml) {
+                productsGrid.innerHTML = initialProductsHtml;
+                hydrateProducts();
+            }
+            setSearchState('Favoris et plus vendus.');
+            filterProducts();
+            return;
+        }
+
+        const url = new URL(searchUrl, window.location.origin);
+        url.searchParams.set('q', query);
+        url.searchParams.set('type', typeFilter?.value || 'all');
+        url.searchParams.set('stock', stockFilter?.value || 'available');
+        url.searchParams.set('category', categoryFilter?.value || 'all');
+        url.searchParams.set('brand', brandFilter?.value || 'all');
+        url.searchParams.set('unit', unitFilter?.value || 'all');
+
+        setSearchState('Recherche en cours...');
+        try {
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error('Search failed');
+            const payload = await response.json();
+            if (sequence !== searchSequence) return;
+            productsGrid.innerHTML = (payload.items || []).map(productCardHtml).join('');
+            setSearchState(`${payload.count || 0} résultat(s) serveur.`);
+            hydrateProducts();
+        } catch {
+            if (sequence !== searchSequence) return;
+            setSearchState('Recherche locale uniquement.');
+            filterProducts();
+        }
+    };
+
+    products.forEach(bindProductInteractions);
+    search?.addEventListener('input', () => {
+        window.clearTimeout(searchTimer);
+        filterProducts();
+        searchTimer = window.setTimeout(fetchServerProducts, 220);
     });
-    search?.addEventListener('keydown', (event) => {
+    search?.addEventListener('keydown', async (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
-            addBySearch();
+            if (!addBySearch()) {
+                window.clearTimeout(searchTimer);
+                await fetchServerProducts();
+                addBySearch();
+            }
         }
     });
-    typeFilter?.addEventListener('change', filterProducts);
-    stockFilter?.addEventListener('change', filterProducts);
-    categoryFilter?.addEventListener('change', filterProducts);
-    brandFilter?.addEventListener('change', filterProducts);
-    unitFilter?.addEventListener('change', filterProducts);
+    const refilterProducts = () => {
+        filterProducts();
+        if ((search?.value || '').trim()) {
+            window.clearTimeout(searchTimer);
+            searchTimer = window.setTimeout(fetchServerProducts, 120);
+        }
+    };
+    typeFilter?.addEventListener('change', refilterProducts);
+    stockFilter?.addEventListener('change', refilterProducts);
+    categoryFilter?.addEventListener('change', refilterProducts);
+    brandFilter?.addEventListener('change', refilterProducts);
+    unitFilter?.addEventListener('change', refilterProducts);
 
     screen.addEventListener('click', (event) => {
         const favorite = event.target.closest('.pos-favorite-star');
