@@ -19,7 +19,8 @@ class AuthTest extends TestCase
         $this->get(route('login'))
             ->assertOk()
             ->assertSee('Connexion')
-            ->assertSee('Se connecter');
+            ->assertSee('Se connecter')
+            ->assertSee(config('app.version'));
     }
 
     public function test_guest_is_redirected_to_login_for_protected_pages(): void
@@ -41,6 +42,19 @@ class AuthTest extends TestCase
             ->assertForbidden()
             ->assertSee('Accès non autorisé')
             ->assertSee('reports.view');
+    }
+
+    public function test_authenticated_layout_displays_app_version(): void
+    {
+        $this->seed();
+
+        $user = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee(config('app.version'))
+            ->assertSee('sidebar-release', false);
     }
 
     public function test_authenticated_user_without_tenant_access_sees_no_access_page(): void

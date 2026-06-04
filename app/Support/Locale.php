@@ -340,6 +340,8 @@ class Locale
             'Se connecter' => 'تسجيل الدخول',
             'Compte de démonstration' => 'حساب تجريبي',
             'mot de passe' => 'كلمة المرور',
+            'Version' => 'الإصدار',
+            'Production' => 'الإنتاج',
         ];
     }
 }

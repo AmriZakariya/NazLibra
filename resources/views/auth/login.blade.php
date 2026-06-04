@@ -19,6 +19,8 @@
     $locale = \App\Support\Locale::current($tenant);
     $direction = \App\Support\Locale::dir($locale);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
+    $appVersion = config('app.version', '1.0.0-beta.1');
+    $releaseLabel = app()->environment('production') ? $tr('Production') : \Illuminate\Support\Str::headline(app()->environment());
 @endphp
 <!DOCTYPE html>
 <html lang="{{ $locale }}" dir="{{ $direction }}" data-locale="{{ $locale }}" style="--brand-primary: {{ $theme['primary'] }}; --brand-accent: {{ $theme['accent'] }}; --brand-success: {{ $theme['success'] }}; --app-bg: {{ $theme['background'] }}; --surface: {{ $theme['surface_color'] }}; --surface-muted: {{ $theme['surface_muted'] }}; --text-main: {{ $theme['text'] }}; --text-muted: {{ $theme['muted'] }}; --border-soft: {{ $theme['border'] }}; --font-scale: {{ $theme['font_scale'] }}; --brand-radius: {{ $theme['radius'] }}px;">
@@ -40,12 +42,15 @@
                     <div class="absolute inset-x-0 bottom-0 h-1/2 bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.10))]"></div>
 
                     <div class="relative">
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="flex min-w-0 items-center gap-3">
                             <span class="grid size-12 place-items-center rounded-2xl bg-white text-sm font-black text-slate-950 shadow-sm">LP</span>
                             <div>
                             <p class="text-sm font-semibold text-white/80">LibrairePro SaaS</p>
                                 <p class="text-lg font-semibold">{{ $tenantName }}</p>
                             </div>
+                            </div>
+                            <span class="login-version-badge">{{ $tr('Version') }} {{ $appVersion }}</span>
                         </div>
 
                         <div class="mt-12 max-w-xl">
@@ -112,6 +117,11 @@
                                 <p class="mt-1">Email: <span class="font-mono text-xs">{{ $demoLoginEmail }}</span> · {{ $tr('mot de passe') }}: <span class="font-mono text-xs">password</span></p>
                             </div>
                         @endif
+
+                        <div class="mt-5 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+                            <span class="font-semibold">{{ $tr('Version') }} {{ $appVersion }}</span>
+                            <span>{{ $releaseLabel }} · {{ now()->format('d/m/Y') }}</span>
+                        </div>
                     </section>
                 </div>
             </section>

@@ -20,6 +20,8 @@
     $locale = \App\Support\Locale::current($tenant);
     $direction = \App\Support\Locale::dir($locale);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
+    $appVersion = config('app.version', '1.0.0-beta.1');
+    $releaseLabel = app()->environment('production') ? $tr('Production') : \Illuminate\Support\Str::headline(app()->environment());
     $layoutStores = collect($tenant->settings['stores'] ?? [])
         ->map(fn ($store) => is_array($store) ? $store : ['name' => (string) $store])
         ->map(function (array $store) use ($tenant) {
@@ -328,6 +330,13 @@
                     @endforeach
                 </nav>
 
+                <div class="sidebar-release m-3 mt-0">
+                    <span class="sidebar-release-mark">v</span>
+                    <span class="sidebar-label min-w-0">
+                        <strong>{{ $appVersion }}</strong>
+                        <small>{{ $releaseLabel }} · {{ now()->format('d/m/Y') }}</small>
+                    </span>
+                </div>
 
             </aside>
 
