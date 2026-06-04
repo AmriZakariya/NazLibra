@@ -376,6 +376,23 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="app-product-search relative hidden md:block" data-product-search data-product-search-url="{{ route('catalog.quick-search') }}">
+                            <label class="app-product-search-input">
+                                <span class="app-product-search-icon">▦</span>
+                                <input type="search" data-product-search-input autocomplete="off" placeholder="{{ $tr('Produit...') }}">
+                            </label>
+                            <div class="app-product-search-panel hidden" data-product-search-panel>
+                                <div class="app-product-search-head">
+                                    <span>{{ $tr('Articles & services') }}</span>
+                                    <small><strong data-product-search-count>0</strong> {{ $tr('résultat(s)') }}</small>
+                                </div>
+                                <div class="app-product-search-results" data-product-search-results></div>
+                                <div class="app-product-search-empty hidden" data-product-search-empty>
+                                    <strong>{{ $tr('Aucun produit trouvé') }}</strong>
+                                    <span>{{ $tr('Essayez un nom, ISBN, SKU, code article ou code-barres.') }}</span>
+                                </div>
+                            </div>
+                        </div>
                         <button class="app-theme-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Basculer le thème') }}">◐</button>
                         <details class="relative hidden sm:block">
                             <summary class="current-store-trigger flex h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">

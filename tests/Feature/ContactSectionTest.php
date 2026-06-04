@@ -92,6 +92,34 @@ class ContactSectionTest extends TestCase
         $this->assertDatabaseMissing('contacts', ['id' => $contact->id]);
     }
 
+    public function test_supplier_can_be_created_inline_for_purchase_flow(): void
+    {
+        $this->seed();
+
+        $response = $this->postJson(route('contacts.store'), [
+            'kind' => 'supplier',
+            'name' => 'Fournisseur Achat Rapide',
+            'client_type' => 'company',
+            'status' => 'active',
+            'phone' => '+212600111222',
+            'email' => 'achat.rapide@example.test',
+            'ice' => 'ICE-RAPIDE-001',
+            'price_level_type' => 'increase',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonFragment([
+                'label' => 'Fournisseur Achat Rapide · +212600111222',
+            ]);
+
+        $this->assertDatabaseHas('contacts', [
+            'kind' => 'supplier',
+            'name' => 'Fournisseur Achat Rapide',
+            'phone' => '+212600111222',
+        ]);
+    }
+
     public function test_supplier_section_uses_supplier_fields_and_financial_columns(): void
     {
         $this->seed();

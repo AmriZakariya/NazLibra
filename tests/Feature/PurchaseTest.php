@@ -21,6 +21,9 @@ class PurchaseTest extends TestCase
             ->assertOk()
             ->assertSee('Ajouter un achat')
             ->assertSee('Fournisseur')
+            ->assertSee('Raccourcis achat')
+            ->assertSee('purchase-supplier-dialog', false)
+            ->assertSee('Ajouter article')
             ->assertSee("Enregistrer l'achat", false);
 
         $this->get(route('module', ['module' => 'purchases', 'section' => 'list']))
@@ -65,6 +68,14 @@ class PurchaseTest extends TestCase
         $this->assertSame('received', $purchase->fresh()->status);
         $this->assertSame($initialStock + 5, $item->fresh()->stock_quantity);
         $this->assertSame(5, $purchase->items()->firstOrFail()->fresh()->quantity_received);
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'type' => 'purchase',
+            'quantity_delta' => 5,
+            'quantity_after' => $initialStock + 5,
+            'reference_type' => Purchase::class,
+            'reference_id' => $purchase->id,
+        ]);
     }
 
     public function test_purchase_return_decrements_stock_and_is_searchable(): void
@@ -102,6 +113,14 @@ class PurchaseTest extends TestCase
         $returnResponse->assertRedirect(route('module', ['module' => 'purchases', 'section' => 'returns']));
         $this->assertStringStartsWith('RAC', $return->number);
         $this->assertSame($initialStock + 2, $item->fresh()->stock_quantity);
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'type' => 'purchase_return',
+            'quantity_delta' => -2,
+            'quantity_after' => $initialStock + 2,
+            'reference_type' => PurchaseReturn::class,
+            'reference_id' => $return->id,
+        ]);
 
         $this->get(route('module', ['module' => 'purchases', 'section' => 'returns', 'q' => 'abîmés']))
             ->assertOk()

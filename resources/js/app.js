@@ -237,6 +237,166 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
     });
 });
 
+document.querySelectorAll('[data-product-search]').forEach((search) => {
+    const endpoint = search.dataset.productSearchUrl;
+    const input = search.querySelector('[data-product-search-input]');
+    const panel = search.querySelector('[data-product-search-panel]');
+    const results = search.querySelector('[data-product-search-results]');
+    const empty = search.querySelector('[data-product-search-empty]');
+    const count = search.querySelector('[data-product-search-count]');
+    let activeIndex = 0;
+    let requestId = 0;
+    let debounceTimer = null;
+
+    if (!endpoint || !input || !panel || !results) return;
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+    const resultItems = () => [...results.querySelectorAll('[data-product-search-item]')];
+
+    const setActive = (nextIndex) => {
+        const items = resultItems();
+        if (items.length === 0) {
+            activeIndex = 0;
+            return;
+        }
+
+        activeIndex = ((nextIndex % items.length) + items.length) % items.length;
+        items.forEach((item) => item.classList.remove('is-active'));
+        items[activeIndex].classList.add('is-active');
+        items[activeIndex].scrollIntoView({ block: 'nearest' });
+    };
+
+    const open = () => {
+        panel.classList.remove('hidden');
+        search.classList.add('is-open');
+    };
+
+    const close = () => {
+        panel.classList.add('hidden');
+        search.classList.remove('is-open');
+    };
+
+    const renderPrompt = () => {
+        count && (count.textContent = '0');
+        empty?.classList.add('hidden');
+        results.innerHTML = `
+            <div class="app-product-search-hint">
+                <strong>Recherche catalogue</strong>
+                <span>Nom, ISBN, code article, SKU ou code-barres.</span>
+            </div>
+        `;
+        open();
+    };
+
+    const render = (items) => {
+        count && (count.textContent = items.length.toLocaleString(appLocale === 'ar' ? 'ar-MA' : 'fr-FR'));
+        empty?.classList.toggle('hidden', items.length !== 0);
+
+        results.innerHTML = items.map((item) => {
+            const stock = item.stock === null || item.stock === undefined ? 'Sans stock' : `Stock ${item.stock}`;
+            const visibility = [
+                item.is_enabled ? 'Activé' : 'Désactivé',
+                item.checkout_visible ? 'Caisse' : 'Hors caisse',
+            ].join(' · ');
+            const meta = [item.type_label, item.category, item.brand, item.code].filter(Boolean).join(' · ');
+
+            return `
+                <a href="${escapeHtml(item.url)}" class="app-product-search-item" data-product-search-item>
+                    <span class="app-product-search-avatar">${escapeHtml(String(item.type_label || 'AR').slice(0, 2).toUpperCase())}</span>
+                    <span class="min-w-0 flex-1">
+                        <strong>${escapeHtml(item.title)}</strong>
+                        <small>${escapeHtml(meta || 'Sans référence')}</small>
+                    </span>
+                    <span class="app-product-search-side">
+                        <b>${escapeHtml(item.price)}</b>
+                        <small>${escapeHtml(`${stock} · ${visibility}`)}</small>
+                    </span>
+                </a>
+            `;
+        }).join('');
+
+        setActive(0);
+        open();
+    };
+
+    const fetchProducts = async () => {
+        const query = input.value.trim();
+        const currentRequest = ++requestId;
+
+        if (query === '') {
+            renderPrompt();
+            return;
+        }
+
+        try {
+            const url = new URL(endpoint, window.location.origin);
+            url.searchParams.set('q', query);
+            const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+            const payload = await response.json();
+            if (currentRequest !== requestId) return;
+            render(payload.items || []);
+        } catch (error) {
+            if (currentRequest !== requestId) return;
+            count && (count.textContent = '0');
+            results.innerHTML = '';
+            empty?.classList.remove('hidden');
+            open();
+        }
+    };
+
+    const scheduleFetch = () => {
+        window.clearTimeout(debounceTimer);
+        debounceTimer = window.setTimeout(fetchProducts, 180);
+    };
+
+    input.addEventListener('focus', () => {
+        if (input.value.trim() === '') renderPrompt();
+        else fetchProducts();
+    });
+
+    input.addEventListener('input', scheduleFetch);
+
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            close();
+            input.blur();
+            return;
+        }
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            open();
+            setActive(activeIndex + 1);
+            return;
+        }
+
+        if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            open();
+            setActive(activeIndex - 1);
+            return;
+        }
+
+        if (event.key === 'Enter') {
+            const target = resultItems()[activeIndex] || resultItems()[0];
+            if (target) {
+                event.preventDefault();
+                window.location.assign(target.href);
+            }
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!search.contains(event.target)) close();
+    });
+});
+
 const showToast = (message, actionLabel = null, action = null) => {
     let container = document.querySelector('.app-toast-stack');
     if (!container) {
@@ -424,6 +584,212 @@ document.querySelectorAll('[data-manual-sale-form]').forEach((screen) => {
     screen.addEventListener('input', calculate);
     screen.addEventListener('change', calculate);
     calculate();
+});
+
+document.querySelectorAll('[data-purchase-item-builder]').forEach((builder) => {
+    const lines = builder.querySelector('[data-purchase-item-lines]');
+    const template = builder.querySelector('[data-purchase-item-template]');
+    const optionsNode = builder.querySelector('[data-purchase-item-options]');
+    const searchInput = builder.querySelector('[data-purchase-item-search]');
+    const suggestionsNode = builder.querySelector('[data-purchase-item-suggestions]');
+    const addMatchButton = builder.querySelector('[data-purchase-item-add-match]');
+    const clearButton = builder.querySelector('[data-purchase-item-clear]');
+    const countNode = builder.querySelector('[data-purchase-item-count]');
+    const stateNode = builder.querySelector('[data-purchase-item-state]');
+    const selectedNode = builder.querySelector('[data-purchase-item-selected]');
+    const totalNode = builder.querySelector('[data-purchase-item-total]');
+    const searchUrl = builder.dataset.purchaseItemSearchUrl;
+    let nextIndex = Number(builder.dataset.nextIndex || lines?.querySelectorAll('[data-purchase-item-row]').length || 0);
+    let options = [];
+    let timer = null;
+    let sequence = 0;
+
+    if (!lines || !template || !searchInput || !suggestionsNode) return;
+
+    try {
+        options = JSON.parse(optionsNode?.textContent || '[]');
+    } catch {
+        options = [];
+    }
+
+    const normalize = (value) => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
+    const escapeHtml = (value) => String(value || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    const rows = () => [...lines.querySelectorAll('[data-purchase-item-row]')];
+    const selectedIds = () => new Set(rows().map((row) => row.dataset.itemId).filter(Boolean));
+    const optionText = (option) => normalize([
+        option.text,
+        option.title,
+        option.code,
+        option.category,
+        option.brand,
+        option.value,
+    ].filter(Boolean).join(' '));
+    const matchesFor = (query) => {
+        const tokens = normalize(query).split(/\s+/).filter(Boolean);
+        return options.filter((option) => {
+            if (!tokens.length) return true;
+            const haystack = optionText(option);
+            return tokens.every((token) => haystack.includes(token));
+        });
+    };
+    const mergeServerOptions = (items = []) => {
+        items.forEach((item) => {
+            const incoming = {
+                value: String(item.value),
+                title: item.title,
+                text: item.text || item.title,
+                stock: item.stock,
+                code: item.code,
+                category: item.category,
+                brand: item.brand,
+                purchase_price: Number(item.purchase_price || 0),
+            };
+            const index = options.findIndex((option) => String(option.value) === incoming.value);
+            if (index >= 0) {
+                options[index] = { ...options[index], ...incoming };
+            } else {
+                options.push(incoming);
+            }
+        });
+    };
+    const focusExisting = (id) => {
+        const row = rows().find((line) => line.dataset.itemId === String(id));
+        if (!row) return;
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.classList.add('purchase-item-row-highlight');
+        window.setTimeout(() => row.classList.remove('purchase-item-row-highlight'), 1200);
+        row.querySelector('[data-purchase-item-quantity]')?.focus();
+    };
+    const refresh = () => {
+        let total = 0;
+        rows().forEach((row, index) => {
+            row.querySelector('[data-purchase-item-index]').textContent = String(index + 1).padStart(2, '0');
+            const quantity = Math.max(0, Number(row.querySelector('[data-purchase-item-quantity]')?.value || 0));
+            const cost = Math.max(0, Number(row.querySelector('[data-purchase-item-cost]')?.value || 0));
+            const lineTotal = quantity * cost;
+            total += lineTotal;
+            row.querySelector('[data-purchase-item-line-total]').textContent = money.format(lineTotal);
+        });
+        if (selectedNode) selectedNode.textContent = rows().length.toLocaleString('fr-FR');
+        if (totalNode) totalNode.textContent = money.format(total);
+        builder.querySelector('[data-purchase-item-empty]')?.toggleAttribute('hidden', rows().length > 0);
+    };
+    const renderSuggestions = (matches = []) => {
+        const selected = selectedIds();
+        const visible = matches.slice(0, 10);
+        suggestionsNode.hidden = visible.length === 0;
+        if (countNode) countNode.textContent = matches.length.toLocaleString('fr-FR');
+        if (stateNode) stateNode.textContent = searchInput.value.trim() ? ' résultat(s)' : ' disponible(s)';
+        addMatchButton?.toggleAttribute('disabled', visible.length === 0);
+        suggestionsNode.innerHTML = visible.map((option) => {
+            const used = selected.has(String(option.value));
+            return `
+                <button type="button" class="purchase-item-suggestion ${used ? 'is-selected' : ''}" data-value="${escapeHtml(option.value)}">
+                    <span>
+                        <strong>${escapeHtml(option.title || option.text)}</strong>
+                        <small>Stock ${escapeHtml(option.stock ?? '—')} · ${escapeHtml(option.code || 'Sans code')}${option.category ? ` · ${escapeHtml(option.category)}` : ''}${option.brand ? ` · ${escapeHtml(option.brand)}` : ''}</small>
+                    </span>
+                    <em>${used ? 'Déjà ajouté' : money.format(Number(option.purchase_price || 0))}</em>
+                </button>
+            `;
+        }).join('');
+    };
+    const search = async (query, useServer = true) => {
+        const cleanQuery = String(query || '').trim();
+        const localMatches = matchesFor(cleanQuery);
+        renderSuggestions(localMatches);
+
+        if (!useServer || !searchUrl) return localMatches;
+        const currentSequence = ++sequence;
+
+        window.clearTimeout(timer);
+        timer = window.setTimeout(async () => {
+            try {
+                const url = new URL(searchUrl, window.location.origin);
+                if (cleanQuery) url.searchParams.set('q', cleanQuery);
+                const response = await fetch(url, { headers: { Accept: 'application/json' } });
+                if (!response.ok || currentSequence !== sequence) return;
+                const payload = await response.json();
+                mergeServerOptions(payload.items || []);
+                renderSuggestions(matchesFor(cleanQuery));
+            } catch {
+                renderSuggestions(localMatches);
+            }
+        }, 220);
+
+        return localMatches;
+    };
+    const addOption = (option) => {
+        if (!option?.value) return;
+        const id = String(option.value);
+        if (selectedIds().has(id)) {
+            focusExisting(id);
+            return;
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = template.innerHTML.trim().replaceAll('__INDEX__', String(nextIndex));
+        nextIndex += 1;
+        const row = wrapper.firstElementChild;
+        row.dataset.itemId = id;
+        row.querySelector('[data-purchase-item-id]').value = id;
+        row.querySelector('[data-purchase-item-title]').textContent = option.title || option.text || 'Article';
+        row.querySelector('[data-purchase-item-meta]').textContent = `Stock ${option.stock ?? '—'} · ${option.code || 'Sans code'}${option.category ? ` · ${option.category}` : ''}`;
+        row.querySelector('[data-purchase-item-cost]').value = Number(option.purchase_price || 0).toFixed(2);
+
+        builder.querySelector('[data-purchase-item-empty]')?.setAttribute('hidden', 'hidden');
+        lines.append(row);
+        refresh();
+        renderSuggestions(matchesFor(searchInput.value));
+        row.querySelector('[data-purchase-item-quantity]')?.focus();
+    };
+    const addFirstMatch = async () => {
+        let matches = matchesFor(searchInput.value);
+        if (!matches.length && searchInput.value.trim()) {
+            matches = await search(searchInput.value, true);
+        }
+        addOption(matches[0]);
+    };
+
+    searchInput.addEventListener('input', () => search(searchInput.value, true));
+    searchInput.addEventListener('focus', () => search(searchInput.value, false));
+    searchInput.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        addFirstMatch();
+    });
+    addMatchButton?.addEventListener('click', addFirstMatch);
+    clearButton?.addEventListener('click', () => {
+        searchInput.value = '';
+        searchInput.focus();
+        search('', false);
+    });
+    suggestionsNode.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-value]');
+        if (!button) return;
+        addOption(options.find((option) => String(option.value) === String(button.dataset.value)));
+    });
+    lines.addEventListener('click', (event) => {
+        const remove = event.target.closest('[data-purchase-item-remove]');
+        if (!remove) return;
+        remove.closest('[data-purchase-item-row]')?.remove();
+        refresh();
+        renderSuggestions(matchesFor(searchInput.value));
+    });
+    lines.addEventListener('input', refresh);
+    lines.addEventListener('change', refresh);
+
+    search('', false);
+    refresh();
 });
 
 document.querySelectorAll('.pos-screen').forEach((screen) => {
@@ -1571,15 +1937,25 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
     const clearSearchButton = form.querySelector('[data-stock-adjustment-clear]');
     const searchInput = form.querySelector('[data-stock-adjustment-search]');
     const searchCountNode = form.querySelector('[data-stock-adjustment-search-count]');
+    const searchStateNode = form.querySelector('[data-stock-adjustment-search-state]');
+    const suggestionsNode = form.querySelector('[data-stock-adjustment-suggestions]');
     const countNode = form.querySelector('[data-stock-adjustment-count]');
     const totalNode = form.querySelector('[data-stock-adjustment-total]');
     const initialStockQuery = String(form.dataset.stockAdjustmentInitialQuery || '').trim();
+    const stockSearchUrl = form.dataset.stockAdjustmentSearchUrl;
     const selectOptions = new WeakMap();
+    let baseOptions = [];
+    let stockSearchTimer = null;
+    let stockSearchSequence = 0;
     let nextIndex = Number(form.dataset.nextIndex || lines?.querySelectorAll('[data-stock-adjustment-row]').length || 0);
 
     if (!lines || !template || !addButton) return;
 
-    const normalize = (value) => String(value || '').trim().toLowerCase();
+    const normalize = (value) => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toLowerCase();
     const escapeHtml = (value) => String(value || '')
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
@@ -1588,6 +1964,15 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
         .replaceAll("'", '&#039;');
 
     const itemSelects = () => [...lines.querySelectorAll('[data-stock-adjustment-item-select]')];
+    const selectedValues = () => new Set(itemSelects().map((select) => select.value).filter(Boolean));
+
+    const focusExistingRow = (select) => {
+        const row = select?.closest('[data-stock-adjustment-row]');
+        row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row?.classList.add('stock-adjustment-row-highlight');
+        window.setTimeout(() => row?.classList.remove('stock-adjustment-row-highlight'), 1200);
+        row?.querySelector('[data-stock-adjustment-quantity]')?.focus();
+    };
 
     const cacheSelect = (select) => {
         if (selectOptions.has(select)) return selectOptions.get(select);
@@ -1596,12 +1981,57 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
             value: option.value,
             text: option.textContent,
             selected: option.selected,
+            dataset: { ...option.dataset },
         }));
         selectOptions.set(select, options);
+        if (baseOptions.length === 0) {
+            baseOptions = options.filter((option) => option.value);
+        }
         return options;
     };
 
     const selectedOptionText = (select) => cacheSelect(select).find((option) => option.value === select.value)?.text || '';
+
+    const optionSearchText = (option) => normalize([
+        option.text,
+        option.value,
+        option.dataset?.title,
+        option.dataset?.code,
+        option.dataset?.category,
+        option.dataset?.brand,
+    ].filter(Boolean).join(' '));
+
+    const optionMatches = (option, query) => {
+        const tokens = normalize(query).split(/\s+/).filter(Boolean);
+        if (tokens.length === 0) return true;
+        const haystack = optionSearchText(option);
+        return tokens.every((token) => haystack.includes(token));
+    };
+
+    const applyOptionDataset = (node, dataset = {}) => {
+        Object.entries(dataset || {}).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+                node.dataset[key] = value;
+            }
+        });
+    };
+
+    const syncSelectOptions = (options) => {
+        baseOptions = options.filter((option) => option.value);
+        itemSelects().forEach((select) => {
+            const currentValue = select.value;
+            const currentOption = cacheSelect(select).find((option) => option.value === currentValue);
+            const merged = [
+                { value: '', text: 'Choisir un article', selected: false, dataset: {} },
+                ...baseOptions,
+            ];
+            if (currentOption?.value && !merged.some((option) => option.value === currentOption.value)) {
+                merged.push(currentOption);
+            }
+            selectOptions.set(select, merged);
+            renderSelectOptions(select, searchInput?.value || '');
+        });
+    };
 
     const renderComboOptions = (select, query = '') => {
         const combo = select.nextElementSibling?.matches?.('[data-stock-combobox]') ? select.nextElementSibling : null;
@@ -1611,16 +2041,41 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
         const normalized = normalize(query);
         const matches = cacheSelect(select)
             .filter((option) => option.value)
-            .filter((option) => !normalized || normalize(option.text).includes(normalized) || normalize(option.value).includes(normalized))
+            .filter((option) => !normalized || optionMatches(option, normalized))
             .slice(0, 60);
+        const selected = selectedValues();
 
         list.innerHTML = matches.length
             ? matches.map((option) => `
-                <button type="button" class="stock-combobox-option ${option.value === select.value ? 'is-selected' : ''}" data-value="${escapeHtml(option.value)}">
-                    <span>${escapeHtml(option.text)}</span>
+                <button type="button" class="stock-combobox-option ${option.value === select.value ? 'is-selected' : ''} ${selected.has(option.value) && option.value !== select.value ? 'is-used' : ''}" data-value="${escapeHtml(option.value)}">
+                    <span>${escapeHtml(option.dataset?.title || option.text)}</span>
+                    <small>Stock ${escapeHtml(option.dataset?.stock ?? '—')} · ${escapeHtml(option.dataset?.code || 'Sans code')}${option.dataset?.category ? ` · ${escapeHtml(option.dataset.category)}` : ''}${selected.has(option.value) && option.value !== select.value ? ' · déjà ajouté' : ''}</small>
                 </button>
             `).join('')
-            : '<p class="stock-combobox-empty">Aucun article trouvé.</p>';
+            : '<p class="stock-combobox-empty">Aucun article trouvé. Essayez un code-barres, ISBN ou un autre mot.</p>';
+    };
+
+    const renderSearchSuggestions = (matches = []) => {
+        if (!suggestionsNode) return;
+        const visibleMatches = matches.filter((option) => option.value).slice(0, 8);
+        suggestionsNode.hidden = visibleMatches.length === 0;
+        const selected = selectedValues();
+        suggestionsNode.innerHTML = visibleMatches.map((option) => {
+            const stock = option.dataset?.stock ?? '—';
+            const code = option.dataset?.code || 'Sans code';
+            const category = option.dataset?.category ? ` · ${escapeHtml(option.dataset.category)}` : '';
+            const title = option.dataset?.title || option.text;
+            const isSelected = selected.has(option.value);
+            return `
+                <button type="button" class="stock-adjustment-suggestion ${isSelected ? 'is-selected' : ''}" data-value="${escapeHtml(option.value)}">
+                    <span>
+                        <strong>${escapeHtml(title)}</strong>
+                        <small>Stock ${escapeHtml(stock)} · ${escapeHtml(code)}${category}</small>
+                    </span>
+                    <em>${isSelected ? 'Déjà ajouté' : 'Ajouter'}</em>
+                </button>
+            `;
+        }).join('');
     };
 
     const syncComboDisplay = (select) => {
@@ -1661,6 +2116,13 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
             input.value = selectedOptionText(select);
         };
         const choose = (value) => {
+            const duplicate = itemSelects().find((itemSelect) => itemSelect !== select && itemSelect.value === String(value));
+            if (duplicate) {
+                focusExistingRow(duplicate);
+                list.hidden = true;
+                input.value = selectedOptionText(select);
+                return;
+            }
             select.value = String(value);
             select.dispatchEvent(new Event('change', { bubbles: true }));
             input.value = selectedOptionText(select);
@@ -1675,6 +2137,8 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
             select.value = '';
             open();
             renderComboOptions(select, input.value);
+            window.clearTimeout(stockSearchTimer);
+            stockSearchTimer = window.setTimeout(() => fetchStockOptions(input.value), 220);
         });
         input.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
@@ -1704,6 +2168,7 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
     };
 
     const getBaseOptions = () => {
+        if (baseOptions.length) return baseOptions;
         const firstSelect = itemSelects()[0] || template.content?.querySelector?.('[data-stock-adjustment-item-select]');
         if (!firstSelect) return [];
         return cacheSelect(firstSelect).filter((option) => option.value);
@@ -1711,7 +2176,51 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
 
     const matchingOptions = (query) => {
         const normalized = normalize(query);
-        return getBaseOptions().filter((option) => !normalized || normalize(option.text).includes(normalized) || normalize(option.value).includes(normalized));
+        return getBaseOptions().filter((option) => !normalized || optionMatches(option, normalized));
+    };
+
+    const fetchStockOptions = async (query) => {
+        if (!stockSearchUrl) return matchingOptions(query);
+        const cleanQuery = String(query || '').trim();
+        const sequence = ++stockSearchSequence;
+
+        if (searchStateNode) searchStateNode.textContent = cleanQuery ? ' · recherche...' : ' disponibles';
+
+        try {
+            const url = new URL(stockSearchUrl, window.location.origin);
+            if (cleanQuery) url.searchParams.set('q', cleanQuery);
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error('Stock search failed');
+            const payload = await response.json();
+            if (sequence !== stockSearchSequence) return matchingOptions(query);
+
+            const options = (payload.items || []).map((item) => ({
+                value: String(item.value),
+                text: item.text,
+                selected: false,
+                dataset: {
+                    title: item.title,
+                    stock: item.stock,
+                    threshold: item.threshold,
+                    code: item.code,
+                    category: item.category,
+                    brand: item.brand,
+                },
+            }));
+            syncSelectOptions(options);
+            if (searchCountNode) searchCountNode.textContent = Number(payload.count || options.length).toLocaleString('fr-FR');
+            if (searchStateNode) searchStateNode.textContent = cleanQuery ? ' · résultats serveur' : ' disponibles';
+            renderSearchSuggestions(options);
+            addMatchButton?.toggleAttribute('disabled', options.length === 0);
+            return options;
+        } catch {
+            if (sequence !== stockSearchSequence) return matchingOptions(query);
+            const matches = matchingOptions(query);
+            if (searchStateNode) searchStateNode.textContent = ' · recherche locale';
+            if (searchCountNode) searchCountNode.textContent = matches.length.toLocaleString('fr-FR');
+            renderSearchSuggestions(matches);
+            return matches;
+        }
     };
 
     const renderSelectOptions = (select, query = '') => {
@@ -1720,12 +2229,14 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
         const normalized = normalize(query);
         const filtered = options.filter((option) => {
             if (!option.value) return true;
-            return !normalized || normalize(option.text).includes(normalized) || normalize(option.value).includes(normalized) || option.value === currentValue;
+            return !normalized || optionMatches(option, normalized) || option.value === currentValue;
         });
 
         select.innerHTML = '';
         filtered.forEach((option) => {
-            select.add(new Option(option.text, option.value, false, option.value === currentValue));
+            const node = new Option(option.text, option.value, false, option.value === currentValue);
+            applyOptionDataset(node, option.dataset);
+            select.add(node);
         });
         syncComboDisplay(select);
     };
@@ -1737,8 +2248,18 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
         if (searchCountNode) {
             searchCountNode.textContent = matches.length.toLocaleString('fr-FR');
         }
+        if (searchStateNode) {
+            searchStateNode.textContent = query ? ' · résultats locaux' : ' disponibles';
+        }
+        renderSearchSuggestions(matches);
         addMatchButton?.toggleAttribute('disabled', matches.length === 0);
         return matches;
+    };
+
+    const scheduleStockSearch = () => {
+        window.clearTimeout(stockSearchTimer);
+        applySearch();
+        stockSearchTimer = window.setTimeout(() => fetchStockOptions(searchInput?.value || ''), 220);
     };
 
     const refreshSummary = () => {
@@ -1790,9 +2311,14 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
         return row;
     };
 
-    const selectFirstMatch = () => {
-        const match = applySearch()[0];
+    const selectMatch = (match) => {
         if (!match) return;
+
+        const duplicate = itemSelects().find((select) => select.value === String(match.value));
+        if (duplicate) {
+            focusExistingRow(duplicate);
+            return;
+        }
 
         let targetSelect = itemSelects().find((select) => !select.value);
         if (!targetSelect) {
@@ -1806,20 +2332,38 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
         targetSelect.closest('[data-stock-adjustment-row]')?.querySelector('[data-stock-adjustment-quantity]')?.focus();
     };
 
+    const selectFirstMatch = async () => {
+        let match = applySearch()[0];
+        if (searchInput?.value && stockSearchUrl) {
+            const serverMatches = await fetchStockOptions(searchInput.value);
+            match = serverMatches?.[0] || match;
+        }
+        selectMatch(match);
+    };
+
     addButton.addEventListener('click', () => addRow());
-    addMatchButton?.addEventListener('click', selectFirstMatch);
+    addMatchButton?.addEventListener('click', () => {
+        selectFirstMatch();
+    });
     clearSearchButton?.addEventListener('click', () => {
         if (searchInput) {
             searchInput.value = '';
             searchInput.focus();
         }
-        applySearch();
+        scheduleStockSearch();
     });
-    searchInput?.addEventListener('input', applySearch);
+    searchInput?.addEventListener('input', scheduleStockSearch);
     searchInput?.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter') return;
         event.preventDefault();
         selectFirstMatch();
+    });
+    suggestionsNode?.addEventListener('click', (event) => {
+        const suggestion = event.target.closest('[data-value]');
+        if (!suggestion) return;
+        const match = getBaseOptions().find((option) => option.value === suggestion.dataset.value)
+            || matchingOptions(searchInput?.value || '').find((option) => option.value === suggestion.dataset.value);
+        selectMatch(match || { value: suggestion.dataset.value, text: suggestion.textContent.trim(), dataset: {} });
     });
     lines.addEventListener('click', (event) => {
         const removeButton = event.target.closest('[data-stock-adjustment-remove]');
@@ -1831,7 +2375,7 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
     });
     lines.addEventListener('input', refreshSummary);
     lines.addEventListener('change', () => {
-        applySearch();
+        scheduleStockSearch();
         refreshSummary();
     });
     itemSelects().forEach((select) => {
@@ -1844,6 +2388,158 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
         applySearch();
     }
     refreshSummary();
+});
+
+document.querySelectorAll('[data-inventory-item-picker]').forEach((form) => {
+    const input = form.querySelector('[data-inventory-item-input]');
+    const hiddenId = form.querySelector('[data-inventory-item-id]');
+    const results = form.querySelector('[data-inventory-item-results]');
+    const searchUrl = form.dataset.inventoryItemSearchUrl;
+    let timer = null;
+    let sequence = 0;
+    let matches = [];
+    let activeIndex = -1;
+
+    if (!input || !hiddenId || !results || !searchUrl) return;
+
+    const escapeHtml = (value) => String(value || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
+    const hideResults = () => {
+        results.hidden = true;
+        activeIndex = -1;
+    };
+
+    const targetUrl = (itemId) => {
+        const url = new URL(form.action, window.location.origin);
+        url.searchParams.set('panel', 'stock-adjustments');
+        url.searchParams.set('inventory_item', itemId);
+        url.hash = 'inventory-history';
+        return url.toString();
+    };
+
+    const selectItem = (item) => {
+        if (!item?.value) return;
+        hiddenId.value = item.value;
+        input.value = item.title || item.text || '';
+        hideResults();
+        window.location.href = targetUrl(item.value);
+    };
+
+    const render = () => {
+        const visibleMatches = matches.slice(0, 10);
+        results.hidden = visibleMatches.length === 0;
+        if (visibleMatches.length === 0) {
+            results.innerHTML = '';
+            activeIndex = -1;
+            return;
+        }
+
+        results.innerHTML = visibleMatches.map((item, index) => {
+            const code = item.code || 'Sans code';
+            const category = item.category ? ` · ${escapeHtml(item.category)}` : '';
+            const brand = item.brand ? ` · ${escapeHtml(item.brand)}` : '';
+            return `
+                <button type="button" class="inventory-item-option ${index === activeIndex ? 'is-active' : ''}" data-inventory-value="${escapeHtml(item.value)}">
+                    <span class="inventory-item-option-main">
+                        <strong>${escapeHtml(item.title || item.text)}</strong>
+                        <small>${escapeHtml(code)}${category}${brand}</small>
+                    </span>
+                    <span class="inventory-item-option-stock">Stock ${Number(item.stock || 0).toLocaleString('fr-FR')}</span>
+                </button>
+            `;
+        }).join('');
+    };
+
+    const search = async () => {
+        const query = input.value.trim();
+        hiddenId.value = '';
+
+        if (query.length < 2) {
+            matches = [];
+            render();
+            return;
+        }
+
+        const current = ++sequence;
+        const url = new URL(searchUrl, window.location.origin);
+        url.searchParams.set('q', query);
+
+        try {
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!response.ok) throw new Error('Inventory item search failed');
+            const payload = await response.json();
+            if (current !== sequence) return;
+            matches = payload.items || [];
+            activeIndex = matches.length ? 0 : -1;
+            render();
+        } catch {
+            if (current !== sequence) return;
+            matches = [];
+            results.hidden = false;
+            results.innerHTML = '<p class="inventory-item-empty">Recherche indisponible. Essayez encore ou validez le texte saisi.</p>';
+        }
+    };
+
+    input.addEventListener('input', () => {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(search, 180);
+    });
+
+    input.addEventListener('focus', () => {
+        if (matches.length) render();
+    });
+
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            hideResults();
+            return;
+        }
+
+        if (!matches.length) return;
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            activeIndex = Math.min(activeIndex + 1, Math.min(matches.length, 10) - 1);
+            render();
+            return;
+        }
+
+        if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            activeIndex = Math.max(activeIndex - 1, 0);
+            render();
+            return;
+        }
+
+        if (event.key === 'Enter' && activeIndex >= 0) {
+            event.preventDefault();
+            selectItem(matches[activeIndex]);
+        }
+    });
+
+    results.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        const option = event.target.closest('[data-inventory-value]');
+        if (!option) return;
+        const item = matches.find((match) => String(match.value) === String(option.dataset.inventoryValue));
+        selectItem(item);
+    });
+
+    form.addEventListener('submit', (event) => {
+        if (!hiddenId.value && matches.length > 0 && activeIndex >= 0) {
+            event.preventDefault();
+            selectItem(matches[activeIndex]);
+        }
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!form.contains(event.target)) hideResults();
+    });
 });
 
 document.querySelectorAll('[data-searchable-select]').forEach((select) => {

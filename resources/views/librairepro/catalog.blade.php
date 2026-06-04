@@ -70,10 +70,10 @@
     </section>
 
     <section class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><p class="text-sm text-slate-500">Articles physiques</p><p class="mt-2 text-2xl font-semibold">{{ $catalogStats['items'] }}</p></article>
-        <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><p class="text-sm text-slate-500">Services</p><p class="mt-2 text-2xl font-semibold">{{ $catalogStats['services'] }}</p></article>
-        <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><p class="text-sm text-slate-500">Alertes stock</p><p class="mt-2 text-2xl font-semibold">{{ $catalogStats['low'] }}</p></article>
-        <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><p class="text-sm text-slate-500">Valorisation achat</p><p class="mt-2 text-2xl font-semibold">{{ $money($catalogStats['value']) }}</p></article>
+        <article class="rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white"><p class="text-sm font-medium text-slate-600 dark:text-slate-300">Articles physiques</p><p class="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{{ $catalogStats['items'] }}</p></article>
+        <article class="rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white"><p class="text-sm font-medium text-slate-600 dark:text-slate-300">Services</p><p class="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{{ $catalogStats['services'] }}</p></article>
+        <article class="rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white"><p class="text-sm font-medium text-slate-600 dark:text-slate-300">Alertes stock</p><p class="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{{ $catalogStats['low'] }}</p></article>
+        <article class="rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white"><p class="text-sm font-medium text-slate-600 dark:text-slate-300">Valorisation achat</p><p class="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{{ $money($catalogStats['value']) }}</p></article>
     </section>
 
     <details class="app-collapsible-menu mt-6" data-collapsible-menu data-menu-key="catalog-sections">
@@ -100,13 +100,17 @@
 
     @if ($panel === 'stock-adjustment-add')
         @php
-            $adjustmentLines = collect(old('items', [['direction' => 'add', 'quantity' => 1]]))->values();
+            $prefillAdjustmentItemId = (int) request('item');
+            $defaultAdjustmentLine = $prefillAdjustmentItemId > 0
+                ? [['item_id' => $prefillAdjustmentItemId, 'direction' => 'add', 'quantity' => 1]]
+                : [['direction' => 'add', 'quantity' => 1]];
+            $adjustmentLines = collect(old('items', $defaultAdjustmentLine))->values();
             if ($adjustmentLines->isEmpty()) {
-                $adjustmentLines = collect([['direction' => 'add', 'quantity' => 1]]);
+                $adjustmentLines = collect($defaultAdjustmentLine);
             }
         @endphp
         <section class="mt-6 grid gap-6 2xl:grid-cols-[minmax(0,1fr)_360px]">
-            <form action="{{ route('catalog.stock-adjustments.store') }}" method="POST" data-stock-adjustment-builder data-stock-adjustment-initial-query="{{ request('stock_q') }}" data-next-index="{{ $adjustmentLines->count() }}" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+            <form action="{{ route('catalog.stock-adjustments.store') }}" method="POST" data-stock-adjustment-builder data-stock-adjustment-search-url="{{ route('catalog.stock-items.search') }}" data-stock-adjustment-initial-query="{{ request('stock_q') }}" data-next-index="{{ $adjustmentLines->count() }}" class="overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 @csrf
                 <div class="border-b border-slate-200 bg-slate-50/70 p-5 dark:border-white/10 dark:bg-white/[0.04]">
                     <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -131,7 +135,7 @@
                         <label class="space-y-1.5 lg:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Raison</span><input name="reason" value="{{ old('reason') }}" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Inventaire, casse, perte, correction..."></label>
                     </div>
 
-                    <div class="stock-adjustment-card overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
+                    <div class="stock-adjustment-card overflow-visible rounded-xl border border-slate-200 dark:border-white/10">
                         <div class="border-b border-slate-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-slate-950/40">
                             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
@@ -145,10 +149,11 @@
                                     <span>Rechercher article, code-barres, ISBN...</span>
                                     <input type="search" data-stock-adjustment-search value="{{ request('stock_q') }}" placeholder="Ex: cahier, 978..., code article" autocomplete="off">
                                 </label>
-                                <button type="button" data-stock-adjustment-add-match class="stock-adjustment-tool-button">Ajouter résultat</button>
+                                <button type="button" data-stock-adjustment-add-match class="stock-adjustment-tool-button">Ajouter le 1er résultat</button>
                                 <button type="button" data-stock-adjustment-clear class="stock-adjustment-tool-button is-muted">Effacer</button>
-                                <p class="stock-adjustment-search-meta"><strong data-stock-adjustment-search-count>{{ $stockItems->count() }}</strong> résultat(s)</p>
+                                <p class="stock-adjustment-search-meta"><strong data-stock-adjustment-search-count>{{ $stockItems->count() }}</strong> résultat(s)<span data-stock-adjustment-search-state> disponibles</span></p>
                             </div>
+                            <div data-stock-adjustment-suggestions class="stock-adjustment-suggestions mt-3" hidden></div>
                         </div>
                         <div class="hidden grid-cols-[44px_minmax(260px,1.7fr)_150px_130px_minmax(180px,1fr)_42px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold uppercase text-slate-500 dark:border-white/10 dark:bg-white/5 lg:grid">
                             <span>N°</span><span>Article</span><span>Action</span><span>Quantité</span><span>Note ligne</span><span></span>
@@ -157,7 +162,7 @@
                             @foreach ($adjustmentLines as $i => $line)
                                 <div data-stock-adjustment-row class="grid gap-3 bg-white p-4 transition focus-within:bg-brand/5 dark:bg-transparent lg:grid-cols-[44px_minmax(260px,1.7fr)_150px_130px_minmax(180px,1fr)_42px] lg:items-end">
                                     <span data-stock-adjustment-index class="hidden h-10 place-items-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-white/5 lg:grid">{{ str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT) }}</span>
-                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Article <span class="text-rose-500">*</span></span><select name="items[{{ $i }}][item_id]" data-stock-adjustment-item-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900"><option value="">Choisir un article</option>@foreach ($stockItems as $item)<option value="{{ $item->id }}" @selected(data_get($line, 'item_id') == $item->id)>{{ $item->title }} · stock {{ $item->stock_quantity }} · {{ $item->barcode ?? $item->item_code }}</option>@endforeach</select></label>
+                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Article <span class="text-rose-500">*</span></span><select name="items[{{ $i }}][item_id]" data-stock-adjustment-item-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900"><option value="">Choisir un article</option>@foreach ($stockItems as $item)<option value="{{ $item->id }}" data-title="{{ $item->title }}" data-stock="{{ $item->stock_quantity }}" data-threshold="{{ $item->min_stock_threshold }}" data-code="{{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code }}" data-category="{{ $item->category?->name }}" data-brand="{{ $item->brand?->name }}" @selected(data_get($line, 'item_id') == $item->id)>{{ $item->title }} · stock {{ $item->stock_quantity }} · {{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code }}{{ $item->category?->name ? ' · '.$item->category->name : '' }}</option>@endforeach</select></label>
                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Action</span><select name="items[{{ $i }}][direction]" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900"><option value="add" @selected(data_get($line, 'direction', 'add') === 'add')>Ajouter</option><option value="remove" @selected(data_get($line, 'direction') === 'remove')>Retirer</option><option value="set" @selected(data_get($line, 'direction') === 'set')>Définir stock</option></select></label>
                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Quantité <span class="text-rose-500">*</span></span><input name="items[{{ $i }}][quantity]" value="{{ data_get($line, 'quantity') }}" data-stock-adjustment-quantity type="number" min="0" step="1" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="0"></label>
                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Note ligne</span><input name="items[{{ $i }}][note]" value="{{ data_get($line, 'note') }}" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Motif ligne"></label>
@@ -170,7 +175,7 @@
                     <template data-stock-adjustment-row-template>
                         <div data-stock-adjustment-row class="grid gap-3 bg-white p-4 transition focus-within:bg-brand/5 dark:bg-transparent lg:grid-cols-[44px_minmax(260px,1.7fr)_150px_130px_minmax(180px,1fr)_42px] lg:items-end">
                             <span data-stock-adjustment-index class="hidden h-10 place-items-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-white/5 lg:grid">01</span>
-                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Article <span class="text-rose-500">*</span></span><select name="items[__INDEX__][item_id]" data-stock-adjustment-item-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900"><option value="">Choisir un article</option>@foreach ($stockItems as $item)<option value="{{ $item->id }}">{{ $item->title }} · stock {{ $item->stock_quantity }} · {{ $item->barcode ?? $item->item_code }}</option>@endforeach</select></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Article <span class="text-rose-500">*</span></span><select name="items[__INDEX__][item_id]" data-stock-adjustment-item-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900"><option value="">Choisir un article</option>@foreach ($stockItems as $item)<option value="{{ $item->id }}" data-title="{{ $item->title }}" data-stock="{{ $item->stock_quantity }}" data-threshold="{{ $item->min_stock_threshold }}" data-code="{{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code }}" data-category="{{ $item->category?->name }}" data-brand="{{ $item->brand?->name }}">{{ $item->title }} · stock {{ $item->stock_quantity }} · {{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code }}{{ $item->category?->name ? ' · '.$item->category->name : '' }}</option>@endforeach</select></label>
                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Action</span><select name="items[__INDEX__][direction]" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900"><option value="add">Ajouter</option><option value="remove">Retirer</option><option value="set">Définir stock</option></select></label>
                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Quantité <span class="text-rose-500">*</span></span><input name="items[__INDEX__][quantity]" value="1" data-stock-adjustment-quantity type="number" min="0" step="1" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="0"></label>
                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Note ligne</span><input name="items[__INDEX__][note]" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Motif ligne"></label>
@@ -226,9 +231,372 @@
         </section>
     @elseif ($panel === 'stock-adjustments')
         <section class="mt-6 space-y-5">
-            <div class="grid gap-3 md:grid-cols-3"><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Ajustements</span><p class="mt-2 text-2xl font-semibold">{{ $stockStats['adjustments'] }}</p></article><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Quantité ce mois</span><p class="mt-2 text-2xl font-semibold">{{ number_format($stockStats['adjusted_month'], 0, ',', ' ') }}</p></article><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Alertes stock</span><p class="mt-2 text-2xl font-semibold text-amber-600">{{ $catalogStats['low'] }}</p></article></div>
-            <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h2 class="font-semibold">Liste d'ajustement</h2><p class="mt-1 text-sm text-slate-500">Historique des corrections de stock, inventaires, pertes et casses.</p></div><a href="{{ route('stock', ['panel' => 'stock-adjustment-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouvel ajustement</a></div><form method="GET" action="{{ route('stock') }}" class="app-action-form mt-4"><input type="hidden" name="panel" value="stock-adjustments"><input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Rechercher n°, article, raison, entrepôt..."><input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div></form></article>
-            <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="overflow-x-auto"><table class="w-full min-w-[1040px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N°</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Entrepôt</th><th class="px-3 py-3">Raison</th><th class="px-3 py-3 text-right">Quantité</th><th class="px-3 py-3">Articles</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($stockAdjustments as $adjustment)<tr><td class="px-3 py-3 font-semibold">{{ $adjustment->number }}</td><td class="px-3 py-3">{{ $adjustment->adjusted_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3">{{ $adjustment->warehouse ?? 'Principal' }}</td><td class="px-3 py-3">{{ $adjustment->reason ?? '—' }}</td><td class="px-3 py-3 text-right font-semibold">{{ number_format($adjustment->total_quantity, 0, ',', ' ') }}</td><td class="px-3 py-3 text-sm text-slate-500">{{ collect($adjustment->lines)->pluck('name')->take(2)->implode(', ') }}{{ count($adjustment->lines ?? []) > 2 ? '…' : '' }}</td><td class="px-3 py-3 text-right"><button type="button" onclick="document.getElementById('adjustment-detail-{{ $adjustment->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</button></td></tr><dialog id="adjustment-detail-{{ $adjustment->id }}" class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"><div class="border-b border-slate-200 p-5 dark:border-white/10"><div class="flex justify-between gap-4"><div><p class="text-sm font-semibold text-brand">Ajustement stock</p><h3 class="mt-1 text-xl font-semibold">{{ $adjustment->number }}</h3><p class="mt-1 text-sm text-slate-500">{{ $adjustment->reason ?? 'Sans raison' }}</p></div><button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 dark:border-white/10" type="button">×</button></div></div><div class="space-y-2 p-5">@foreach ($adjustment->lines as $line)<div class="grid gap-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-white/5 sm:grid-cols-[1fr_90px_90px_90px]"><strong>{{ $line['name'] }}</strong><span>Avant {{ $line['quantity_before'] }}</span><span>Delta {{ $line['quantity_delta'] }}</span><span>Après {{ $line['quantity_after'] }}</span></div>@endforeach</div></dialog>@empty<tr><td colspan="7" class="px-4 py-12 text-center text-sm text-slate-500">Aucun ajustement trouvé.</td></tr>@endforelse</tbody></table></div><div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $stockAdjustments->links() }}</div></article>
+            <div class="stock-kpi-grid grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <article class="rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Ajustements</span>
+                    <p class="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{{ $stockStats['adjustments'] }}</p>
+                    <p class="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">{{ number_format($stockStats['adjusted_month'], 0, ',', ' ') }} unité(s) ce mois</p>
+                </article>
+                <article class="stock-kpi-card is-volume rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Volume stock</span>
+                    <p class="mt-2 font-semibold text-slate-950 dark:text-white">{{ number_format($stockStats['stock_units'], 0, ',', ' ') }}</p>
+                    <p class="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">Unités physiques disponibles</p>
+                </article>
+                <article class="stock-kpi-card is-value rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Valeur achat</span>
+                    <p class="mt-2 font-semibold text-slate-950 dark:text-white">{{ $money($stockStats['stock_purchase_value']) }}</p>
+                    <p class="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">Stock × prix d'achat</p>
+                </article>
+                <article class="stock-kpi-card is-value rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Valeur vente</span>
+                    <p class="mt-2 font-semibold text-slate-950 dark:text-white">{{ $money($stockStats['stock_sale_value']) }}</p>
+                    <p class="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">Potentiel de vente</p>
+                </article>
+                <article class="rounded-xl border border-amber-300 bg-amber-100 p-4 shadow-sm dark:border-amber-400/30 dark:bg-amber-950/60">
+                    <span class="text-xs font-semibold uppercase text-amber-900 dark:text-amber-100">Alertes stock</span>
+                    <p class="mt-2 text-2xl font-semibold text-amber-950 dark:text-amber-50">{{ $catalogStats['low'] }}</p>
+                    <p class="mt-1 text-xs font-semibold text-amber-900 dark:text-amber-100">À vérifier avant vente</p>
+                </article>
+            </div>
+
+            <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="border-b border-slate-200 p-4 dark:border-white/10">
+                    <div class="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-brand">Inventaire courant</p>
+                            <h2 class="mt-1 text-lg font-semibold text-slate-950 dark:text-white">Stock par article</h2>
+                            <p class="mt-1 text-sm text-slate-500">Tous les articles physiques avec volume, valeur d'achat, valeur de vente et accès direct à l'historique.</p>
+                        </div>
+                        <form method="GET" action="{{ route('stock') }}" class="grid w-full gap-2 sm:grid-cols-[minmax(220px,1fr)_180px_auto_auto] xl:max-w-4xl">
+                            <input type="hidden" name="panel" value="stock-adjustments">
+                            <input name="stock_inventory_q" value="{{ $stockInventoryQuery }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="Rechercher article, code, ISBN, emplacement...">
+                            <select name="stock_inventory_state" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-900">
+                                <option value="all" @selected($stockInventoryState === 'all')>Tous les stocks</option>
+                                <option value="available" @selected($stockInventoryState === 'available')>Disponible</option>
+                                <option value="low" @selected($stockInventoryState === 'low')>Sous alerte</option>
+                                <option value="out" @selected($stockInventoryState === 'out')>Rupture</option>
+                            </select>
+                            <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20">Filtrer</button>
+                            <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:text-slate-200">Reset</a>
+                        </form>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[1120px] text-left text-sm">
+                        <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                            <tr>
+                                <th class="px-4 py-3">Article</th>
+                                <th class="px-3 py-3">Références</th>
+                                <th class="px-3 py-3">Emplacement</th>
+                                <th class="px-3 py-3 text-right">Volume</th>
+                                <th class="px-3 py-3 text-right">Valeur achat</th>
+                                <th class="px-3 py-3 text-right">Valeur vente</th>
+                                <th class="px-3 py-3">État</th>
+                                <th class="px-4 py-3 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                            @forelse ($stockInventoryItems as $stockItem)
+                                @php
+                                    $purchaseValue = (float) $stockItem->purchase_price * (int) $stockItem->stock_quantity;
+                                    $saleValue = (float) $stockItem->sale_price * (int) $stockItem->stock_quantity;
+                                    $isOut = (int) $stockItem->stock_quantity <= 0;
+                                    $isLow = ! $isOut && (int) $stockItem->stock_quantity <= (int) $stockItem->min_stock_threshold;
+                                    $historyUrl = route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $stockItem->id]).'#inventory-history';
+                                    $adjustUrl = route('stock', ['panel' => 'stock-adjustment-add', 'stock_q' => $stockItem->item_code ?? $stockItem->barcode ?? $stockItem->title]);
+                                @endphp
+                                <tr class="cursor-pointer transition hover:bg-slate-50/80 dark:hover:bg-white/[0.03]" onclick="if (! event.target.closest('a,button')) window.location.href = @json($historyUrl)">
+                                    <td class="px-4 py-3">
+                                        <div class="flex items-center gap-3">
+                                            <div class="grid size-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-200">{{ \Illuminate\Support\Str::of($stockItem->title)->substr(0, 2)->upper() }}</div>
+                                            <div>
+                                                <p class="font-semibold text-slate-950 dark:text-white">{{ $stockItem->title }}</p>
+                                                <p class="mt-1 text-xs text-slate-500">{{ $stockItem->category?->name ?? 'Sans catégorie' }} · {{ $stockItem->brand?->name ?? 'Sans marque' }}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-3 text-xs text-slate-500">
+                                        <span class="block font-semibold text-slate-700 dark:text-slate-200">{{ $stockItem->item_code ?? 'Sans code' }}</span>
+                                        <span>{{ $stockItem->barcode ?? $stockItem->isbn ?? 'Sans code-barres' }}</span>
+                                    </td>
+                                    <td class="px-3 py-3 text-sm text-slate-500">{{ $stockItem->location ?: $stockItem->warehouse ?: 'Principal' }}</td>
+                                    <td class="px-3 py-3 text-right">
+                                        <span class="stock-table-number is-volume">{{ number_format((int) $stockItem->stock_quantity, 0, ',', ' ') }}</span>
+                                        <span class="block text-xs text-slate-500">{{ $stockItem->unit?->name ?? 'unité(s)' }}</span>
+                                    </td>
+                                    <td class="px-3 py-3 text-right"><span class="stock-table-number">{{ $money($purchaseValue) }}</span></td>
+                                    <td class="px-3 py-3 text-right"><span class="stock-table-number">{{ $money($saleValue) }}</span></td>
+                                    <td class="px-3 py-3">
+                                        @if ($isOut)
+                                            <span class="inline-flex rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/10 dark:text-rose-100 dark:ring-rose-500/20">Rupture</span>
+                                        @elseif ($isLow)
+                                            <span class="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-100 dark:ring-amber-500/20">Sous alerte</span>
+                                        @else
+                                            <span class="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-100 dark:ring-emerald-500/20">Disponible</span>
+                                        @endif
+                                        <span class="mt-1 block text-xs text-slate-500">{{ (int) $stockItem->stock_movements_count }} mouvement(s)</span>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div class="flex justify-end gap-2">
+                                            <a href="{{ $historyUrl }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Historique</a>
+                                            <a href="{{ $adjustUrl }}" class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-brand dark:bg-white dark:text-slate-950">Ajuster</a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun article trouvé pour cet inventaire.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $stockInventoryItems->links() }}</div>
+            </article>
+
+            <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h2 class="font-semibold">Liste d'ajustement</h2>
+                        <p class="mt-1 text-sm text-slate-500">Corrections de stock, inventaires, pertes, casses et détails par ligne.</p>
+                    </div>
+                    <a href="{{ route('stock', ['panel' => 'stock-adjustment-add']) }}" class="inline-flex h-10 items-center justify-center rounded-lg bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20">Nouvel ajustement</a>
+                </div>
+                <form method="GET" action="{{ route('stock') }}" class="mt-4 grid gap-3 lg:grid-cols-[minmax(240px,1fr)_170px_170px_auto]">
+                    <input type="hidden" name="panel" value="stock-adjustments">
+                    <input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="N°, article, raison, entrepôt...">
+                    <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-900">
+                    <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-900">
+                    <div class="grid grid-cols-2 gap-2">
+                        <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white">Filtrer</button>
+                        <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Reset</a>
+                    </div>
+                </form>
+            </article>
+
+            <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[1040px] text-left text-sm">
+                        <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                            <tr>
+                                <th class="px-3 py-3">N°</th>
+                                <th class="px-3 py-3">Date</th>
+                                <th class="px-3 py-3">Entrepôt</th>
+                                <th class="px-3 py-3">Raison</th>
+                                <th class="px-3 py-3 text-right">Quantité</th>
+                                <th class="px-3 py-3">Articles</th>
+                                <th class="px-3 py-3 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                            @forelse ($stockAdjustments as $adjustment)
+                                @php
+                                    $adjustmentLines = collect($adjustment->lines ?? []);
+                                    $positiveLines = $adjustmentLines->where('quantity_delta', '>', 0)->count();
+                                    $negativeLines = $adjustmentLines->where('quantity_delta', '<', 0)->count();
+                                    $stockValueImpact = $adjustmentLines->sum(fn ($line) => abs((int) ($line['quantity_delta'] ?? 0)));
+                                @endphp
+                                <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/[0.03]">
+                                    <td class="px-3 py-3 font-semibold">{{ $adjustment->number }}</td>
+                                    <td class="px-3 py-3">{{ $adjustment->adjusted_at?->format('d/m/Y H:i') }}</td>
+                                    <td class="px-3 py-3">{{ $adjustment->warehouse ?? 'Principal' }}</td>
+                                    <td class="px-3 py-3">
+                                        <span class="font-medium">{{ $adjustment->reason ?? '—' }}</span>
+                                        @if ($adjustment->note)
+                                            <span class="mt-1 block max-w-xs truncate text-xs text-slate-500">{{ $adjustment->note }}</span>
+                                        @endif
+                                    </td>
+                                    <td class="px-3 py-3 text-right font-semibold">{{ number_format($adjustment->total_quantity, 0, ',', ' ') }}</td>
+                                    <td class="px-3 py-3 text-sm text-slate-500">
+                                        <span class="font-medium text-slate-700 dark:text-slate-200">{{ $adjustmentLines->pluck('name')->take(2)->implode(', ') ?: '—' }}</span>{{ $adjustmentLines->count() > 2 ? '…' : '' }}
+                                        <span class="mt-1 block text-xs">{{ $positiveLines }} entrée(s), {{ $negativeLines }} sortie(s)</span>
+                                    </td>
+                                    <td class="px-3 py-3 text-right">
+                                        <button type="button" onclick="document.getElementById('adjustment-detail-{{ $adjustment->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Détail</button>
+                                    </td>
+                                </tr>
+                                <dialog id="adjustment-detail-{{ $adjustment->id }}" class="app-dialog w-[min(980px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                    <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                                        <div class="flex items-start justify-between gap-4">
+                                            <div>
+                                                <p class="text-sm font-semibold text-brand">Détail ajustement stock</p>
+                                                <h3 class="mt-1 text-xl font-semibold">{{ $adjustment->number }}</h3>
+                                                <p class="mt-1 text-sm text-slate-500">{{ $adjustment->reason ?? 'Sans raison' }} · {{ $adjustment->adjusted_at?->format('d/m/Y H:i') }} · {{ $adjustment->warehouse ?? 'Principal' }}</p>
+                                            </div>
+                                            <button class="dialog-close grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                                        </div>
+                                    </div>
+                                    <div class="grid gap-5 p-5 lg:grid-cols-[1fr_260px]">
+                                        <div class="space-y-3">
+                                            @foreach ($adjustmentLines as $line)
+                                                @php
+                                                    $delta = (int) ($line['quantity_delta'] ?? 0);
+                                                    $deltaTone = $delta >= 0 ? 'text-emerald-700 bg-emerald-50 ring-emerald-200 dark:text-emerald-100 dark:bg-emerald-500/10 dark:ring-emerald-500/20' : 'text-rose-700 bg-rose-50 ring-rose-200 dark:text-rose-100 dark:bg-rose-500/10 dark:ring-rose-500/20';
+                                                @endphp
+                                                <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                        <div>
+                                                            <h4 class="font-semibold">{{ $line['name'] }}</h4>
+                                                            <p class="mt-1 text-xs text-slate-500">{{ $line['item_code'] ?? 'Sans code' }} · {{ $line['barcode'] ?? 'Sans code-barres' }}</p>
+                                                        </div>
+                                                        <span class="inline-flex w-fit items-center rounded-full px-3 py-1 text-sm font-bold ring-1 ring-inset {{ $deltaTone }}">{{ $delta > 0 ? '+' : '' }}{{ number_format($delta, 0, ',', ' ') }}</span>
+                                                    </div>
+                                                    <div class="mt-4 grid gap-2 sm:grid-cols-3">
+                                                        <div class="rounded-lg bg-slate-50 p-3 dark:bg-white/5"><span class="block text-xs text-slate-500">Avant</span><strong>{{ number_format((int) ($line['quantity_before'] ?? 0), 0, ',', ' ') }}</strong></div>
+                                                        <div class="rounded-lg bg-slate-50 p-3 dark:bg-white/5"><span class="block text-xs text-slate-500">Mouvement</span><strong>{{ $line['direction'] === 'set' ? 'Définir' : ($line['direction'] === 'remove' ? 'Retirer' : 'Ajouter') }}</strong></div>
+                                                        <div class="rounded-lg bg-slate-50 p-3 dark:bg-white/5"><span class="block text-xs text-slate-500">Après</span><strong>{{ number_format((int) ($line['quantity_after'] ?? 0), 0, ',', ' ') }}</strong></div>
+                                                    </div>
+                                                    @if (! empty($line['note']))
+                                                        <p class="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-white/5 dark:text-slate-300">{{ $line['note'] }}</p>
+                                                    @endif
+                                                    <div class="mt-3 flex flex-wrap gap-2">
+                                                        <a href="{{ route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $line['item_id']]) }}#inventory-history" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Historique article</a>
+                                                        <a href="{{ route('stock', ['panel' => 'stock-adjustment-add', 'stock_q' => $line['item_code'] ?? $line['barcode'] ?? $line['name']]) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Ajuster encore</a>
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                        <aside class="space-y-3">
+                                            <div class="rounded-xl bg-slate-50 p-4 dark:bg-white/5">
+                                                <h4 class="font-semibold">Résumé</h4>
+                                                <dl class="mt-3 space-y-2 text-sm">
+                                                    <div class="flex justify-between"><dt class="text-slate-500">Lignes</dt><dd class="font-semibold">{{ $adjustmentLines->count() }}</dd></div>
+                                                    <div class="flex justify-between"><dt class="text-slate-500">Entrées</dt><dd class="font-semibold text-emerald-600">{{ $positiveLines }}</dd></div>
+                                                    <div class="flex justify-between"><dt class="text-slate-500">Sorties</dt><dd class="font-semibold text-rose-600">{{ $negativeLines }}</dd></div>
+                                                    <div class="flex justify-between"><dt class="text-slate-500">Volume touché</dt><dd class="font-semibold">{{ number_format($stockValueImpact, 0, ',', ' ') }}</dd></div>
+                                                </dl>
+                                            </div>
+                                            <div class="rounded-xl border border-slate-200 p-4 text-sm dark:border-white/10">
+                                                <span class="block text-xs font-semibold uppercase text-slate-500">Note globale</span>
+                                                <p class="mt-2 text-slate-600 dark:text-slate-300">{{ $adjustment->note ?: 'Aucune note ajoutée.' }}</p>
+                                            </div>
+                                        </aside>
+                                    </div>
+                                </dialog>
+                            @empty
+                                <tr><td colspan="7" class="px-4 py-12 text-center text-sm text-slate-500">Aucun ajustement trouvé.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $stockAdjustments->links() }}</div>
+            </article>
+
+            <article id="inventory-history" class="inventory-history-card rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="inventory-history-head">
+                    <div class="min-w-0">
+                        <div class="flex items-start gap-3">
+                            <span class="inventory-history-icon">ST</span>
+                            <div class="min-w-0">
+                                <h2 class="font-semibold text-slate-950 dark:text-white">Historique inventaire par article</h2>
+                                <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ $stockStats['movement_count'] }} mouvement(s) enregistrés: ventes, achats, retours, transferts et ajustements.</p>
+                            </div>
+                        </div>
+                        @if ($selectedInventoryItem)
+                            <div class="inventory-selected-item mt-4">
+                                <div class="min-w-0">
+                                    <span class="block truncate font-semibold text-slate-950 dark:text-white">{{ $selectedInventoryItem->title }}</span>
+                                    <small class="mt-1 block truncate text-slate-600 dark:text-slate-300">{{ $selectedInventoryItem->item_code ?? 'Sans code' }} · Stock {{ number_format((int) $selectedInventoryItem->stock_quantity, 0, ',', ' ') }} · {{ $selectedInventoryItem->category?->name ?? 'Sans catégorie' }}</small>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <a href="{{ route('stock', ['panel' => 'stock-adjustment-add', 'item' => $selectedInventoryItem->id, 'stock_q' => $selectedInventoryItem->item_code ?? $selectedInventoryItem->barcode ?? $selectedInventoryItem->title]) }}" class="inventory-action-button is-primary">Ajuster maintenant</a>
+                                    <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}#inventory-history" class="inventory-action-button">Tous les articles</a>
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                    <form method="GET" action="{{ route('stock') }}" class="inventory-search-form" data-inventory-item-picker data-inventory-item-search-url="{{ route('catalog.stock-items.search') }}">
+                        <input type="hidden" name="panel" value="stock-adjustments">
+                        <input type="hidden" name="inventory_item" value="{{ $selectedInventoryItem?->id }}" data-inventory-item-id>
+                        <div class="inventory-item-picker">
+                            <input
+                                name="inventory_q"
+                                value="{{ $selectedInventoryItem ? $selectedInventoryItem->title : $inventoryQuery }}"
+                                class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-950"
+                                placeholder="Rechercher article, code-barres, ISBN..."
+                                autocomplete="off"
+                                data-inventory-item-input
+                            >
+                            <div class="inventory-item-results" data-inventory-item-results hidden></div>
+                        </div>
+                        <button class="inventory-action-button is-primary">Chercher</button>
+                        <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}#inventory-history" class="inventory-action-button">Effacer</a>
+                    </form>
+                </div>
+                <div class="inventory-movement-list" data-inventory-movement-list>
+                    @forelse ($stockMovements as $movement)
+                        @php
+                            $delta = (int) $movement->quantity_delta;
+                            $movementLabels = [
+                                'sale' => ['label' => 'Vente', 'tone' => 'danger', 'icon' => '-'],
+                                'purchase' => ['label' => 'Achat', 'tone' => 'success', 'icon' => '+'],
+                                'return' => ['label' => 'Retour vente', 'tone' => 'info', 'icon' => '+'],
+                                'purchase_return' => ['label' => 'Retour achat', 'tone' => 'warning', 'icon' => '-'],
+                                'adjustment' => ['label' => 'Ajustement', 'tone' => 'primary', 'icon' => '±'],
+                                'transfer' => ['label' => 'Transfert', 'tone' => 'neutral', 'icon' => '↔'],
+                                'opening_stock' => ['label' => 'Stock initial', 'tone' => 'success', 'icon' => '+'],
+                                'item_update' => ['label' => 'Fiche article', 'tone' => 'info', 'icon' => '✎'],
+                                'import_opening_stock' => ['label' => 'Import initial', 'tone' => 'success', 'icon' => '+'],
+                                'import_stock_update' => ['label' => 'Import stock', 'tone' => 'info', 'icon' => '↥'],
+                            ];
+                            $movementMeta = $movementLabels[$movement->type] ?? ['label' => $movement->type, 'tone' => 'neutral', 'icon' => '•'];
+                            $relatedAction = match ($movement->reference_type) {
+                                \App\Models\Sale::class => ['label' => 'Voir vente', 'icon' => 'VE', 'href' => route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $movement->reference_id])],
+                                \App\Models\SaleReturn::class => ['label' => 'Voir retour', 'icon' => 'RV', 'href' => route('module', ['module' => 'sales', 'section' => 'returns', 'detail_return' => $movement->reference_id])],
+                                \App\Models\Purchase::class => ['label' => 'Voir achat', 'icon' => 'AC', 'href' => route('module', ['module' => 'purchases', 'section' => 'list', 'detail_purchase' => $movement->reference_id])],
+                                \App\Models\PurchaseReturn::class => ['label' => 'Voir retour achat', 'icon' => 'RA', 'href' => route('module', ['module' => 'purchases', 'section' => 'returns', 'detail_purchase_return' => $movement->reference_id])],
+                                \App\Models\StockAdjustment::class => ['label' => 'Voir ajustement', 'icon' => 'AJ', 'href' => route('stock', ['panel' => 'stock-adjustments', 'detail_adjustment' => $movement->reference_id])],
+                                \App\Models\StockTransfer::class => ['label' => 'Voir transfert', 'icon' => 'TR', 'href' => route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $movement->reference_id])],
+                                \App\Models\Item::class => ['label' => 'Voir article', 'icon' => 'AR', 'href' => route('catalog', ['panel' => 'articles', 'edit' => $movement->reference_id]).'#edit-item'],
+                                default => null,
+                            };
+                            $valueImpact = abs($delta) * (float) $movement->purchase_price;
+                        @endphp
+                        <div class="inventory-movement-row is-{{ $movementMeta['tone'] }}">
+                            <div class="inventory-movement-type">
+                                <span class="inventory-movement-badge"><span aria-hidden="true">{{ $movementMeta['icon'] }}</span>{{ $movementMeta['label'] }}</span>
+                                <time>{{ \Illuminate\Support\Carbon::parse($movement->created_at)->format('d/m/Y H:i') }}</time>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="font-semibold text-slate-950 dark:text-white">{{ $movement->item_title }}</p>
+                                <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">{{ $movement->item_code ?? 'Sans code' }} · {{ $movement->barcode ?? 'Sans code-barres' }} · {{ $movement->user_name ?? 'Système' }}</p>
+                                @if ($movement->note)
+                                    <p class="inventory-movement-note">{{ $movement->note }}</p>
+                                @endif
+                            </div>
+                            <div class="inventory-movement-metrics">
+                                <div class="inventory-metric">
+                                    <span>Mouvement</span>
+                                    <strong class="{{ $delta >= 0 ? 'is-positive' : 'is-negative' }}">{{ $delta > 0 ? '+' : '' }}{{ number_format($delta, 0, ',', ' ') }}</strong>
+                                </div>
+                                <div class="inventory-metric">
+                                    <span>Stock après</span>
+                                    <strong>{{ number_format((int) $movement->quantity_after, 0, ',', ' ') }}</strong>
+                                </div>
+                            </div>
+                            <div class="inventory-movement-actions">
+                                <span class="inventory-value">{{ $money($valueImpact) }}</span>
+                                @if ($relatedAction)
+                                    <a href="{{ $relatedAction['href'] }}" class="inventory-action-button is-linked">
+                                        <span aria-hidden="true">{{ $relatedAction['icon'] }}</span>
+                                        {{ $relatedAction['label'] }}
+                                    </a>
+                                @endif
+                                <a href="{{ route('stock', ['panel' => 'stock-adjustment-add', 'item' => $movement->item_id, 'stock_q' => $movement->item_code ?? $movement->barcode ?? $movement->item_title]) }}" class="inventory-action-button is-dark">Ajuster</a>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="p-10 text-center text-sm text-slate-500">Aucun mouvement de stock trouvé pour ces filtres.</div>
+                    @endforelse
+                </div>
+                @if ($stockMovements->hasPages() || $stockMovements->total() > 0)
+                    <div class="inventory-movement-footer">
+                        <span>
+                            Affichage {{ $stockMovements->firstItem() ?? 0 }}-{{ $stockMovements->lastItem() ?? 0 }}
+                            sur {{ number_format($stockMovements->total(), 0, ',', ' ') }} mouvement(s)
+                        </span>
+                        <div>{{ $stockMovements->links() }}</div>
+                    </div>
+                @endif
+            </article>
         </section>
     @elseif ($panel === 'stock-transfers')
         <section class="mt-6 space-y-5">
@@ -271,7 +639,9 @@
                         <a href="{{ route('catalog', ['panel' => $panel === 'services' ? 'ajouter-service' : 'ajouter']) }}" class="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">Ajouter</a>
                     </div>
                 </div>
-                @php($listImportKind = $panel === 'services' ? 'services' : 'items')
+                @php
+                    $listImportKind = $panel === 'services' ? 'services' : 'items';
+                @endphp
                 <details class="m-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                     <summary class="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <span>
@@ -316,6 +686,44 @@
             </article>
 
             @if ($editItem)
+                @php
+                    $editItemCode = $editItem->barcode ?: ($editItem->isbn ?: ($editItem->sku ?: $editItem->item_code));
+                    $editItemSearch = $editItemCode ?: $editItem->title;
+                    $editItemIsService = $editItem->type === 'service';
+                    $editItemQuickActions = [
+                        [
+                            'label' => 'Vendre en caisse',
+                            'hint' => 'Ouvrir le POS avec ce produit',
+                            'icon' => 'DH',
+                            'href' => route('pos', ['q' => $editItemSearch, 'stock' => 'all']),
+                            'tone' => 'primary',
+                        ],
+                        [
+                            'label' => 'Créer un achat',
+                            'hint' => 'Préparer une commande fournisseur',
+                            'icon' => 'PO',
+                            'href' => route('module', ['module' => 'purchases', 'section' => 'add', 'item' => $editItem->id]),
+                            'tone' => 'success',
+                            'hidden' => $editItemIsService,
+                        ],
+                        [
+                            'label' => 'Ajuster le stock',
+                            'hint' => 'Corriger quantité ou inventaire',
+                            'icon' => '±',
+                            'href' => route('stock', ['panel' => 'stock-adjustment-add', 'item' => $editItem->id, 'stock_q' => $editItemSearch]),
+                            'tone' => 'warning',
+                            'hidden' => $editItemIsService,
+                        ],
+                        [
+                            'label' => 'Historique stock',
+                            'hint' => 'Voir tous les mouvements',
+                            'icon' => 'ST',
+                            'href' => route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $editItem->id]).'#inventory-history',
+                            'tone' => 'neutral',
+                            'hidden' => $editItemIsService,
+                        ],
+                    ];
+                @endphp
                 <article id="edit-item" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="flex flex-col gap-3 border-b border-slate-200 pb-4 dark:border-white/10 lg:flex-row lg:items-start lg:justify-between">
                         <div>
@@ -326,6 +734,18 @@
                             <x-status-pill :tone="$editItem->type === 'service' ? 'info' : 'primary'">{{ $editItem->type === 'service' ? 'Service' : 'Article' }}</x-status-pill>
                             <x-status-pill :tone="$editItem->is_low_stock ? 'warning' : 'success'">{{ $editItem->type === 'service' ? 'Stock illimité' : $editItem->stock_quantity.' unités' }}</x-status-pill>
                         </div>
+                    </div>
+                    <div class="catalog-quick-actions mt-4">
+                        @foreach ($editItemQuickActions as $action)
+                            @continue($action['hidden'] ?? false)
+                            <a href="{{ $action['href'] }}" class="catalog-quick-action is-{{ $action['tone'] }}" aria-label="{{ $action['label'] }} - {{ $action['hint'] }}">
+                                <span class="catalog-quick-action-icon" aria-hidden="true">{{ $action['icon'] }}</span>
+                                <span class="catalog-quick-action-copy">
+                                    <span class="catalog-quick-action-title">{{ $action['label'] }}</span>
+                                    <small>{{ $action['hint'] }}</small>
+                                </span>
+                            </a>
+                        @endforeach
                     </div>
 
                     <form action="{{ route('catalog.items.update', $editItem) }}" method="POST" enctype="multipart/form-data" data-smart-validation data-error-fields='@json($errors->keys())' class="mt-5 grid gap-4 lg:grid-cols-4">
@@ -464,7 +884,9 @@
                     <h2 class="mt-1 text-lg font-semibold">Importer des articles ou services</h2>
                     <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">Compatible avec les exports mylibrairie fournis: Liste d’articles, Liste des catégories, Liste des marques et Liste des variantes. La ligne titre est ignorée automatiquement.</p>
                 </div>
-                @php($selectedImportKind = request('kind', 'items'))
+                @php
+                    $selectedImportKind = request('kind', 'items');
+                @endphp
                 <div class="p-5">
                     <form action="{{ route('catalog.import') }}" method="POST" enctype="multipart/form-data" class="app-action-form rounded-2xl border border-dashed border-slate-300 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
                         @csrf
@@ -542,7 +964,9 @@
                     </form>
                 @endif
                 @if (in_array($panel, ['categories', 'marques'], true))
-                    @php($referenceImportKind = $panel === 'categories' ? 'categories' : 'brands')
+                    @php
+                        $referenceImportKind = $panel === 'categories' ? 'categories' : 'brands';
+                    @endphp
                     <div class="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                         <h3 class="text-sm font-semibold">{{ $importLabels[$referenceImportKind]['title'] }}</h3>
                         <p class="mt-1 text-xs text-slate-500">{{ $importLabels[$referenceImportKind]['hint'] }}</p>
@@ -743,5 +1167,15 @@
                 </div>
             </article>
         </section>
+    @endif
+    @php
+        $stockAutoOpenDialogId = request('detail_adjustment')
+            ? 'adjustment-detail-'.request('detail_adjustment')
+            : (request('detail_transfer') ? 'transfer-detail-'.request('detail_transfer') : null);
+    @endphp
+    @if ($stockAutoOpenDialogId)
+        <script>
+            window.addEventListener('DOMContentLoaded', () => document.getElementById(@json($stockAutoOpenDialogId))?.showModal());
+        </script>
     @endif
 </x-layouts.app>

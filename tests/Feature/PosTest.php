@@ -115,6 +115,14 @@ class PosTest extends TestCase
         $this->assertSame($total, (float) $sale->total_amount);
         $this->assertSame(2, $sale->items()->firstOrFail()->quantity);
         $this->assertSame($initialStock - 2, $item->fresh()->stock_quantity);
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'type' => 'sale',
+            'quantity_delta' => -2,
+            'quantity_after' => $initialStock - 2,
+            'reference_type' => Sale::class,
+            'reference_id' => $sale->id,
+        ]);
         $this->assertSame($initialAdvance - $advance, (float) $client->fresh()->advance_balance);
     }
 
@@ -524,7 +532,16 @@ class PosTest extends TestCase
         $response->assertRedirect();
         $this->assertSame('refunded', $sale->fresh()->status);
         $this->assertSame(1, SaleReturn::count());
+        $return = SaleReturn::firstOrFail();
         $this->assertSame($stock + $line->quantity, $item->fresh()->stock_quantity);
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'type' => 'return',
+            'quantity_delta' => $line->quantity,
+            'quantity_after' => $stock + $line->quantity,
+            'reference_type' => SaleReturn::class,
+            'reference_id' => $return->id,
+        ]);
         $this->assertSame('cash', $sale->fresh()->metadata['refund']['method']);
     }
 

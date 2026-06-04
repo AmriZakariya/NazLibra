@@ -74,6 +74,14 @@ class QuotationExpenseTest extends TestCase
         $this->assertSame('unpaid', $sale->status);
         $this->assertSame($quote->fresh()->converted_sale_id, $sale->id);
         $this->assertSame($initialStock - 2, $item->fresh()->stock_quantity);
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'type' => 'sale',
+            'quantity_delta' => -2,
+            'quantity_after' => $initialStock - 2,
+            'reference_type' => Sale::class,
+            'reference_id' => $sale->id,
+        ]);
     }
 
     public function test_expense_sections_render_and_store_expense(): void

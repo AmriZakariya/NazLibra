@@ -66,6 +66,42 @@ class CatalogueTest extends TestCase
         $item = Item::where('barcode', 'TEST-BOOK-001')->firstOrFail();
         $this->assertTrue($item->is_enabled);
         $this->assertTrue($item->checkout_visible);
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'type' => 'opening_stock',
+            'quantity_delta' => 12,
+            'quantity_after' => 12,
+            'reference_type' => Item::class,
+            'reference_id' => $item->id,
+        ]);
+
+        $this->put(route('catalog.items.update', $item), [
+            'type' => 'book',
+            'title' => $item->title,
+            'author' => $item->author,
+            'isbn' => $item->isbn,
+            'barcode' => $item->barcode,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'tax_id' => $tax->id,
+            'purchase_price' => 50,
+            'sale_price' => 85,
+            'stock_quantity' => 15,
+            'min_stock_threshold' => 3,
+            'location' => 'Rayon T-01',
+            'status' => 'active',
+            'is_enabled' => 1,
+            'checkout_visible' => 1,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'type' => 'item_update',
+            'quantity_delta' => 3,
+            'quantity_after' => 15,
+            'reference_type' => Item::class,
+            'reference_id' => $item->id,
+        ]);
 
         $variantResponse = $this->post(route('catalog.variants.store'), [
             'item_id' => $item->id,
@@ -296,6 +332,8 @@ class CatalogueTest extends TestCase
         $this->assertStringContainsString('#edit-item', data_get($servicesData->json(), 'data.0.row_url', ''));
         $this->assertStringContainsString('&edit=', data_get($servicesData->json(), 'data.0.row_url', ''));
         $this->assertStringNotContainsString('&amp;edit=', data_get($servicesData->json(), 'data.0.row_url', ''));
+        $this->assertStringContainsString('Historique', data_get($servicesData->json(), 'data.0.action', ''));
+        $this->assertStringContainsString('inventory_item=', data_get($servicesData->json(), 'data.0.action', ''));
 
         $hiddenStatusResponse = $this->getJson(route('catalog.data', [
             'panel' => 'articles',
@@ -370,6 +408,81 @@ class CatalogueTest extends TestCase
             ->assertOk()
             ->assertSee('data-id="'.$service->id.'"', false)
             ->assertSee('Photo passeport express');
+    }
+
+    public function test_navbar_product_search_opens_articles_and_services_from_catalogue(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $category = Category::where('name', 'Services')->firstOrFail();
+        $unit = Unit::where('name', 'Service')->firstOrFail();
+        $tax = Tax::firstOrFail();
+        $article = Item::where('type', '!=', 'service')->firstOrFail();
+
+        $service = Item::create([
+            'tenant_id' => $tenant->id,
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'tax_id' => $tax->id,
+            'type' => 'service',
+            'status' => 'active',
+            'is_enabled' => true,
+            'checkout_visible' => true,
+            'item_code' => 'SRV-NAVBAR-001',
+            'title' => 'Service recherche navbar',
+            'barcode' => 'SRV-NAVBAR-BAR',
+            'purchase_price' => 0,
+            'sale_price' => 25,
+            'stock_quantity' => 0,
+            'min_stock_threshold' => 0,
+        ]);
+
+        $articleResponse = $this->getJson(route('catalog.quick-search', ['q' => $article->title]))->assertOk();
+        $this->assertEquals(
+            route('catalog', ['panel' => 'articles', 'edit' => $article->id]).'#edit-item',
+            collect($articleResponse->json('items'))->firstWhere('id', $article->id)['url'] ?? null
+        );
+
+        $serviceResponse = $this->getJson(route('catalog.quick-search', ['q' => 'navbar']))->assertOk();
+        $this->assertEquals(
+            route('catalog', ['panel' => 'services', 'edit' => $service->id]).'#edit-item',
+            collect($serviceResponse->json('items'))->firstWhere('id', $service->id)['url'] ?? null
+        );
+        $this->assertNull(collect($serviceResponse->json('items'))->firstWhere('id', $service->id)['stock'] ?? null);
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-product-search', false)
+            ->assertSee(route('catalog.quick-search'), false);
+    }
+
+    public function test_item_detail_exposes_quick_actions_with_prefilled_flows(): void
+    {
+        $this->seed();
+
+        $item = Item::where('type', '!=', 'service')->where('status', 'active')->firstOrFail();
+        $searchCode = $item->barcode ?: ($item->isbn ?: ($item->sku ?: $item->item_code));
+
+        $this->get(route('catalog', ['panel' => 'articles', 'edit' => $item->id]))
+            ->assertOk()
+            ->assertSee('Vendre en caisse')
+            ->assertSee('Créer un achat')
+            ->assertSee('Ajuster le stock')
+            ->assertSee('Historique stock')
+            ->assertSee(route('pos', ['q' => $searchCode ?: $item->title, 'stock' => 'all']))
+            ->assertSee(route('module', ['module' => 'purchases', 'section' => 'add', 'item' => $item->id]))
+            ->assertSee(route('stock', ['panel' => 'stock-adjustment-add', 'item' => $item->id, 'stock_q' => $searchCode ?: $item->title]));
+
+        $this->get(route('module', ['module' => 'purchases', 'section' => 'add', 'item' => $item->id]))
+            ->assertOk()
+            ->assertSee('value="'.$item->id.'"', false)
+            ->assertSee($item->title);
+
+        $this->get(route('stock', ['panel' => 'stock-adjustment-add', 'item' => $item->id, 'stock_q' => $searchCode ?: $item->title]))
+            ->assertOk()
+            ->assertSee('value="'.$item->id.'"', false)
+            ->assertSee($item->title);
     }
 
     public function test_catalogue_accepts_legacy_item_and_service_fields(): void
@@ -696,7 +809,54 @@ class CatalogueTest extends TestCase
         $this->get(route('stock', ['panel' => 'stock-adjustments', 'q' => 'Inventaire test']))
             ->assertOk()
             ->assertSee($adjustment->number)
-            ->assertSee('Inventaire test');
+            ->assertSee('Inventaire test')
+            ->assertSee('Stock par article')
+            ->assertSee('Historique inventaire par article')
+            ->assertSee('Valeur achat')
+            ->assertSee('Valeur vente')
+            ->assertSee('inventory_item='.$item->id, false)
+            ->assertSee('-2');
+
+        $this->get(route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $item->id]))
+            ->assertOk()
+            ->assertSee($item->title)
+            ->assertSee('1 mouvement(s) enregistré')
+            ->assertSee('data-inventory-item-picker', false)
+            ->assertSee(route('catalog.stock-items.search'), false)
+            ->assertSee('Voir ajustement')
+            ->assertSee('detail_adjustment='.$adjustment->id, false)
+            ->assertSee('Ajuster maintenant')
+            ->assertSee('Tous les articles');
+    }
+
+    public function test_stock_item_search_returns_combobox_options(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $item = Item::create([
+            'tenant_id' => $tenant->id,
+            'type' => 'book',
+            'status' => 'active',
+            'is_enabled' => true,
+            'checkout_visible' => true,
+            'item_code' => 'STOCK-SEARCH-001',
+            'title' => 'Manuel stock recherche avancée',
+            'barcode' => 'STOCK-BAR-001',
+            'purchase_price' => 10,
+            'sale_price' => 20,
+            'stock_quantity' => 6,
+            'min_stock_threshold' => 2,
+        ]);
+
+        $this->getJson(route('catalog.stock-items.search', ['q' => 'stock recherche']))
+            ->assertOk()
+            ->assertJsonFragment([
+                'value' => (string) $item->id,
+                'title' => 'Manuel stock recherche avancée',
+                'stock' => 6,
+                'code' => 'STOCK-BAR-001',
+            ]);
     }
 
     public function test_stock_transfer_records_transfer_without_changing_global_stock(): void

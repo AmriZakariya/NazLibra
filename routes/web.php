@@ -103,6 +103,7 @@ Route::redirect('/users/password_reset', '/modules/settings?section=password')->
 Route::get('/catalogue', [LibraireProController::class, 'catalog'])->name('catalog');
 Route::get('/stock', [LibraireProController::class, 'stock'])->name('stock');
 Route::get('/catalogue/data', [LibraireProController::class, 'catalogData'])->name('catalog.data');
+Route::get('/catalogue/recherche-produits', [LibraireProController::class, 'productQuickSearch'])->name('catalog.quick-search');
 Route::post('/catalogue/articles', [LibraireProController::class, 'storeItem'])->name('catalog.items.store');
 Route::put('/catalogue/articles/{item}', [LibraireProController::class, 'updateItem'])->name('catalog.items.update');
 Route::delete('/catalogue/articles/{item}', [LibraireProController::class, 'destroyItem'])->name('catalog.items.destroy');
@@ -123,6 +124,7 @@ Route::post('/catalogue/import', [LibraireProController::class, 'importItems'])-
 Route::get('/catalogue/import/exemple/{kind}', [LibraireProController::class, 'importExample'])->name('catalog.import.example');
 Route::post('/catalogue/stock/ajustements', [LibraireProController::class, 'storeStockAdjustment'])->name('catalog.stock-adjustments.store');
 Route::post('/catalogue/stock/transferts', [LibraireProController::class, 'storeStockTransfer'])->name('catalog.stock-transfers.store');
+Route::get('/catalogue/stock/articles', [LibraireProController::class, 'stockItemSearch'])->name('catalog.stock-items.search');
 Route::get('/catalogue/export', [LibraireProController::class, 'exportCatalog'])->name('catalog.export');
 Route::get('/catalogue/etiquettes', [LibraireProController::class, 'labels'])->name('catalog.labels');
 Route::get('/caisse', [LibraireProController::class, 'pos'])->name('pos');

@@ -15,8 +15,15 @@
             @if ($module === 'sales')
                 <a href="{{ route('module', ['module' => 'sales', 'section' => 'add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Ajouter vente</a>
                 <a href="{{ route('pos') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Caisse</a>
+            @elseif ($module === 'purchases')
+                <a href="{{ route('module', ['module' => 'purchases', 'section' => 'add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouvel achat</a>
+                <a href="{{ route('module', ['module' => 'contacts', 'section' => 'supplier-add']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Fournisseur</a>
+                <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Stock</a>
+            @elseif ($module === 'contacts')
+                <a href="{{ route('module', ['module' => 'contacts', 'section' => 'customer-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Client</a>
+                <a href="{{ route('module', ['module' => 'contacts', 'section' => 'supplier-add']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Fournisseur</a>
             @else
-                <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouvelle action</button>
+                <a href="{{ route('dashboard') }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Tableau de bord</a>
             @endif
         </div>
     </section>
@@ -632,6 +639,9 @@
                                         </form>
                                     </div>
                                 </dialog>
+                                @if ((string) request('detail_sale') === (string) $sale->id)
+                                    <script>window.addEventListener('DOMContentLoaded', () => document.getElementById('sale-detail-{{ $sale->id }}')?.showModal());</script>
+                                @endif
                                 @if (($invoice && (string) request('invoice') === (string) $invoice->id) || (string) request('ticket') === (string) $sale->id)
                                     <script>window.addEventListener('DOMContentLoaded', () => document.getElementById('sale-invoice-{{ $sale->id }}')?.showModal());</script>
                                 @endif
@@ -719,15 +729,26 @@
             <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
                 <form action="{{ route('purchases.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     @csrf
-                    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex flex-col gap-3 border-b border-slate-200 pb-5 dark:border-white/10 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <h2 class="font-semibold">Ajouter un achat</h2>
+                            <p class="text-sm font-semibold text-brand">Achats · commande fournisseur</p>
+                            <h2 class="mt-1 text-xl font-semibold">Ajouter un achat</h2>
                             <p class="mt-1 text-sm text-slate-500">Commande fournisseur avec réception immédiate ou différée.</p>
                         </div>
-                        <x-status-pill tone="info">Stock synchronisé</x-status-pill>
+                        <div class="flex flex-wrap gap-2">
+                            <a href="{{ route('module', ['module' => 'contacts', 'section' => 'suppliers']) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:text-slate-200">Voir fournisseurs</a>
+                            <a href="{{ route('catalog', ['panel' => 'ajouter']) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:text-slate-200">Ajouter article</a>
+                            <x-status-pill tone="info">Stock synchronisé</x-status-pill>
+                        </div>
                     </div>
                     <div class="grid gap-3 lg:grid-cols-4">
-                        <label class="block lg:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Fournisseur</span><select name="supplier_id" required data-searchable-select data-placeholder="Rechercher fournisseur..." class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Choisir un fournisseur</option>@foreach ($purchaseSuppliers as $supplier)<option value="{{ $supplier->id }}">{{ $supplier->name }}{{ $supplier->phone ? ' · '.$supplier->phone : '' }}</option>@endforeach</select></label>
+                        <label class="block lg:col-span-2">
+                            <span class="flex items-center justify-between gap-3 text-xs font-semibold uppercase text-slate-500">
+                                <span>Fournisseur *</span>
+                                <button class="inline-create-open text-xs font-semibold normal-case text-brand hover:underline" type="button" data-dialog="purchase-supplier-dialog">+ Ajouter</button>
+                            </span>
+                            <select name="supplier_id" required data-searchable-select data-placeholder="Rechercher fournisseur..." class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Choisir un fournisseur</option>@foreach ($purchaseSuppliers as $supplier)<option value="{{ $supplier->id }}">{{ $supplier->name }}{{ $supplier->phone ? ' · '.$supplier->phone : '' }}</option>@endforeach</select>
+                        </label>
                         <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Date achat</span><input name="ordered_at" type="date" value="{{ now()->toDateString() }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                         <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Réception prévue</span><input name="expected_at" type="date" class="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                         <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">N° facture fournisseur</span><input name="supplier_invoice" class="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="FA-0001"></label>
@@ -736,25 +757,99 @@
                         <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="status" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="ordered">Commandé</option><option value="received">Réception immédiate</option><option value="draft">Brouillon</option></select></label>
                     </div>
 
-                    <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
-                        <div class="grid grid-cols-[minmax(260px,1fr)_100px_130px_120px] gap-2 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500 dark:bg-white/5">
-                            <span>Article</span><span>Qté</span><span>Coût unitaire</span><span class="text-right">Ligne</span>
+                    @php
+                        $purchasePrefillItemId = (int) request('item');
+                        $purchaseDefaultLines = $purchasePrefillItemId > 0
+                            ? [['item_id' => $purchasePrefillItemId, 'quantity' => 1]]
+                            : [];
+                        $purchaseOldLines = collect(old('items', $purchaseDefaultLines))
+                            ->filter(fn ($line) => filled(data_get($line, 'item_id')))
+                            ->values();
+                        $purchaseItemOptions = $purchaseItems->map(function ($item) {
+                            return [
+                                'value' => (string) $item->id,
+                                'title' => $item->title,
+                                'text' => collect([$item->title, $item->barcode ?: $item->isbn ?: $item->item_code, $item->category?->name, $item->brand?->name])->filter()->join(' · '),
+                                'stock' => (int) $item->stock_quantity,
+                                'code' => $item->barcode ?: $item->isbn ?: $item->item_code,
+                                'category' => $item->category?->name,
+                                'brand' => $item->brand?->name,
+                                'purchase_price' => (float) $item->purchase_price,
+                            ];
+                        })->values();
+                    @endphp
+                    <div class="purchase-item-builder overflow-hidden rounded-xl border border-slate-200 dark:border-white/10" data-purchase-item-builder data-purchase-item-search-url="{{ route('catalog.stock-items.search') }}" data-next-index="{{ max(1, $purchaseOldLines->count()) }}">
+                        <div class="flex flex-col gap-3 bg-slate-50 px-3 py-3 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h3 class="text-sm font-semibold">Articles à commander</h3>
+                                <p class="mt-1 text-xs text-slate-500">Recherchez par nom, ISBN, code-barres ou catégorie. Les doublons sont détectés automatiquement.</p>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <a href="{{ route('catalog', ['panel' => 'articles']) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold dark:border-white/10 dark:bg-slate-950">Catalogue</a>
+                                <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold dark:border-white/10 dark:bg-slate-950">Voir stock</a>
+                            </div>
                         </div>
-                        <div class="divide-y divide-slate-200 dark:divide-white/10">
-                            @for ($i = 0; $i < 6; $i++)
-                                <div class="grid gap-2 px-3 py-2 lg:grid-cols-[minmax(260px,1fr)_100px_130px_120px]">
-                                    <select name="items[{{ $i }}][item_id]" data-searchable-select data-placeholder="Rechercher article..." class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                        <option value="">Article</option>
-                                        @foreach ($purchaseItems as $item)
-                                            <option value="{{ $item->id }}">{{ $item->title }} · stock {{ $item->stock_quantity }} · achat {{ $money($item->purchase_price) }}</option>
-                                        @endforeach
-                                    </select>
-                                    <input name="items[{{ $i }}][quantity]" type="number" min="1" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Qté">
-                                    <input name="items[{{ $i }}][unit_cost]" type="number" min="0" step="0.01" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Coût">
-                                    <div class="grid h-11 place-items-end rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-500 dark:bg-white/5">Auto</div>
+                        <div class="border-t border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950/40">
+                            <div class="purchase-item-toolbar">
+                                <label class="purchase-item-search">
+                                    <span>Recherche article</span>
+                                    <input type="search" data-purchase-item-search placeholder="Scanner ou rechercher titre, ISBN, code-barres..." autocomplete="off">
+                                </label>
+                                <button class="purchase-item-tool-button" type="button" data-purchase-item-add-match>Ajouter le premier résultat</button>
+                                <button class="purchase-item-tool-button is-muted" type="button" data-purchase-item-clear>Effacer</button>
+                                <div class="purchase-item-search-meta"><strong data-purchase-item-count>0</strong><span data-purchase-item-state> résultat(s)</span></div>
+                            </div>
+                            <div class="purchase-item-suggestions mt-3" data-purchase-item-suggestions hidden></div>
+                        </div>
+                        <div class="purchase-item-list" data-purchase-item-lines>
+                            @forelse ($purchaseOldLines as $lineIndex => $line)
+                                @php
+                                    $oldPurchaseItem = $purchaseItems->firstWhere('id', (int) data_get($line, 'item_id'));
+                                @endphp
+                                <div class="purchase-item-row" data-purchase-item-row data-item-id="{{ data_get($line, 'item_id') }}">
+                                    <input type="hidden" name="items[{{ $lineIndex }}][item_id]" value="{{ data_get($line, 'item_id') }}" data-purchase-item-id>
+                                    <div class="purchase-item-main">
+                                        <span data-purchase-item-index>{{ str_pad((string) ($lineIndex + 1), 2, '0', STR_PAD_LEFT) }}</span>
+                                        <div>
+                                            <strong data-purchase-item-title>{{ $oldPurchaseItem?->title ?? 'Article sélectionné' }}</strong>
+                                            <small data-purchase-item-meta>Stock {{ $oldPurchaseItem?->stock_quantity ?? '—' }} · {{ $oldPurchaseItem?->barcode ?? $oldPurchaseItem?->isbn ?? $oldPurchaseItem?->item_code ?? 'Sans code' }}</small>
+                                        </div>
+                                    </div>
+                                    <label><span>Qté</span><input name="items[{{ $lineIndex }}][quantity]" data-purchase-item-quantity type="number" min="1" value="{{ data_get($line, 'quantity', 1) }}"></label>
+                                    <label><span>Coût DH</span><input name="items[{{ $lineIndex }}][unit_cost]" data-purchase-item-cost type="number" min="0" step="0.01" value="{{ data_get($line, 'unit_cost', $oldPurchaseItem?->purchase_price ?? 0) }}"></label>
+                                    <div class="purchase-item-line-total"><span>Ligne</span><strong data-purchase-item-line-total>0,00 DH</strong></div>
+                                    <button type="button" class="purchase-item-remove" data-purchase-item-remove>Retirer</button>
                                 </div>
-                            @endfor
+                            @empty
+                                <div class="purchase-item-empty" data-purchase-item-empty>
+                                    <strong>Aucun article sélectionné</strong>
+                                    <span>Utilisez la recherche ci-dessus pour ajouter les articles à commander.</span>
+                                </div>
+                            @endforelse
                         </div>
+                        <div class="purchase-item-footer">
+                            <span><strong data-purchase-item-selected>{{ $purchaseOldLines->count() }}</strong> ligne(s)</span>
+                            <span>Total estimé <strong data-purchase-item-total>0,00 DH</strong></span>
+                        </div>
+                        <template data-purchase-item-template>
+                            <div class="purchase-item-row" data-purchase-item-row data-item-id="">
+                                <input type="hidden" name="items[__INDEX__][item_id]" value="" data-purchase-item-id>
+                                <div class="purchase-item-main">
+                                    <span data-purchase-item-index>01</span>
+                                    <div>
+                                        <strong data-purchase-item-title>Article</strong>
+                                        <small data-purchase-item-meta>Stock — · Sans code</small>
+                                    </div>
+                                </div>
+                                <label><span>Qté</span><input name="items[__INDEX__][quantity]" data-purchase-item-quantity type="number" min="1" value="1"></label>
+                                <label><span>Coût DH</span><input name="items[__INDEX__][unit_cost]" data-purchase-item-cost type="number" min="0" step="0.01" value="0"></label>
+                                <div class="purchase-item-line-total"><span>Ligne</span><strong data-purchase-item-line-total>0,00 DH</strong></div>
+                                <button type="button" class="purchase-item-remove" data-purchase-item-remove>Retirer</button>
+                            </div>
+                        </template>
+                        <script type="application/json" data-purchase-item-options>
+                            @json($purchaseItemOptions)
+                        </script>
                     </div>
 
                     <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Note</span><textarea name="note" class="mt-1 min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Conditions fournisseur, livraison, priorité rentrée..."></textarea></label>
@@ -764,10 +859,46 @@
                     </div>
                 </form>
                 <aside class="space-y-4">
-                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h2 class="font-semibold">Flux recommandé</h2><p class="mt-2 text-sm text-slate-500">Créez la commande en statut commandé, puis réceptionnez depuis la liste quand le fournisseur livre. Utilisez réception immédiate pour les achats comptoir.</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <h2 class="font-semibold">Raccourcis achat</h2>
+                        <div class="mt-4 grid gap-2 text-sm">
+                            <button class="inline-create-open rounded-lg border border-slate-200 px-4 py-3 text-left font-semibold transition hover:border-brand hover:text-brand dark:border-white/10" type="button" data-dialog="purchase-supplier-dialog">+ Ajouter un fournisseur</button>
+                            <a href="{{ route('catalog', ['panel' => 'ajouter']) }}" class="rounded-lg border border-slate-200 px-4 py-3 font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">+ Ajouter un article</a>
+                            <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="rounded-lg border border-slate-200 px-4 py-3 font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Consulter l'inventaire</a>
+                        </div>
+                    </article>
                     <article class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100"><strong>Rentrée scolaire</strong><p class="mt-2">Les quantités reçues incrémentent le stock et mettent à jour le dernier coût d'achat de l'article.</p></article>
                 </aside>
             </section>
+            <dialog id="purchase-supplier-dialog" class="app-dialog w-[min(560px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                <div data-inline-create data-endpoint="{{ route('contacts.store') }}" data-target="supplier_id" class="p-0">
+                    <input type="hidden" name="kind" value="supplier">
+                    <input type="hidden" name="status" value="active">
+                    <input type="hidden" name="client_type" value="company">
+                    <input type="hidden" name="price_level_type" value="increase">
+                    <div class="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-white/10">
+                        <div>
+                            <p class="text-sm font-semibold text-brand">Raccourci achat</p>
+                            <h3 class="mt-1 text-xl font-semibold">Ajouter un fournisseur</h3>
+                            <p class="mt-1 text-sm text-slate-500">Le fournisseur sera ajouté puis sélectionné automatiquement dans cet achat.</p>
+                        </div>
+                        <button class="dialog-close grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                    </div>
+                    <div class="grid gap-4 p-5 sm:grid-cols-2">
+                        <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Nom fournisseur *</span><input name="name" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom société / éditeur"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212..."></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email</span><input name="email" type="email" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="contact@..."></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">ICE / IF</span><input name="ice" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Identifiant fiscal"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Ville</span><input name="city" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Casablanca, Rabat..."></label>
+                        <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Adresse</span><input name="address" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Adresse principale"></label>
+                        <p class="inline-create-error hidden rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 sm:col-span-2"></p>
+                    </div>
+                    <div class="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/5 sm:flex-row sm:justify-end">
+                        <button class="dialog-close rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold dark:border-white/10 dark:bg-slate-950" type="button">Annuler</button>
+                        <button class="inline-create-submit rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white" type="button">Ajouter</button>
+                    </div>
+                </div>
+            </dialog>
         @elseif ($purchaseSection === 'returns')
             <section class="mt-6 space-y-5">
                 <div class="grid gap-3 md:grid-cols-3">
@@ -828,7 +959,170 @@
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <div class="overflow-x-auto"><table class="w-full min-w-[1120px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N° achat</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Fournisseur</th><th class="px-3 py-3">Facture</th><th class="px-3 py-3">Articles</th><th class="px-3 py-3">Réception</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($purchases as $purchase)<tr><td class="px-3 py-3 font-semibold">{{ $purchase->number }}</td><td class="px-3 py-3">{{ $purchase->ordered_at?->format('d/m/Y') ?? '—' }}</td><td class="px-3 py-3">{{ $purchase->supplier?->name ?? '—' }}</td><td class="px-3 py-3">{{ data_get($purchase->metadata, 'supplier_invoice', '—') }}</td><td class="px-3 py-3">{{ $purchase->items->count() }} ligne(s)</td><td class="px-3 py-3"><x-status-pill :tone="$purchase->status === 'received' ? 'success' : ($purchase->status === 'cancelled' ? 'danger' : 'warning')">{{ $purchase->status }}</x-status-pill></td><td class="px-3 py-3 text-right font-semibold">{{ $money($purchase->total_amount) }}</td><td class="px-3 py-3"><div class="flex justify-end gap-2"><button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10" type="button" onclick="document.getElementById('purchase-detail-{{ $purchase->id }}').showModal()">Détail</button>@if ($purchase->status !== 'received')<form action="{{ route('purchases.receive', $purchase) }}" method="POST">@csrf<button class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white">Recevoir</button></form>@endif</div></td></tr><dialog id="purchase-detail-{{ $purchase->id }}" class="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"><div class="border-b border-slate-200 p-5 dark:border-white/10"><div class="flex justify-between gap-4"><div><p class="text-sm font-semibold text-brand">Détail achat</p><h3 class="mt-1 text-xl font-semibold">{{ $purchase->number }} · {{ $money($purchase->total_amount) }}</h3><p class="mt-1 text-sm text-slate-500">{{ $purchase->supplier?->name ?? 'Sans fournisseur' }} · facture {{ data_get($purchase->metadata, 'supplier_invoice', '—') }}</p></div><button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 dark:border-white/10" type="button">×</button></div></div><div class="space-y-2 p-5">@foreach ($purchase->items as $line)<div class="grid grid-cols-[1fr_80px_80px_110px] gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-white/5"><span>{{ $line->item?->title ?? 'Article supprimé' }}</span><span>Cmd {{ $line->quantity_ordered }}</span><span>Reçu {{ $line->quantity_received }}</span><strong class="text-right">{{ $money($line->quantity_ordered * $line->unit_cost) }}</strong></div>@endforeach</div></dialog>@empty<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun achat trouvé.</td></tr>@endforelse</tbody></table></div><div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $purchases->links() }}</div>
+                    <div class="border-b border-slate-200 px-4 py-4 dark:border-white/10">
+                        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                                <h2 class="text-base font-semibold">Liste d'achat</h2>
+                                <p class="mt-1 text-sm text-slate-500">Suivez les commandes, les réceptions et les factures fournisseur.</p>
+                            </div>
+                            <a href="{{ route('module', ['module' => 'purchases', 'section' => 'add']) }}" class="inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm">+ Nouvel achat</a>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[1120px] text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                                <tr>
+                                    <th class="px-4 py-3">N° achat</th>
+                                    <th class="px-4 py-3">Date</th>
+                                    <th class="px-4 py-3">Fournisseur</th>
+                                    <th class="px-4 py-3">Facture / référence</th>
+                                    <th class="px-4 py-3">Articles</th>
+                                    <th class="px-4 py-3">Réception</th>
+                                    <th class="px-4 py-3 text-right">Total</th>
+                                    <th class="px-4 py-3 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                @forelse ($purchases as $purchase)
+                                    @php
+                                        $orderedQuantity = (int) $purchase->items->sum('quantity_ordered');
+                                        $receivedQuantity = (int) $purchase->items->sum('quantity_received');
+                                        $remainingQuantity = max(0, $orderedQuantity - $receivedQuantity);
+                                        $purchaseStatusTone = $purchase->status === 'received' ? 'success' : ($purchase->status === 'cancelled' ? 'danger' : 'warning');
+                                        $purchaseStatusLabel = [
+                                            'draft' => 'Brouillon',
+                                            'ordered' => 'Commandé',
+                                            'partially_received' => 'Partiel',
+                                            'received' => 'Reçu',
+                                            'cancelled' => 'Annulé',
+                                        ][$purchase->status] ?? $purchase->status;
+                                    @endphp
+                                    <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/[0.04]">
+                                        <td class="px-4 py-3">
+                                            <a href="{{ route('module', ['module' => 'purchases', 'section' => 'list', 'detail_purchase' => $purchase->id]) }}" class="font-semibold text-slate-950 hover:text-brand dark:text-white">{{ $purchase->number }}</a>
+                                            <p class="mt-1 text-xs text-slate-500">{{ data_get($purchase->metadata, 'warehouse', 'Magasin principal') ?: 'Magasin principal' }}</p>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <span class="font-medium">{{ $purchase->ordered_at?->format('d/m/Y') ?? '—' }}</span>
+                                            <p class="mt-1 text-xs text-slate-500">Prévu {{ $purchase->expected_at?->format('d/m/Y') ?? '—' }}</p>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <span class="font-semibold">{{ $purchase->supplier?->name ?? '—' }}</span>
+                                            @if ($purchase->supplier?->phone)
+                                                <p class="mt-1 text-xs text-slate-500">{{ $purchase->supplier->phone }}</p>
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <span class="font-medium">{{ data_get($purchase->metadata, 'supplier_invoice', '—') }}</span>
+                                            <p class="mt-1 text-xs text-slate-500">{{ data_get($purchase->metadata, 'reference', 'Sans référence') }}</p>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <span class="font-semibold">{{ $purchase->items->count() }} ligne(s)</span>
+                                            <p class="mt-1 text-xs text-slate-500">{{ $orderedQuantity }} commandé(s), {{ $receivedQuantity }} reçu(s)</p>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <x-status-pill :tone="$purchaseStatusTone">{{ $purchaseStatusLabel }}</x-status-pill>
+                                            @if ($remainingQuantity > 0)
+                                                <p class="mt-1 text-xs font-semibold text-amber-600">{{ $remainingQuantity }} restant(s)</p>
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-3 text-right font-semibold">{{ $money($purchase->total_amount) }}</td>
+                                        <td class="px-4 py-3">
+                                            <div class="flex flex-wrap justify-end gap-2">
+                                                <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button" onclick="document.getElementById('purchase-detail-{{ $purchase->id }}').showModal()">Voir détail</button>
+                                                @if ($purchase->status !== 'received')
+                                                    <form action="{{ route('purchases.receive', $purchase) }}" method="POST">
+                                                        @csrf
+                                                        <button class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700">Recevoir</button>
+                                                    </form>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <dialog id="purchase-detail-{{ $purchase->id }}" class="app-dialog purchase-detail-dialog w-[min(980px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                        <div class="purchase-detail-hero">
+                                            <div class="flex items-start gap-3">
+                                                <span class="purchase-detail-icon">PO</span>
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-semibold text-brand">Détail achat</p>
+                                                    <h3 class="mt-1 text-xl font-semibold">{{ $purchase->number }}</h3>
+                                                    <p class="mt-1 text-sm text-slate-500">{{ $purchase->supplier?->name ?? 'Sans fournisseur' }} · {{ $purchase->ordered_at?->format('d/m/Y') ?? 'Sans date' }}</p>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-start gap-2">
+                                                <x-status-pill :tone="$purchaseStatusTone">{{ $purchaseStatusLabel }}</x-status-pill>
+                                                <button class="dialog-close grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-lg font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button">×</button>
+                                            </div>
+                                        </div>
+                                        <div class="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+                                            <div class="space-y-4">
+                                                <div class="grid gap-3 sm:grid-cols-3">
+                                                    <div class="purchase-detail-stat"><span>Total</span><strong>{{ $money($purchase->total_amount) }}</strong></div>
+                                                    <div class="purchase-detail-stat"><span>Quantité commandée</span><strong>{{ $orderedQuantity }}</strong></div>
+                                                    <div class="purchase-detail-stat"><span>Quantité reçue</span><strong>{{ $receivedQuantity }}</strong></div>
+                                                </div>
+                                                <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
+                                                    <div class="grid grid-cols-[minmax(220px,1fr)_80px_80px_100px_110px] gap-3 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-500 dark:bg-white/5">
+                                                        <span>Article</span><span class="text-right">Cmd</span><span class="text-right">Reçu</span><span class="text-right">Coût</span><span class="text-right">Ligne</span>
+                                                    </div>
+                                                    <div class="divide-y divide-slate-200 dark:divide-white/10">
+                                                        @forelse ($purchase->items as $line)
+                                                            <div class="grid grid-cols-[minmax(220px,1fr)_80px_80px_100px_110px] gap-3 px-4 py-3 text-sm">
+                                                                <div class="min-w-0">
+                                                                    <span class="block truncate font-semibold">{{ $line->item?->title ?? 'Article supprimé' }}</span>
+                                                                    <small class="mt-1 block truncate text-xs text-slate-500">{{ $line->item?->barcode ?? $line->item?->isbn ?? $line->item?->item_code ?? 'Sans code' }}</small>
+                                                                </div>
+                                                                <span class="text-right font-medium">{{ $line->quantity_ordered }}</span>
+                                                                <span class="text-right font-medium">{{ $line->quantity_received }}</span>
+                                                                <span class="text-right">{{ $money($line->unit_cost) }}</span>
+                                                                <strong class="text-right">{{ $money($line->quantity_ordered * $line->unit_cost) }}</strong>
+                                                            </div>
+                                                        @empty
+                                                            <div class="px-4 py-10 text-center text-sm text-slate-500">Aucune ligne article.</div>
+                                                        @endforelse
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <aside class="space-y-3">
+                                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                                    <h4 class="text-sm font-semibold">Informations fournisseur</h4>
+                                                    <dl class="mt-3 space-y-2 text-sm">
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Fournisseur</dt><dd class="text-right font-semibold">{{ $purchase->supplier?->name ?? '—' }}</dd></div>
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Téléphone</dt><dd class="text-right">{{ $purchase->supplier?->phone ?? '—' }}</dd></div>
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Facture</dt><dd class="text-right">{{ data_get($purchase->metadata, 'supplier_invoice', '—') }}</dd></div>
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Référence</dt><dd class="text-right">{{ data_get($purchase->metadata, 'reference', '—') }}</dd></div>
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Dépôt</dt><dd class="text-right">{{ data_get($purchase->metadata, 'warehouse', 'Magasin principal') ?: 'Magasin principal' }}</dd></div>
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Réception prévue</dt><dd class="text-right">{{ $purchase->expected_at?->format('d/m/Y') ?? '—' }}</dd></div>
+                                                    </dl>
+                                                </div>
+                                                @if (data_get($purchase->metadata, 'note'))
+                                                    <div class="rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-white/10 dark:bg-slate-950/40">
+                                                        <h4 class="font-semibold">Note</h4>
+                                                        <p class="mt-2 text-slate-500">{{ data_get($purchase->metadata, 'note') }}</p>
+                                                    </div>
+                                                @endif
+                                            </aside>
+                                        </div>
+                                        <div class="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
+                                            <a href="{{ route('module', ['module' => 'purchases', 'section' => 'list', 'detail_purchase' => $purchase->id]) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">Lien direct</a>
+                                            <div class="flex justify-end gap-2">
+                                                <button type="button" class="dialog-close rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950">Fermer</button>
+                                                @if ($purchase->status !== 'received')
+                                                    <form action="{{ route('purchases.receive', $purchase) }}" method="POST">
+                                                        @csrf
+                                                        <button class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Confirmer réception</button>
+                                                    </form>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </dialog>
+                                @empty
+                                    <tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun achat trouvé.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $purchases->links() }}</div>
                 </article>
             </section>
         @endif
@@ -2173,5 +2467,20 @@
             @endif
             @endif
         </section>
+    @endif
+    @php
+        $autoOpenDialogId = null;
+        if ($module === 'sales' && request('detail_return')) {
+            $autoOpenDialogId = 'return-detail-'.request('detail_return');
+        } elseif ($module === 'purchases' && request('detail_purchase')) {
+            $autoOpenDialogId = 'purchase-detail-'.request('detail_purchase');
+        } elseif ($module === 'purchases' && request('detail_purchase_return')) {
+            $autoOpenDialogId = 'purchase-return-detail-'.request('detail_purchase_return');
+        }
+    @endphp
+    @if ($autoOpenDialogId)
+        <script>
+            window.addEventListener('DOMContentLoaded', () => document.getElementById(@json($autoOpenDialogId))?.showModal());
+        </script>
     @endif
 </x-layouts.app>

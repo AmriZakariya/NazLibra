@@ -192,8 +192,85 @@ class LibraireProController extends Controller
         $sort = in_array($sort, $sorts, true) ? $sort : 'title';
         $referenceQuery = trim((string) $request->query('reference_q'));
         $stockItemSearch = trim((string) $request->query('stock_q'));
+        $stockInventoryQuery = trim((string) $request->query('stock_inventory_q'));
+        $stockInventoryState = $request->query('stock_inventory_state', 'all');
+        $inventoryQuery = trim((string) $request->query('inventory_q'));
+        $inventoryItemId = (int) $request->query('inventory_item');
+        $selectedInventoryItem = $inventoryItemId > 0
+            ? $tenant->items()
+                ->with(['category', 'brand', 'unit'])
+                ->where('type', '!=', 'service')
+                ->whereKey($inventoryItemId)
+                ->first()
+            : null;
+        $stockInventoryItems = $tenant->items()
+            ->with(['category', 'brand', 'unit'])
+            ->select('items.*')
+            ->selectSub(function ($builder) use ($tenant): void {
+                $builder->from('stock_movements')
+                    ->selectRaw('count(*)')
+                    ->whereColumn('stock_movements.item_id', 'items.id')
+                    ->where('stock_movements.tenant_id', $tenant->id);
+            }, 'stock_movements_count')
+            ->where('type', '!=', 'service')
+            ->when($stockInventoryQuery !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($stockInventoryQuery): void {
+                $builder->where('title', 'like', "%{$stockInventoryQuery}%")
+                    ->orWhere('item_code', 'like', "%{$stockInventoryQuery}%")
+                    ->orWhere('sku', 'like', "%{$stockInventoryQuery}%")
+                    ->orWhere('isbn', 'like', "%{$stockInventoryQuery}%")
+                    ->orWhere('barcode', 'like', "%{$stockInventoryQuery}%")
+                    ->orWhere('location', 'like', "%{$stockInventoryQuery}%");
+            }))
+            ->when($stockInventoryState === 'low', fn (Builder $builder) => $builder->whereColumn('stock_quantity', '<=', 'min_stock_threshold')->where('stock_quantity', '>', 0))
+            ->when($stockInventoryState === 'out', fn (Builder $builder) => $builder->where('stock_quantity', '<=', 0))
+            ->when($stockInventoryState === 'available', fn (Builder $builder) => $builder->where('stock_quantity', '>', 0))
+            ->orderByRaw('case when stock_quantity <= min_stock_threshold then 0 else 1 end')
+            ->orderBy('title')
+            ->paginate(15, ['*'], 'inventory_page')
+            ->withQueryString();
         $stockAdjustments = $this->stockAdjustmentsQuery($tenant, $request)->paginate($perPage, ['*'], 'adjustments_page')->withQueryString();
         $stockTransfers = $this->stockTransfersQuery($tenant, $request)->paginate($perPage, ['*'], 'transfers_page')->withQueryString();
+        $stockMovementsQuery = DB::table('stock_movements')
+            ->join('items', 'stock_movements.item_id', '=', 'items.id')
+            ->leftJoin('users', 'stock_movements.user_id', '=', 'users.id')
+            ->where('stock_movements.tenant_id', $tenant->id)
+            ->when($inventoryItemId > 0, fn ($builder) => $builder->where('stock_movements.item_id', $inventoryItemId))
+            ->when($inventoryQuery !== '', function ($builder) use ($inventoryQuery): void {
+                $builder->where(function ($builder) use ($inventoryQuery): void {
+                    $builder->where('items.title', 'like', "%{$inventoryQuery}%")
+                        ->orWhere('items.item_code', 'like', "%{$inventoryQuery}%")
+                        ->orWhere('items.barcode', 'like', "%{$inventoryQuery}%")
+                        ->orWhere('items.isbn', 'like', "%{$inventoryQuery}%")
+                        ->orWhere('stock_movements.type', 'like', "%{$inventoryQuery}%")
+                        ->orWhere('stock_movements.note', 'like', "%{$inventoryQuery}%");
+                });
+            });
+
+        $stockMovementCount = (clone $stockMovementsQuery)->count('stock_movements.id');
+        $stockMovementPerPage = min(max((int) $request->query('movement_per_page', 50), 20), 100);
+
+        $stockMovements = $stockMovementsQuery
+            ->select([
+                'stock_movements.id',
+                'stock_movements.item_id',
+                'stock_movements.type',
+                'stock_movements.quantity_delta',
+                'stock_movements.quantity_after',
+                'stock_movements.reference_type',
+                'stock_movements.reference_id',
+                'stock_movements.note',
+                'stock_movements.created_at',
+                'items.title as item_title',
+                'items.item_code',
+                'items.barcode',
+                'items.purchase_price',
+                'items.sale_price',
+                'items.stock_quantity',
+                'users.name as user_name',
+            ])
+            ->latest('stock_movements.created_at')
+            ->paginate($stockMovementPerPage, ['*'], 'movements_page')
+            ->withQueryString();
 
         $itemsQuery = $this->catalogItemsQuery($tenant, $request);
         if (in_array($panel, ['services', 'ajouter-service'], true)) {
@@ -267,6 +344,7 @@ class LibraireProController extends Controller
                 ->get(),
             'variantOptions' => VariantOption::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'stockItems' => $tenant->items()
+                ->with(['category', 'brand'])
                 ->where('type', '!=', 'service')
                 ->when($stockItemSearch !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($stockItemSearch): void {
                     $builder->where('title', 'like', "%{$stockItemSearch}%")
@@ -281,6 +359,11 @@ class LibraireProController extends Controller
                 ->get(),
             'stockAdjustments' => $stockAdjustments,
             'stockTransfers' => $stockTransfers,
+            'stockInventoryItems' => $stockInventoryItems,
+            'stockInventoryQuery' => $stockInventoryQuery,
+            'stockInventoryState' => $stockInventoryState,
+            'selectedInventoryItem' => $selectedInventoryItem,
+            'stockMovements' => $stockMovements,
             'stores' => $this->storeCatalog($tenant),
             'currentStore' => $this->currentStore($tenant),
             'suggestedItemCode' => $this->nextItemCode($tenant->id),
@@ -289,6 +372,10 @@ class LibraireProController extends Controller
                 'transfers' => StockTransfer::where('tenant_id', $tenant->id)->count(),
                 'adjusted_month' => StockAdjustment::where('tenant_id', $tenant->id)->whereDate('adjusted_at', '>=', now()->startOfMonth())->sum('total_quantity'),
                 'transferred_month' => StockTransfer::where('tenant_id', $tenant->id)->whereDate('transferred_at', '>=', now()->startOfMonth())->sum('total_quantity'),
+                'stock_units' => (int) $tenant->items()->where('type', '!=', 'service')->sum('stock_quantity'),
+                'stock_purchase_value' => (float) $tenant->items()->where('type', '!=', 'service')->selectRaw('sum(stock_quantity * purchase_price) as value')->value('value'),
+                'stock_sale_value' => (float) $tenant->items()->where('type', '!=', 'service')->selectRaw('sum(stock_quantity * sale_price) as value')->value('value'),
+                'movement_count' => $stockMovementCount,
             ],
             'editItem' => $editItem,
             'catalogStats' => [
@@ -309,6 +396,8 @@ class LibraireProController extends Controller
             'direction' => $direction,
             'perPage' => $perPage,
             'referenceQuery' => $referenceQuery,
+            'inventoryQuery' => $inventoryQuery,
+            'inventoryItemId' => $inventoryItemId,
         ]);
     }
 
@@ -397,7 +486,10 @@ class LibraireProController extends Controller
                     .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$checkoutTone.'">'.e($checkoutLabel).'</span>'
                     .'</div>';
             })
-            ->addColumn('action', fn (Item $item): string => '<div class="flex min-w-[96px] justify-end"><a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-500/20">Modifier</a></div>')
+            ->addColumn('action', fn (Item $item): string => '<div class="flex min-w-[190px] justify-end gap-2">'
+                .'<a href="'.e(route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $item->id])).'#inventory-history" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:text-slate-200">Historique</a>'
+                .'<a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-500/20">Modifier</a>'
+                .'</div>')
             ->addColumn('row_url', fn (Item $item): string => route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id]).'#edit-item')
             ->rawColumns(['checkbox', 'image', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'action', 'row_url'])
             ->toJson();
@@ -480,19 +572,16 @@ class LibraireProController extends Controller
                 ]);
 
                 foreach ($lines as $line) {
-                    DB::table('stock_movements')->insert([
-                        'tenant_id' => $tenant->id,
-                        'item_id' => $line['item_id'],
-                        'user_id' => null,
-                        'type' => 'adjustment',
-                        'quantity_delta' => $line['quantity_delta'],
-                        'quantity_after' => $line['quantity_after'],
-                        'reference_type' => StockAdjustment::class,
-                        'reference_id' => $adjustment->id,
-                        'note' => trim(($data['reason'] ?? 'Ajustement stock').' '.($line['note'] ?? '')),
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
+                    $this->recordStockMovementSnapshot(
+                        $tenant,
+                        (int) $line['item_id'],
+                        'adjustment',
+                        (int) $line['quantity_delta'],
+                        (int) $line['quantity_after'],
+                        StockAdjustment::class,
+                        $adjustment->id,
+                        trim(($data['reason'] ?? 'Ajustement stock').' '.($line['note'] ?? ''))
+                    );
                 }
 
                 return $adjustment;
@@ -504,6 +593,90 @@ class LibraireProController extends Controller
         return redirect()
             ->route('stock', ['panel' => 'stock-adjustments'])
             ->with('status', 'Ajustement '.$adjustment->number.' enregistré.');
+    }
+
+    public function stockItemSearch(Request $request): JsonResponse
+    {
+        $tenant = $this->tenant();
+        $query = trim((string) $request->query('q'));
+
+        $items = $tenant->items()
+            ->with(['category', 'brand'])
+            ->where('type', '!=', 'service')
+            ->where('is_enabled', true)
+            ->when($query !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($query): void {
+                $builder->where('title', 'like', "%{$query}%")
+                    ->orWhere('item_code', 'like', "%{$query}%")
+                    ->orWhere('sku', 'like', "%{$query}%")
+                    ->orWhere('isbn', 'like', "%{$query}%")
+                    ->orWhere('barcode', 'like', "%{$query}%")
+                    ->orWhere('custom_barcode1', 'like', "%{$query}%")
+                    ->orWhereHas('category', fn (Builder $category) => $category->where('name', 'like', "%{$query}%"))
+                    ->orWhereHas('brand', fn (Builder $brand) => $brand->where('name', 'like', "%{$query}%"));
+            }))
+            ->orderByRaw("case when stock_quantity <= 0 then 2 when stock_quantity <= min_stock_threshold then 1 else 0 end")
+            ->orderBy('title')
+            ->limit($query === '' ? 80 : 120)
+            ->get()
+            ->map(fn (Item $item): array => $this->stockItemOptionPayload($item));
+
+        return response()->json([
+            'items' => $items,
+            'count' => $items->count(),
+        ]);
+    }
+
+    public function productQuickSearch(Request $request): JsonResponse
+    {
+        $tenant = $this->tenant();
+        $query = trim((string) $request->query('q'));
+
+        $items = $tenant->items()
+            ->with(['category', 'brand'])
+            ->when($query !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($query): void {
+                $builder->where('title', 'like', "%{$query}%")
+                    ->orWhere('item_code', 'like', "%{$query}%")
+                    ->orWhere('sku', 'like', "%{$query}%")
+                    ->orWhere('isbn', 'like', "%{$query}%")
+                    ->orWhere('barcode', 'like', "%{$query}%")
+                    ->orWhere('custom_barcode1', 'like', "%{$query}%")
+                    ->orWhere('author', 'like', "%{$query}%")
+                    ->orWhere('editor', 'like', "%{$query}%")
+                    ->orWhere('description', 'like', "%{$query}%")
+                    ->orWhereHas('category', fn (Builder $category) => $category->where('name', 'like', "%{$query}%"))
+                    ->orWhereHas('brand', fn (Builder $brand) => $brand->where('name', 'like', "%{$query}%"));
+            }))
+            ->orderByRaw("case when type = 'service' then 1 when stock_quantity <= 0 then 2 else 0 end")
+            ->orderBy('title')
+            ->limit($query === '' ? 12 : 20)
+            ->get()
+            ->map(fn (Item $item): array => [
+                'id' => $item->id,
+                'title' => $item->title,
+                'type' => $item->type,
+                'type_label' => match ($item->type) {
+                    'service' => 'Service',
+                    'book' => 'Livre',
+                    default => 'Article',
+                },
+                'code' => $item->barcode ?: ($item->isbn ?: ($item->sku ?: $item->item_code)),
+                'category' => $item->category?->name,
+                'brand' => $item->brand?->name,
+                'stock' => $item->type === 'service' ? null : (int) $item->stock_quantity,
+                'status' => $item->status,
+                'is_enabled' => (bool) $item->is_enabled,
+                'checkout_visible' => (bool) $item->checkout_visible,
+                'price' => $this->money($item->sale_price),
+                'url' => route('catalog', [
+                    'panel' => $item->type === 'service' ? 'services' : 'articles',
+                    'edit' => $item->id,
+                ]).'#edit-item',
+            ]);
+
+        return response()->json([
+            'items' => $items,
+            'count' => $items->count(),
+        ]);
     }
 
     public function storeStockTransfer(Request $request): RedirectResponse
@@ -573,19 +746,7 @@ class LibraireProController extends Controller
                 ]);
 
                 foreach ($lines as $line) {
-                    DB::table('stock_movements')->insert([
-                        'tenant_id' => $tenant->id,
-                        'item_id' => $line['item_id'],
-                        'user_id' => null,
-                        'type' => 'transfer',
-                        'quantity_delta' => 0,
-                        'quantity_after' => $line['available_stock'],
-                        'reference_type' => StockTransfer::class,
-                        'reference_id' => $transfer->id,
-                        'note' => 'Transfert stock '.$transfer->number,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
+                    $this->recordStockMovementSnapshot($tenant, (int) $line['item_id'], 'transfer', 0, (int) $line['available_stock'], StockTransfer::class, $transfer->id, 'Transfert stock '.$transfer->number);
                 }
 
                 return $transfer;
@@ -711,11 +872,18 @@ class LibraireProController extends Controller
             ->toJson();
     }
 
-    public function storeContact(Request $request): RedirectResponse
+    public function storeContact(Request $request): RedirectResponse|JsonResponse
     {
         $tenant = $this->tenant();
         $data = $this->validateContact($request, $tenant);
         $contact = Contact::create($this->contactPayload($request, $tenant, $data));
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'id' => $contact->id,
+                'label' => trim($contact->name.($contact->phone ? ' · '.$contact->phone : '')),
+            ]);
+        }
 
         return redirect()
             ->route('module', ['module' => 'contacts', 'section' => $contact->kind === 'supplier' ? 'suppliers' : 'customers'])
@@ -895,7 +1063,11 @@ class LibraireProController extends Controller
         $data['tenant_id'] = $tenant->id;
         $data['status'] = ($data['status'] ?? 'active') !== 'archived' && $data['stock_quantity'] <= 0 && ($data['type'] ?? 'book') !== 'service' ? 'out_of_stock' : ($data['status'] ?? 'active');
 
-        Item::create($data);
+        $item = Item::create($data);
+
+        if ($item->type !== 'service' && (int) $item->stock_quantity !== 0) {
+            $this->recordStockMovement($tenant, $item, 'opening_stock', (int) $item->stock_quantity, Item::class, $item->id, 'Stock initial article '.$item->item_code);
+        }
 
         return back()->with('status', 'Article ajouté au catalogue.');
     }
@@ -903,10 +1075,18 @@ class LibraireProController extends Controller
     public function updateItem(Request $request, Item $item): RedirectResponse
     {
         $this->authorizeTenantItem($item);
+        $tenant = $this->tenant();
+        $beforeStock = (int) $item->stock_quantity;
+        $beforeType = $item->type;
         $data = $this->validatedItem($request, $item);
         $data['status'] = ($data['status'] ?? $item->status) !== 'archived' && $data['stock_quantity'] <= 0 && ($data['type'] ?? $item->type) !== 'service' ? 'out_of_stock' : ($data['status'] ?? $item->status);
 
         $item->update($data);
+        $item->refresh();
+
+        if ($beforeType !== 'service' && $item->type !== 'service' && $beforeStock !== (int) $item->stock_quantity) {
+            $this->recordStockMovement($tenant, $item, 'item_update', (int) $item->stock_quantity - $beforeStock, Item::class, $item->id, 'Modification fiche article '.$item->item_code);
+        }
 
         return back()->with('status', 'Article mis à jour.');
     }
@@ -1280,11 +1460,26 @@ class LibraireProController extends Controller
             if ($barcode || $isbn) {
                 $match = ['tenant_id' => $tenant->id];
                 $barcode ? $match['barcode'] = $barcode : $match['isbn'] = $isbn;
+                $existing = Item::where($match)->first();
+                $beforeStock = $existing ? (int) $existing->stock_quantity : 0;
                 $model = Item::updateOrCreate($match, $payload);
                 $model->wasRecentlyCreated ? $created++ : $updated++;
             } else {
-                Item::create($payload);
+                $model = Item::create($payload);
+                $beforeStock = 0;
                 $created++;
+            }
+
+            if ($model->type !== 'service' && (int) $model->stock_quantity !== $beforeStock) {
+                $this->recordStockMovement(
+                    $tenant,
+                    $model,
+                    $model->wasRecentlyCreated ? 'import_opening_stock' : 'import_stock_update',
+                    (int) $model->stock_quantity - $beforeStock,
+                    Item::class,
+                    $model->id,
+                    ($model->wasRecentlyCreated ? 'Import stock initial ' : 'Import mise à jour stock ').($model->item_code ?? $model->barcode ?? $model->title)
+                );
             }
         }
 
@@ -2193,6 +2388,8 @@ class LibraireProController extends Controller
 
                     if ($line['item']->type !== 'service') {
                         $line['item']->decrement('stock_quantity', $line['quantity']);
+                        $line['item']->refresh();
+                        $this->recordStockMovement($tenant, $line['item'], 'sale', -$line['quantity'], Sale::class, $sale->id, 'Vente '.$sale->number);
                         if (! $allowOversell && $line['item']->fresh()->stock_quantity <= 0) {
                             $line['item']->update(['status' => 'out_of_stock']);
                         }
@@ -2505,6 +2702,8 @@ class LibraireProController extends Controller
 
                     if ($line['item']->type !== 'service') {
                         $line['item']->decrement('stock_quantity', $line['quantity']);
+                        $line['item']->refresh();
+                        $this->recordStockMovement($tenant, $line['item'], 'sale', -$line['quantity'], Sale::class, $sale->id, 'Vente manuelle '.$sale->number);
                         if (! $allowOversell && $line['item']->fresh()->stock_quantity <= 0) {
                             $line['item']->update(['status' => 'out_of_stock']);
                         }
@@ -2672,6 +2871,7 @@ class LibraireProController extends Controller
         DB::transaction(function () use ($tenant, $sale, $data): void {
             $sale->load('items');
             $lines = [];
+            $stockMovements = [];
 
             if ($data['restock'] ?? true) {
                 foreach ($sale->items as $line) {
@@ -2691,6 +2891,8 @@ class LibraireProController extends Controller
                     $item = Item::whereKey($line->item_id)->lockForUpdate()->first();
                     if ($item && $item->type !== 'service') {
                         $item->increment('stock_quantity', $line->quantity);
+                        $item->refresh();
+                        $stockMovements[] = [$item->id, (int) $line->quantity, (int) $item->stock_quantity];
                         if ($item->status === 'out_of_stock' && $item->fresh()->stock_quantity > 0) {
                             $item->update(['status' => 'active']);
                         }
@@ -2707,7 +2909,7 @@ class LibraireProController extends Controller
                 ])->values()->all();
             }
 
-            SaleReturn::create([
+            $saleReturn = SaleReturn::create([
                 'tenant_id' => $tenant->id,
                 'sale_id' => $sale->id,
                 'contact_id' => $sale->contact_id,
@@ -2721,6 +2923,10 @@ class LibraireProController extends Controller
                 'restock' => (bool) ($data['restock'] ?? true),
                 'returned_at' => now(),
             ]);
+
+            foreach ($stockMovements as [$itemId, $delta, $quantityAfter]) {
+                $this->recordStockMovementSnapshot($tenant, $itemId, 'return', $delta, $quantityAfter, SaleReturn::class, $saleReturn->id, 'Retour vente '.$saleReturn->number.' · vente '.$sale->number);
+            }
 
             $metadata = $sale->metadata ?? [];
             $metadata['refund'] = [
@@ -2998,6 +3204,8 @@ class LibraireProController extends Controller
                             throw new \RuntimeException("Stock insuffisant pour {$item->title}.");
                         }
                         $item->decrement('stock_quantity', (int) $line['quantity']);
+                        $item->refresh();
+                        $this->recordStockMovement($tenant, $item, 'sale', -(int) $line['quantity'], Sale::class, $sale->id, 'Vente devis '.$sale->number);
                     }
 
                     $sale->items()->create([
@@ -3357,6 +3565,8 @@ class LibraireProController extends Controller
                         'purchase_price' => $line['unit_cost'],
                         'status' => 'active',
                     ]);
+                    $item->refresh();
+                    $this->recordStockMovement($tenant, $item, 'purchase', $line['quantity'], Purchase::class, $purchase->id, 'Achat '.$purchase->number);
                 }
             }
 
@@ -3373,7 +3583,7 @@ class LibraireProController extends Controller
         $tenant = $this->tenant();
         abort_unless($purchase->tenant_id === $tenant->id, 404);
 
-        DB::transaction(function () use ($purchase): void {
+        DB::transaction(function () use ($purchase, $tenant): void {
             $purchase->load('items.item');
             foreach ($purchase->items as $line) {
                 $missing = max(0, $line->quantity_ordered - $line->quantity_received);
@@ -3387,6 +3597,8 @@ class LibraireProController extends Controller
                         'purchase_price' => $line->unit_cost,
                         'status' => 'active',
                     ]);
+                    $line->item->refresh();
+                    $this->recordStockMovement($tenant, $line->item, 'purchase', $missing, Purchase::class, $purchase->id, 'Réception achat '.$purchase->number);
                 }
                 $line->increment('quantity_received', $missing);
             }
@@ -3435,6 +3647,7 @@ class LibraireProController extends Controller
                 ->keyBy('id');
 
             $payloadLines = [];
+            $stockMovements = [];
             $total = 0.0;
             foreach ($lines as $line) {
                 $item = $items->get($line['item_id']);
@@ -3454,10 +3667,12 @@ class LibraireProController extends Controller
 
                 if ($item->type !== 'service') {
                     $item->decrement('stock_quantity', $line['quantity']);
+                    $item->refresh();
+                    $stockMovements[] = [$item->id, -$line['quantity'], (int) $item->stock_quantity];
                 }
             }
 
-            return PurchaseReturn::create([
+            $purchaseReturn = PurchaseReturn::create([
                 'tenant_id' => $tenant->id,
                 'purchase_id' => $purchase->id,
                 'supplier_id' => $purchase->supplier_id,
@@ -3468,6 +3683,12 @@ class LibraireProController extends Controller
                 'reason' => $data['reason'] ?? null,
                 'lines' => $payloadLines,
             ]);
+
+            foreach ($stockMovements as [$itemId, $delta, $quantityAfter]) {
+                $this->recordStockMovementSnapshot($tenant, $itemId, 'purchase_return', $delta, $quantityAfter, PurchaseReturn::class, $purchaseReturn->id, 'Retour achat '.$purchaseReturn->number.' · achat '.$purchase->number);
+            }
+
+            return $purchaseReturn;
         });
 
         return redirect()
@@ -3530,6 +3751,18 @@ class LibraireProController extends Controller
         if ($module === 'contacts' && $request->filled('edit')) {
             $editContact = Contact::where('tenant_id', $tenant->id)->whereKey((int) $request->query('edit'))->first();
         }
+        $purchasePrefillItemId = (int) $request->query('item');
+        $purchaseItems = Item::where('tenant_id', $tenant->id)->where('status', 'active')->orderBy('title')->take(300)->get();
+        if ($module === 'purchases' && $purchasePrefillItemId > 0 && ! $purchaseItems->contains('id', $purchasePrefillItemId)) {
+            $prefillPurchaseItem = Item::where('tenant_id', $tenant->id)
+                ->where('status', 'active')
+                ->whereKey($purchasePrefillItemId)
+                ->first();
+
+            if ($prefillPurchaseItem) {
+                $purchaseItems->prepend($prefillPurchaseItem);
+            }
+        }
 
         return view('librairepro.module', [
             'tenant' => $tenant,
@@ -3552,7 +3785,7 @@ class LibraireProController extends Controller
             'purchases' => $module === 'purchases' ? $purchaseList : Purchase::where('tenant_id', $tenant->id)->with('supplier')->latest()->take(8)->get(),
             'purchaseReturns' => $purchaseReturns,
             'purchaseSuppliers' => Contact::where('tenant_id', $tenant->id)->where('kind', 'supplier')->orderBy('name')->get(),
-            'purchaseItems' => Item::where('tenant_id', $tenant->id)->where('status', 'active')->orderBy('title')->take(300)->get(),
+            'purchaseItems' => $purchaseItems,
             'purchaseReturnSources' => Purchase::where('tenant_id', $tenant->id)->with(['supplier', 'items.item'])->whereIn('status', ['received', 'partially_received'])->latest('received_at')->take(80)->get(),
             'loans' => Loan::where('tenant_id', $tenant->id)->with(['member', 'item'])->latest()->take(8)->get(),
             'contacts' => Contact::where('tenant_id', $tenant->id)->orderBy('kind')->orderBy('name')->take(12)->get(),
@@ -3666,6 +3899,29 @@ class LibraireProController extends Controller
             'image_url' => $image ? asset('storage/'.$image) : null,
             'stock_url' => route('catalog', ['panel' => 'stock-adjustment-add', 'stock_q' => $primaryCode ?? $item->title]),
             'search' => Str::lower($searchText),
+        ];
+    }
+
+    private function stockItemOptionPayload(Item $item): array
+    {
+        $code = $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code;
+        $labelParts = collect([
+            $item->title,
+            'stock '.$item->stock_quantity,
+            $code,
+            $item->category?->name,
+        ])->filter();
+
+        return [
+            'value' => (string) $item->id,
+            'text' => $labelParts->join(' · '),
+            'title' => $item->title,
+            'stock' => (int) $item->stock_quantity,
+            'threshold' => (int) $item->min_stock_threshold,
+            'code' => $code,
+            'category' => $item->category?->name,
+            'brand' => $item->brand?->name,
+            'purchase_price' => (float) $item->purchase_price,
         ];
     }
 
@@ -3956,6 +4212,28 @@ class LibraireProController extends Controller
         ]);
     }
 
+    private function recordStockMovement(Tenant $tenant, Item $item, string $type, int $delta, ?string $referenceType = null, ?int $referenceId = null, ?string $note = null): void
+    {
+        $this->recordStockMovementSnapshot($tenant, $item->id, $type, $delta, (int) $item->stock_quantity, $referenceType, $referenceId, $note);
+    }
+
+    private function recordStockMovementSnapshot(Tenant $tenant, int $itemId, string $type, int $delta, int $quantityAfter, ?string $referenceType = null, ?int $referenceId = null, ?string $note = null): void
+    {
+        DB::table('stock_movements')->insert([
+            'tenant_id' => $tenant->id,
+            'item_id' => $itemId,
+            'user_id' => auth()->id(),
+            'type' => $type,
+            'quantity_delta' => $delta,
+            'quantity_after' => $quantityAfter,
+            'reference_type' => $referenceType,
+            'reference_id' => $referenceId,
+            'note' => $note,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
     private function nextStockAdjustmentNumber(Tenant $tenant): string
     {
         $max = StockAdjustment::where('tenant_id', $tenant->id)
@@ -4005,6 +4283,7 @@ class LibraireProController extends Controller
     private function salesListQuery(Tenant $tenant, Request $request): Builder
     {
         $query = trim((string) $request->query('q'));
+        $detailSale = (int) $request->query('detail_sale');
         $from = $request->query('from');
         $to = $request->query('to');
         $client = $request->query('client');
@@ -4016,6 +4295,7 @@ class LibraireProController extends Controller
         return Sale::query()
             ->with(['contact', 'items', 'payments', 'deliveryOrders', 'returns', 'invoice'])
             ->where('tenant_id', $tenant->id)
+            ->when($detailSale > 0, fn (Builder $builder) => $builder->whereKey($detailSale))
             ->when($query !== '', function (Builder $builder) use ($query): void {
                 $builder->where(function (Builder $builder) use ($query): void {
                     $builder->where('number', 'like', "%{$query}%")
@@ -4078,10 +4358,12 @@ class LibraireProController extends Controller
     private function saleReturnsQuery(Tenant $tenant, Request $request): Builder
     {
         $query = trim((string) $request->query('q'));
+        $detailReturn = (int) $request->query('detail_return');
 
         return SaleReturn::query()
             ->with(['sale', 'contact'])
             ->where('tenant_id', $tenant->id)
+            ->when($detailReturn > 0, fn (Builder $builder) => $builder->whereKey($detailReturn))
             ->when($query !== '', function (Builder $builder) use ($query): void {
                 $builder->where(function (Builder $builder) use ($query): void {
                     $builder->where('number', 'like', "%{$query}%")
@@ -4173,10 +4455,12 @@ class LibraireProController extends Controller
     private function purchasesQuery(Tenant $tenant, Request $request): Builder
     {
         $query = trim((string) $request->query('q'));
+        $detailPurchase = (int) $request->query('detail_purchase');
 
         return Purchase::query()
             ->with(['supplier', 'items.item', 'returns'])
             ->where('tenant_id', $tenant->id)
+            ->when($detailPurchase > 0, fn (Builder $builder) => $builder->whereKey($detailPurchase))
             ->when($query !== '', function (Builder $builder) use ($query): void {
                 $builder->where(function (Builder $builder) use ($query): void {
                     $builder->where('number', 'like', "%{$query}%")
@@ -4198,9 +4482,11 @@ class LibraireProController extends Controller
     private function stockAdjustmentsQuery(Tenant $tenant, Request $request): Builder
     {
         $query = trim((string) $request->query('q'));
+        $detailAdjustment = (int) $request->query('detail_adjustment');
 
         return StockAdjustment::query()
             ->where('tenant_id', $tenant->id)
+            ->when($detailAdjustment > 0, fn (Builder $builder) => $builder->whereKey($detailAdjustment))
             ->when($query !== '', function (Builder $builder) use ($query): void {
                 $builder->where(function (Builder $builder) use ($query): void {
                     $builder->where('number', 'like', "%{$query}%")
@@ -4218,9 +4504,11 @@ class LibraireProController extends Controller
     private function stockTransfersQuery(Tenant $tenant, Request $request): Builder
     {
         $query = trim((string) $request->query('q'));
+        $detailTransfer = (int) $request->query('detail_transfer');
 
         return StockTransfer::query()
             ->where('tenant_id', $tenant->id)
+            ->when($detailTransfer > 0, fn (Builder $builder) => $builder->whereKey($detailTransfer))
             ->when($query !== '', function (Builder $builder) use ($query): void {
                 $builder->where(function (Builder $builder) use ($query): void {
                     $builder->where('number', 'like', "%{$query}%")
@@ -4259,10 +4547,12 @@ class LibraireProController extends Controller
     private function purchaseReturnsQuery(Tenant $tenant, Request $request): Builder
     {
         $query = trim((string) $request->query('q'));
+        $detailReturn = (int) $request->query('detail_purchase_return');
 
         return PurchaseReturn::query()
             ->with(['purchase', 'supplier'])
             ->where('tenant_id', $tenant->id)
+            ->when($detailReturn > 0, fn (Builder $builder) => $builder->whereKey($detailReturn))
             ->when($query !== '', function (Builder $builder) use ($query): void {
                 $builder->where(function (Builder $builder) use ($query): void {
                     $builder->where('number', 'like', "%{$query}%")
