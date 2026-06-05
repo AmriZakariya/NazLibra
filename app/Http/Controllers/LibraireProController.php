@@ -67,32 +67,98 @@ class LibraireProController extends Controller
         return redirect()->back()->with('status', $locale === 'ar' ? 'تم تغيير اللغة إلى العربية.' : 'Langue changée en français.');
     }
 
-    public function dashboard(): View
+    public function dashboard(Request $request): View
     {
         $tenant = $this->tenant();
-        $today = Carbon::today();
-        $yesterday = Carbon::yesterday();
-        $weekStart = now()->subDays(6)->startOfDay();
-        $monthStart = now()->startOfMonth();
+        $preset = (string) $request->query('period', 'today');
+        $allowedPresets = ['today', 'yesterday', 'week', 'month', 'year', 'custom'];
+        $preset = in_array($preset, $allowedPresets, true) ? $preset : 'today';
 
-        $dailyRevenue = $tenant->sales()->whereDate('sold_at', $today)->sum('total_amount');
-        $yesterdayRevenue = $tenant->sales()->whereDate('sold_at', $yesterday)->sum('total_amount');
+        [$from, $to] = match ($preset) {
+            'yesterday' => [now()->subDay()->startOfDay(), now()->subDay()->endOfDay()],
+            'week' => [now()->subDays(6)->startOfDay(), now()->endOfDay()],
+            'month' => [now()->startOfMonth(), now()->endOfDay()],
+            'year' => [now()->startOfYear(), now()->endOfDay()],
+            'custom' => [
+                $request->filled('from') ? Carbon::parse((string) $request->query('from'))->startOfDay() : now()->startOfDay(),
+                $request->filled('to') ? Carbon::parse((string) $request->query('to'))->endOfDay() : now()->endOfDay(),
+            ],
+            default => [now()->startOfDay(), now()->endOfDay()],
+        };
+
+        if ($from->greaterThan($to)) {
+            [$from, $to] = [$to->copy()->startOfDay(), $from->copy()->endOfDay()];
+        }
+
+        $periodDays = max(1, $from->copy()->startOfDay()->diffInDays($to->copy()->startOfDay()) + 1);
+        $previousFrom = $from->copy()->subDays($periodDays);
+        $previousTo = $from->copy()->subSecond();
+        $trendLimit = min(31, $periodDays);
+        $trendStart = $to->copy()->startOfDay()->subDays($trendLimit - 1);
+        $today = Carbon::today();
+
+        $salesQuery = $tenant->sales()
+            ->whereBetween('sold_at', [$from, $to]);
+        $previousSalesQuery = $tenant->sales()
+            ->whereBetween('sold_at', [$previousFrom, $previousTo]);
+        $paymentsQuery = SalePayment::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereBetween('paid_at', [$from, $to]);
+        $purchasesQuery = Purchase::query()
+            ->where('tenant_id', $tenant->id)
+            ->where(function (Builder $builder) use ($from, $to): void {
+                $builder->whereBetween('ordered_at', [$from->toDateString(), $to->toDateString()])
+                    ->orWhereBetween('received_at', [$from->toDateString(), $to->toDateString()]);
+            });
+        $expensesQuery = Expense::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereBetween('spent_at', [$from->toDateString(), $to->toDateString()]);
+        $saleReturnsQuery = SaleReturn::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereBetween('returned_at', [$from, $to]);
+        $purchaseReturnsQuery = PurchaseReturn::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereBetween('returned_at', [$from, $to]);
+        $quotationsQuery = Quotation::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereBetween('quoted_at', [$from, $to]);
+
+        $periodRevenue = (float) (clone $salesQuery)->sum('total_amount');
+        $previousRevenue = (float) (clone $previousSalesQuery)->sum('total_amount');
+        $periodPayments = (float) (clone $paymentsQuery)->sum('amount');
+        $periodPurchases = (float) (clone $purchasesQuery)->sum('total_amount');
+        $periodExpenses = (float) (clone $expensesQuery)->sum('amount');
+        $periodSaleReturns = (float) (clone $saleReturnsQuery)->sum('total_amount');
+        $periodPurchaseReturns = (float) (clone $purchaseReturnsQuery)->sum('total_amount');
         $dailyItems = DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->where('sales.tenant_id', $tenant->id)
-            ->whereDate('sales.sold_at', $today)
+            ->whereBetween('sales.sold_at', [$from, $to])
             ->sum('sale_items.quantity');
+        $purchaseCost = (float) DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->leftJoin('items', 'sale_items.item_id', '=', 'items.id')
+            ->where('sales.tenant_id', $tenant->id)
+            ->whereBetween('sales.sold_at', [$from, $to])
+            ->selectRaw('sum(coalesce(items.purchase_price, 0) * sale_items.quantity) as value')
+            ->value('value');
+        $netRevenue = max(0, $periodRevenue - $periodSaleReturns);
+        $grossProfit = $netRevenue - $purchaseCost;
+        $netProfit = $grossProfit - $periodExpenses;
+        $revenueDelta = $previousRevenue > 0
+            ? (($periodRevenue - $previousRevenue) / max(1, $previousRevenue)) * 100
+            : ($periodRevenue > 0 ? 100 : 0);
 
         $trendRows = $tenant->sales()
             ->selectRaw('date(sold_at) as day, sum(total_amount) as total')
-            ->where('sold_at', '>=', $weekStart)
+            ->whereBetween('sold_at', [$trendStart, $to])
             ->groupBy('day')
             ->orderBy('day')
             ->get()
             ->keyBy('day');
 
-        $salesTrend = collect(range(0, 6))->map(function (int $offset) use ($weekStart, $trendRows) {
-            $day = $weekStart->copy()->addDays($offset)->toDateString();
+        $salesTrend = collect(range(0, $trendLimit - 1))->map(function (int $offset) use ($trendStart, $trendRows) {
+            $day = $trendStart->copy()->addDays($offset)->toDateString();
 
             return (object) [
                 'day' => $day,
@@ -100,12 +166,36 @@ class LibraireProController extends Controller
             ];
         });
 
-        $weekRevenue = (float) $salesTrend->sum('total');
-        $monthRevenue = (float) $tenant->sales()->where('sold_at', '>=', $monthStart)->sum('total_amount');
-        $monthlyExpenses = (float) Expense::where('tenant_id', $tenant->id)->where('spent_at', '>=', $monthStart->toDateString())->sum('amount');
-        $dailyDelta = $yesterdayRevenue > 0
-            ? (($dailyRevenue - $yesterdayRevenue) / max(1, $yesterdayRevenue)) * 100
-            : ($dailyRevenue > 0 ? 100 : 0);
+        $categoryBreakdown = DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->leftJoin('items', 'sale_items.item_id', '=', 'items.id')
+            ->leftJoin('categories', 'items.category_id', '=', 'categories.id')
+            ->where('sales.tenant_id', $tenant->id)
+            ->whereBetween('sales.sold_at', [$from, $to])
+            ->selectRaw("coalesce(categories.name, 'Sans catégorie') as category_name, sum(sale_items.quantity) as quantity, sum(sale_items.total_price) as revenue")
+            ->groupByRaw("coalesce(categories.name, 'Sans catégorie')")
+            ->orderByDesc('revenue')
+            ->limit(6)
+            ->get();
+        $expenseBreakdown = (clone $expensesQuery)
+            ->selectRaw('category, sum(amount) as total')
+            ->groupBy('category')
+            ->orderByDesc('total')
+            ->limit(5)
+            ->get();
+        $hourlyHeatmap = DB::table('sales')
+            ->where('tenant_id', $tenant->id)
+            ->whereBetween('sold_at', [$from, $to])
+            ->selectRaw("cast(strftime('%H', sold_at) as integer) as hour, count(*) as tickets, sum(total_amount) as total")
+            ->groupBy('hour')
+            ->orderBy('hour')
+            ->get()
+            ->keyBy('hour');
+        $hourlyHeatmap = collect(range(8, 22))->map(fn (int $hour) => (object) [
+            'hour' => $hour,
+            'tickets' => (int) ($hourlyHeatmap[$hour]->tickets ?? 0),
+            'total' => (float) ($hourlyHeatmap[$hour]->total ?? 0),
+        ]);
         $stockValue = (float) $tenant->items()
             ->where('type', '!=', 'service')
             ->selectRaw('sum(stock_quantity * purchase_price) as value')
@@ -122,23 +212,62 @@ class LibraireProController extends Controller
         $stockHealth = max(0, round((($totalPhysicalItems - $lowStockCount) / $totalPhysicalItems) * 100));
         $paymentBreakdown = SalePayment::query()
             ->where('tenant_id', $tenant->id)
-            ->whereDate('paid_at', $today)
+            ->whereBetween('paid_at', [$from, $to])
             ->selectRaw('method, sum(amount) as total')
             ->groupBy('method')
             ->orderByDesc('total')
             ->get();
+        $newClients = Contact::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('kind', 'client')
+            ->whereBetween('created_at', [$from, $to])
+            ->count();
+        $activeClients = (clone $salesQuery)->whereNotNull('contact_id')->distinct('contact_id')->count('contact_id');
+        $ticketCount = (clone $salesQuery)->count();
+        $averageTicket = $ticketCount > 0 ? $periodRevenue / $ticketCount : 0;
+        $openReceivables = (float) $tenant->sales()->whereIn('status', ['partial', 'unpaid'])->sum('total_amount');
+        $cashDrawerIn = (float) (clone $salesQuery)->get()->sum(fn (Sale $sale) => (float) data_get($sale->metadata, 'cash_register.cash_drawer_in', 0));
+        $cashReceived = (float) (clone $salesQuery)->get()->sum(fn (Sale $sale) => (float) data_get($sale->metadata, 'cash_register.cash_received', 0));
+        $cashChange = (float) (clone $salesQuery)->get()->sum(fn (Sale $sale) => (float) data_get($sale->metadata, 'cash_register.cash_change', 0));
+        $periodLabels = [
+            'today' => 'Aujourd’hui',
+            'yesterday' => 'Hier',
+            'week' => '7 derniers jours',
+            'month' => 'Mois courant',
+            'year' => 'Année courante',
+            'custom' => 'Période personnalisée',
+        ];
 
         return view('librairepro.dashboard', [
             'tenant' => $tenant,
             'active' => 'dashboard',
+            'filters' => [
+                'period' => $preset,
+                'label' => $periodLabels[$preset],
+                'from' => $from,
+                'to' => $to,
+                'previous_from' => $previousFrom,
+                'previous_to' => $previousTo,
+                'days' => $periodDays,
+            ],
             'stats' => [
-                ['label' => 'Chiffre du jour', 'value' => $this->money($dailyRevenue), 'tone' => $dailyDelta >= 0 ? 'success' : 'danger', 'delta' => ($dailyDelta >= 0 ? '+' : '').number_format($dailyDelta, 0, ',', ' ').'% vs hier'],
-                ['label' => 'Articles vendus', 'value' => number_format((float) $dailyItems, 0, ',', ' '), 'tone' => 'info', 'delta' => 'Aujourd’hui'],
-                ['label' => 'CA semaine', 'value' => $this->money($weekRevenue), 'tone' => 'primary', 'delta' => '7 derniers jours'],
-                ['label' => 'Marge opérationnelle', 'value' => $this->money(max(0, $monthRevenue - $monthlyExpenses)), 'tone' => 'success', 'delta' => 'Mois courant'],
+                ['label' => 'Chiffre d’affaires', 'value' => $this->money($periodRevenue), 'tone' => $revenueDelta >= 0 ? 'success' : 'danger', 'delta' => ($revenueDelta >= 0 ? '+' : '').number_format($revenueDelta, 0, ',', ' ').'% vs période précédente'],
+                ['label' => 'Articles vendus', 'value' => number_format((float) $dailyItems, 0, ',', ' '), 'tone' => 'info', 'delta' => $periodLabels[$preset]],
+                ['label' => 'Ticket moyen', 'value' => $this->money($averageTicket), 'tone' => 'primary', 'delta' => number_format($ticketCount, 0, ',', ' ').' ticket(s)'],
+                ['label' => 'Résultat net estimé', 'value' => $this->money($netProfit), 'tone' => $netProfit >= 0 ? 'success' : 'danger', 'delta' => 'Ventes - coûts - dépenses'],
+            ],
+            'reportCards' => [
+                ['label' => 'Ventes brutes', 'value' => $this->money($periodRevenue), 'href' => route('module', ['module' => 'sales', 'section' => 'list', 'from' => $from->toDateString(), 'to' => $to->toDateString()]), 'tone' => 'primary', 'hint' => 'CA encaissé ou facturé'],
+                ['label' => 'Retours vente', 'value' => $this->money($periodSaleReturns), 'href' => route('module', ['module' => 'sales', 'section' => 'returns', 'from' => $from->toDateString(), 'to' => $to->toDateString()]), 'tone' => 'danger', 'hint' => 'Avoirs et remboursements'],
+                ['label' => 'Paiements reçus', 'value' => $this->money($periodPayments), 'href' => route('module', ['module' => 'sales', 'section' => 'payments', 'from' => $from->toDateString(), 'to' => $to->toDateString()]), 'tone' => 'success', 'hint' => 'Espèces, carte, virement'],
+                ['label' => 'Achats', 'value' => $this->money($periodPurchases), 'href' => route('module', ['module' => 'purchases', 'section' => 'list']), 'tone' => 'warning', 'hint' => 'Commandes fournisseur'],
+                ['label' => 'Retours achat', 'value' => $this->money($periodPurchaseReturns), 'href' => route('module', ['module' => 'purchases', 'section' => 'returns']), 'tone' => 'warning', 'hint' => 'Retours fournisseurs'],
+                ['label' => 'Dépenses', 'value' => $this->money($periodExpenses), 'href' => route('module', ['module' => 'finance', 'section' => 'expenses']), 'tone' => 'danger', 'hint' => 'Charges de la période'],
+                ['label' => 'Marge brute estimée', 'value' => $this->money($grossProfit), 'href' => route('module', ['module' => 'reports', 'section' => 'profit-loss', 'from' => $from->toDateString(), 'to' => $to->toDateString()]), 'tone' => $grossProfit >= 0 ? 'success' : 'danger', 'hint' => 'Net ventes - coût articles'],
+                ['label' => 'Créances ouvertes', 'value' => $this->money($openReceivables), 'href' => route('module', ['module' => 'reports', 'section' => 'sales-payments']), 'tone' => 'info', 'hint' => 'Ventes partielles / impayées'],
             ],
             'operations' => [
-                'pending_tickets' => PosTicket::where('tenant_id', $tenant->id)->where('status', 'open')->count(),
+                'pending_tickets' => PosTicket::where('tenant_id', $tenant->id)->where('status', 'held')->count(),
                 'pending_deliveries' => DeliveryOrder::where('tenant_id', $tenant->id)->whereIn('status', ['pending', 'preparing', 'dispatched'])->count(),
                 'open_quotes' => Quotation::where('tenant_id', $tenant->id)->whereIn('status', ['draft', 'sent'])->count(),
                 'draft_purchases' => Purchase::where('tenant_id', $tenant->id)->whereIn('status', ['draft', 'ordered', 'partially_received'])->count(),
@@ -149,19 +278,32 @@ class LibraireProController extends Controller
                 'out' => $outOfStockCount,
                 'value' => $stockValue,
             ],
+            'cashSummary' => [
+                'drawer_in' => $cashDrawerIn,
+                'received' => $cashReceived,
+                'change' => $cashChange,
+            ],
+            'clientSummary' => [
+                'new' => $newClients,
+                'active' => $activeClients,
+                'total' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->count(),
+            ],
             'lowStockItems' => $tenant->items()->with('category')->where('type', '!=', 'service')->whereColumn('stock_quantity', '<=', 'min_stock_threshold')->orderBy('stock_quantity')->take(6)->get(),
-            'recentSales' => $tenant->sales()->with('contact')->withCount('items')->latest('sold_at')->take(7)->get(),
+            'recentSales' => (clone $salesQuery)->with('contact')->withCount('items')->latest('sold_at')->take(8)->get(),
             'activeLoans' => $tenant->loans()->with(['member', 'item'])->whereIn('status', ['borrowed', 'overdue'])->latest()->take(5)->get(),
             'salesTrend' => $salesTrend,
             'topItems' => DB::table('sale_items')
                 ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
                 ->where('sales.tenant_id', $tenant->id)
-                ->where('sales.sold_at', '>=', $monthStart)
+                ->whereBetween('sales.sold_at', [$from, $to])
                 ->selectRaw('sale_items.name, sum(sale_items.quantity) as quantity, sum(sale_items.total_price) as revenue')
                 ->groupBy('sale_items.name')
                 ->orderByDesc('quantity')
-                ->limit(5)
+                ->limit(8)
                 ->get(),
+            'categoryBreakdown' => $categoryBreakdown,
+            'expenseBreakdown' => $expenseBreakdown,
+            'hourlyHeatmap' => $hourlyHeatmap,
             'paymentBreakdown' => $paymentBreakdown,
             'recentActivity' => collect([
                 ['label' => 'Ventes encaissées', 'value' => $tenant->sales()->whereDate('sold_at', $today)->count(), 'href' => route('module', ['module' => 'sales', 'section' => 'list'])],

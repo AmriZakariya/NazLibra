@@ -3,11 +3,22 @@
     $maxTrend = max(1, (float) $salesTrend->max('total'));
     $maxPayment = max(1, (float) $paymentBreakdown->max('total'));
     $maxTopItem = max(1, (float) $topItems->max('quantity'));
+    $maxCategory = max(1, (float) $categoryBreakdown->max('revenue'));
+    $maxExpense = max(1, (float) $expenseBreakdown->max('total'));
+    $maxHourly = max(1, (float) $hourlyHeatmap->max('tickets'));
+    $dateQuery = ['period' => 'custom', 'from' => $filters['from']->toDateString(), 'to' => $filters['to']->toDateString()];
     $operationCards = [
         ['label' => 'Tickets en attente', 'value' => $operations['pending_tickets'], 'href' => route('pos'), 'hint' => 'Reprendre une caisse'],
         ['label' => 'Livraisons à suivre', 'value' => $operations['pending_deliveries'], 'href' => route('module', ['module' => 'sales', 'section' => 'delivery']), 'hint' => 'Préparation / dispatch'],
         ['label' => 'Devis ouverts', 'value' => $operations['open_quotes'], 'href' => route('module', ['module' => 'sales', 'section' => 'quotes']), 'hint' => 'À relancer'],
         ['label' => 'Achats ouverts', 'value' => $operations['draft_purchases'], 'href' => route('module', ['module' => 'purchases', 'section' => 'list']), 'hint' => 'Commandes fournisseur'],
+    ];
+    $periodPresets = [
+        'today' => 'Aujourd’hui',
+        'yesterday' => 'Hier',
+        'week' => '7 jours',
+        'month' => 'Mois',
+        'year' => 'Année',
     ];
 @endphp
 
@@ -16,13 +27,34 @@
         <div class="min-w-0">
             <p class="text-sm font-semibold text-brand">Tableau de bord opérationnel</p>
             <h1 class="mt-2 text-2xl font-semibold tracking-normal text-slate-950 dark:text-white">Bonjour, {{ $tenant->name }}</h1>
-            <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">Une vue rapide pour piloter ventes, stock, caisse, clients et préparation rentrée sans perdre le fil.</p>
+            <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">Une vue rapide pour piloter ventes, stock, caisse, clients et préparation rentrée sans perdre le fil. Période: {{ $filters['from']->format('d/m/Y') }} - {{ $filters['to']->format('d/m/Y') }}.</p>
         </div>
         <div class="dashboard-hero-actions">
             <a href="{{ route('catalog', ['panel' => 'ajouter']) }}" class="dashboard-secondary-action">Nouvel article</a>
             <a href="{{ route('catalog', ['panel' => 'stock-adjustment-add']) }}" class="dashboard-secondary-action">Ajuster stock</a>
             <a href="{{ route('pos') }}" class="dashboard-primary-action">Ouvrir la caisse</a>
         </div>
+    </section>
+
+    <section class="dashboard-filter-panel mt-5">
+        <div class="dashboard-period-tabs">
+            @foreach ($periodPresets as $key => $label)
+                <a href="{{ route('dashboard', ['period' => $key]) }}" class="dashboard-period-tab {{ $filters['period'] === $key ? 'is-active' : '' }}">{{ $label }}</a>
+            @endforeach
+        </div>
+        <form action="{{ route('dashboard') }}" method="GET" class="dashboard-date-form">
+            <input type="hidden" name="period" value="custom">
+            <label>
+                <span>Du</span>
+                <input type="date" name="from" value="{{ $filters['from']->toDateString() }}">
+            </label>
+            <label>
+                <span>Au</span>
+                <input type="date" name="to" value="{{ $filters['to']->toDateString() }}">
+            </label>
+            <button>Filtrer</button>
+            <a href="{{ route('dashboard') }}">Réinitialiser</a>
+        </form>
     </section>
 
     <section class="mt-6 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
@@ -40,12 +72,24 @@
         @endforeach
     </section>
 
+    <section class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        @foreach ($reportCards as $report)
+            <a href="{{ $report['href'] }}" class="dashboard-report-card is-{{ $report['tone'] }}">
+                <span>
+                    <small>{{ $report['hint'] }}</small>
+                    <strong>{{ $report['label'] }}</strong>
+                </span>
+                <em>{{ $report['value'] }}</em>
+            </a>
+        @endforeach
+    </section>
+
     <section class="mt-6 grid gap-6 2xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,.75fr)]">
         <article class="dashboard-panel">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <h2 class="text-base font-semibold">Revenus des 7 derniers jours</h2>
-                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Les jours sans vente restent visibles pour éviter les faux pics.</p>
+                    <h2 class="text-base font-semibold">Revenus par jour</h2>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Affiche jusqu’à 31 jours et garde les journées sans vente visibles.</p>
                 </div>
                 <x-status-pill tone="info">MAD</x-status-pill>
             </div>
@@ -77,8 +121,17 @@
                     </div>
 
                     <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                        <p class="text-xs font-semibold uppercase text-slate-500">Caisse espèces</p>
+                        <div class="mt-3 grid gap-2 text-sm">
+                            <div class="flex justify-between gap-3"><span class="text-slate-500">Reçu</span><strong>{{ $money($cashSummary['received']) }}</strong></div>
+                            <div class="flex justify-between gap-3"><span class="text-slate-500">Monnaie</span><strong>{{ $money($cashSummary['change']) }}</strong></div>
+                            <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Entrée tiroir</span><strong>{{ $money($cashSummary['drawer_in']) }}</strong></div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
                         <div class="flex items-center justify-between">
-                            <p class="text-xs font-semibold uppercase text-slate-500">Paiements du jour</p>
+                            <p class="text-xs font-semibold uppercase text-slate-500">Paiements période</p>
                             <a href="{{ route('module', ['module' => 'sales', 'section' => 'payments']) }}" class="text-xs font-semibold text-brand">Voir</a>
                         </div>
                         <div class="mt-4 space-y-3">
@@ -132,6 +185,51 @@
                 </div>
             </div>
         </aside>
+    </section>
+
+    <section class="mt-6 grid gap-6 xl:grid-cols-3">
+        <article class="dashboard-panel xl:col-span-2">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="text-base font-semibold">Heures de pointe</h2>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Nombre de tickets par heure pour mieux préparer l’équipe en période chargée.</p>
+                </div>
+                <a href="{{ route('module', ['module' => 'reports', 'section' => 'sales-summary'] + $dateQuery) }}" class="text-sm font-semibold text-brand">Rapport ventes</a>
+            </div>
+            <div class="dashboard-hour-grid mt-5">
+                @foreach ($hourlyHeatmap as $hour)
+                    <div class="dashboard-hour-cell" style="--hour-strength: {{ min(1, (float) $hour->tickets / $maxHourly) }}">
+                        <strong>{{ str_pad((string) $hour->hour, 2, '0', STR_PAD_LEFT) }}h</strong>
+                        <span>{{ $hour->tickets }} ticket(s)</span>
+                        <small>{{ $money($hour->total) }}</small>
+                    </div>
+                @endforeach
+            </div>
+        </article>
+
+        <article class="dashboard-panel">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-semibold">Clients</h2>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Activité CRM sur la période.</p>
+                </div>
+                <a href="{{ route('module', ['module' => 'contacts', 'section' => 'customers']) }}" class="text-sm font-semibold text-brand">CRM</a>
+            </div>
+            <div class="mt-5 grid gap-3">
+                <div class="dashboard-client-stat">
+                    <span>Nouveaux clients</span>
+                    <strong>{{ number_format($clientSummary['new'], 0, ',', ' ') }}</strong>
+                </div>
+                <div class="dashboard-client-stat">
+                    <span>Clients actifs</span>
+                    <strong>{{ number_format($clientSummary['active'], 0, ',', ' ') }}</strong>
+                </div>
+                <div class="dashboard-client-stat">
+                    <span>Base totale</span>
+                    <strong>{{ number_format($clientSummary['total'], 0, ',', ' ') }}</strong>
+                </div>
+            </div>
+        </article>
     </section>
 
     <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,.8fr)]">
@@ -198,9 +296,62 @@
         </article>
     </section>
 
+    <section class="mt-6 grid gap-6 xl:grid-cols-2">
+        <article class="dashboard-panel">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-semibold">Ventes par catégorie</h2>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Répartition du chiffre d’affaires par famille d’articles.</p>
+                </div>
+                <a href="{{ route('module', ['module' => 'reports', 'section' => 'sales'] + $dateQuery) }}" class="text-sm font-semibold text-brand">Détail</a>
+            </div>
+            <div class="mt-5 space-y-4">
+                @forelse ($categoryBreakdown as $category)
+                    <div class="dashboard-breakdown-row">
+                        <div class="flex justify-between gap-3 text-sm">
+                            <span class="min-w-0 truncate font-semibold">{{ $category->category_name }}</span>
+                            <span class="shrink-0 text-slate-500">{{ $money($category->revenue) }}</span>
+                        </div>
+                        <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                            <div class="h-full rounded-full bg-brand" style="width: {{ max(7, ((float) $category->revenue / $maxCategory) * 100) }}%"></div>
+                        </div>
+                        <p class="mt-1 text-xs text-slate-500">{{ number_format((float) $category->quantity, 0, ',', ' ') }} unité(s)</p>
+                    </div>
+                @empty
+                    <p class="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-white/10">Aucune vente catégorisée pour cette période.</p>
+                @endforelse
+            </div>
+        </article>
+
+        <article class="dashboard-panel">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-semibold">Dépenses par catégorie</h2>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Suivi rapide des charges qui impactent la marge.</p>
+                </div>
+                <a href="{{ route('module', ['module' => 'finance', 'section' => 'expenses']) }}" class="text-sm font-semibold text-brand">Dépenses</a>
+            </div>
+            <div class="mt-5 space-y-4">
+                @forelse ($expenseBreakdown as $expense)
+                    <div class="dashboard-breakdown-row">
+                        <div class="flex justify-between gap-3 text-sm">
+                            <span class="min-w-0 truncate font-semibold">{{ $expense->category }}</span>
+                            <span class="shrink-0 text-slate-500">{{ $money($expense->total) }}</span>
+                        </div>
+                        <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                            <div class="h-full rounded-full bg-rose-500" style="width: {{ max(7, ((float) $expense->total / $maxExpense) * 100) }}%"></div>
+                        </div>
+                    </div>
+                @empty
+                    <p class="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-white/10">Aucune dépense sur cette période.</p>
+                @endforelse
+            </div>
+        </article>
+    </section>
+
     <section class="mt-6 grid gap-6 xl:grid-cols-3">
         <article class="dashboard-panel">
-            <h2 class="text-base font-semibold">Meilleures ventes du mois</h2>
+            <h2 class="text-base font-semibold">Meilleures ventes période</h2>
             <div class="mt-4 space-y-4">
                 @forelse ($topItems as $item)
                     <div>
@@ -214,7 +365,7 @@
                         <p class="mt-1 text-xs text-slate-500">{{ $money($item->revenue) }}</p>
                     </div>
                 @empty
-                    <p class="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-white/10">Aucune vente pour le mois.</p>
+                    <p class="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500 dark:border-white/10">Aucune vente pour cette période.</p>
                 @endforelse
             </div>
         </article>

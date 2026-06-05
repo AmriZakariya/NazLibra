@@ -57,6 +57,27 @@ class AuthTest extends TestCase
             ->assertSee('sidebar-release', false);
     }
 
+    public function test_dashboard_exposes_period_filters_and_reports(): void
+    {
+        $this->seed();
+
+        $user = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+
+        $this->actingAs($user)
+            ->get(route('dashboard', [
+                'period' => 'custom',
+                'from' => now()->subDays(7)->toDateString(),
+                'to' => now()->toDateString(),
+            ]))
+            ->assertOk()
+            ->assertSee('dashboard-filter-panel', false)
+            ->assertSee('Heures de pointe')
+            ->assertSee('Ventes par catégorie')
+            ->assertSee('Dépenses par catégorie')
+            ->assertSee('Résultat net estimé')
+            ->assertSee('Paiements période');
+    }
+
     public function test_authenticated_user_without_tenant_access_sees_no_access_page(): void
     {
         $this->seed();
