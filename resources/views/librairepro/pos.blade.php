@@ -382,14 +382,54 @@
                 <input class="pos-cart-json" name="cart" type="hidden" value="[]">
                 <input name="ticket_id" type="hidden" value="{{ $resumeTicket?->id }}">
 
-                <section class="pos-checkout-panel grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <div class="border-b border-slate-200 p-4 dark:border-white/10">
-                        <div class="flex items-center justify-between gap-3">
-                            <div>
+                <section class="pos-checkout-panel grid min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="pos-cart-header relative border-b border-slate-200 p-4 dark:border-white/10">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
                                 <h2 class="text-lg font-semibold">Panier</h2>
                                 <p class="text-xs text-slate-500"><span class="pos-cart-count">0</span> ligne(s), panier en cours</p>
                             </div>
-                            <button class="pos-clear rounded-lg px-3 py-1.5 text-sm font-semibold text-rose-600 hover:bg-rose-50" type="button">Vider</button>
+                            <div class="pos-checkout-actions flex min-w-0 shrink-0 items-center gap-1">
+                                <button class="pos-adjustment-toggle pos-discount-toggle" data-pos-panel-toggle="discount" type="button" aria-expanded="false">
+                                    <span class="text-base leading-none">-</span>
+                                    <span class="hidden sm:inline">Remise</span>
+                                    <span class="pos-discount-summary-value hidden rounded-full bg-white px-1.5 py-0.5 text-[10px] text-brand dark:bg-slate-950"></span>
+                                </button>
+                                <button class="pos-adjustment-toggle pos-coupon-toggle" data-pos-panel-toggle="coupon" type="button" aria-expanded="false">
+                                    <span class="text-[11px] font-black leading-none">CP</span>
+                                    <span class="hidden sm:inline">Coupon</span>
+                                    <span class="pos-coupon-summary-code hidden rounded-full bg-white px-1.5 py-0.5 text-[10px] uppercase text-brand dark:bg-slate-950"></span>
+                                </button>
+                                <button class="pos-clear pos-icon-action text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10" type="button">Vider</button>
+                            </div>
+                        </div>
+                        <div class="pos-adjustment-popovers pointer-events-none absolute inset-x-4 top-[calc(100%-0.25rem)] z-40">
+                            <div class="pos-adjustment-popover pos-discount-panel pointer-events-auto ml-auto hidden w-full max-w-[380px] rounded-xl border border-slate-200 bg-white p-3 text-slate-950 shadow-2xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" data-pos-panel="discount">
+                                <div class="mb-2 flex items-center justify-between gap-2">
+                                    <div><p class="text-sm font-black">Remise</p><p class="text-xs text-slate-500">Montant fixe ou pourcentage.</p></div>
+                                    <button class="pos-panel-close grid size-8 place-items-center rounded-lg border border-slate-200 text-sm font-black dark:border-white/10" data-pos-panel-close type="button">×</button>
+                                </div>
+                                <div class="grid grid-cols-[86px_minmax(0,1fr)] gap-2">
+                                    <select name="discount_type" class="pos-discount-type h-11 rounded-lg border border-slate-200 bg-white px-2 text-sm font-bold text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
+                                        <option value="fixed" @selected($resumeDiscountType === 'fixed')>DH</option>
+                                        <option value="percentage" @selected(in_array($resumeDiscountType, ['percentage', 'percent'], true))>%</option>
+                                    </select>
+                                    <input name="discount_value" value="{{ $resumeDiscountValue }}" min="0" step="0.01" type="number" class="pos-discount h-11 w-full rounded-lg border border-slate-200 px-3 text-base font-semibold dark:border-white/10 dark:bg-slate-900" placeholder="0">
+                                    <input name="discount_amount" value="0" type="hidden" class="pos-discount-amount">
+                                </div>
+                                <span class="pos-discount-helper mt-2 block text-xs font-semibold text-slate-500">Fixe en DH</span>
+                            </div>
+                            <div class="pos-adjustment-popover pos-coupon-panel pos-coupon-body pointer-events-auto ml-auto hidden w-full max-w-[400px] rounded-xl border border-slate-200 bg-white p-3 text-slate-950 shadow-2xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" data-pos-panel="coupon">
+                                <div class="mb-2 flex items-center justify-between gap-2">
+                                    <div><p class="text-sm font-black">Coupon</p><p class="text-xs text-slate-500">Vérifiez le code avant d’encaisser.</p></div>
+                                    <button class="pos-panel-close grid size-8 place-items-center rounded-lg border border-slate-200 text-sm font-black dark:border-white/10" data-pos-panel-close type="button">×</button>
+                                </div>
+                                <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                                    <label class="block"><span class="text-[11px] font-bold uppercase text-slate-500">Code coupon</span><input name="coupon_code" value="{{ $resumeCouponCode }}" class="pos-coupon-code mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold uppercase tracking-wide dark:border-white/10 dark:bg-slate-900" placeholder="RENTREE10"></label>
+                                    <button class="pos-apply-coupon h-11 rounded-lg border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 transition hover:border-brand hover:text-brand disabled:cursor-wait disabled:opacity-60 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 sm:mt-5" type="button">Appliquer</button>
+                                </div>
+                                <p class="pos-coupon-message mt-2 text-xs font-semibold text-slate-500">Saisissez un code coupon si le client en possède un.</p>
+                            </div>
                         </div>
                     </div>
 
@@ -400,52 +440,15 @@
                 </section>
 
                 <section class="pos-payment-footer rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-white/10 dark:bg-slate-950">
-                    <div class="grid gap-2 sm:grid-cols-[210px_minmax(0,1fr)]">
-                        <div class="pos-discount-field block">
-                            <span class="text-xs font-semibold uppercase text-slate-500">Remise</span>
-                            <div class="mt-1 grid grid-cols-[82px_minmax(0,1fr)] gap-1">
-                                <select name="discount_type" class="pos-discount-type h-10 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
-                                    <option value="fixed" @selected($resumeDiscountType === 'fixed')>DH</option>
-                                    <option value="percentage" @selected(in_array($resumeDiscountType, ['percentage', 'percent'], true))>%</option>
-                                </select>
-                                <input name="discount_value" value="{{ $resumeDiscountValue }}" min="0" step="0.01" type="number" class="pos-discount mt-0 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10" placeholder="0">
-                                <input name="discount_amount" value="0" type="hidden" class="pos-discount-amount">
-                            </div>
-                            <span class="pos-discount-helper mt-1 block truncate text-[11px] font-semibold text-slate-500">Fixe en DH</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-                            <div class="flex justify-between text-slate-500"><span>Sous-total</span><span class="pos-subtotal">0,00 DH</span></div>
-                            <div class="flex justify-between text-slate-500"><span>TVA</span><span class="pos-tax">0,00 DH</span></div>
-                            <div class="flex justify-between text-slate-500"><span>Coupon</span><span class="pos-coupon-label">0,00 DH</span></div>
-                            <div class="flex justify-between text-slate-500"><span>Remise</span><span class="pos-discount-label">0,00 DH</span></div>
-                            <div class="flex justify-between text-slate-500"><span>Monnaie</span><span class="pos-change">0,00 DH</span></div>
-                            <div class="col-span-2 flex justify-between text-base font-semibold"><span>Total</span><span class="pos-total">0,00 DH</span></div>
-                            <div class="col-span-2 flex justify-between text-xs font-semibold"><span>Reste à payer</span><span class="pos-remaining text-rose-600">0,00 DH</span></div>
-                        </div>
+                    <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+                        <div class="flex justify-between text-slate-500"><span>Sous-total</span><span class="pos-subtotal">0,00 DH</span></div>
+                        <div class="flex justify-between text-slate-500"><span>TVA</span><span class="pos-tax">0,00 DH</span></div>
+                        <div class="flex justify-between text-slate-500"><span>Coupon</span><span class="pos-coupon-label">0,00 DH</span></div>
+                        <div class="flex justify-between text-slate-500"><span>Remise</span><span class="pos-discount-label">0,00 DH</span></div>
+                        <div class="flex justify-between text-slate-500"><span>Monnaie</span><span class="pos-change">0,00 DH</span></div>
+                        <div class="col-span-2 flex justify-between text-base font-semibold"><span>Total</span><span class="pos-total">0,00 DH</span></div>
+                        <div class="col-span-2 flex justify-between text-xs font-semibold"><span>Reste à payer</span><span class="pos-remaining text-rose-600">0,00 DH</span></div>
                     </div>
-
-                    <details class="pos-coupon-panel mt-2 rounded-xl border border-slate-200 bg-slate-50/80 dark:border-white/10 dark:bg-white/5">
-                        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-bold text-slate-700 transition hover:bg-white/70 dark:text-slate-100 dark:hover:bg-white/5 [&::-webkit-details-marker]:hidden">
-                            <span class="flex items-center gap-2">
-                                <span class="grid h-8 w-8 place-items-center rounded-lg bg-indigo-50 text-xs font-black text-brand dark:bg-indigo-500/15">CP</span>
-                                <span>
-                                    <span class="block leading-tight">Coupon</span>
-                                    <span class="pos-coupon-summary block text-[11px] font-semibold text-slate-500">Ajouter un code promotionnel</span>
-                                </span>
-                            </span>
-                            <span class="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                                <span class="pos-coupon-summary-code hidden rounded-full border border-slate-200 bg-white px-2 py-1 uppercase dark:border-white/10 dark:bg-slate-950"></span>
-                                <span class="pos-coupon-chevron transition">⌄</span>
-                            </span>
-                        </summary>
-                        <div class="pos-coupon-body border-t border-slate-200 p-2 dark:border-white/10">
-                            <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                                <label class="block"><span class="text-[11px] font-bold uppercase text-slate-500">Code coupon</span><input name="coupon_code" value="{{ $resumeCouponCode }}" class="pos-coupon-code mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold uppercase tracking-wide dark:border-white/10 dark:bg-slate-900" placeholder="RENTREE10"></label>
-                                <button class="pos-apply-coupon h-10 rounded-lg border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 transition hover:border-brand hover:text-brand disabled:cursor-wait disabled:opacity-60 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 sm:mt-5" type="button">Appliquer</button>
-                            </div>
-                            <p class="pos-coupon-message mt-1 text-xs font-semibold text-slate-500">Saisissez un code coupon si le client en possède un.</p>
-                        </div>
-                    </details>
 
                     <div class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                         <label class="pos-money-field block rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10"><span class="text-[11px] font-bold uppercase text-slate-500">Espèces</span><input name="cash_amount" min="0" step="0.01" type="number" class="pos-payment h-8 w-full border-0 px-0 text-base font-bold" placeholder="0"></label>

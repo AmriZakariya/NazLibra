@@ -170,6 +170,11 @@ Route::post('/comptes/transferts', [LibraireProController::class, 'storeMoneyTra
 Route::post('/parametres/theme', [LibraireProController::class, 'updateTheme'])->name('settings.theme.update');
 Route::post('/parametres/societe', [LibraireProController::class, 'updateCompanyProfile'])->name('settings.company.update');
 Route::post('/parametres/caisse', [LibraireProController::class, 'updatePosSettings'])->name('settings.pos.update');
+Route::post('/parametres/messagerie', [LibraireProController::class, 'updateMessagingSettings'])->name('settings.messaging.update');
+Route::post('/parametres/messagerie/envoyer', [LibraireProController::class, 'sendManualMessage'])->name('settings.messaging.send');
+Route::post('/parametres/messagerie/modeles', [LibraireProController::class, 'storeMessageTemplate'])->name('settings.message-templates.store');
+Route::put('/parametres/messagerie/modeles/{key}', [LibraireProController::class, 'updateMessageTemplate'])->name('settings.message-templates.update');
+Route::delete('/parametres/messagerie/modeles/{key}', [LibraireProController::class, 'destroyMessageTemplate'])->name('settings.message-templates.destroy');
 Route::post('/parametres/magasin-courant', [LibraireProController::class, 'updateCurrentStore'])->name('settings.current-store.update');
 Route::post('/parametres/magasins', [LibraireProController::class, 'storeStore'])->name('settings.stores.store');
 Route::put('/parametres/magasins/{storeKey}', [LibraireProController::class, 'updateStore'])->name('settings.stores.update');

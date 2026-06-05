@@ -236,7 +236,7 @@
 </label>
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Quantité d'alerte {!! $required !!}</span>
-    <input name="min_stock_threshold" required type="number" min="0" value="{{ old('min_stock_threshold', $item?->min_stock_threshold ?? 3) }}" class="{{ $input }}">
+    <input name="min_stock_threshold" required type="number" min="0" value="{{ old('min_stock_threshold', $item?->min_stock_threshold ?? data_get($tenant->settings, 'pos.default_min_stock_threshold', 3)) }}" class="{{ $input }}">
 </label>
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Points vendeur</span>

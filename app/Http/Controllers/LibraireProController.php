@@ -289,7 +289,9 @@ class LibraireProController extends Controller
                 'active' => $activeClients,
                 'total' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->count(),
             ],
-            'lowStockItems' => $tenant->items()->with('category')->where('type', '!=', 'service')->whereColumn('stock_quantity', '<=', 'min_stock_threshold')->orderBy('stock_quantity')->take(6)->get(),
+            'lowStockItems' => (bool) data_get($tenant->settings, 'pos.low_stock_dashboard', true)
+                ? $tenant->items()->with('category')->where('type', '!=', 'service')->whereColumn('stock_quantity', '<=', 'min_stock_threshold')->orderBy('stock_quantity')->take(6)->get()
+                : collect(),
             'recentSales' => (clone $salesQuery)->with('contact')->withCount('items')->latest('sold_at')->take(8)->get(),
             'activeLoans' => $tenant->loans()->with(['member', 'item'])->whereIn('status', ['borrowed', 'overdue'])->latest()->take(5)->get(),
             'salesTrend' => $salesTrend,
@@ -641,10 +643,11 @@ class LibraireProController extends Controller
     public function storeStockAdjustment(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();
+        $requiresReason = (bool) data_get($tenant->settings, 'pos.require_adjustment_reason', true);
         $data = $request->validate([
             'adjusted_at' => ['nullable', 'date'],
             'warehouse' => ['nullable', 'string', 'max:120'],
-            'reason' => ['nullable', 'string', 'max:160'],
+            'reason' => [$requiresReason ? 'required' : 'nullable', 'string', 'max:160'],
             'note' => ['nullable', 'string', 'max:700'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['nullable', 'integer', Rule::exists('items', 'id')->where('tenant_id', $tenant->id)],
@@ -1556,6 +1559,7 @@ class LibraireProController extends Controller
             $tax = $this->taxByName($tenant->id, $taxName, $taxRate);
             $type = $this->importedItemType($row, $data['kind']);
             $stock = $type === 'service' ? 9999 : (int) $this->decimalValue($this->rowValue($row, ['stock', 'stock_quantity', 'opening_stock', 'stock_ouverture']));
+            $defaultMinStock = (int) data_get($tenant->settings, 'pos.default_min_stock_threshold', 3);
 
             $barcode = trim((string) $this->rowValue($row, ['barcode', 'custom_barcode', 'code_barres', 'code_de_barre'])) ?: null;
             $isbn = trim((string) $this->rowValue($row, ['isbn'])) ?: null;
@@ -1596,7 +1600,7 @@ class LibraireProController extends Controller
                 'seller_points' => (float) ($this->rowValue($row, ['seller_points', 'points_vendeur']) ?? 0),
                 'opening_stock' => $stock,
                 'stock_quantity' => $stock,
-                'min_stock_threshold' => (int) ($this->rowValue($row, ['min_stock_threshold', 'seuil_stock', 'alert_qty', 'quantite_d_alerte']) ?? 3),
+                'min_stock_threshold' => (int) ($this->rowValue($row, ['min_stock_threshold', 'seuil_stock', 'alert_qty', 'quantite_d_alerte']) ?? $defaultMinStock),
                 'location' => $this->rowValue($row, ['location', 'emplacement']),
             ];
 
@@ -1888,15 +1892,153 @@ class LibraireProController extends Controller
     public function updatePosSettings(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();
+        $data = $request->validate([
+            'inventory_cycle_days' => ['nullable', 'integer', 'in:7,15,30,90'],
+            'default_min_stock_threshold' => ['nullable', 'integer', 'min:0', 'max:9999'],
+        ]);
         $settings = $tenant->settings ?? [];
         $settings['pos'] = array_merge($settings['pos'] ?? [], [
             'editable_price' => $request->boolean('editable_price'),
             'allow_oversell' => $request->boolean('allow_oversell'),
             'show_out_of_stock' => $request->boolean('show_out_of_stock'),
+            'require_adjustment_reason' => $request->boolean('require_adjustment_reason'),
+            'update_cost_on_purchase' => $request->boolean('update_cost_on_purchase'),
+            'low_stock_dashboard' => $request->boolean('low_stock_dashboard'),
+            'auto_reorder_draft' => $request->boolean('auto_reorder_draft'),
+            'inventory_cycle_days' => (int) ($data['inventory_cycle_days'] ?? 30),
+            'default_min_stock_threshold' => (int) ($data['default_min_stock_threshold'] ?? 3),
         ]);
         $tenant->update(['settings' => $settings]);
 
-        return back()->with('status', 'Paramètres caisse mis à jour.');
+        return back()->with('status', 'Paramètres caisse & stock mis à jour.');
+    }
+
+    public function updateMessagingSettings(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $request->validate([
+            'default_channel' => ['required', 'in:sms,whatsapp,email'],
+            'sender_name' => ['nullable', 'string', 'max:80'],
+            'reply_to' => ['nullable', 'email', 'max:190'],
+            'sms_provider' => ['nullable', 'string', 'max:80'],
+            'sms_sender_id' => ['nullable', 'string', 'max:40'],
+            'sms_api_key' => ['nullable', 'string', 'max:500'],
+            'whatsapp_provider' => ['nullable', 'string', 'max:80'],
+            'whatsapp_number' => ['nullable', 'string', 'max:40'],
+            'whatsapp_token' => ['nullable', 'string', 'max:500'],
+            'email_provider' => ['nullable', 'string', 'max:80'],
+            'email_from' => ['nullable', 'email', 'max:190'],
+            'test_mode' => ['nullable', 'boolean'],
+            'log_messages' => ['nullable', 'boolean'],
+        ]);
+
+        $settings = $tenant->settings ?? [];
+        $settings['messaging'] = array_merge($settings['messaging'] ?? [], [
+            'default_channel' => $data['default_channel'],
+            'sender_name' => $data['sender_name'] ?? null,
+            'reply_to' => $data['reply_to'] ?? null,
+            'sms_provider' => $data['sms_provider'] ?? 'local',
+            'sms_sender_id' => $data['sms_sender_id'] ?? null,
+            'sms_api_key' => $data['sms_api_key'] ?? null,
+            'whatsapp_provider' => $data['whatsapp_provider'] ?? 'whatsapp_business',
+            'whatsapp_number' => $data['whatsapp_number'] ?? null,
+            'whatsapp_token' => $data['whatsapp_token'] ?? null,
+            'email_provider' => $data['email_provider'] ?? 'smtp',
+            'email_from' => $data['email_from'] ?? null,
+            'test_mode' => $request->boolean('test_mode', true),
+            'log_messages' => $request->boolean('log_messages', true),
+        ]);
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('status', 'Configuration messagerie mise à jour.');
+    }
+
+    public function sendManualMessage(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $request->validate([
+            'channel' => ['required', 'in:sms,whatsapp,email'],
+            'recipient_mode' => ['required', 'in:contact,manual'],
+            'contact_id' => ['nullable', 'integer', Rule::exists('contacts', 'id')->where('tenant_id', $tenant->id)],
+            'recipient' => ['nullable', 'string', 'max:190'],
+            'subject' => ['nullable', 'string', 'max:160'],
+            'body' => ['required', 'string', 'max:1600'],
+        ]);
+
+        $contact = ! empty($data['contact_id']) ? Contact::where('tenant_id', $tenant->id)->find((int) $data['contact_id']) : null;
+        $recipient = $data['recipient_mode'] === 'contact'
+            ? $this->recipientForChannel($contact, $data['channel'])
+            : trim((string) ($data['recipient'] ?? ''));
+
+        if ($recipient === '') {
+            return back()->withInput()->withErrors(['recipient' => 'Aucun destinataire valide pour ce canal.']);
+        }
+
+        $messaging = $this->messagingConfig($tenant);
+        $status = $messaging['test_mode'] ? 'simulated' : 'queued';
+        $entry = [
+            'id' => (string) Str::uuid(),
+            'channel' => $data['channel'],
+            'recipient' => $recipient,
+            'recipient_name' => $contact?->name,
+            'contact_id' => $contact?->id,
+            'subject' => $data['subject'] ?? null,
+            'body' => $this->renderMessageBody($data['body'], $tenant, $contact),
+            'status' => $status,
+            'provider' => $messaging[$data['channel'].'_provider'] ?? $messaging['default_channel'],
+            'created_by' => auth()->user()?->name,
+            'created_at' => now()->toDateTimeString(),
+        ];
+
+        $settings = $tenant->settings ?? [];
+        $outbox = collect($settings['messaging_outbox'] ?? [])->prepend($entry)->take(80)->values()->all();
+        $settings['messaging_outbox'] = $outbox;
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('status', $status === 'simulated' ? 'Message simulé et ajouté au journal.' : 'Message ajouté à la file d’envoi.');
+    }
+
+    public function storeMessageTemplate(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $this->validateMessageTemplate($request);
+        $settings = $tenant->settings ?? [];
+        $templates = collect($this->messageTemplates($tenant));
+        $key = Str::slug($data['name']);
+        abort_if($templates->contains(fn (array $template) => $template['key'] === $key), 422, 'Un modèle avec ce nom existe déjà.');
+        $templates->push(array_merge($data, ['key' => $key]));
+        $settings['message_templates'] = $templates->values()->all();
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('status', 'Modèle de message créé.');
+    }
+
+    public function updateMessageTemplate(Request $request, string $key): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $this->validateMessageTemplate($request);
+        $templates = collect($this->messageTemplates($tenant));
+        abort_unless($templates->contains(fn (array $template) => $template['key'] === $key), 404);
+        $settings = $tenant->settings ?? [];
+        $settings['message_templates'] = $templates
+            ->map(fn (array $template) => $template['key'] === $key ? array_merge($template, $data) : $template)
+            ->values()
+            ->all();
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('status', 'Modèle de message mis à jour.');
+    }
+
+    public function destroyMessageTemplate(string $key): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $templates = collect($this->messageTemplates($tenant));
+        abort_unless($templates->contains(fn (array $template) => $template['key'] === $key), 404);
+        $settings = $tenant->settings ?? [];
+        $settings['message_templates'] = $templates->reject(fn (array $template) => $template['key'] === $key)->values()->all();
+        $tenant->update(['settings' => $settings]);
+
+        return back()->with('status', 'Modèle de message supprimé.');
     }
 
     public function updateCurrentStore(Request $request): RedirectResponse
@@ -3761,6 +3903,7 @@ class LibraireProController extends Controller
         }
 
         $purchase = DB::transaction(function () use ($tenant, $data, $lines): Purchase {
+            $updateCostOnPurchase = (bool) data_get($tenant->settings, 'pos.update_cost_on_purchase', true);
             $receiveNow = $data['status'] === 'received';
             $items = Item::where('tenant_id', $tenant->id)
                 ->whereIn('id', $lines->pluck('item_id'))
@@ -3801,10 +3944,10 @@ class LibraireProController extends Controller
 
                 if ($receiveNow && $item->type !== 'service') {
                     $item->increment('stock_quantity', $line['quantity']);
-                    $item->update([
-                        'purchase_price' => $line['unit_cost'],
+                    $item->update(array_filter([
+                        'purchase_price' => $updateCostOnPurchase ? $line['unit_cost'] : null,
                         'status' => 'active',
-                    ]);
+                    ], fn ($value) => $value !== null));
                     $item->refresh();
                     $this->recordStockMovement($tenant, $item, 'purchase', $line['quantity'], Purchase::class, $purchase->id, 'Achat '.$purchase->number);
                 }
@@ -3824,6 +3967,7 @@ class LibraireProController extends Controller
         abort_unless($purchase->tenant_id === $tenant->id, 404);
 
         DB::transaction(function () use ($purchase, $tenant): void {
+            $updateCostOnPurchase = (bool) data_get($tenant->settings, 'pos.update_cost_on_purchase', true);
             $purchase->load('items.item');
             foreach ($purchase->items as $line) {
                 $missing = max(0, $line->quantity_ordered - $line->quantity_received);
@@ -3833,10 +3977,10 @@ class LibraireProController extends Controller
 
                 if ($line->item->type !== 'service') {
                     $line->item->increment('stock_quantity', $missing);
-                    $line->item->update([
-                        'purchase_price' => $line->unit_cost,
+                    $line->item->update(array_filter([
+                        'purchase_price' => $updateCostOnPurchase ? $line->unit_cost : null,
                         'status' => 'active',
-                    ]);
+                    ], fn ($value) => $value !== null));
                     $line->item->refresh();
                     $this->recordStockMovement($tenant, $line->item, 'purchase', $missing, Purchase::class, $purchase->id, 'Réception achat '.$purchase->number);
                 }
@@ -4084,6 +4228,10 @@ class LibraireProController extends Controller
             'paymentTypes' => $this->settingsRecords($tenant, 'payment_types'),
             'countries' => $this->settingsRecords($tenant, 'countries'),
             'states' => $this->settingsRecords($tenant, 'states'),
+            'messagingConfig' => $this->messagingConfig($tenant),
+            'messageTemplates' => $this->messageTemplates($tenant),
+            'messagingContacts' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->take(300)->get(),
+            'messagingOutbox' => collect(data_get($tenant->settings, 'messaging_outbox', []))->take(80)->values(),
             'stores' => $this->storeCatalog($tenant),
             'currentStore' => $this->currentStore($tenant),
             'storeAccessOptions' => $this->storeAccessOptions($tenant),
@@ -5292,6 +5440,91 @@ class LibraireProController extends Controller
             ->unique('key')
             ->values()
             ->all();
+    }
+
+    private function messagingConfig(Tenant $tenant): array
+    {
+        return array_merge([
+            'default_channel' => 'whatsapp',
+            'sender_name' => $tenant->name,
+            'reply_to' => $tenant->email,
+            'sms_provider' => 'local',
+            'sms_sender_id' => null,
+            'sms_api_key' => null,
+            'whatsapp_provider' => 'whatsapp_business',
+            'whatsapp_number' => $tenant->phone,
+            'whatsapp_token' => null,
+            'email_provider' => 'smtp',
+            'email_from' => $tenant->email,
+            'test_mode' => true,
+            'log_messages' => true,
+        ], data_get($tenant->settings, 'messaging', []));
+    }
+
+    private function messageTemplates(Tenant $tenant): array
+    {
+        $defaults = [
+            ['key' => 'receipt', 'name' => 'Ticket / reçu', 'channel' => 'whatsapp', 'subject' => 'Votre ticket {{store_name}}', 'body' => "Bonjour {{client_name}},\nVotre achat chez {{store_name}} a bien été enregistré.\nMerci pour votre confiance.", 'is_active' => true],
+            ['key' => 'overdue', 'name' => 'Emprunt en retard', 'channel' => 'sms', 'subject' => null, 'body' => 'Bonjour {{client_name}}, votre emprunt chez {{store_name}} est en retard. Merci de passer à la librairie.', 'is_active' => true],
+            ['key' => 'school-season', 'name' => 'Rentrée scolaire', 'channel' => 'whatsapp', 'subject' => 'Rentrée scolaire', 'body' => 'Bonjour {{client_name}}, les nouveautés rentrée sont disponibles chez {{store_name}}.', 'is_active' => true],
+        ];
+
+        return collect(data_get($tenant->settings, 'message_templates', $defaults))
+            ->map(function ($template): array {
+                $template = is_array($template) ? $template : [];
+                $name = trim((string) ($template['name'] ?? 'Modèle'));
+
+                return [
+                    'key' => (string) ($template['key'] ?? Str::slug($name)),
+                    'name' => $name,
+                    'channel' => in_array($template['channel'] ?? 'whatsapp', ['sms', 'whatsapp', 'email'], true) ? $template['channel'] : 'whatsapp',
+                    'subject' => $template['subject'] ?? null,
+                    'body' => (string) ($template['body'] ?? ''),
+                    'is_active' => (bool) ($template['is_active'] ?? true),
+                ];
+            })
+            ->filter(fn (array $template) => $template['name'] !== '' && $template['body'] !== '')
+            ->unique('key')
+            ->values()
+            ->all();
+    }
+
+    private function validateMessageTemplate(Request $request): array
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'channel' => ['required', 'in:sms,whatsapp,email'],
+            'subject' => ['nullable', 'string', 'max:160'],
+            'body' => ['required', 'string', 'max:1600'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+        $data['is_active'] = $request->boolean('is_active', true);
+
+        return $data;
+    }
+
+    private function recipientForChannel(?Contact $contact, string $channel): string
+    {
+        if (! $contact) {
+            return '';
+        }
+
+        return match ($channel) {
+            'email' => trim((string) $contact->email),
+            default => trim((string) $contact->phone),
+        };
+    }
+
+    private function renderMessageBody(string $body, Tenant $tenant, ?Contact $contact = null): string
+    {
+        $tokens = [
+            '{{store_name}}' => $tenant->name,
+            '{{client_name}}' => $contact?->name ?? 'Client',
+            '{{client_phone}}' => $contact?->phone ?? '',
+            '{{date}}' => now()->format('d/m/Y'),
+        ];
+
+        return strtr($body, $tokens);
     }
 
     private function upsertSettingsRecord(Tenant $tenant, string $bucket, array $data, ?string $existingKey = null): void

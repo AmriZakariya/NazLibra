@@ -1680,6 +1680,12 @@
             $posEditablePrice = (bool) data_get($tenant->settings, 'pos.editable_price', true);
             $posAllowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
             $posShowOutOfStock = (bool) data_get($tenant->settings, 'pos.show_out_of_stock', false);
+            $posRequireAdjustmentReason = (bool) data_get($tenant->settings, 'pos.require_adjustment_reason', true);
+            $posUpdateCostOnPurchase = (bool) data_get($tenant->settings, 'pos.update_cost_on_purchase', true);
+            $posLowStockDashboard = (bool) data_get($tenant->settings, 'pos.low_stock_dashboard', true);
+            $posAutoReorderDraft = (bool) data_get($tenant->settings, 'pos.auto_reorder_draft', false);
+            $posInventoryCycleDays = (int) data_get($tenant->settings, 'pos.inventory_cycle_days', 30);
+            $posDefaultMinStock = (int) data_get($tenant->settings, 'pos.default_min_stock_threshold', 3);
             $themePresets = [
                 'default' => ['name' => 'LibrairePro', 'hint' => 'Bleu moderne, accent vert, recommandé', 'colors' => ['#3157D5', '#0F9F8A', '#FFFFFF', '#F4F7FB']],
                 'classic' => ['name' => 'Indigo classic', 'hint' => 'Plus proche du thème initial', 'colors' => ['#4F46E5', '#0EA5E9', '#FFFFFF', '#F8FAFC']],
@@ -1699,6 +1705,9 @@
                 'countries' => 'Pays',
                 'states' => 'États',
                 'password' => 'Mot de passe',
+                'messaging' => 'Messagerie',
+                'message-templates' => 'Modèles',
+                'sms-api' => 'API messages',
                 'theme' => 'Thème',
             ];
             $settingsReferenceSections = ['taxes', 'units', 'payment-types', 'countries', 'states', 'password'];
@@ -1855,60 +1864,110 @@
                     </div>
 
                     <div class="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
-                        <form action="{{ route('settings.pos.update') }}" method="POST" class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                        <form action="{{ route('settings.pos.update') }}" method="POST" class="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
                             @csrf
                             <input type="hidden" name="editable_price" value="0">
                             <input type="hidden" name="allow_oversell" value="0">
                             <input type="hidden" name="show_out_of_stock" value="0">
+                            <input type="hidden" name="require_adjustment_reason" value="0">
+                            <input type="hidden" name="update_cost_on_purchase" value="0">
+                            <input type="hidden" name="low_stock_dashboard" value="0">
+                            <input type="hidden" name="auto_reorder_draft" value="0">
+                            <div>
+                                <h3 class="text-sm font-black uppercase tracking-wide text-slate-600 dark:text-slate-300">Règles caisse</h3>
+                                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Ces options changent directement le comportement du POS.</p>
+                            </div>
                             <div class="grid gap-3">
-                                <label class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
                                     <span class="flex items-start gap-3">
                                         <input name="editable_price" value="1" type="checkbox" @checked($posEditablePrice) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
                                         <span>
                                             <span class="block text-sm font-semibold">Autoriser la modification du prix en caisse</span>
-                                            <span class="mt-1 block text-sm text-slate-500">Un appui long sur un produit ou le bouton modifier du panier ouvre le détail ligne pour ajuster prix, quantité et note.</span>
+                                            <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Un appui long sur un produit ou le bouton modifier du panier ouvre le détail ligne pour ajuster prix, quantité et note.</span>
                                         </span>
                                     </span>
                                 </label>
-                                <label class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
                                     <span class="flex items-start gap-3">
                                         <input name="allow_oversell" value="1" type="checkbox" @checked($posAllowOversell) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
                                         <span>
                                             <span class="block text-sm font-semibold">Autoriser la vente hors stock</span>
-                                            <span class="mt-1 block text-sm text-slate-500">Permet d’encaisser une quantité supérieure au stock disponible. Le stock peut devenir négatif et devra être régularisé ensuite.</span>
+                                            <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Permet d’encaisser une quantité supérieure au stock disponible. Le stock peut devenir négatif et devra être régularisé ensuite.</span>
                                         </span>
                                     </span>
                                 </label>
-                                <label class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
                                     <span class="flex items-start gap-3">
                                         <input name="show_out_of_stock" value="1" type="checkbox" @checked($posShowOutOfStock) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
                                         <span>
                                             <span class="block text-sm font-semibold">Afficher les articles hors stock dans la caisse</span>
-                                            <span class="mt-1 block text-sm text-slate-500">Les articles sans stock restent visibles et grisés. Un clic ouvre le détail stock avec un raccourci vers l’ajustement préfiltré.</span>
+                                            <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Les articles sans stock restent visibles et grisés. Un clic ouvre le détail stock avec un raccourci vers l’ajustement préfiltré.</span>
                                         </span>
                                     </span>
                                 </label>
                             </div>
-                            <button class="mt-4 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white" type="submit">Enregistrer caisse & stock</button>
+                            <div class="border-t border-slate-200 pt-4 dark:border-white/10">
+                                <h3 class="text-sm font-black uppercase tracking-wide text-slate-600 dark:text-slate-300">Règles stock & inventaire</h3>
+                                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Paramètres utiles pour la traçabilité et la préparation des achats.</p>
+                                <div class="mt-3 grid gap-3 md:grid-cols-2">
+                                    <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                        <span class="flex items-start gap-3">
+                                            <input name="require_adjustment_reason" value="1" type="checkbox" @checked($posRequireAdjustmentReason) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                            <span><span class="block text-sm font-semibold">Motif obligatoire sur ajustement</span><span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Chaque correction manuelle doit expliquer la raison.</span></span>
+                                        </span>
+                                    </label>
+                                    <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                        <span class="flex items-start gap-3">
+                                            <input name="update_cost_on_purchase" value="1" type="checkbox" @checked($posUpdateCostOnPurchase) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                            <span><span class="block text-sm font-semibold">Mettre à jour le coût à réception</span><span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Prépare la valorisation stock avec le dernier coût d’achat.</span></span>
+                                        </span>
+                                    </label>
+                                    <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                        <span class="flex items-start gap-3">
+                                            <input name="low_stock_dashboard" value="1" type="checkbox" @checked($posLowStockDashboard) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                            <span><span class="block text-sm font-semibold">Afficher les alertes stock faible</span><span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Remonte les seuils critiques dans les écrans opérationnels.</span></span>
+                                        </span>
+                                    </label>
+                                    <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                        <span class="flex items-start gap-3">
+                                            <input name="auto_reorder_draft" value="1" type="checkbox" @checked($posAutoReorderDraft) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                            <span><span class="block text-sm font-semibold">Préparer des brouillons d’achat</span><span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Option prête pour réapprovisionner depuis les seuils.</span></span>
+                                        </span>
+                                    </label>
+                                </div>
+                                <div class="mt-3 grid gap-3 md:grid-cols-2">
+                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Seuil stock faible par défaut</span><input name="default_min_stock_threshold" type="number" min="0" max="9999" value="{{ old('default_min_stock_threshold', $posDefaultMinStock) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Cycle inventaire conseillé</span><select name="inventory_cycle_days" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="7" @selected($posInventoryCycleDays === 7)>Chaque semaine</option><option value="15" @selected($posInventoryCycleDays === 15)>Tous les 15 jours</option><option value="30" @selected($posInventoryCycleDays === 30)>Chaque mois</option><option value="90" @selected($posInventoryCycleDays === 90)>Chaque trimestre</option></select></label>
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-2 border-t border-slate-200 pt-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
+                                <p class="text-sm text-slate-500 dark:text-slate-400">Les règles sont enregistrées au niveau magasin.</p>
+                                <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-110" type="submit">Enregistrer les règles</button>
+                            </div>
                         </form>
 
                         <div class="grid gap-4">
-                            <article class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
-                                <h3 class="font-semibold">Préférences magasin</h3>
-                                <div class="mt-4 grid gap-3 text-sm">
-                                    <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Magasin courant</span><strong class="text-right">{{ $currentStore['name'] ?? $tenant->name }}</strong></div>
-                                    <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Devise</span><strong>{{ strtoupper($tenant->currency) }} · DH</strong></div>
-                                    <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Fuseau</span><strong>{{ $tenant->timezone }}</strong></div>
-                                    <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Langues</span><strong>Français · العربية</strong></div>
+                            <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h3 class="font-semibold">Préférences magasin</h3>
+                                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Contexte appliqué à la caisse et au stock.</p>
+                                    </div>
+                                    <x-status-pill tone="neutral">{{ $currentStore['type'] ?? 'store' }}</x-status-pill>
                                 </div>
-                            </article>
-                            <article class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                                <h3 class="font-semibold">Règle conseillée</h3>
-                                <p class="mt-2">Pour la rentrée, gardez “Afficher les articles hors stock” actif afin que la recherche caisse explique clairement les ruptures, tout en laissant “vente hors stock” désactivé si vous voulez bloquer les sorties négatives.</p>
+                                <div class="mt-4 grid gap-3 text-sm">
+                                    <div class="settings-info-row"><span>Magasin courant</span><strong>{{ $currentStore['name'] ?? $tenant->name }}</strong></div>
+                                    <div class="settings-info-row"><span>Devise</span><strong>{{ strtoupper($tenant->currency) }} · DH</strong></div>
+                                    <div class="settings-info-row"><span>Fuseau</span><strong>{{ $tenant->timezone }}</strong></div>
+                                    <div class="settings-info-row"><span>Langues</span><strong>Français · العربية</strong></div>
+                                </div>
                             </article>
                         </div>
                     </div>
                 </article>
+
+                @elseif (in_array($settingsSection, ['messaging', 'message-templates', 'sms-api'], true))
+                    @include('librairepro.partials.messaging-section')
 
                 @elseif ($settingsSection === 'company')
                 <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">

@@ -3151,8 +3151,7 @@
 
     .pos-collapsible > summary::-webkit-details-marker,
     .pos-held-tickets > summary::-webkit-details-marker,
-    .pos-suggestions-menu > summary::-webkit-details-marker,
-    .pos-coupon-panel > summary::-webkit-details-marker {
+    .pos-suggestions-menu > summary::-webkit-details-marker {
         display: none;
     }
 
@@ -3170,8 +3169,82 @@
         transition: transform 160ms ease;
     }
 
-    .pos-coupon-panel:not([open]) .pos-coupon-body {
-        display: none;
+    .pos-checkout-actions {
+        max-width: 100%;
+    }
+
+    .pos-adjustment-toggle,
+    .pos-icon-action {
+        align-items: center;
+        border: 1px solid color-mix(in srgb, var(--border-soft) 86%, transparent);
+        border-radius: calc(var(--brand-radius) - 2px);
+        display: inline-flex;
+        font-size: 12px;
+        font-weight: 900;
+        gap: 6px;
+        height: 36px;
+        justify-content: center;
+        max-width: 148px;
+        min-width: 40px;
+        padding: 0 10px;
+        transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+        white-space: nowrap;
+    }
+
+    .pos-adjustment-toggle {
+        background: color-mix(in srgb, var(--surface-muted) 48%, var(--surface));
+        color: var(--text-main);
+    }
+
+    .pos-adjustment-toggle:hover,
+    .pos-adjustment-toggle.is-active {
+        background: color-mix(in srgb, var(--brand-primary) 7%, var(--surface));
+        border-color: color-mix(in srgb, var(--brand-primary) 38%, var(--border-soft));
+        color: var(--brand-primary);
+        box-shadow: 0 8px 20px color-mix(in srgb, var(--brand-primary) 10%, transparent);
+    }
+
+    .pos-icon-action {
+        background: transparent;
+    }
+
+    .pos-adjustment-popovers {
+        filter: drop-shadow(0 18px 26px color-mix(in srgb, var(--text-main) 14%, transparent));
+    }
+
+    .pos-adjustment-popover {
+        color: var(--text-main);
+    }
+
+    .pos-adjustment-popover::before {
+        background: inherit;
+        border-left: 1px solid color-mix(in srgb, var(--border-soft) 86%, transparent);
+        border-top: 1px solid color-mix(in srgb, var(--border-soft) 86%, transparent);
+        content: '';
+        height: 12px;
+        position: absolute;
+        right: 32px;
+        top: -7px;
+        transform: rotate(45deg);
+        width: 12px;
+    }
+
+    @media (max-width: 520px) {
+        .pos-cart-header {
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+
+        .pos-adjustment-popovers {
+            left: 12px;
+            right: 12px;
+        }
+
+        .pos-adjustment-toggle,
+        .pos-icon-action {
+            padding-left: 8px;
+            padding-right: 8px;
+        }
     }
 
     .pos-collapsible-summary {
@@ -3325,7 +3398,7 @@
 
     .pos-checkout-panel {
         min-height: 0;
-        overflow: hidden;
+        overflow: visible;
         border-color: color-mix(in srgb, var(--brand-primary) 12%, var(--border-soft)) !important;
     }
 
@@ -3355,16 +3428,21 @@
     }
 
     .pos-payment-footer .pos-money-field,
-    .pos-payment-footer .pos-discount-field input {
+    .pos-payment-footer .pos-discount-field input,
+    .pos-adjustment-popover input,
+    .pos-adjustment-popover select {
         background: color-mix(in srgb, var(--surface-muted) 34%, var(--surface));
         transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
     }
 
     .pos-payment-footer .pos-money-field:focus-within,
-    .pos-payment-footer .pos-discount-field:focus-within input {
+    .pos-payment-footer .pos-discount-field:focus-within input,
+    .pos-adjustment-popover input:focus,
+    .pos-adjustment-popover select:focus {
         background: var(--surface);
         border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--border-soft)) !important;
         box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 10%, transparent);
+        outline: none;
     }
 
     .pos-payment-footer label.rounded-lg:focus-within {
@@ -4321,6 +4399,61 @@
             max-width: none;
             order: 9;
         }
+    }
+
+    .settings-rule-card {
+        color: var(--text-main);
+        transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    .settings-rule-card:hover,
+    .settings-rule-card:focus-within {
+        border-color: color-mix(in srgb, var(--brand-primary) 28%, var(--border-soft)) !important;
+        box-shadow: 0 10px 24px color-mix(in srgb, var(--brand-primary) 7%, transparent);
+    }
+
+    .settings-info-row {
+        align-items: center;
+        background: color-mix(in srgb, var(--surface-muted) 55%, var(--surface));
+        border: 1px solid color-mix(in srgb, var(--border-soft) 78%, transparent);
+        border-radius: calc(var(--brand-radius) - 2px);
+        color: var(--text-main);
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+        padding: 10px 12px;
+    }
+
+    .settings-info-row span {
+        color: var(--text-muted);
+    }
+
+    .settings-info-row strong {
+        color: var(--text-main);
+        text-align: right;
+    }
+
+    .settings-shortcut-link {
+        align-items: center;
+        border: 1px solid color-mix(in srgb, var(--border-soft) 86%, transparent);
+        border-radius: calc(var(--brand-radius) - 2px);
+        color: var(--text-main);
+        display: flex;
+        font-weight: 700;
+        justify-content: space-between;
+        padding: 10px 12px;
+        transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease;
+    }
+
+    .settings-shortcut-link::after {
+        color: var(--text-muted);
+        content: '→';
+    }
+
+    .settings-shortcut-link:hover {
+        background: color-mix(in srgb, var(--brand-primary) 6%, var(--surface));
+        border-color: color-mix(in srgb, var(--brand-primary) 34%, var(--border-soft));
+        color: var(--brand-primary);
     }
 }
 

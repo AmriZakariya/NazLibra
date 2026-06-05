@@ -811,11 +811,12 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const discountTypeInput = screen.querySelector('.pos-discount-type');
     const discountAmountInput = screen.querySelector('.pos-discount-amount');
     const discountHelper = screen.querySelector('.pos-discount-helper');
-    const couponPanel = screen.querySelector('.pos-coupon-panel');
+    const discountSummaryValue = screen.querySelector('.pos-discount-summary-value');
+    const adjustmentToggles = [...screen.querySelectorAll('[data-pos-panel-toggle]')];
+    const adjustmentPanels = [...screen.querySelectorAll('[data-pos-panel]')];
     const couponInput = screen.querySelector('.pos-coupon-code');
     const couponButton = screen.querySelector('.pos-apply-coupon');
     const couponMessage = screen.querySelector('.pos-coupon-message');
-    const couponSummary = screen.querySelector('.pos-coupon-summary');
     const couponSummaryCode = screen.querySelector('.pos-coupon-summary-code');
     const paymentInputs = [...screen.querySelectorAll('.pos-payment')];
     const viewButtons = [...screen.querySelectorAll('.pos-view-btn')];
@@ -1018,27 +1019,70 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         couponMessage.classList.toggle('text-slate-500', tone === 'neutral');
     };
 
+    const closeAdjustmentPanels = () => {
+        adjustmentPanels.forEach((panel) => panel.classList.add('hidden'));
+        adjustmentToggles.forEach((button) => {
+            button.classList.remove('is-active');
+            button.setAttribute('aria-expanded', 'false');
+        });
+    };
+
+    const openAdjustmentPanel = (name) => {
+        let opened = false;
+        adjustmentPanels.forEach((panel) => {
+            const match = panel.dataset.posPanel === name;
+            panel.classList.toggle('hidden', !match);
+            opened = opened || match;
+        });
+        adjustmentToggles.forEach((button) => {
+            const match = button.dataset.posPanelToggle === name;
+            button.classList.toggle('is-active', match);
+            button.setAttribute('aria-expanded', match ? 'true' : 'false');
+        });
+        return opened;
+    };
+
+    adjustmentToggles.forEach((button) => {
+        button.addEventListener('click', () => {
+            const panel = screen.querySelector(`[data-pos-panel="${button.dataset.posPanelToggle}"]`);
+            if (panel && !panel.classList.contains('hidden')) {
+                closeAdjustmentPanels();
+                return;
+            }
+            openAdjustmentPanel(button.dataset.posPanelToggle);
+            window.setTimeout(() => {
+                const focusable = screen.querySelector(`[data-pos-panel="${button.dataset.posPanelToggle}"] input, [data-pos-panel="${button.dataset.posPanelToggle}"] select`);
+                focusable?.focus();
+            }, 0);
+        });
+    });
+
+    screen.querySelectorAll('[data-pos-panel-close]').forEach((button) => {
+        button.addEventListener('click', closeAdjustmentPanels);
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!screen.contains(event.target)) return;
+        if (event.target.closest('[data-pos-panel], [data-pos-panel-toggle]')) return;
+        closeAdjustmentPanels();
+    });
+
     const syncCouponSummary = (total = totals()) => {
         const code = String(couponInput?.value || '').trim().toUpperCase();
-        if (couponSummary) {
-            if (appliedCoupon.valid && appliedCoupon.code === code) {
-                couponSummary.textContent = `Appliqué: ${money.format(total.couponAmount)}`;
-                couponSummary.classList.add('text-emerald-600');
-                couponSummary.classList.remove('text-slate-500', 'text-amber-600');
-            } else if (code) {
-                couponSummary.textContent = 'Code saisi, à vérifier';
-                couponSummary.classList.add('text-amber-600');
-                couponSummary.classList.remove('text-slate-500', 'text-emerald-600');
-            } else {
-                couponSummary.textContent = 'Ajouter un code promotionnel';
-                couponSummary.classList.add('text-slate-500');
-                couponSummary.classList.remove('text-emerald-600', 'text-amber-600');
-            }
-        }
         if (couponSummaryCode) {
             couponSummaryCode.textContent = code;
             couponSummaryCode.classList.toggle('hidden', !code);
+            couponSummaryCode.classList.toggle('text-emerald-600', appliedCoupon.valid && appliedCoupon.code === code);
+            couponSummaryCode.classList.toggle('text-amber-600', Boolean(code) && (!appliedCoupon.valid || appliedCoupon.code !== code));
         }
+    };
+
+    const syncDiscountSummary = (total) => {
+        if (!discountSummaryValue) return;
+        discountSummaryValue.textContent = total.discountType === 'percentage' && total.discount > 0
+            ? `${Number(total.discountValue).toFixed(0)}%`
+            : money.format(total.discount);
+        discountSummaryValue.classList.toggle('hidden', total.discount <= 0);
     };
 
     const applyCoupon = async () => {
@@ -1152,6 +1196,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         screen.querySelector('.pos-tax').textContent = money.format(total.tax);
         screen.querySelector('.pos-coupon-label').textContent = money.format(total.couponAmount);
         syncCouponSummary(total);
+        syncDiscountSummary(total);
         screen.querySelector('.pos-discount-label').textContent = total.discountType === 'percentage' && total.discount > 0
             ? `${money.format(total.discount)} (${Number(total.discountValue).toFixed(2)}%)`
             : money.format(total.discount);
@@ -1564,6 +1609,27 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
     };
 
+    checkout?.addEventListener('keydown', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+
+        if (['Enter', ' '].includes(event.key) && target.matches('button[type="submit"]')) {
+            event.preventDefault();
+            return;
+        }
+
+        if (event.key !== 'Enter' || target.matches('textarea')) return;
+
+        if (target.matches('input, select')) {
+            event.preventDefault();
+            if (target.matches('.pos-coupon-code')) {
+                applyCoupon();
+                return;
+            }
+            renderCart();
+        }
+    });
+
     screen.querySelector('.pos-clear')?.addEventListener('click', () => {
         if (cart.length === 0) {
             showToast('Le panier est déjà vide.');
@@ -1642,7 +1708,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         if (couponCode && (!appliedCoupon.valid || appliedCoupon.code !== couponCode)) {
             event.preventDefault();
             showToast('Vérifiez le coupon avant d’encaisser.');
-            if (couponPanel) couponPanel.open = true;
+            openAdjustmentPanel('coupon');
             couponInput?.focus();
             return;
         }
