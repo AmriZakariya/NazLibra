@@ -3617,7 +3617,8 @@
         z-index: 120;
     }
 
-    .sale-action-panel button {
+    .sale-action-panel button,
+    .sale-action-panel a {
         align-items: center;
         background: transparent;
         border-radius: calc(var(--brand-radius) - 2px);
@@ -3632,12 +3633,14 @@
         width: 100%;
     }
 
-    .sale-action-panel button:hover {
+    .sale-action-panel button:hover,
+    .sale-action-panel a:hover {
         background: color-mix(in srgb, var(--brand-primary) 10%, transparent);
         color: var(--brand-primary);
     }
 
-    .sale-action-panel button span {
+    .sale-action-panel button span,
+    .sale-action-panel a span {
         align-items: center;
         background: color-mix(in srgb, var(--brand-primary) 9%, transparent);
         border-radius: 8px;

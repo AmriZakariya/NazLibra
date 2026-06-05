@@ -18,11 +18,13 @@ use App\Models\ItemVariant;
 use App\Models\Loan;
 use App\Models\PosTicket;
 use App\Models\Purchase;
+use App\Models\PurchaseItem;
 use App\Models\PurchaseReturn;
 use App\Models\Quotation;
 use App\Models\Role;
 use App\Models\Sale;
 use App\Models\SaleInvoice;
+use App\Models\SaleItem;
 use App\Models\SalePayment;
 use App\Models\SaleReturn;
 use App\Models\StockAdjustment;
@@ -32,11 +34,13 @@ use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\VariantOption;
 use App\Support\Locale;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -1913,6 +1917,49 @@ class LibraireProController extends Controller
         return back()->with('status', 'Paramètres caisse & stock mis à jour.');
     }
 
+    public function updateDocumentSettings(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $request->validate([
+            'sale_title' => ['required', 'string', 'max:120'],
+            'invoice_title' => ['required', 'string', 'max:120'],
+            'purchase_title' => ['required', 'string', 'max:120'],
+            'primary_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'accent_color' => ['required', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'header_text' => ['nullable', 'string', 'max:700'],
+            'sale_note_template' => ['nullable', 'string', 'max:1200'],
+            'invoice_note_template' => ['nullable', 'string', 'max:1200'],
+            'purchase_note_template' => ['nullable', 'string', 'max:1200'],
+            'footer_text' => ['nullable', 'string', 'max:1200'],
+            'terms' => ['nullable', 'string', 'max:2000'],
+            'show_logo' => ['nullable', 'boolean'],
+            'show_signature' => ['nullable', 'boolean'],
+            'show_bank_details' => ['nullable', 'boolean'],
+        ]);
+
+        $settings = $tenant->settings ?? [];
+        $settings['documents'] = array_merge($this->documentSettings($tenant), [
+            'sale_title' => $data['sale_title'],
+            'invoice_title' => $data['invoice_title'],
+            'purchase_title' => $data['purchase_title'],
+            'primary_color' => $data['primary_color'],
+            'accent_color' => $data['accent_color'],
+            'header_text' => $data['header_text'] ?? '',
+            'sale_note_template' => $data['sale_note_template'] ?? '',
+            'invoice_note_template' => $data['invoice_note_template'] ?? '',
+            'purchase_note_template' => $data['purchase_note_template'] ?? '',
+            'footer_text' => $data['footer_text'] ?? '',
+            'terms' => $data['terms'] ?? '',
+            'show_logo' => $request->boolean('show_logo'),
+            'show_signature' => $request->boolean('show_signature'),
+            'show_bank_details' => $request->boolean('show_bank_details'),
+        ]);
+
+        $tenant->forceFill(['settings' => $settings])->save();
+
+        return back()->with('status', 'Modèles PDF enregistrés.');
+    }
+
     public function updateMessagingSettings(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();
@@ -3212,6 +3259,136 @@ class LibraireProController extends Controller
             ->with('status', 'Facture '.$invoice->number.' prête.');
     }
 
+    public function downloadSalePdf(Sale $sale): Response
+    {
+        $tenant = $this->tenant();
+        abort_unless($sale->tenant_id === $tenant->id, 404);
+
+        $sale->loadMissing(['contact', 'items.item', 'payments', 'invoice']);
+        $paid = $this->salePaidAmount($sale);
+        $settings = $this->documentSettings($tenant);
+
+        return $this->downloadDocumentPdf($tenant, [
+            'type' => 'sale',
+            'title' => $settings['sale_title'],
+            'number' => $sale->number,
+            'date' => $sale->sold_at,
+            'due_date' => data_get($sale->metadata, 'due_date'),
+            'partner_label' => 'Client',
+            'partner' => $sale->contact,
+            'reference' => data_get($sale->metadata, 'reference_number'),
+            'status' => $sale->status,
+            'payment_method' => $sale->payment_method,
+            'lines' => $sale->items->map(fn (SaleItem $line): array => [
+                'name' => $line->name,
+                'code' => $line->item?->barcode ?? $line->item?->isbn ?? $line->item?->item_code ?? null,
+                'quantity' => (float) $line->quantity,
+                'unit_price' => (float) $line->unit_price,
+                'total' => (float) $line->total_price,
+            ])->values()->all(),
+            'totals' => [
+                'subtotal' => (float) $sale->subtotal_amount,
+                'discount' => (float) $sale->discount_amount,
+                'tax' => (float) $sale->tax_amount,
+                'paid' => $paid,
+                'due' => max(0, (float) $sale->total_amount - $paid),
+                'total' => (float) $sale->total_amount,
+            ],
+            'note' => data_get($sale->metadata, 'note'),
+            'template_note' => $settings['sale_note_template'],
+            'filename' => 'vente-'.$sale->number.'.pdf',
+        ]);
+    }
+
+    public function downloadInvoicePdf(SaleInvoice $invoice): Response
+    {
+        $tenant = $this->tenant();
+        abort_unless($invoice->tenant_id === $tenant->id, 404);
+
+        $invoice->loadMissing(['sale.items.item', 'sale.payments', 'contact']);
+        $sale = $invoice->sale;
+        abort_unless($sale, 404);
+        $paid = $this->salePaidAmount($sale);
+        $settings = $this->documentSettings($tenant);
+
+        return $this->downloadDocumentPdf($tenant, [
+            'type' => 'invoice',
+            'title' => $settings['invoice_title'],
+            'number' => $invoice->number,
+            'date' => $invoice->issued_at,
+            'due_date' => $invoice->due_date,
+            'partner_label' => 'Client',
+            'partner' => $invoice->contact ?? $sale->contact,
+            'reference' => data_get($sale->metadata, 'reference_number'),
+            'sale_number' => $sale->number,
+            'status' => $invoice->status,
+            'payment_method' => $sale->payment_method,
+            'lines' => $sale->items->map(fn (SaleItem $line): array => [
+                'name' => $line->name,
+                'code' => $line->item?->barcode ?? $line->item?->isbn ?? $line->item?->item_code ?? null,
+                'quantity' => (float) $line->quantity,
+                'unit_price' => (float) $line->unit_price,
+                'total' => (float) $line->total_price,
+            ])->values()->all(),
+            'totals' => [
+                'subtotal' => (float) $invoice->subtotal_amount,
+                'discount' => (float) $invoice->discount_amount,
+                'tax' => (float) $invoice->tax_amount,
+                'paid' => $paid,
+                'due' => max(0, (float) $invoice->total_amount - $paid),
+                'total' => (float) $invoice->total_amount,
+            ],
+            'note' => $invoice->note,
+            'template_note' => $settings['invoice_note_template'],
+            'filename' => 'facture-'.$invoice->number.'.pdf',
+        ]);
+    }
+
+    public function downloadPurchasePdf(Purchase $purchase): Response
+    {
+        $tenant = $this->tenant();
+        abort_unless($purchase->tenant_id === $tenant->id, 404);
+
+        $purchase->loadMissing(['supplier', 'items.item']);
+        $settings = $this->documentSettings($tenant);
+        $ordered = (int) $purchase->items->sum('quantity_ordered');
+        $received = (int) $purchase->items->sum('quantity_received');
+
+        return $this->downloadDocumentPdf($tenant, [
+            'type' => 'purchase',
+            'title' => $settings['purchase_title'],
+            'number' => $purchase->number,
+            'date' => $purchase->ordered_at,
+            'due_date' => $purchase->expected_at,
+            'partner_label' => 'Fournisseur',
+            'partner' => $purchase->supplier,
+            'reference' => data_get($purchase->metadata, 'supplier_invoice') ?: data_get($purchase->metadata, 'reference'),
+            'status' => $purchase->status,
+            'payment_method' => null,
+            'lines' => $purchase->items->map(fn (PurchaseItem $line): array => [
+                'name' => $line->item?->title ?? 'Article supprimé',
+                'code' => $line->item?->barcode ?? $line->item?->isbn ?? $line->item?->item_code ?? null,
+                'quantity' => (float) $line->quantity_ordered,
+                'received' => (float) $line->quantity_received,
+                'unit_price' => (float) $line->unit_cost,
+                'total' => (float) $line->quantity_ordered * (float) $line->unit_cost,
+            ])->values()->all(),
+            'totals' => [
+                'subtotal' => (float) $purchase->total_amount,
+                'discount' => 0.0,
+                'tax' => 0.0,
+                'paid' => 0.0,
+                'due' => 0.0,
+                'total' => (float) $purchase->total_amount,
+                'ordered' => $ordered,
+                'received' => $received,
+            ],
+            'note' => data_get($purchase->metadata, 'note'),
+            'template_note' => $settings['purchase_note_template'],
+            'filename' => 'achat-'.$purchase->number.'.pdf',
+        ]);
+    }
+
     public function destroySale(Sale $sale): RedirectResponse
     {
         $tenant = $this->tenant();
@@ -4232,6 +4409,7 @@ class LibraireProController extends Controller
             'messageTemplates' => $this->messageTemplates($tenant),
             'messagingContacts' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->take(300)->get(),
             'messagingOutbox' => collect(data_get($tenant->settings, 'messaging_outbox', []))->take(80)->values(),
+            'documentSettings' => $this->documentSettings($tenant),
             'stores' => $this->storeCatalog($tenant),
             'currentStore' => $this->currentStore($tenant),
             'storeAccessOptions' => $this->storeAccessOptions($tenant),
@@ -5295,6 +5473,140 @@ class LibraireProController extends Controller
             ->max() ?? 0;
 
         return 'FAC'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
+    }
+
+    private function downloadDocumentPdf(Tenant $tenant, array $document): Response
+    {
+        $settings = $this->documentSettings($tenant);
+        $company = $this->companyProfile($tenant);
+        $placeholders = $this->documentPlaceholders($tenant, $company, $document);
+        $document['rendered_header'] = $this->renderDocumentTemplate($settings['header_text'], $placeholders);
+        $document['rendered_note'] = $this->renderDocumentTemplate((string) ($document['template_note'] ?? ''), $placeholders);
+        $document['rendered_footer'] = $this->renderDocumentTemplate($settings['footer_text'], $placeholders);
+        $document['rendered_terms'] = $this->renderDocumentTemplate($settings['terms'], $placeholders);
+        $company['logo_src'] = $this->documentAssetSource((string) ($company['store_logo'] ?? ''));
+        $company['signature_src'] = $this->documentAssetSource((string) ($company['signature'] ?? ''));
+
+        $pdf = Pdf::loadView('librairepro.pdf.document', [
+            'tenant' => $tenant,
+            'company' => $company,
+            'settings' => $settings,
+            'document' => $document,
+            'money' => fn ($amount) => $this->money($amount),
+            'formatDate' => fn ($date) => $date ? Carbon::parse($date)->format('d/m/Y') : '—',
+        ])->setPaper('a4')->setOptions([
+            'isRemoteEnabled' => true,
+            'defaultFont' => 'DejaVu Sans',
+        ]);
+
+        return $pdf->download($document['filename']);
+    }
+
+    private function companyProfile(Tenant $tenant): array
+    {
+        return array_merge([
+            'store_name' => $tenant->name,
+            'store_code' => $tenant->slug,
+            'mobile' => '',
+            'phone' => $tenant->phone,
+            'email' => $tenant->email,
+            'gst_no' => $tenant->ice,
+            'vat_no' => '',
+            'rc' => '',
+            'cnss' => '',
+            'country' => 'Maroc',
+            'state' => '',
+            'city' => '',
+            'postcode' => '',
+            'address' => $tenant->address,
+            'store_logo' => '',
+            'signature' => '',
+            'show_signature' => false,
+            'bank_details' => '',
+            'sales_invoice_footer_text' => '',
+            'invoice_terms' => '',
+        ], $tenant->settings['company_profile'] ?? []);
+    }
+
+    private function documentSettings(Tenant $tenant): array
+    {
+        $company = $this->companyProfile($tenant);
+
+        return array_merge([
+            'sale_title' => 'Bon de vente',
+            'invoice_title' => 'Facture',
+            'purchase_title' => 'Bon d’achat',
+            'primary_color' => data_get($tenant->settings, 'theme.primary', '#3157D5'),
+            'accent_color' => data_get($tenant->settings, 'theme.accent', '#0F9F8A'),
+            'header_text' => 'Document généré par {{store_name}} le {{today}}.',
+            'sale_note_template' => 'Merci pour votre achat {{client_name}}. Ticket {{document_number}}.',
+            'invoice_note_template' => 'Facture {{document_number}} liée à la vente {{sale_number}}. Total: {{total}}.',
+            'purchase_note_template' => 'Commande fournisseur {{document_number}}. Référence: {{reference}}.',
+            'footer_text' => $company['sales_invoice_footer_text'] ?: 'Merci pour votre confiance.',
+            'terms' => $company['invoice_terms'] ?: 'Les marchandises restent la propriété du magasin jusqu’au paiement complet.',
+            'show_logo' => true,
+            'show_signature' => (bool) ($company['show_signature'] ?? false),
+            'show_bank_details' => filled($company['bank_details'] ?? null),
+        ], $tenant->settings['documents'] ?? []);
+    }
+
+    private function documentPlaceholders(Tenant $tenant, array $company, array $document): array
+    {
+        $partner = $document['partner'] ?? null;
+
+        return [
+            'store_name' => $company['store_name'] ?? $tenant->name,
+            'store_phone' => $company['phone'] ?: ($company['mobile'] ?? $tenant->phone),
+            'store_email' => $company['email'] ?? $tenant->email,
+            'store_address' => $company['address'] ?? $tenant->address,
+            'ice' => $company['gst_no'] ?? $tenant->ice,
+            'document_title' => $document['title'] ?? '',
+            'document_number' => $document['number'] ?? '',
+            'document_date' => ! empty($document['date']) ? Carbon::parse($document['date'])->format('d/m/Y') : '',
+            'due_date' => ! empty($document['due_date']) ? Carbon::parse($document['due_date'])->format('d/m/Y') : '',
+            'client_name' => $partner?->name ?? 'Client Grand Public',
+            'supplier_name' => $partner?->name ?? 'Fournisseur',
+            'partner_name' => $partner?->name ?? '—',
+            'partner_phone' => $partner?->phone ?? '',
+            'reference' => $document['reference'] ?: '—',
+            'sale_number' => $document['type'] === 'invoice' ? data_get($document, 'sale_number', '') : ($document['number'] ?? ''),
+            'payment_method' => $document['payment_method'] ?: '—',
+            'status' => $document['status'] ?? '',
+            'total' => $this->money((float) data_get($document, 'totals.total', 0)),
+            'today' => now()->format('d/m/Y'),
+        ];
+    }
+
+    private function renderDocumentTemplate(string $template, array $placeholders): string
+    {
+        return Str::of($template)->replaceMatches('/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/', function (array $matches) use ($placeholders): string {
+            return (string) ($placeholders[$matches[1]] ?? $matches[0]);
+        })->toString();
+    }
+
+    private function documentAssetSource(string $path): ?string
+    {
+        $path = trim($path);
+        if ($path === '') {
+            return null;
+        }
+
+        if (Str::startsWith($path, ['http://', 'https://'])) {
+            return $path;
+        }
+
+        $path = Str::after($path, 'storage/');
+        $publicStorage = public_path('storage/'.$path);
+        if (is_file($publicStorage)) {
+            return $publicStorage;
+        }
+
+        $publicPath = public_path($path);
+        if (is_file($publicPath)) {
+            return $publicPath;
+        }
+
+        return null;
     }
 
     private function tenant(): Tenant

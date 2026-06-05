@@ -255,7 +255,12 @@
                                         <td class="px-3 py-3">{{ $invoice->due_date?->format('d/m/Y') ?? '—' }}</td>
                                         <td class="px-3 py-3">{{ $invoice->contact?->name ?? $invoice->sale?->contact?->name ?? 'Client Grand Public' }}</td>
                                         <td class="px-3 py-3 text-right font-semibold">{{ $money($invoice->total_amount) }}</td>
-                                        <td class="px-3 py-3 text-right"><a href="{{ route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $invoice->id]) }}" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Voir facture</a></td>
+                                        <td class="px-3 py-3 text-right">
+                                            <div class="flex justify-end gap-2">
+                                                <a href="{{ route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $invoice->id]) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold hover:border-brand hover:text-brand dark:border-white/10">Voir</a>
+                                                <a href="{{ route('sales.invoices.pdf', $invoice) }}" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">PDF</a>
+                                            </div>
+                                        </td>
                                     </tr>
                                 @empty
                                     <tr><td colspan="7" class="px-4 py-12 text-center text-sm text-slate-500">Aucune facture créée. Créez une facture depuis la liste des ventes.</td></tr>
@@ -440,7 +445,11 @@
                                                 <button type="button" onclick="document.getElementById('sale-payment-add-{{ $sale->id }}').showModal()"><span>RC</span> Recevoir paiement</button>
                                                 <form action="{{ route('sales.invoice.store', $sale) }}" method="POST">@csrf<button type="submit"><span>FA</span> {{ $invoiceGenerated ? 'Mettre à jour facture' : 'Créer facture' }}</button></form>
                                                 <button type="button" onclick="document.getElementById('sale-invoice-{{ $sale->id }}').showModal()"><span>{{ $invoiceGenerated ? 'FA' : 'BL' }}</span> {{ $invoiceGenerated ? 'Voir facture' : 'Préparer facture / BL' }}</button>
-                                                <button type="button" onclick="document.getElementById('sale-detail-{{ $sale->id }}').showModal()"><span>TP</span> Imprimer ticket POS</button>
+                                                <a href="{{ route('sales.pdf', $sale) }}"><span>PDF</span> Télécharger vente</a>
+                                                @if ($invoiceGenerated)
+                                                    <a href="{{ route('sales.invoices.pdf', $invoice) }}"><span>FA</span> Télécharger facture</a>
+                                                @endif
+                                                <button type="button" onclick="document.getElementById('sale-detail-{{ $sale->id }}').showModal()"><span>TP</span> Voir ticket POS</button>
                                                 @if ($sale->status !== 'refunded' && $sale->status !== 'cancelled')
                                                     <button type="button" onclick="document.getElementById('sale-refund-{{ $sale->id }}').showModal()"><span>RT</span> Retour vente</button>
                                                     <button type="button" onclick="document.getElementById('sale-delivery-{{ $sale->id }}').showModal()"><span>LV</span> Ajouter livraison</button>
@@ -483,7 +492,7 @@
                                             </div>
                                             <div class="grid gap-2 sm:grid-cols-3">
                                                 <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button" onclick="window.print()">Imprimer ticket</button>
-                                                <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button" onclick="window.print()">Imprimer PDF</button>
+                                                <a href="{{ route('sales.pdf', $sale) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-center text-sm font-semibold dark:border-white/10">PDF vente</a>
                                                 <button class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button">Fermer</button>
                                             </div>
                                         </div>
@@ -635,7 +644,9 @@
                                             <input name="due_date" value="{{ $invoiceDueDate }}" type="date" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                                             <input name="invoice_note" value="{{ $invoice?->note }}" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note facture">
                                             <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">{{ $invoiceGenerated ? 'Mettre à jour' : 'Créer facture' }}</button>
-                                            <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button" onclick="window.print()">Imprimer</button>
+                                            @if ($invoiceGenerated)
+                                                <a href="{{ route('sales.invoices.pdf', $invoice) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Télécharger PDF</a>
+                                            @endif
                                         </form>
                                     </div>
                                 </dialog>
@@ -1030,6 +1041,7 @@
                                         <td class="px-4 py-3">
                                             <div class="flex flex-wrap justify-end gap-2">
                                                 <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button" onclick="document.getElementById('purchase-detail-{{ $purchase->id }}').showModal()">Voir détail</button>
+                                                <a href="{{ route('purchases.pdf', $purchase) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">PDF</a>
                                                 @if ($purchase->status !== 'received')
                                                     <form action="{{ route('purchases.receive', $purchase) }}" method="POST">
                                                         @csrf
@@ -1107,6 +1119,7 @@
                                             <a href="{{ route('module', ['module' => 'purchases', 'section' => 'list', 'detail_purchase' => $purchase->id]) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">Lien direct</a>
                                             <div class="flex justify-end gap-2">
                                                 <button type="button" class="dialog-close rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950">Fermer</button>
+                                                <a href="{{ route('purchases.pdf', $purchase) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">Télécharger PDF</a>
                                                 @if ($purchase->status !== 'received')
                                                     <form action="{{ route('purchases.receive', $purchase) }}" method="POST">
                                                         @csrf
@@ -1697,6 +1710,7 @@
                 'company' => 'Société',
                 'warehouses' => 'Magasins',
                 'store' => 'Caisse & stock',
+                'documents' => 'PDF',
                 'users' => 'Utilisateurs',
                 'roles' => 'Rôles',
                 'taxes' => 'Taxes',
@@ -1966,6 +1980,8 @@
                     </div>
                 </article>
 
+                @elseif ($settingsSection === 'documents')
+                    @include('librairepro.partials.document-settings')
                 @elseif (in_array($settingsSection, ['messaging', 'message-templates', 'sms-api'], true))
                     @include('librairepro.partials.messaging-section')
 

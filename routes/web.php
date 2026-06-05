@@ -138,6 +138,8 @@ Route::post('/ventes', [LibraireProController::class, 'storeSale'])->name('sales
 Route::post('/ventes/paiements', [LibraireProController::class, 'storeSalePayment'])->name('sales.payments.store');
 Route::patch('/ventes/{sale}', [LibraireProController::class, 'updateSale'])->name('sales.update');
 Route::post('/ventes/{sale}/facture', [LibraireProController::class, 'createSaleInvoice'])->name('sales.invoice.store');
+Route::get('/ventes/{sale}/pdf', [LibraireProController::class, 'downloadSalePdf'])->name('sales.pdf');
+Route::get('/factures/{invoice}/pdf', [LibraireProController::class, 'downloadInvoicePdf'])->name('sales.invoices.pdf');
 Route::post('/ventes/{sale}/rembourser', [LibraireProController::class, 'refundSale'])->name('sales.refund');
 Route::delete('/ventes/{sale}', [LibraireProController::class, 'destroySale'])->name('sales.destroy');
 Route::post('/ventes/livraisons', [LibraireProController::class, 'storeDeliveryOrder'])->name('sales.deliveries.store');
@@ -147,6 +149,7 @@ Route::patch('/devis/{quotation}', [LibraireProController::class, 'updateQuotati
 Route::post('/devis/{quotation}/convertir', [LibraireProController::class, 'convertQuotationToSale'])->name('quotations.convert');
 Route::post('/achats', [LibraireProController::class, 'storePurchase'])->name('purchases.store');
 Route::post('/achats/{purchase}/recevoir', [LibraireProController::class, 'receivePurchase'])->name('purchases.receive');
+Route::get('/achats/{purchase}/pdf', [LibraireProController::class, 'downloadPurchasePdf'])->name('purchases.pdf');
 Route::post('/achats/retours', [LibraireProController::class, 'storePurchaseReturn'])->name('purchases.returns.store');
 Route::get('/contacts/data', [LibraireProController::class, 'contactsData'])->name('contacts.data');
 Route::post('/contacts', [LibraireProController::class, 'storeContact'])->name('contacts.store');
@@ -170,6 +173,7 @@ Route::post('/comptes/transferts', [LibraireProController::class, 'storeMoneyTra
 Route::post('/parametres/theme', [LibraireProController::class, 'updateTheme'])->name('settings.theme.update');
 Route::post('/parametres/societe', [LibraireProController::class, 'updateCompanyProfile'])->name('settings.company.update');
 Route::post('/parametres/caisse', [LibraireProController::class, 'updatePosSettings'])->name('settings.pos.update');
+Route::post('/parametres/documents-pdf', [LibraireProController::class, 'updateDocumentSettings'])->name('settings.documents.update');
 Route::post('/parametres/messagerie', [LibraireProController::class, 'updateMessagingSettings'])->name('settings.messaging.update');
 Route::post('/parametres/messagerie/envoyer', [LibraireProController::class, 'sendManualMessage'])->name('settings.messaging.send');
 Route::post('/parametres/messagerie/modeles', [LibraireProController::class, 'storeMessageTemplate'])->name('settings.message-templates.store');
