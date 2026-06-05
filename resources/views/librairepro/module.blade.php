@@ -1311,6 +1311,10 @@
                 'transfers' => ['label' => "Transferts d'argent", 'href' => route('module', ['module' => 'finance', 'section' => 'transfers'])],
                 'deposits' => ['label' => 'Dépôts', 'href' => route('module', ['module' => 'finance', 'section' => 'deposits'])],
                 'cash' => ['label' => 'Transactions espèces', 'href' => route('module', ['module' => 'finance', 'section' => 'cash'])],
+                'coupon-add' => ['label' => 'Créer coupon', 'href' => route('module', ['module' => 'finance', 'section' => 'coupon-add'])],
+                'coupons' => ['label' => 'Liste coupons', 'href' => route('module', ['module' => 'finance', 'section' => 'coupons'])],
+                'customer-coupon-add' => ['label' => 'Créer coupon client', 'href' => route('module', ['module' => 'finance', 'section' => 'customer-coupon-add'])],
+                'customer-coupons' => ['label' => 'Coupons client', 'href' => route('module', ['module' => 'finance', 'section' => 'customer-coupons'])],
                 'expenses' => ['label' => 'Liste des dépenses', 'href' => route('module', ['module' => 'finance', 'section' => 'expenses'])],
                 'expense-add' => ['label' => 'Ajouter dépense', 'href' => route('module', ['module' => 'finance', 'section' => 'expense-add'])],
                 'expense-categories' => ['label' => 'Catégories', 'href' => route('module', ['module' => 'finance', 'section' => 'expense-categories'])],
@@ -1324,7 +1328,7 @@
             </summary>
             <nav class="app-tab-nav">
                 @foreach ($financeTabs as $key => $tab)
-                    <a href="{{ $tab['href'] }}" class="app-tab-link {{ $financeSection === $key || ($key === 'expenses' && ! in_array($financeSection, ['advance-add', 'advances', 'account-add', 'accounts', 'transfers', 'deposits', 'cash', 'expense-add', 'expense-categories'], true)) ? 'is-active' : '' }}">{{ $tab['label'] }}</a>
+                    <a href="{{ $tab['href'] }}" class="app-tab-link {{ $financeSection === $key || ($key === 'expenses' && ! in_array($financeSection, ['advance-add', 'advances', 'account-add', 'accounts', 'transfers', 'deposits', 'cash', 'coupon-add', 'coupons', 'customer-coupon-add', 'customer-coupons', 'expense-add', 'expense-categories'], true)) ? 'is-active' : '' }}">{{ $tab['label'] }}</a>
                 @endforeach
             </nav>
         </details>
@@ -1445,6 +1449,8 @@
                 <div class="grid gap-3 md:grid-cols-3"><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Solde caisse</span><p class="mt-2 text-2xl font-semibold">{{ $money($accountStats['cash'] ?? 0) }}</p></article><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Mouvements caisse</span><p class="mt-2 text-2xl font-semibold">{{ $accountStats['cash_movements'] ?? 0 }}</p></article><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Dépôts ce mois</span><p class="mt-2 text-2xl font-semibold">{{ $money($accountStats['deposits_month'] ?? 0) }}</p></article></div>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">@include('librairepro.partials.account-transactions-table', ['transactions' => $accountTransactions, 'money' => $money])</article>
             </section>
+        @elseif (in_array($financeSection, ['coupon-add', 'coupons', 'customer-coupon-add', 'customer-coupons'], true))
+            @include('librairepro.partials.coupons-section')
         @elseif ($financeSection === 'expense-add')
             <section class="mt-6 grid gap-6 xl:grid-cols-[1fr_340px]">
                 <form action="{{ route('expenses.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">

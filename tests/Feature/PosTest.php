@@ -49,6 +49,8 @@ class PosTest extends TestCase
             ->assertSee('Effacer')
             ->assertSee('Espèces')
             ->assertSee('50/50')
+            ->assertSee('name="discount_type"', false)
+            ->assertSee('name="discount_value"', false)
             ->assertSee('data-price-editable="1"', false)
             ->assertSee('data-allow-oversell="0"', false)
             ->assertDontSee('name="receipt_channel"', false);
@@ -64,17 +66,22 @@ class PosTest extends TestCase
             'cart' => json_encode([
                 ['id' => $item->id, 'quantity' => 1],
             ]),
-            'discount_amount' => 0,
+            'discount_type' => 'percentage',
+            'discount_value' => 10,
         ]);
 
         $ticket = PosTicket::firstOrFail();
         $response->assertRedirect(route('pos'));
         $this->assertSame('held', $ticket->status);
         $this->assertStringStartsWith('ATT', $ticket->number);
+        $this->assertSame('percentage', $ticket->discount_type);
+        $this->assertSame(10.0, (float) $ticket->discount_value);
 
         $this->get(route('pos', ['ticket' => $ticket->id]))
             ->assertOk()
             ->assertSee($ticket->number)
+            ->assertSee('value="10"', false)
+            ->assertSee('value="percentage" selected', false)
             ->assertSee('Tickets en attente');
     }
 
@@ -124,6 +131,57 @@ class PosTest extends TestCase
             'reference_id' => $sale->id,
         ]);
         $this->assertSame($initialAdvance - $advance, (float) $client->fresh()->advance_balance);
+    }
+
+    public function test_pos_accepts_percentage_discount_and_tracks_it(): void
+    {
+        $this->seed();
+
+        $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 1)->firstOrFail();
+        $subtotal = (float) $item->sale_price * 2;
+        $expectedDiscount = round($subtotal * 0.15, 2);
+        $expectedTotal = round($subtotal - $expectedDiscount, 2);
+
+        $response = $this->post(route('pos.store'), [
+            'cart' => json_encode([
+                ['id' => $item->id, 'quantity' => 2],
+            ]),
+            'discount_type' => 'percentage',
+            'discount_value' => 15,
+            'discount_amount' => 999999,
+            'cash_amount' => $expectedTotal,
+        ]);
+
+        $sale = Sale::orderByDesc('id')->firstOrFail();
+        $response->assertRedirect(route('pos', ['sale' => $sale->id]));
+        $this->assertSame($expectedDiscount, (float) $sale->discount_amount);
+        $this->assertSame($expectedTotal, (float) $sale->total_amount);
+        $this->assertSame('percentage', $sale->metadata['discount']['manual']['type']);
+        $this->assertSame(15.0, (float) $sale->metadata['discount']['manual']['value']);
+        $this->assertFalse((bool) $sale->metadata['discount']['manual']['capped']);
+    }
+
+    public function test_pos_caps_fixed_discount_to_subtotal(): void
+    {
+        $this->seed();
+
+        $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 0)->firstOrFail();
+        $subtotal = (float) $item->sale_price;
+
+        $this->post(route('pos.store'), [
+            'cart' => json_encode([
+                ['id' => $item->id, 'quantity' => 1],
+            ]),
+            'discount_type' => 'fixed',
+            'discount_value' => $subtotal + 500,
+            'cash_amount' => 0,
+        ])->assertRedirect();
+
+        $sale = Sale::orderByDesc('id')->firstOrFail();
+        $this->assertSame($subtotal, (float) $sale->discount_amount);
+        $this->assertSame(0.0, (float) $sale->total_amount);
+        $this->assertTrue((bool) $sale->metadata['discount']['manual']['capped']);
+        $this->assertSame($subtotal + 500, (float) $sale->metadata['discount']['manual']['requested_value']);
     }
 
     public function test_pos_rejects_insufficient_payment_without_creating_sale(): void

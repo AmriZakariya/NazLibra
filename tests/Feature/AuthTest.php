@@ -108,6 +108,10 @@ class AuthTest extends TestCase
         $this->post(route('logout'))->assertRedirect(route('login'));
 
         $this->assertGuest();
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => User::where('email', 'amina@librairie-atlas.ma')->value('id'),
+            'action' => 'logout',
+        ]);
     }
 
     public function test_inactive_user_cannot_login(): void

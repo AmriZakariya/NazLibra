@@ -16,10 +16,12 @@ class RecordUserActivity
 
     public function handle(Request $request, Closure $next): Response
     {
+        $actor = $request->user();
+        $tenantId = $this->tenantId($request, $actor);
         $response = $next($request);
 
         if ($this->shouldRecord($request, $response)) {
-            $this->record($request, $response);
+            $this->record($request, $response, $tenantId, $actor?->id);
         }
 
         return $response;
@@ -32,19 +34,18 @@ class RecordUserActivity
             && ! $request->is('livewire/*');
     }
 
-    private function record(Request $request, Response $response): void
+    private function record(Request $request, Response $response, ?int $tenantId, ?int $userId): void
     {
         try {
             if (! Schema::hasTable('audit_logs')) {
                 return;
             }
 
-            $tenantId = $this->tenantId($request);
             $subject = $this->subject($request);
 
             DB::table('audit_logs')->insert([
                 'tenant_id' => $tenantId,
-                'user_id' => $request->user()?->id,
+                'user_id' => $userId,
                 'action' => $request->route()?->getName() ?: $request->method().' '.$request->path(),
                 'subject_type' => $subject['type'],
                 'subject_id' => $subject['id'],
@@ -67,8 +68,12 @@ class RecordUserActivity
         }
     }
 
-    private function tenantId(Request $request): ?int
+    private function tenantId(Request $request, mixed $actor = null): ?int
     {
+        if ($actor?->current_tenant_id) {
+            return (int) $actor->current_tenant_id;
+        }
+
         if ($request->user()?->current_tenant_id) {
             return (int) $request->user()->current_tenant_id;
         }

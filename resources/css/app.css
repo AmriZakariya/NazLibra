@@ -3151,20 +3151,27 @@
 
     .pos-collapsible > summary::-webkit-details-marker,
     .pos-held-tickets > summary::-webkit-details-marker,
-    .pos-suggestions-menu > summary::-webkit-details-marker {
+    .pos-suggestions-menu > summary::-webkit-details-marker,
+    .pos-coupon-panel > summary::-webkit-details-marker {
         display: none;
     }
 
     .pos-collapsible[open] .pos-collapsible-chevron,
     .pos-held-tickets[open] .pos-held-chevron,
-    .pos-suggestions-menu[open] .pos-suggestions-chevron {
+    .pos-suggestions-menu[open] .pos-suggestions-chevron,
+    .pos-coupon-panel[open] .pos-coupon-chevron {
         transform: rotate(180deg);
     }
 
     .pos-collapsible-chevron,
     .pos-held-chevron,
-    .pos-suggestions-chevron {
+    .pos-suggestions-chevron,
+    .pos-coupon-chevron {
         transition: transform 160ms ease;
+    }
+
+    .pos-coupon-panel:not([open]) .pos-coupon-body {
+        display: none;
     }
 
     .pos-collapsible-summary {

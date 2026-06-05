@@ -808,6 +808,15 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const submit = screen.querySelector('.pos-submit');
     const cartCount = screen.querySelector('.pos-cart-count');
     const discountInput = screen.querySelector('.pos-discount');
+    const discountTypeInput = screen.querySelector('.pos-discount-type');
+    const discountAmountInput = screen.querySelector('.pos-discount-amount');
+    const discountHelper = screen.querySelector('.pos-discount-helper');
+    const couponPanel = screen.querySelector('.pos-coupon-panel');
+    const couponInput = screen.querySelector('.pos-coupon-code');
+    const couponButton = screen.querySelector('.pos-apply-coupon');
+    const couponMessage = screen.querySelector('.pos-coupon-message');
+    const couponSummary = screen.querySelector('.pos-coupon-summary');
+    const couponSummaryCode = screen.querySelector('.pos-coupon-summary-code');
     const paymentInputs = [...screen.querySelectorAll('.pos-payment')];
     const viewButtons = [...screen.querySelectorAll('.pos-view-btn')];
     const productsGrid = screen.querySelector('.pos-products');
@@ -832,6 +841,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const allowOversell = screen.dataset.allowOversell === '1';
     const showOutOfStock = screen.dataset.showOutOfStock === '1';
     const searchUrl = screen.dataset.posSearchUrl;
+    const couponPreviewUrl = screen.dataset.couponPreviewUrl;
     const searchState = screen.querySelector('.pos-search-state');
     const submitButtons = [...screen.querySelectorAll('button[type="submit"]')];
     let activeSubmitter = null;
@@ -840,6 +850,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     let favoriteIds = JSON.parse(localStorage.getItem('librairepro-pos-favorites') || '[]').map(Number);
     let searchTimer = null;
     let searchSequence = 0;
+    let appliedCoupon = { code: '', amount: 0, message: '', valid: false };
 
     const normalizeText = (value) => String(value || '')
         .normalize('NFD')
@@ -953,10 +964,34 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
     const totals = () => {
         const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-        const discount = Math.min(Number(discountInput?.value || 0), subtotal);
-        const total = Math.max(0, subtotal - discount);
+        const couponCode = String(couponInput?.value || '').trim().toUpperCase();
+        const couponAmount = appliedCoupon.valid && appliedCoupon.code === couponCode
+            ? Math.min(Number(appliedCoupon.amount || 0), subtotal)
+            : 0;
+        const subtotalAfterCoupon = Math.max(0, subtotal - couponAmount);
+        const discountType = discountTypeInput?.value === 'percentage' ? 'percentage' : 'fixed';
+        const requestedDiscount = Math.max(0, Number(discountInput?.value || 0));
+        const maxValue = discountType === 'percentage' ? 100 : subtotalAfterCoupon;
+        const effectiveValue = Math.min(requestedDiscount, maxValue);
+        const discount = discountType === 'percentage'
+            ? Math.min(subtotalAfterCoupon, subtotalAfterCoupon * effectiveValue / 100)
+            : Math.min(effectiveValue, subtotalAfterCoupon);
+        const total = Math.max(0, subtotal - couponAmount - discount);
         const paid = paymentInputs.reduce((sum, input) => sum + Number(input.value || 0), 0);
-        return { subtotal, discount, total, paid, tax: total * 0.2 / 1.2, remaining: Math.max(0, total - paid), change: Math.max(0, paid - total) };
+        return {
+            subtotal,
+            couponAmount,
+            discount,
+            discountType,
+            discountValue: effectiveValue,
+            discountRequested: requestedDiscount,
+            discountCapped: requestedDiscount > maxValue,
+            total,
+            paid,
+            tax: total * 0.2 / 1.2,
+            remaining: Math.max(0, total - paid),
+            change: Math.max(0, paid - total),
+        };
     };
 
     const stockLabel = (item) => item.stock >= 999999 ? 'illimité' : item.stock;
@@ -973,6 +1008,87 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
 
         return limited;
+    };
+
+    const setCouponMessage = (message, tone = 'neutral') => {
+        if (!couponMessage) return;
+        couponMessage.textContent = message;
+        couponMessage.classList.toggle('text-emerald-600', tone === 'success');
+        couponMessage.classList.toggle('text-rose-600', tone === 'danger');
+        couponMessage.classList.toggle('text-slate-500', tone === 'neutral');
+    };
+
+    const syncCouponSummary = (total = totals()) => {
+        const code = String(couponInput?.value || '').trim().toUpperCase();
+        if (couponSummary) {
+            if (appliedCoupon.valid && appliedCoupon.code === code) {
+                couponSummary.textContent = `Appliqué: ${money.format(total.couponAmount)}`;
+                couponSummary.classList.add('text-emerald-600');
+                couponSummary.classList.remove('text-slate-500', 'text-amber-600');
+            } else if (code) {
+                couponSummary.textContent = 'Code saisi, à vérifier';
+                couponSummary.classList.add('text-amber-600');
+                couponSummary.classList.remove('text-slate-500', 'text-emerald-600');
+            } else {
+                couponSummary.textContent = 'Ajouter un code promotionnel';
+                couponSummary.classList.add('text-slate-500');
+                couponSummary.classList.remove('text-emerald-600', 'text-amber-600');
+            }
+        }
+        if (couponSummaryCode) {
+            couponSummaryCode.textContent = code;
+            couponSummaryCode.classList.toggle('hidden', !code);
+        }
+    };
+
+    const applyCoupon = async () => {
+        if (!couponPreviewUrl || !couponInput) return;
+        const code = couponInput.value.trim().toUpperCase();
+        couponInput.value = code;
+        if (!code) {
+            appliedCoupon = { code: '', amount: 0, message: '', valid: false };
+            setCouponMessage('Saisissez un code coupon si le client en possède un.');
+            renderCart();
+            return;
+        }
+        if (cart.length === 0) {
+            showToast('Ajoutez au moins un article avant d’appliquer un coupon.');
+            return;
+        }
+
+        const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        const url = new URL(couponPreviewUrl, window.location.origin);
+        url.searchParams.set('code', code);
+        url.searchParams.set('subtotal', subtotal.toFixed(2));
+        const contactId = screen.querySelector('.pos-client')?.value;
+        if (contactId) url.searchParams.set('contact_id', contactId);
+
+        if (couponButton) couponButton.disabled = true;
+        setCouponMessage('Vérification du coupon...');
+        try {
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            const payload = await response.json();
+            if (!response.ok || !payload.valid) {
+                appliedCoupon = { code: '', amount: 0, message: payload.message || 'Coupon invalide.', valid: false };
+                setCouponMessage(appliedCoupon.message, 'danger');
+                renderCart();
+                return;
+            }
+            appliedCoupon = {
+                code,
+                amount: Number(payload.coupon?.amount || 0),
+                message: payload.coupon?.message || payload.message || 'Coupon appliqué.',
+                valid: true,
+            };
+            setCouponMessage(appliedCoupon.message, 'success');
+            renderCart();
+        } catch {
+            appliedCoupon = { code: '', amount: 0, message: 'Impossible de vérifier ce coupon.', valid: false };
+            setCouponMessage(appliedCoupon.message, 'danger');
+            renderCart();
+        } finally {
+            if (couponButton) couponButton.disabled = false;
+        }
     };
 
     const renderCart = () => {
@@ -1013,9 +1129,32 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
 
         const total = totals();
+        if (discountInput) {
+            const maxValue = total.discountType === 'percentage' ? 100 : Math.max(0, total.subtotal - total.couponAmount);
+            discountInput.max = String(Math.max(0, maxValue));
+            if (total.discountCapped) {
+                discountInput.value = total.discountType === 'percentage' ? '100' : Math.max(0, total.subtotal - total.couponAmount).toFixed(2);
+                showToast(total.discountType === 'percentage'
+                    ? 'La remise en pourcentage est limitée à 100%.'
+                    : 'La remise ne peut pas dépasser le total après coupon.');
+                return renderCart();
+            }
+        }
+        if (discountAmountInput) {
+            discountAmountInput.value = total.discount.toFixed(2);
+        }
+        if (discountHelper) {
+            discountHelper.textContent = total.discountType === 'percentage'
+                ? `Pourcentage, montant appliqué ${money.format(total.discount)}`
+                : `Fixe en DH, maximum ${money.format(Math.max(0, total.subtotal - total.couponAmount))}`;
+        }
         screen.querySelector('.pos-subtotal').textContent = money.format(total.subtotal);
         screen.querySelector('.pos-tax').textContent = money.format(total.tax);
-        screen.querySelector('.pos-discount-label').textContent = money.format(total.discount);
+        screen.querySelector('.pos-coupon-label').textContent = money.format(total.couponAmount);
+        syncCouponSummary(total);
+        screen.querySelector('.pos-discount-label').textContent = total.discountType === 'percentage' && total.discount > 0
+            ? `${money.format(total.discount)} (${Number(total.discountValue).toFixed(2)}%)`
+            : money.format(total.discount);
         screen.querySelector('.pos-total').textContent = money.format(total.total);
         screen.querySelector('.pos-remaining').textContent = money.format(total.remaining);
         screen.querySelector('.pos-change').textContent = money.format(total.change);
@@ -1394,7 +1533,21 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             item.quantity = normalizeQuantity(item, Number(input.value || 1), true);
             renderCart();
         }
-        if (event.target.matches('.pos-payment, .pos-discount')) {
+        if (event.target.matches('.pos-payment, .pos-discount, .pos-discount-type')) {
+            renderCart();
+        }
+        if (event.target.matches('.pos-coupon-code')) {
+            appliedCoupon = { code: '', amount: 0, message: '', valid: false };
+            setCouponMessage('Cliquez sur Appliquer pour vérifier ce coupon.');
+            renderCart();
+        }
+    });
+    discountTypeInput?.addEventListener('change', renderCart);
+    couponButton?.addEventListener('click', applyCoupon);
+    screen.querySelector('.pos-client')?.addEventListener('change', () => {
+        if (couponInput?.value) {
+            appliedCoupon = { code: '', amount: 0, message: '', valid: false };
+            setCouponMessage('Client changé: vérifiez à nouveau le coupon.');
             renderCart();
         }
     });
@@ -1485,6 +1638,14 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
 
         const total = totals();
+        const couponCode = String(couponInput?.value || '').trim().toUpperCase();
+        if (couponCode && (!appliedCoupon.valid || appliedCoupon.code !== couponCode)) {
+            event.preventDefault();
+            showToast('Vérifiez le coupon avant d’encaisser.');
+            if (couponPanel) couponPanel.open = true;
+            couponInput?.focus();
+            return;
+        }
         if (total.paid + 0.001 < total.total) {
             event.preventDefault();
             showToast(`Paiement insuffisant. Reste ${money.format(total.remaining)}.`);

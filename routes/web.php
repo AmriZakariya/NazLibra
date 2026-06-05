@@ -9,6 +9,7 @@ Route::post('/connexion', [AuthController::class, 'login'])->name('login.store')
 Route::post('/deconnexion', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 Route::get('/profil', [AuthController::class, 'profile'])->middleware('auth')->name('profile');
 Route::put('/profil', [AuthController::class, 'updateProfile'])->middleware('auth')->name('profile.update');
+Route::get('/profil/activite', [AuthController::class, 'activity'])->middleware(['auth', 'tenant.access'])->name('profile.activity');
 
 Route::middleware(['auth', 'tenant.access'])->group(function (): void {
 Route::post('/langue/{locale}', [LibraireProController::class, 'switchLocale'])->name('locale.switch');
@@ -129,6 +130,7 @@ Route::get('/catalogue/export', [LibraireProController::class, 'exportCatalog'])
 Route::get('/catalogue/etiquettes', [LibraireProController::class, 'labels'])->name('catalog.labels');
 Route::get('/caisse', [LibraireProController::class, 'pos'])->name('pos');
 Route::get('/caisse/recherche', [LibraireProController::class, 'posSearch'])->name('pos.search');
+Route::get('/caisse/coupons/verifier', [LibraireProController::class, 'previewCoupon'])->name('pos.coupons.preview');
 Route::post('/caisse', [LibraireProController::class, 'storePosSale'])->name('pos.store');
 Route::post('/caisse/tickets', [LibraireProController::class, 'holdPosTicket'])->name('pos.tickets.store');
 Route::delete('/caisse/tickets/{ticket}', [LibraireProController::class, 'destroyPosTicket'])->name('pos.tickets.destroy');
@@ -157,6 +159,9 @@ Route::post('/avances', [LibraireProController::class, 'storeCustomerAdvance'])-
 Route::delete('/avances/{advance}', [LibraireProController::class, 'destroyCustomerAdvance'])->name('customer-advances.destroy');
 Route::post('/depenses', [LibraireProController::class, 'storeExpense'])->name('expenses.store');
 Route::post('/depenses/categories', [LibraireProController::class, 'storeExpenseCategory'])->name('expenses.categories.store');
+Route::post('/coupons', [LibraireProController::class, 'storeCoupon'])->name('coupons.store');
+Route::put('/coupons/{coupon}', [LibraireProController::class, 'updateCoupon'])->name('coupons.update');
+Route::delete('/coupons/{coupon}', [LibraireProController::class, 'destroyCoupon'])->name('coupons.destroy');
 Route::post('/comptes', [LibraireProController::class, 'storeFinancialAccount'])->name('accounts.store');
 Route::put('/comptes/{account}', [LibraireProController::class, 'updateFinancialAccount'])->name('accounts.update');
 Route::delete('/comptes/{account}', [LibraireProController::class, 'destroyFinancialAccount'])->name('accounts.destroy');

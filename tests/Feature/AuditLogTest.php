@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -38,5 +40,76 @@ class AuditLogTest extends TestCase
         $this->get(route('dashboard'))->assertOk();
 
         $this->assertSame($before, \DB::table('audit_logs')->count());
+    }
+
+    public function test_owner_can_filter_activity_log_by_user_and_date(): void
+    {
+        $this->seed();
+
+        $owner = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+        $cashier = User::where('email', 'caisse@librairie-atlas.ma')->firstOrFail();
+        $tenant = $owner->currentTenant;
+
+        AuditLog::create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $owner->id,
+            'action' => 'catalog.items.store',
+            'properties' => ['method' => 'POST', 'path' => 'catalogue/articles', 'status_code' => 302],
+            'created_at' => now()->subDays(3),
+            'updated_at' => now()->subDays(3),
+        ]);
+        AuditLog::create([
+            'tenant_id' => $tenant->id,
+            'user_id' => $cashier->id,
+            'action' => 'pos.store',
+            'properties' => ['method' => 'POST', 'path' => 'caisse', 'status_code' => 302],
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($owner)
+            ->get(route('profile.activity', [
+                'user_id' => $cashier->id,
+                'from' => now()->toDateString(),
+                'to' => now()->toDateString(),
+                'method' => 'POST',
+                'q' => 'pos',
+            ]))
+            ->assertOk()
+            ->assertSee('Journal d’activité')
+            ->assertSee('Youssef Benali')
+            ->assertSee('pos.store')
+            ->assertDontSee('catalog.items.store');
+    }
+
+    public function test_only_owner_can_view_activity_log(): void
+    {
+        $this->seed();
+
+        $cashier = User::where('email', 'caisse@librairie-atlas.ma')->firstOrFail();
+
+        $this->actingAs($cashier)
+            ->get(route('profile.activity'))
+            ->assertForbidden();
+    }
+
+    public function test_profile_exposes_activity_log_shortcut_only_for_owner(): void
+    {
+        $this->seed();
+
+        $owner = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+        $cashier = User::where('email', 'caisse@librairie-atlas.ma')->firstOrFail();
+
+        $this->actingAs($owner)
+            ->get(route('profile'))
+            ->assertOk()
+            ->assertSee(route('profile.activity'), false)
+            ->assertSee('Traçabilité propriétaire');
+
+        $this->actingAs($cashier)
+            ->get(route('profile'))
+            ->assertOk()
+            ->assertDontSee(route('profile.activity'), false)
+            ->assertDontSee('Traçabilité propriétaire');
     }
 }

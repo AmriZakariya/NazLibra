@@ -20,6 +20,33 @@
         </form>
     </section>
 
+    @if ($isOwner)
+        <section class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <p class="text-sm font-semibold text-brand">Traçabilité propriétaire</p>
+                    <h2 class="mt-1 text-xl font-semibold tracking-normal">Journal d’activité</h2>
+                    <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">Toutes les actions d’écriture sont enregistrées: utilisateur, date, route, méthode, IP et données utiles nettoyées.</p>
+                </div>
+                <a href="{{ route('profile.activity') }}" class="inline-flex h-11 items-center justify-center rounded-lg bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20 transition hover:brightness-110">Voir tous les logs</a>
+            </div>
+            <div class="mt-5 grid gap-3 lg:grid-cols-5">
+                @forelse ($recentAuditLogs as $log)
+                    <a href="{{ route('profile.activity', ['q' => $log->action]) }}" class="rounded-xl border border-slate-200 bg-slate-50 p-4 transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+                        <div class="flex items-center justify-between gap-3">
+                            <span class="truncate text-sm font-semibold text-slate-950 dark:text-white">{{ $log->action }}</span>
+                            <span class="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-bold text-slate-500 dark:bg-slate-950/60">{{ data_get($log->properties, 'method', '—') }}</span>
+                        </div>
+                        <p class="mt-2 truncate text-xs text-slate-500">{{ $log->user?->name ?? 'Système' }} · {{ data_get($log->properties, 'path', '—') }}</p>
+                        <p class="mt-2 text-xs font-semibold text-slate-400">{{ $log->created_at?->format('d/m/Y H:i') }}</p>
+                    </a>
+                @empty
+                    <div class="rounded-xl border border-dashed border-slate-200 p-5 text-sm text-slate-500 dark:border-white/10 lg:col-span-5">Aucune action enregistrée pour le moment.</div>
+                @endforelse
+            </div>
+        </section>
+    @endif
+
     <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <form action="{{ route('profile.update') }}" method="POST" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
             @csrf

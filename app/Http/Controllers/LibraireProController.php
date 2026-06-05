@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\AuditLog;
 use App\Models\Brand;
 use App\Models\Contact;
+use App\Models\Coupon;
 use App\Models\CustomerAdvance;
 use App\Models\DeliveryOrder;
 use App\Models\Expense;
@@ -2359,6 +2360,74 @@ class LibraireProController extends Controller
         ]);
     }
 
+    public function previewCoupon(Request $request): JsonResponse
+    {
+        $tenant = $this->tenant();
+        $data = $request->validate([
+            'code' => ['required', 'string', 'max:80'],
+            'subtotal' => ['required', 'numeric', 'min:0'],
+            'contact_id' => ['nullable', 'integer', Rule::exists('contacts', 'id')->where('tenant_id', $tenant->id)],
+        ]);
+
+        $contact = ! empty($data['contact_id'])
+            ? Contact::where('tenant_id', $tenant->id)->whereKey($data['contact_id'])->first()
+            : null;
+        $coupon = $this->couponDiscountForSubtotal($tenant, $data['code'], (float) $data['subtotal'], $contact, false);
+
+        return response()->json([
+            'valid' => $coupon['valid'],
+            'message' => $coupon['message'],
+            'coupon' => $coupon,
+        ], $coupon['valid'] ? 200 : 422);
+    }
+
+    public function storeCoupon(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $this->couponValidation($tenant, $request)->validate();
+        $data['code'] = Str::upper(trim($data['code']));
+        $data['tenant_id'] = $tenant->id;
+        $data['is_active'] = $request->boolean('is_active', true);
+        $data['metadata'] = [
+            'created_from' => $request->input('source', 'finance'),
+            'created_by' => auth()->id(),
+        ];
+
+        $coupon = Coupon::create($data);
+
+        return redirect()
+            ->route('module', ['module' => 'finance', 'section' => $coupon->contact_id ? 'customer-coupons' : 'coupons'])
+            ->with('status', 'Coupon '.$coupon->code.' créé.');
+    }
+
+    public function updateCoupon(Request $request, Coupon $coupon): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless($coupon->tenant_id === $tenant->id, 404);
+        $data = $this->couponValidation($tenant, $request, $coupon)->validate();
+        $data['code'] = Str::upper(trim($data['code']));
+        $data['is_active'] = $request->boolean('is_active');
+        $coupon->update($data);
+
+        return back()->with('status', 'Coupon '.$coupon->code.' mis à jour.');
+    }
+
+    public function destroyCoupon(Coupon $coupon): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless($coupon->tenant_id === $tenant->id, 404);
+
+        if ($coupon->uses_count > 0) {
+            $coupon->update(['is_active' => false]);
+
+            return back()->with('status', 'Coupon désactivé car il possède déjà un historique.');
+        }
+
+        $coupon->delete();
+
+        return back()->with('status', 'Coupon supprimé.');
+    }
+
     public function storePosSale(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();
@@ -2368,6 +2437,9 @@ class LibraireProController extends Controller
             'client_phone' => ['nullable', 'string', 'max:60'],
             'cart' => ['required', 'json'],
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'discount_type' => ['nullable', 'in:fixed,percentage,Fixed,Percentage,percent'],
+            'discount_value' => ['nullable', 'numeric', 'min:0'],
+            'coupon_code' => ['nullable', 'string', 'max:80'],
             'cash_amount' => ['nullable', 'numeric', 'min:0'],
             'card_amount' => ['nullable', 'numeric', 'min:0'],
             'transfer_amount' => ['nullable', 'numeric', 'min:0'],
@@ -2402,7 +2474,7 @@ class LibraireProController extends Controller
             return back()->withErrors(['cart' => 'Le panier est invalide. Rechargez la caisse et réessayez.'])->withInput();
         }
 
-        $discount = round((float) ($data['discount_amount'] ?? 0), 2);
+        $discountInput = $this->normalizedDiscountInput($data);
         $payments = [
             'cash' => round((float) ($data['cash_amount'] ?? 0), 2),
             'card' => round((float) ($data['card_amount'] ?? 0), 2),
@@ -2411,7 +2483,7 @@ class LibraireProController extends Controller
         ];
 
         try {
-            $sale = DB::transaction(function () use ($tenant, $data, $lineItems, $discount, $payments, $priceEditable, $allowOversell) {
+            $sale = DB::transaction(function () use ($tenant, $data, $lineItems, $discountInput, $payments, $priceEditable, $allowOversell) {
                 $contact = null;
                 if (! empty($data['contact_id'])) {
                     $contact = Contact::where('tenant_id', $tenant->id)->whereKey($data['contact_id'])->lockForUpdate()->firstOrFail();
@@ -2459,6 +2531,9 @@ class LibraireProController extends Controller
                     ];
                 }
 
+                $couponDetail = $this->couponDiscountForSubtotal($tenant, $data['coupon_code'] ?? null, $subtotal, $contact);
+                $manualDiscountDetail = $this->discountForSubtotal(max(0, $subtotal - $couponDetail['amount']), $discountInput['type'], $discountInput['value']);
+                $discount = min($subtotal, round($couponDetail['amount'] + $manualDiscountDetail['amount'], 2));
                 $total = max(0, round($subtotal - $discount, 2));
                 $paid = round(array_sum($payments), 2);
                 if ($paid + 0.001 < $total) {
@@ -2514,6 +2589,11 @@ class LibraireProController extends Controller
                             'price_overridden' => $line['price_overridden'],
                             'note' => $line['note'],
                         ])->values()->all(),
+                        'discount' => [
+                            'amount' => $discount,
+                            'manual' => $manualDiscountDetail,
+                            'coupon' => $couponDetail,
+                        ],
                         'receipt_channel' => $data['receipt_channel'] ?? 'print',
                         'note' => $data['note'] ?? null,
                     ],
@@ -2560,6 +2640,14 @@ class LibraireProController extends Controller
                     $remainingPaymentToAllocate = max(0, round($remainingPaymentToAllocate - $allocatedAmount, 2));
                 }
 
+                if ($couponDetail['coupon_id']) {
+                    Coupon::where('tenant_id', $tenant->id)->whereKey($couponDetail['coupon_id'])->update([
+                        'uses_count' => DB::raw('uses_count + 1'),
+                        'used_amount' => DB::raw('used_amount + '.(float) $couponDetail['amount']),
+                        'updated_at' => now(),
+                    ]);
+                }
+
                 if (! empty($data['ticket_id'])) {
                     PosTicket::where('tenant_id', $tenant->id)
                         ->where('status', 'held')
@@ -2591,6 +2679,9 @@ class LibraireProController extends Controller
             'client_phone' => ['nullable', 'string', 'max:60'],
             'cart' => ['required', 'json'],
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'discount_type' => ['nullable', 'in:fixed,percentage,Fixed,Percentage,percent'],
+            'discount_value' => ['nullable', 'numeric', 'min:0'],
+            'coupon_code' => ['nullable', 'string', 'max:80'],
             'note' => ['nullable', 'string', 'max:500'],
             'ticket_id' => ['nullable', 'integer', Rule::exists('pos_tickets', 'id')->where('tenant_id', $tenant->id)->where('status', 'held')],
         ]);
@@ -2605,8 +2696,10 @@ class LibraireProController extends Controller
             return back()->withErrors(['cart' => 'Le panier est invalide. Rechargez la caisse et réessayez.'])->withInput();
         }
 
+        $discountInput = $this->normalizedDiscountInput($data);
+
         try {
-            $ticket = DB::transaction(function () use ($tenant, $data, $lineItems) {
+            $ticket = DB::transaction(function () use ($tenant, $data, $lineItems, $discountInput) {
                 $contactId = $data['contact_id'] ?? null;
                 if (! $contactId && ! empty($data['client_name'])) {
                     $contact = Contact::create([
@@ -2618,7 +2711,8 @@ class LibraireProController extends Controller
                     $contactId = $contact->id;
                 }
 
-                $totals = $this->cartTotals($tenant, $lineItems, (float) ($data['discount_amount'] ?? 0));
+                $contact = $contactId ? Contact::where('tenant_id', $tenant->id)->whereKey($contactId)->first() : null;
+                $totals = $this->cartTotals($tenant, $lineItems, $discountInput, $data['coupon_code'] ?? null, $contact);
                 $payload = [
                     'tenant_id' => $tenant->id,
                     'contact_id' => $contactId,
@@ -2626,6 +2720,10 @@ class LibraireProController extends Controller
                     'cart' => $lineItems->values()->all(),
                     'subtotal_amount' => $totals['subtotal'],
                     'discount_amount' => $totals['discount'],
+                    'discount_type' => $totals['discount_type'],
+                    'discount_value' => $totals['discount_value'],
+                    'coupon_code' => $totals['coupon']['code'] ?? null,
+                    'coupon_amount' => $totals['coupon']['amount'] ?? 0,
                     'tax_amount' => $totals['tax'],
                     'total_amount' => $totals['total'],
                     'note' => $data['note'] ?? null,
@@ -3886,6 +3984,7 @@ class LibraireProController extends Controller
         $expenses = $this->expensesQuery($tenant, $request)->paginate(25, ['*'], 'expenses_page')->withQueryString();
         $expenseCategories = $this->expenseCategoriesQuery($tenant, $request)->get();
         $customerAdvances = $this->customerAdvancesQuery($tenant, $request)->paginate(25, ['*'], 'advances_page')->withQueryString();
+        $coupons = $this->couponsQuery($tenant, $request)->paginate(25, ['*'], 'coupons_page')->withQueryString();
         $financialAccounts = FinancialAccount::where('tenant_id', $tenant->id)->orderByDesc('is_active')->orderBy('name')->get();
         $accountTransactions = $this->accountTransactionsQuery($tenant, $request)->paginate(25, ['*'], 'account_transactions_page')->withQueryString();
         $reportContext = $this->reportContext($tenant, $request);
@@ -3950,6 +4049,15 @@ class LibraireProController extends Controller
             ],
             'financeClients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
             'customerAdvances' => $customerAdvances,
+            'coupons' => $coupons,
+            'couponStats' => [
+                'active' => Coupon::where('tenant_id', $tenant->id)->where('is_active', true)->where(function (Builder $builder): void {
+                    $builder->whereNull('expires_at')->orWhereDate('expires_at', '>=', now()->toDateString());
+                })->count(),
+                'used_month' => Coupon::where('tenant_id', $tenant->id)->whereDate('updated_at', '>=', now()->startOfMonth())->sum('used_amount'),
+                'customer' => Coupon::where('tenant_id', $tenant->id)->whereNotNull('contact_id')->count(),
+                'page' => $coupons->sum('used_amount'),
+            ],
             'advanceStats' => [
                 'balance' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->sum('advance_balance'),
                 'month' => CustomerAdvance::where('tenant_id', $tenant->id)->where('status', 'active')->whereDate('paid_at', '>=', now()->startOfMonth())->sum('amount'),
@@ -4187,7 +4295,48 @@ class LibraireProController extends Controller
         ];
     }
 
-    private function cartTotals(Tenant $tenant, \Illuminate\Support\Collection $lineItems, float $discount = 0): array
+    private function couponValidation(Tenant $tenant, Request $request, ?Coupon $coupon = null): \Illuminate\Validation\Validator
+    {
+        return validator($request->all(), [
+            'contact_id' => ['nullable', 'integer', Rule::exists('contacts', 'id')->where('tenant_id', $tenant->id)],
+            'name' => ['nullable', 'string', 'max:160'],
+            'code' => ['required', 'string', 'max:80', Rule::unique('coupons', 'code')->where('tenant_id', $tenant->id)->ignore($coupon?->id)],
+            'type' => ['required', 'in:percent,fixed'],
+            'value' => ['required', 'numeric', 'min:0.01', 'max:999999'],
+            'minimum_amount' => ['nullable', 'numeric', 'min:0', 'max:999999'],
+            'max_uses' => ['nullable', 'integer', 'min:1', 'max:1000000'],
+            'expires_at' => ['nullable', 'date'],
+            'is_active' => ['nullable', 'boolean'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+    }
+
+    private function couponsQuery(Tenant $tenant, Request $request): Builder
+    {
+        $q = trim((string) $request->query('q'));
+        $status = (string) $request->query('coupon_status', 'all');
+        $scope = (string) $request->query('coupon_scope', 'all');
+        $section = (string) $request->query('section', '');
+
+        return Coupon::query()
+            ->with('contact')
+            ->where('tenant_id', $tenant->id)
+            ->when($q !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($q): void {
+                $builder->where('code', 'like', "%{$q}%")
+                    ->orWhere('name', 'like', "%{$q}%")
+                    ->orWhereHas('contact', fn (Builder $contact) => $contact->where('name', 'like', "%{$q}%"));
+            }))
+            ->when($status === 'active', fn (Builder $builder) => $builder->where('is_active', true)->where(function (Builder $builder): void {
+                $builder->whereNull('expires_at')->orWhereDate('expires_at', '>=', now()->toDateString());
+            }))
+            ->when($status === 'expired', fn (Builder $builder) => $builder->whereDate('expires_at', '<', now()->toDateString()))
+            ->when($status === 'inactive', fn (Builder $builder) => $builder->where('is_active', false))
+            ->when($scope === 'customer' || $section === 'customer-coupons', fn (Builder $builder) => $builder->whereNotNull('contact_id'))
+            ->when($scope === 'public', fn (Builder $builder) => $builder->whereNull('contact_id'))
+            ->latest();
+    }
+
+    private function cartTotals(Tenant $tenant, \Illuminate\Support\Collection $lineItems, float|array $discount = 0, ?string $couponCode = null, ?Contact $contact = null): array
     {
         $items = Item::query()
             ->where('tenant_id', $tenant->id)
@@ -4206,14 +4355,130 @@ class LibraireProController extends Controller
             $subtotal += round($unitPrice * $line['quantity'], 2);
         }
 
-        $discount = min(max(0, round($discount, 2)), $subtotal);
-        $total = max(0, round($subtotal - $discount, 2));
+        $discountInput = is_array($discount) ? $discount : ['type' => 'fixed', 'value' => (float) $discount];
+        $couponDetail = $this->couponDiscountForSubtotal($tenant, $couponCode, $subtotal, $contact);
+        $manualDiscountDetail = $this->discountForSubtotal(max(0, $subtotal - $couponDetail['amount']), $discountInput['type'] ?? 'fixed', (float) ($discountInput['value'] ?? 0));
+        $totalDiscount = min($subtotal, round($couponDetail['amount'] + $manualDiscountDetail['amount'], 2));
+        $total = max(0, round($subtotal - $totalDiscount, 2));
 
         return [
             'subtotal' => round($subtotal, 2),
-            'discount' => $discount,
+            'discount' => $totalDiscount,
+            'discount_type' => $manualDiscountDetail['type'],
+            'discount_value' => $manualDiscountDetail['value'],
+            'discount_capped' => $manualDiscountDetail['capped'] || $couponDetail['capped'],
+            'manual_discount' => $manualDiscountDetail,
+            'coupon' => $couponDetail,
             'tax' => round($total * 0.2 / 1.2, 2),
             'total' => $total,
+        ];
+    }
+
+    private function normalizedDiscountInput(array $data): array
+    {
+        $type = str((string) ($data['discount_type'] ?? 'fixed'))->lower()->value();
+        $type = in_array($type, ['percentage', 'percent'], true) ? 'percentage' : 'fixed';
+        $value = array_key_exists('discount_value', $data)
+            ? (float) $data['discount_value']
+            : (float) ($data['discount_amount'] ?? 0);
+
+        return [
+            'type' => $type,
+            'value' => round(max(0, $value), 2),
+        ];
+    }
+
+    private function discountForSubtotal(float $subtotal, string $type, float $value): array
+    {
+        $subtotal = round(max(0, $subtotal), 2);
+        $type = in_array($type, ['percentage', 'percent'], true) ? 'percentage' : 'fixed';
+        $value = round(max(0, $value), 2);
+        $effectiveValue = $type === 'percentage' ? min($value, 100) : $value;
+        $requestedAmount = $type === 'percentage'
+            ? round($subtotal * ($value / 100), 2)
+            : $value;
+        $amount = $type === 'percentage'
+            ? round($subtotal * ($effectiveValue / 100), 2)
+            : $effectiveValue;
+        $amount = min($amount, $subtotal);
+
+        return [
+            'type' => $type,
+            'value' => $effectiveValue,
+            'requested_value' => $value,
+            'amount' => round($amount, 2),
+            'requested_amount' => round($requestedAmount, 2),
+            'capped' => $value !== $effectiveValue || $requestedAmount > $subtotal,
+        ];
+    }
+
+    private function couponDiscountForSubtotal(Tenant $tenant, ?string $code, float $subtotal, ?Contact $contact = null, bool $throw = true): array
+    {
+        $empty = [
+            'valid' => false,
+            'coupon_id' => null,
+            'code' => null,
+            'type' => null,
+            'value' => 0.0,
+            'amount' => 0.0,
+            'minimum_amount' => 0.0,
+            'message' => 'Aucun coupon appliqué.',
+            'capped' => false,
+        ];
+
+        $code = Str::upper(trim((string) $code));
+        if ($code === '') {
+            return $empty;
+        }
+
+        $coupon = Coupon::where('tenant_id', $tenant->id)->where('code', $code)->first();
+        $fail = function (string $message) use ($empty, $code, $throw): array {
+            if ($throw) {
+                throw new \RuntimeException($message);
+            }
+
+            return array_merge($empty, ['code' => $code, 'message' => $message]);
+        };
+
+        if (! $coupon) {
+            return $fail('Coupon introuvable.');
+        }
+
+        if (! $coupon->is_active) {
+            return $fail('Ce coupon est désactivé.');
+        }
+
+        if ($coupon->expires_at && $coupon->expires_at->isPast()) {
+            return $fail('Ce coupon est expiré.');
+        }
+
+        if ($coupon->max_uses !== null && $coupon->uses_count >= $coupon->max_uses) {
+            return $fail('Ce coupon a atteint sa limite d’utilisation.');
+        }
+
+        if ($coupon->contact_id && (int) $coupon->contact_id !== (int) $contact?->id) {
+            return $fail('Ce coupon est réservé à un autre client.');
+        }
+
+        if ((float) $coupon->minimum_amount > $subtotal) {
+            return $fail('Montant minimum requis: '.$this->money($coupon->minimum_amount).'.');
+        }
+
+        $detail = $coupon->type === 'percent'
+            ? $this->discountForSubtotal($subtotal, 'percentage', (float) $coupon->value)
+            : $this->discountForSubtotal($subtotal, 'fixed', (float) $coupon->value);
+
+        return [
+            'valid' => true,
+            'coupon_id' => $coupon->id,
+            'code' => $coupon->code,
+            'name' => $coupon->name ?: $coupon->code,
+            'type' => $coupon->type,
+            'value' => (float) $coupon->value,
+            'amount' => $detail['amount'],
+            'minimum_amount' => (float) $coupon->minimum_amount,
+            'message' => 'Coupon '.$coupon->code.' appliqué: '.$this->money($detail['amount']).'.',
+            'capped' => $detail['capped'],
         ];
     }
 
