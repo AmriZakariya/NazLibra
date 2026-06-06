@@ -192,8 +192,6 @@
             </form>
             <aside class="space-y-4 2xl:sticky 2xl:top-24 2xl:self-start">
                 <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">Résumé stock</h3><dl class="mt-4 space-y-3 text-sm"><div class="flex justify-between"><dt class="text-slate-500">Ajustements</dt><dd class="font-semibold">{{ $stockStats['adjustments'] }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Qté ajustée ce mois</dt><dd class="font-semibold">{{ number_format($stockStats['adjusted_month'], 0, ',', ' ') }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Alertes stock</dt><dd class="font-semibold text-amber-600">{{ $catalogStats['low'] }}</dd></div></dl></article>
-                <article class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100"><strong>Contrôle</strong><p class="mt-2">Une ligne “Retirer” ne descend jamais sous zéro. Utilisez “Définir stock” après inventaire physique.</p></article>
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 text-sm shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">Flux recommandé</h3><ol class="mt-3 list-decimal space-y-2 pl-4 text-slate-500"><li>Choisir la raison d'ajustement.</li><li>Ajouter seulement les articles concernés.</li><li>Vérifier le total puis valider.</li></ol></article>
             </aside>
         </section>
     @elseif ($panel === 'stock-transfer-add')

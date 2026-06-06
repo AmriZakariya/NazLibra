@@ -20,6 +20,7 @@
     $currentImage = collect($item?->images ?? [])->first();
     $defaultTax = $taxes->firstWhere('name', 'Sans TVA') ?? $taxes->first(fn ($tax) => (float) $tax->rate === 0.0);
     $taxValue = old('tax_id', $item?->tax_id ?? $defaultTax?->id);
+    $moneyValue = fn (string $name, mixed $fallback = 0) => old($name) !== null ? old($name) : number_format((float) ($fallback ?? 0), 2, '.', '');
 @endphp
 
 <div class="{{ $section }}">Identification</div>
@@ -100,7 +101,7 @@
 </label>
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Prix HT {!! $required !!}</span>
-    <input name="price" required type="number" step="0.01" min="0" value="{{ old('price', $item?->price ?? 0) }}" class="{{ $input }}" placeholder="Prix hors taxe">
+    <input name="price" required type="number" step="0.01" min="0" inputmode="decimal" value="{{ $moneyValue('price', $item?->price ?? 0) }}" class="{{ $input }}" placeholder="Prix hors taxe">
 </label>
 <div class="block">
     <div class="flex items-center justify-between gap-2">
@@ -118,7 +119,7 @@
 </div>
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Coût interne {!! $required !!}</span>
-    <input name="purchase_price" required type="number" step="0.01" min="0" value="{{ old('purchase_price', $item?->purchase_price ?? 0) }}" class="{{ $input }}">
+    <input name="purchase_price" required type="number" step="0.01" min="0" inputmode="decimal" value="{{ $moneyValue('purchase_price', $item?->purchase_price ?? 0) }}" class="{{ $input }}">
 </label>
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Type de taxe de vente</span>
@@ -129,7 +130,7 @@
 </label>
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Prix de vente {!! $required !!}</span>
-    <input name="sale_price" required type="number" step="0.01" min="0" value="{{ old('sale_price', $item?->sale_price ?? 0) }}" class="{{ $input }}">
+    <input name="sale_price" required type="number" step="0.01" min="0" inputmode="decimal" value="{{ $moneyValue('sale_price', $item?->sale_price ?? 0) }}" class="{{ $input }}">
 </label>
 
 <div class="{{ $section }}">Magasin, médias et notes</div>

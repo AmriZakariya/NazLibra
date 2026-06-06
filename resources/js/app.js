@@ -122,10 +122,9 @@ fullscreenButtons.forEach((button) => {
 });
 
 document.addEventListener('fullscreenchange', () => {
-    if (!document.fullscreenElement && document.body.classList.contains('app-fullscreen-mode')) {
-        setAppFullscreen(false);
-        localStorage.setItem(fullscreenStorageKey, '0');
-    }
+    fullscreenButtons.forEach((button) => {
+        button.dataset.nativeFullscreen = document.fullscreenElement ? '1' : '0';
+    });
 });
 
 document.querySelectorAll('[data-command-menu]').forEach((menu) => {
@@ -449,11 +448,24 @@ const showToast = (message, actionLabel = null, action = null) => {
 
     const toast = document.createElement('div');
     toast.className = 'app-toast';
-    toast.innerHTML = `
-        <span>${message}</span>
-        ${actionLabel ? `<button class="app-toast-action" type="button">${actionLabel}</button>` : ''}
-        <button class="app-toast-close" type="button" aria-label="Fermer">×</button>
-    `;
+    const text = document.createElement('span');
+    text.textContent = message;
+    toast.appendChild(text);
+
+    if (actionLabel) {
+        const actionButton = document.createElement('button');
+        actionButton.className = 'app-toast-action';
+        actionButton.type = 'button';
+        actionButton.textContent = actionLabel;
+        toast.appendChild(actionButton);
+    }
+
+    const closeButton = document.createElement('button');
+    closeButton.className = 'app-toast-close';
+    closeButton.type = 'button';
+    closeButton.setAttribute('aria-label', 'Fermer');
+    closeButton.textContent = '×';
+    toast.appendChild(closeButton);
     container.appendChild(toast);
 
     const close = () => toast.remove();
@@ -464,6 +476,12 @@ const showToast = (message, actionLabel = null, action = null) => {
     });
     window.setTimeout(close, 6000);
 };
+
+document.querySelectorAll('[data-app-toast-message]').forEach((element) => {
+    const message = element.getAttribute('data-app-toast-message');
+    if (message) showToast(message);
+    element.remove();
+});
 
 document.querySelectorAll('[data-sidebar]').forEach((sidebar) => {
     const toggle = sidebar.querySelector('[data-sidebar-toggle]');
@@ -1693,12 +1711,111 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         submitting = busy;
         submitButtons.forEach((button) => {
             button.disabled = busy;
+            if (!busy && button.dataset.originalText) {
+                button.textContent = button.dataset.originalText;
+                delete button.dataset.originalText;
+            }
         });
 
         if (busy && submitter) {
             submitter.dataset.originalText = submitter.textContent.trim();
             submitter.textContent = 'Traitement...';
         }
+    };
+
+    const resetTicketForm = () => {
+        cart.splice(0, cart.length);
+        appliedCoupon = { code: '', amount: 0, message: '', valid: false };
+        if (checkout?.querySelector('input[name="ticket_id"]')) checkout.querySelector('input[name="ticket_id"]').value = '';
+        if (couponInput) couponInput.value = '';
+        if (discountInput) discountInput.value = '0';
+        if (discountTypeInput) discountTypeInput.value = 'fixed';
+        paymentInputs.forEach((input) => {
+            input.value = '';
+        });
+        const noteInput = checkout?.querySelector('[name="note"]');
+        if (noteInput) noteInput.value = '';
+        if (clientSelect) clientSelect.value = '';
+        if (quickClientName) quickClientName.value = '';
+        if (quickClientPhone) quickClientPhone.value = '';
+        setCouponMessage('Saisissez un code coupon si le client en possède un.');
+        syncClientSummary();
+        renderCart();
+    };
+
+    const refreshHeldTicketsList = async () => {
+        try {
+            const response = await fetch(window.location.href, {
+                headers: {
+                    Accept: 'text/html',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            if (!response.ok) return;
+
+            const html = await response.text();
+            const documentFragment = new DOMParser().parseFromString(html, 'text/html');
+            const freshHeldTickets = documentFragment.querySelector('.pos-held-tickets');
+            const currentHeldTickets = screen.querySelector('.pos-held-tickets');
+            const catalogPanel = screen.querySelector('.pos-catalog-panel');
+
+            if (freshHeldTickets) {
+                freshHeldTickets.open = true;
+                if (currentHeldTickets) {
+                    currentHeldTickets.replaceWith(freshHeldTickets);
+                } else {
+                    catalogPanel?.before(freshHeldTickets);
+                }
+
+                const newestCard = screen.querySelector('.pos-held-card');
+                newestCard?.classList.add('is-new');
+                window.setTimeout(() => newestCard?.classList.remove('is-new'), 1800);
+            } else {
+                currentHeldTickets?.remove();
+            }
+        } catch {
+            // The ticket was held already; list refresh can wait for the next page visit.
+        }
+    };
+
+    const holdTicketInline = async (submitter) => {
+        if (!checkout || !submitter?.formAction) return false;
+
+        setCheckoutBusy(true, submitter);
+
+        try {
+            const formData = new FormData(checkout);
+            const response = await fetch(submitter.formAction, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+            });
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok || !payload.ok) {
+                const errors = payload.errors ? Object.values(payload.errors).flat() : [];
+                showToast(errors[0] || payload.message || 'Impossible de mettre ce ticket en attente.');
+                return true;
+            }
+
+            resetTicketForm();
+            await refreshHeldTicketsList();
+            showToast(payload.message || 'Ticket mis en attente.', 'Voir', () => {
+                screen.querySelector('.pos-held-tickets')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+            search?.focus();
+        } catch {
+            showToast('Connexion interrompue pendant la mise en attente. Réessayez.');
+        } finally {
+            setCheckoutBusy(false);
+        }
+
+        return true;
     };
 
     checkout?.addEventListener('keydown', (event) => {
@@ -1791,7 +1908,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
 
         if (submitter?.classList.contains('pos-hold-submit')) {
-            setCheckoutBusy(true, submitter);
+            event.preventDefault();
+            holdTicketInline(submitter);
             return;
         }
 

@@ -567,6 +567,74 @@ class CatalogueTest extends TestCase
         ]);
     }
 
+    public function test_catalogue_requires_sale_price_but_allows_explicit_zero(): void
+    {
+        $this->seed();
+
+        $category = Category::where('name', 'Services')->firstOrFail();
+        $unit = Unit::where('name', 'Service')->firstOrFail();
+        $tax = Tax::where('name', 'Sans TVA')->firstOrFail();
+
+        $basePayload = [
+            'type' => 'service',
+            'title' => 'Service prix obligatoire',
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'tax_id' => $tax->id,
+            'price' => 0,
+            'purchase_price' => 0,
+            'stock_quantity' => 9999,
+            'min_stock_threshold' => 0,
+        ];
+
+        $this->from(route('catalog', ['panel' => 'ajouter-service']))
+            ->post(route('catalog.items.store'), $basePayload)
+            ->assertRedirect(route('catalog', ['panel' => 'ajouter-service']))
+            ->assertSessionHasErrors('sale_price');
+
+        $this->post(route('catalog.items.store'), $basePayload + ['sale_price' => 0])
+            ->assertRedirect();
+
+        $service = Item::where('title', 'Service prix obligatoire')->firstOrFail();
+        $this->assertSame('0.00', $service->sale_price);
+    }
+
+    public function test_catalogue_normalizes_money_fields_without_precision_drift(): void
+    {
+        $this->seed();
+
+        $category = Category::where('name', 'Papeterie')->firstOrFail();
+        $unit = Unit::where('name', 'Pièce')->firstOrFail();
+        $tax = Tax::where('name', 'Sans TVA')->firstOrFail();
+
+        $this->post(route('catalog.items.store'), [
+            'type' => 'supply',
+            'title' => 'Stylo prix exact',
+            'barcode' => 'PRICE-EXACT-001',
+            'category_id' => $category->id,
+            'unit_id' => $unit->id,
+            'tax_id' => $tax->id,
+            'price' => '20',
+            'purchase_price' => '12,50',
+            'sale_price' => '20',
+            'reseller_sale_price' => '18,25',
+            'stock_quantity' => 5,
+            'min_stock_threshold' => 1,
+        ])->assertRedirect();
+
+        $item = Item::where('barcode', 'PRICE-EXACT-001')->firstOrFail();
+
+        $this->assertSame('20.00', $item->price);
+        $this->assertSame('12.50', $item->purchase_price);
+        $this->assertSame('20.00', $item->sale_price);
+        $this->assertSame('18.25', $item->reseller_sale_price);
+
+        $this->get(route('catalog', ['panel' => 'articles', 'edit' => $item->id]))
+            ->assertOk()
+            ->assertSee('name="sale_price" required type="number" step="0.01" min="0" inputmode="decimal" value="20.00"', false)
+            ->assertSee('name="purchase_price" required type="number" step="0.01" min="0" inputmode="decimal" value="12.50"', false);
+    }
+
     public function test_add_item_reference_shortcuts_return_json_options(): void
     {
         $this->seed();

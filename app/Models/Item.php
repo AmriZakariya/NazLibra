@@ -67,6 +67,12 @@ class Item extends Model
             'metadata' => 'array',
             'is_enabled' => 'boolean',
             'checkout_visible' => 'boolean',
+            'discount' => 'decimal:2',
+            'price' => 'decimal:2',
+            'purchase_price' => 'decimal:2',
+            'sale_price' => 'decimal:2',
+            'reseller_sale_price' => 'decimal:2',
+            'mrp' => 'decimal:2',
         ];
     }
 

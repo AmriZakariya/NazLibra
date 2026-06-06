@@ -2863,7 +2863,7 @@ class LibraireProController extends Controller
             ->with('last_pos_sale_id', $sale->id);
     }
 
-    public function holdPosTicket(Request $request): RedirectResponse
+    public function holdPosTicket(Request $request): RedirectResponse|JsonResponse
     {
         $tenant = $this->tenant();
         $data = $request->validate([
@@ -2939,9 +2939,24 @@ class LibraireProController extends Controller
             return back()->withErrors(['cart' => $exception->getMessage()])->withInput();
         }
 
+        $message = 'Ticket '.$ticket->number.' mis en attente.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+                'ticket' => [
+                    'id' => $ticket->id,
+                    'number' => $ticket->number,
+                    'total' => (float) $ticket->total_amount,
+                    'total_formatted' => $this->money($ticket->total_amount),
+                ],
+            ]);
+        }
+
         return redirect()
             ->route('pos')
-            ->with('status', 'Ticket '.$ticket->number.' mis en attente.');
+            ->with('status', $message);
     }
 
     public function destroyPosTicket(PosTicket $ticket): RedirectResponse
@@ -6129,6 +6144,12 @@ class LibraireProController extends Controller
             'warehouse' => $request->input('warehouse', $request->input('warehouse_id')),
         ]);
 
+        foreach (['price', 'purchase_price', 'sale_price', 'reseller_sale_price', 'mrp', 'discount'] as $moneyField) {
+            if ($request->has($moneyField)) {
+                $request->merge([$moneyField => $this->normalizeMoneyInput($request->input($moneyField))]);
+            }
+        }
+
         $data = $request->validate([
             'type' => ['required', 'in:book,supply,service'],
             'title' => ['required', 'string', 'max:255'],
@@ -6181,14 +6202,14 @@ class LibraireProController extends Controller
             'unit_id' => ['required', 'exists:units,id'],
             'tax_id' => ['required', 'exists:taxes,id'],
             'discount_type' => ['nullable', 'in:Percentage,Fixed'],
-            'discount' => ['nullable', 'numeric', 'min:0', 'max:999999'],
-            'price' => ['nullable', 'numeric', 'min:0', 'max:999999999'],
+            'discount' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:999999'],
+            'price' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
             'tax_type' => ['nullable', 'in:Inclusive,Exclusive'],
             'profit_margin' => ['nullable', 'numeric', 'min:0', 'max:9999'],
-            'purchase_price' => ['required', 'numeric', 'min:0'],
-            'sale_price' => ['required', 'numeric', 'min:0'],
-            'reseller_sale_price' => ['nullable', 'numeric', 'min:0'],
-            'mrp' => ['nullable', 'numeric', 'min:0'],
+            'purchase_price' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
+            'sale_price' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
+            'reseller_sale_price' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
+            'mrp' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
             'warehouse' => ['nullable', 'string', 'max:255'],
             'opening_stock' => ['nullable', 'integer', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
@@ -6253,6 +6274,45 @@ class LibraireProController extends Controller
         }
 
         return $data;
+    }
+
+    private function normalizeMoneyInput(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $raw = trim((string) $value);
+
+        if ($raw === '') {
+            return null;
+        }
+
+        $normalized = str_replace(["\xc2\xa0", ' ', "'"], '', $raw);
+        $lastComma = strrpos($normalized, ',');
+        $lastDot = strrpos($normalized, '.');
+
+        if ($lastComma !== false && $lastDot !== false) {
+            $decimalSeparator = $lastComma > $lastDot ? ',' : '.';
+            $thousandsSeparator = $decimalSeparator === ',' ? '.' : ',';
+            $normalized = str_replace($thousandsSeparator, '', $normalized);
+            $normalized = str_replace($decimalSeparator, '.', $normalized);
+        } elseif ($lastComma !== false) {
+            $normalized = str_replace(',', '.', $normalized);
+        }
+
+        $normalized = preg_replace('/[^0-9.\-]/', '', $normalized) ?: '0';
+        $negative = str_starts_with($normalized, '-');
+        $normalized = str_replace('-', '', $normalized);
+
+        if (substr_count($normalized, '.') > 1) {
+            $lastDot = strrpos($normalized, '.');
+            $normalized = str_replace('.', '', substr($normalized, 0, $lastDot)).substr($normalized, $lastDot);
+        }
+
+        $number = (float) ($negative ? '-'.$normalized : $normalized);
+
+        return number_format($number, 2, '.', '');
     }
 
     private function authorizeTenantItem(Item $item): void
@@ -6514,14 +6574,7 @@ class LibraireProController extends Controller
 
     private function decimalValue(mixed $value): float
     {
-        if ($value === null || $value === '') {
-            return 0;
-        }
-
-        $normalized = str_replace(["\xc2\xa0", ' ', ','], ['', '', '.'], (string) $value);
-        $normalized = preg_replace('/[^0-9.\-]/', '', $normalized) ?: '0';
-
-        return (float) $normalized;
+        return (float) ($this->normalizeMoneyInput($value) ?? 0);
     }
 
     private function taxParts(string $name, mixed $rate): array

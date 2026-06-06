@@ -41,6 +41,12 @@ class PosTest extends TestCase
             ->assertDontSee('app-top-search', false)
             ->assertDontSee('name="q"', false)
             ->assertSee('Suggestions caisse')
+            ->assertSee('pos-advanced-filters', false)
+            ->assertSee('Filtres')
+            ->assertSee('Famille, stock, catégorie, marque et unité')
+            ->assertSee('pos-type-filter', false)
+            ->assertSee('pos-stock-filter', false)
+            ->assertSee('pos-category-filter', false)
             ->assertSee('Toutes les catégories')
             ->assertSee('Toutes les marques / éditeurs')
             ->assertSee('data-pos-search-url', false)
@@ -86,7 +92,32 @@ class PosTest extends TestCase
             ->assertSee($ticket->number)
             ->assertSee('value="10"', false)
             ->assertSee('value="percentage" selected', false)
-            ->assertSee('Tickets en attente');
+            ->assertSee('Tickets en attente')
+            ->assertSee('pos-held-count', false);
+    }
+
+    public function test_pos_can_hold_ticket_inline_without_redirect(): void
+    {
+        $this->seed();
+
+        $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 0)->firstOrFail();
+
+        $response = $this->postJson(route('pos.tickets.store'), [
+            'cart' => json_encode([
+                ['id' => $item->id, 'quantity' => 1],
+            ]),
+            'discount_type' => 'fixed',
+            'discount_value' => 0,
+        ]);
+
+        $ticket = PosTicket::firstOrFail();
+        $response
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('ticket.number', $ticket->number)
+            ->assertJsonPath('message', 'Ticket '.$ticket->number.' mis en attente.');
+
+        $this->assertSame('held', $ticket->status);
     }
 
     public function test_pos_can_create_sale_with_client_mixed_payment_and_stock_decrement(): void

@@ -140,48 +140,46 @@
                         </label>
                     </div>
 
-                    <!-- Primary Filters Section -->
-                    <div class="pos-primary-filters mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                        <label class="pos-control block">
-                            <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">📚 Famille</span>
-                            <select class="pos-type-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par famille de produit">
-                                @foreach ($productTypes as $value => $label)
-                                    <option value="{{ $value }}" @selected($type === $value)>{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-
-                        <label class="pos-control block">
-                            <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">📦 Stock</span>
-                            <select class="pos-stock-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par statut stock">
-                                <option value="available" @selected($stock === 'available')>Disponible</option>
-                                <option value="all" @selected($stock === 'all')>Tout stock</option>
-                                <option value="low" @selected($stock === 'low')>Stock bas</option>
-                            </select>
-                        </label>
-
-                        <label class="pos-control block">
-                            <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">📂 Catégorie</span>
-                            <select class="pos-category-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par catégorie">
-                                <option value="all">Toutes les catégories</option>
-                                @foreach ($categories as $category)
-                                    <option value="{{ $category->id }}">{{ $category->name }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                    </div>
-
-                    <!-- Advanced Filters Section -->
+                    <!-- Filters Section -->
                     <details class="pos-advanced-filters group rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/5">
                         <summary class="flex cursor-pointer select-none items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-200">
                             <span class="flex items-center gap-2">
-                                ⚙️ Filtres avancés
-                                <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">3</span>
+                                ⚙️ Filtres
+                                <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">5</span>
                             </span>
+                            <span class="hidden truncate text-xs font-medium text-slate-500 sm:block">Famille, stock, catégorie, marque et unité</span>
                             <span class="transition group-open:rotate-180">▼</span>
                         </summary>
 
-                        <div class="mt-3 grid gap-2 border-t border-slate-200 pt-3 dark:border-white/10 sm:grid-cols-3">
+                        <div class="mt-3 grid gap-2 border-t border-slate-200 pt-3 dark:border-white/10 sm:grid-cols-2 xl:grid-cols-3">
+                            <label class="pos-control block">
+                                <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">📚 Famille</span>
+                                <select class="pos-type-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par famille de produit">
+                                    @foreach ($productTypes as $value => $label)
+                                        <option value="{{ $value }}" @selected($type === $value)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+
+                            <label class="pos-control block">
+                                <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">📦 Stock</span>
+                                <select class="pos-stock-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par statut stock">
+                                    <option value="available" @selected($stock === 'available')>Disponible</option>
+                                    <option value="all" @selected($stock === 'all')>Tout stock</option>
+                                    <option value="low" @selected($stock === 'low')>Stock bas</option>
+                                </select>
+                            </label>
+
+                            <label class="pos-control block">
+                                <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">📂 Catégorie</span>
+                                <select class="pos-category-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par catégorie">
+                                    <option value="all">Toutes les catégories</option>
+                                    @foreach ($categories as $category)
+                                        <option value="{{ $category->id }}">{{ $category->name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+
                             <label class="pos-control block">
                                 <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">🏢 Marque / Éditeur</span>
                                 <select class="pos-brand-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par marque ou éditeur">
@@ -204,7 +202,7 @@
 
                             <div class="flex items-end">
                                 <button class="pos-clear-filters w-full h-[44px] rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-600 shadow-sm transition hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50 active:scale-95 dark:border-white/10 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-rose-500/10" type="button" title="Effacer tous les filtres">
-                                    ✕ Effacer
+                                    ✕ Effacer les filtres
                                 </button>
                             </div>
                         </div>
@@ -213,14 +211,14 @@
             </details>
 
             @if ($heldTickets->isNotEmpty())
-                <details class="pos-held-tickets rounded-xl border border-amber-200 bg-amber-50/70 shadow-sm dark:border-amber-500/20 dark:bg-amber-500/10">
+                <details id="tickets-en-attente" class="pos-held-tickets rounded-xl border border-amber-200 bg-amber-50/70 shadow-sm dark:border-amber-500/20 dark:bg-amber-500/10">
                     <summary class="pos-held-summary flex cursor-pointer list-none items-center justify-between gap-3 p-4">
                         <span class="min-w-0">
                             <span class="block font-semibold">Tickets en attente</span>
                             <span class="mt-0.5 block truncate text-sm text-slate-600 dark:text-slate-300">Reprendre un panier gardé pour un client qui revient plus tard.</span>
                         </span>
                         <span class="flex shrink-0 items-center gap-2">
-                            <span class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">{{ $heldTickets->count() }} ouvert(s)</span>
+                            <span class="pos-held-count rounded-full px-2.5 py-1 text-xs font-bold">{{ $heldTickets->count() }} ouvert(s)</span>
                             <span class="pos-held-chevron grid size-8 place-items-center rounded-lg border border-amber-200 bg-white text-sm font-bold text-amber-700 dark:border-amber-500/20 dark:bg-slate-950/60">⌄</span>
                         </span>
                     </summary>
