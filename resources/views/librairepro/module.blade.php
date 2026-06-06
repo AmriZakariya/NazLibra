@@ -338,6 +338,9 @@
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="overflow-x-auto"><table class="w-full min-w-[1080px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N° livraison</th><th class="px-3 py-3">Vente</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Livreur</th><th class="px-3 py-3">Planifiée</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3">Adresse</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($deliveryOrders as $delivery)<tr><td class="px-3 py-3 font-semibold">{{ $delivery->number }}</td><td class="px-3 py-3">{{ $delivery->sale?->number }}</td><td class="px-3 py-3">{{ $delivery->contact?->name ?? 'Client comptoir' }}</td><td class="px-3 py-3">{{ $delivery->assigned_to ?? '—' }}</td><td class="px-3 py-3">{{ $delivery->scheduled_at?->format('d/m/Y H:i') ?? '—' }}</td><td class="px-3 py-3"><x-status-pill :tone="$delivery->status === 'delivered' ? 'success' : ($delivery->status === 'failed' ? 'danger' : 'warning')">{{ $delivery->status }}</x-status-pill></td><td class="px-3 py-3 max-w-xs truncate">{{ $delivery->delivery_address ?? '—' }}</td><td class="px-3 py-3"><form action="{{ route('sales.deliveries.update', $delivery) }}" method="POST" class="flex justify-end gap-2">@csrf @method('PATCH')<select name="status" class="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs dark:border-white/10 dark:bg-slate-900"><option value="pending" @selected($delivery->status === 'pending')>En attente</option><option value="preparing" @selected($delivery->status === 'preparing')>Préparation</option><option value="dispatched" @selected($delivery->status === 'dispatched')>Expédiée</option><option value="delivered" @selected($delivery->status === 'delivered')>Livrée</option><option value="failed" @selected($delivery->status === 'failed')>Échouée</option></select><button class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">OK</button></form></td></tr>@empty<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucune livraison trouvée.</td></tr>@endforelse</tbody></table></div><div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $deliveryOrders->links() }}</div></article>
             </section>
         @else
+        @php
+            $salesAllowEdit = (bool) data_get($tenant->settings, 'pos.allow_sale_edit', true);
+        @endphp
         <section class="mt-6 space-y-5">
             <div class="grid gap-3 md:grid-cols-3">
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -411,7 +414,9 @@
                         <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                             @forelse ($sales as $sale)
                                 @php
-                                    $paid = min((float) data_get($sale->metadata, 'paid_amount', $sale->status === 'paid' ? $sale->total_amount : 0), (float) $sale->total_amount);
+                                    $paidFromPayments = (float) $sale->payments->sum('amount');
+                                    $metadataPaid = data_get($sale->metadata, 'paid_amount');
+                                    $paid = min(max($paidFromPayments, $metadataPaid !== null ? (float) $metadataPaid : 0, $sale->status === 'paid' ? (float) $sale->total_amount : 0), (float) $sale->total_amount);
                                     $due = max(0, (float) $sale->total_amount - (float) $paid);
                                     $paymentStatus = match ($sale->status) {
                                         'refunded' => 'Remboursé',
@@ -419,10 +424,14 @@
                                         default => $due <= 0.001 ? 'payé' : ((float) $paid > 0 ? 'Partiel' : 'Impayé'),
                                     };
                                     $statusTone = $paymentStatus === 'payé' ? 'success' : ($paymentStatus === 'Partiel' ? 'warning' : (in_array($paymentStatus, ['Remboursé', 'Annulé'], true) ? 'info' : 'danger'));
+                                    $canReceivePayment = $due > 0.001 && ! in_array($sale->status, ['paid', 'refunded', 'cancelled'], true);
                                     $invoice = $sale->invoice;
                                     $invoiceNumber = $invoice?->number;
                                     $invoiceDueDate = $invoice?->due_date?->toDateString() ?? data_get($sale->metadata, 'due_date');
                                     $invoiceGenerated = (bool) $invoice;
+                                    $systemNoteDate = $sale->sold_at?->format('d/m/Y H:i') ?? '—';
+                                    $systemNote = data_get($sale->metadata, 'system_note')
+                                        ?: 'Note système: vente '.$sale->number.' enregistrée le '.$systemNoteDate.' pour '.($sale->contact?->name ?? 'Client comptoir').', '.$sale->items->count().' ligne(s), total '.$money($sale->total_amount).', paiement '.$sale->payment_method.'.';
                                 @endphp
                                 <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5">
                                     <td class="px-3 py-3"><input type="checkbox" class="rounded border-slate-300" value="{{ $sale->id }}"></td>
@@ -440,9 +449,17 @@
                                             <summary>Action</summary>
                                             <div class="sale-action-panel">
                                                 <button type="button" onclick="document.getElementById('sale-detail-{{ $sale->id }}').showModal()"><span>VO</span> Voir détail</button>
-                                                <button type="button" onclick="document.getElementById('sale-edit-{{ $sale->id }}').showModal()"><span>ED</span> Modifier vente</button>
+                                                @if ($salesAllowEdit)
+                                                    <button type="button" onclick="document.getElementById('sale-edit-{{ $sale->id }}').showModal()"><span>ED</span> Modifier vente</button>
+                                                @else
+                                                    <button type="button" disabled><span>LK</span> Modification verrouillée</button>
+                                                @endif
                                                 <button type="button" onclick="document.getElementById('sale-payments-{{ $sale->id }}').showModal()"><span>PY</span> Voir paiements</button>
-                                                <button type="button" onclick="document.getElementById('sale-payment-add-{{ $sale->id }}').showModal()"><span>RC</span> Recevoir paiement</button>
+                                                @if ($canReceivePayment)
+                                                    <button type="button" onclick="document.getElementById('sale-payment-add-{{ $sale->id }}').showModal()"><span>RC</span> Recevoir paiement</button>
+                                                @else
+                                                    <button type="button" disabled><span>OK</span> Paiement soldé</button>
+                                                @endif
                                                 <form action="{{ route('sales.invoice.store', $sale) }}" method="POST">@csrf<button type="submit"><span>FA</span> {{ $invoiceGenerated ? 'Mettre à jour facture' : 'Créer facture' }}</button></form>
                                                 <button type="button" onclick="document.getElementById('sale-invoice-{{ $sale->id }}').showModal()"><span>{{ $invoiceGenerated ? 'FA' : 'BL' }}</span> {{ $invoiceGenerated ? 'Voir facture' : 'Préparer facture / BL' }}</button>
                                                 <a href="{{ route('sales.pdf', $sale) }}"><span>PDF</span> Télécharger vente</a>
@@ -459,105 +476,232 @@
                                         </details>
                                     </td>
                                 </tr>
-                                <dialog id="sale-detail-{{ $sale->id }}" class="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
-                                    <div class="border-b border-slate-200 p-5 dark:border-white/10">
-                                        <div class="flex items-start justify-between gap-4">
-                                            <div>
-                                                <p class="text-sm font-semibold text-brand">Détail ticket</p>
-                                                <h3 class="mt-1 text-xl font-semibold">{{ $sale->number }}</h3>
-                                                <p class="mt-1 text-sm text-slate-500">{{ $sale->contact?->name ?? 'Client Grand Public' }} · {{ $sale->sold_at?->format('d/m/Y H:i') }}</p>
-                                            </div>
-                                            <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
-                                        </div>
-                                    </div>
-                                    <div class="grid gap-4 p-5 lg:grid-cols-[1fr_280px]">
-                                        <div class="space-y-3">
-                                            <h4 class="text-sm font-semibold uppercase text-slate-500">Articles</h4>
-                                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-white/5">
-                                                <div class="text-center">
-                                                    <strong class="block">{{ $tenant->name }}</strong>
-                                                    <span class="text-xs text-slate-500">{{ $tenant->phone }} · {{ $tenant->ice }}</span>
-                                                    <p class="mt-2 font-semibold">Ticket {{ $sale->number }}</p>
-                                                    <p class="text-xs text-slate-500">{{ $invoiceGenerated ? 'Facture '.$invoiceNumber : 'Facture non créée' }}</p>
+                                <dialog id="sale-detail-{{ $sale->id }}" class="app-dialog w-[min(1080px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                    <div class="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
+                                        <div class="border-b border-slate-200 bg-slate-50/80 p-5 dark:border-white/10 dark:bg-white/[0.04]">
+                                            <div class="flex items-start justify-between gap-4">
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-semibold text-brand">Détail ticket</p>
+                                                    <div class="mt-1 flex flex-wrap items-center gap-2">
+                                                        <h3 class="text-2xl font-semibold tracking-tight">{{ $sale->number }}</h3>
+                                                        <x-status-pill :tone="$statusTone">{{ $paymentStatus }}</x-status-pill>
+                                                        @if ($invoiceGenerated)
+                                                            <x-status-pill tone="info">{{ $invoiceNumber }}</x-status-pill>
+                                                        @endif
+                                                    </div>
+                                                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ $sale->contact?->name ?? 'Client Grand Public' }} · {{ $sale->sold_at?->format('d/m/Y H:i') }} · {{ $sale->items->count() }} ligne(s)</p>
                                                 </div>
-                                            </div>
-                                            <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
-                                                @foreach ($sale->items as $line)
-                                                    <div class="grid grid-cols-[1fr_70px_100px] gap-3 border-b border-slate-200 px-3 py-2 text-sm last:border-b-0 dark:border-white/10">
-                                                        <span class="font-medium">{{ $line->name }}</span>
-                                                        <span class="text-center">x{{ $line->quantity }}</span>
-                                                        <strong class="text-right">{{ $money($line->total_price) }}</strong>
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                            <div class="grid gap-2 sm:grid-cols-3">
-                                                <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button" onclick="window.print()">Imprimer ticket</button>
-                                                <a href="{{ route('sales.pdf', $sale) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-center text-sm font-semibold dark:border-white/10">PDF vente</a>
-                                                <button class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button">Fermer</button>
+                                                <button class="dialog-close grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-lg font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button">×</button>
                                             </div>
                                         </div>
-                                        <aside class="space-y-3">
-                                            <div class="rounded-xl bg-slate-50 p-4 dark:bg-white/5">
-                                                <dl class="space-y-2 text-sm">
-                                                    <div class="flex justify-between gap-3"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold">{{ $money($sale->subtotal_amount) }}</dd></div>
-                                                    <div class="flex justify-between gap-3"><dt class="text-slate-500">Remise</dt><dd class="font-semibold">{{ $money($sale->discount_amount) }}</dd></div>
-                                                    <div class="flex justify-between gap-3"><dt class="text-slate-500">Payé</dt><dd class="font-semibold">{{ $money($paid) }}</dd></div>
-                                                    <div class="flex justify-between gap-3 text-base"><dt class="font-semibold">Total</dt><dd class="font-bold">{{ $money($sale->total_amount) }}</dd></div>
-                                                    <div class="flex justify-between gap-3"><dt class="text-slate-500">Méthode</dt><dd class="font-semibold">{{ $sale->payment_method }}</dd></div>
-                                                </dl>
-                                            </div>
-                                            @if ($sale->status !== 'refunded' && $sale->status !== 'cancelled')
-                                                <form action="{{ route('sales.refund', $sale) }}" method="POST" class="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/20 dark:bg-rose-500/10">
-                                                    @csrf
-                                                    <h4 class="font-semibold text-rose-700 dark:text-rose-300">Remboursement</h4>
-                                                    <div class="mt-3 grid gap-2">
-                                                        <select name="refund_method" class="h-10 rounded-lg border border-rose-200 bg-white px-3 text-sm dark:border-rose-500/20 dark:bg-slate-950">
-                                                            <option value="cash">Espèces</option>
-                                                            <option value="card">Carte</option>
-                                                            <option value="transfer">Virement</option>
-                                                            <option value="credit">Avoir client</option>
-                                                        </select>
-                                                        <textarea name="refund_reason" class="min-h-20 rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm dark:border-rose-500/20 dark:bg-slate-950" placeholder="Motif du remboursement"></textarea>
-                                                        <label class="flex items-center gap-2 text-sm font-medium"><input name="restock" value="1" type="checkbox" checked class="rounded border-rose-200"> Remettre les articles en stock</label>
-                                                        <button class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white" type="submit">Rembourser</button>
+
+                                        <div class="min-h-0 overflow-y-auto p-5">
+                                            <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+                                                <div class="space-y-4">
+                                                    <div class="grid gap-3 md:grid-cols-3">
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                            <span class="text-xs font-semibold uppercase text-slate-500">Client</span>
+                                                            <strong class="mt-1 block truncate">{{ $sale->contact?->name ?? 'Client Grand Public' }}</strong>
+                                                            <span class="mt-1 block text-xs text-slate-500">{{ $sale->contact?->phone ?? 'Sans téléphone' }}</span>
+                                                        </div>
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                            <span class="text-xs font-semibold uppercase text-slate-500">Référence</span>
+                                                            <strong class="mt-1 block truncate">{{ data_get($sale->metadata, 'reference_number', '—') }}</strong>
+                                                            <span class="mt-1 block text-xs text-slate-500">Échéance {{ $invoiceDueDate ? \Illuminate\Support\Carbon::parse($invoiceDueDate)->format('d/m/Y') : '—' }}</span>
+                                                        </div>
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                            <span class="text-xs font-semibold uppercase text-slate-500">Opérations liées</span>
+                                                            <strong class="mt-1 block">{{ $sale->payments->count() }} paiement(s)</strong>
+                                                            <span class="mt-1 block text-xs text-slate-500">{{ $sale->deliveryOrders->count() }} livraison(s) · {{ $sale->returns->count() }} retour(s)</span>
+                                                        </div>
                                                     </div>
-                                                </form>
-                                            @else
-                                                <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-700 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-300">
-                                                    @if ($sale->status === 'cancelled')
-                                                        Vente annulée le {{ data_get($sale->metadata, 'cancelled.cancelled_at') ? \Illuminate\Support\Carbon::parse(data_get($sale->metadata, 'cancelled.cancelled_at'))->format('d/m/Y H:i') : '—' }}.
-                                                    @else
-                                                        Vente déjà remboursée le {{ data_get($sale->metadata, 'refund.refunded_at') ? \Illuminate\Support\Carbon::parse(data_get($sale->metadata, 'refund.refunded_at'))->format('d/m/Y H:i') : '—' }}.
+
+                                                    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]">
+                                                        <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
+                                                            <div>
+                                                                <h4 class="text-sm font-semibold">Articles du ticket</h4>
+                                                                <p class="mt-0.5 text-xs text-slate-500">Liste scrollable pour les tickets longs.</p>
+                                                            </div>
+                                                            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">{{ $sale->items->count() }} ligne(s)</span>
+                                                        </div>
+                                                        <div class="max-h-[360px] overflow-y-auto">
+                                                            <div class="hidden grid-cols-[minmax(0,1fr)_90px_120px_130px] gap-3 border-b border-slate-200 px-4 py-2 text-xs font-semibold uppercase text-slate-500 dark:border-white/10 md:grid">
+                                                                <span>Article</span>
+                                                                <span class="text-center">Qté</span>
+                                                                <span class="text-right">Prix unit.</span>
+                                                                <span class="text-right">Total</span>
+                                                            </div>
+                                                            @foreach ($sale->items as $line)
+                                                                <div class="grid gap-2 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0 dark:border-white/10 md:grid-cols-[minmax(0,1fr)_90px_120px_130px] md:items-center md:gap-3">
+                                                                    <div class="min-w-0">
+                                                                        <strong class="block truncate">{{ $line->name }}</strong>
+                                                                        <span class="mt-1 block text-xs text-slate-500">{{ $line->item?->item_code ?? $line->item?->barcode ?? 'Ligne ticket' }}</span>
+                                                                    </div>
+                                                                    <span class="font-semibold md:text-center">x{{ number_format((float) $line->quantity, 0, ',', ' ') }}</span>
+                                                                    <span class="text-slate-500 md:text-right">{{ $money($line->unit_price) }}</span>
+                                                                    <strong class="text-right">{{ $money($line->total_price) }}</strong>
+                                                                </div>
+                                                            @endforeach
+                                                        </div>
+                                                    </section>
+
+                                                    @if (data_get($sale->metadata, 'note'))
+                                                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
+                                                            <span class="text-xs font-semibold uppercase text-slate-500">Note interne</span>
+                                                            <p class="mt-2">{{ data_get($sale->metadata, 'note') }}</p>
+                                                        </div>
                                                     @endif
+                                                    <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
+                                                        <span class="text-xs font-semibold uppercase text-sky-700 dark:text-sky-200">Note système</span>
+                                                        <p class="mt-2 leading-6">{{ $systemNote }}</p>
+                                                    </div>
                                                 </div>
-                                            @endif
-                                        </aside>
+
+                                                <aside class="space-y-4">
+                                                    <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                        <h4 class="text-sm font-semibold">Résumé financier</h4>
+                                                        <dl class="mt-4 space-y-2 text-sm">
+                                                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold">{{ $money($sale->subtotal_amount) }}</dd></div>
+                                                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Remise</dt><dd class="font-semibold">{{ $money($sale->discount_amount) }}</dd></div>
+                                                            <div class="flex justify-between gap-3"><dt class="text-slate-500">TVA incluse</dt><dd class="font-semibold">{{ $money($sale->tax_amount) }}</dd></div>
+                                                            <div class="flex justify-between gap-3 border-t border-slate-200 pt-3 text-base dark:border-white/10"><dt class="font-semibold">Total</dt><dd class="font-bold">{{ $money($sale->total_amount) }}</dd></div>
+                                                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Payé</dt><dd class="font-semibold text-emerald-600">{{ $money($paid) }}</dd></div>
+                                                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Reste</dt><dd class="font-semibold {{ $due > 0.001 ? 'text-rose-600' : 'text-emerald-600' }}">{{ $money($due) }}</dd></div>
+                                                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Méthode</dt><dd class="font-semibold">{{ $sale->payment_method }}</dd></div>
+                                                        </dl>
+                                                    </div>
+
+                                                    <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                        <h4 class="text-sm font-semibold">Documents</h4>
+                                                        <div class="mt-3 grid gap-2 text-sm">
+                                                            <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Facture</span><strong>{{ $invoiceNumber ?? 'Non créée' }}</strong></div>
+                                                            <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Date vente</span><strong>{{ $sale->sold_at?->format('d/m/Y') }}</strong></div>
+                                                            <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Magasin</span><strong>{{ $currentStore['name'] ?? $tenant->name }}</strong></div>
+                                                        </div>
+                                                    </div>
+
+                                                    @if ($sale->status === 'cancelled' || $sale->status === 'refunded')
+                                                        <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
+                                                            @if ($sale->status === 'cancelled')
+                                                                Vente annulée le {{ data_get($sale->metadata, 'cancelled.cancelled_at') ? \Illuminate\Support\Carbon::parse(data_get($sale->metadata, 'cancelled.cancelled_at'))->format('d/m/Y H:i') : '—' }}.
+                                                            @else
+                                                                Vente remboursée le {{ data_get($sale->metadata, 'refund.refunded_at') ? \Illuminate\Support\Carbon::parse(data_get($sale->metadata, 'refund.refunded_at'))->format('d/m/Y H:i') : '—' }}.
+                                                            @endif
+                                                        </div>
+                                                    @endif
+                                                </aside>
+                                            </div>
+                                        </div>
+
+                                        <div class="flex flex-col gap-2 border-t border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950 sm:flex-row sm:items-center sm:justify-between">
+                                            <div class="flex flex-wrap gap-2">
+                                                <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950" type="button" onclick="window.print()">Imprimer ticket</button>
+                                                <a href="{{ route('sales.pdf', $sale) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950">PDF vente</a>
+                                                @if ($invoiceGenerated)
+                                                    <a href="{{ route('sales.invoices.pdf', $invoice) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950">PDF facture</a>
+                                                @else
+                                                    <form action="{{ route('sales.invoice.store', $sale) }}" method="POST">@csrf<button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950" type="submit">Créer facture</button></form>
+                                                @endif
+                                            </div>
+                                            <div class="flex flex-wrap justify-end gap-2">
+                                                @if ($canReceivePayment)
+                                                    <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="button" onclick="document.getElementById('sale-detail-{{ $sale->id }}').close(); document.getElementById('sale-payment-add-{{ $sale->id }}').showModal()">Recevoir paiement</button>
+                                                @endif
+                                                @if ($sale->status !== 'refunded' && $sale->status !== 'cancelled')
+                                                    <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-slate-950" type="button" onclick="document.getElementById('sale-detail-{{ $sale->id }}').close(); document.getElementById('sale-refund-{{ $sale->id }}').showModal()">Retour vente</button>
+                                                    <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950" type="button" onclick="document.getElementById('sale-detail-{{ $sale->id }}').close(); document.getElementById('sale-delivery-{{ $sale->id }}').showModal()">Ajouter livraison</button>
+                                                @endif
+                                                <button class="dialog-close rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950" type="button">Fermer</button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </dialog>
-                                <dialog id="sale-edit-{{ $sale->id }}" class="app-dialog w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
-                                    <form action="{{ route('sales.update', $sale) }}" method="POST" class="p-5">
+                                @if ($salesAllowEdit)
+                                <dialog id="sale-edit-{{ $sale->id }}" class="app-dialog w-[min(860px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                    @php
+                                        $saleEditHasErrors = (string) old('sale_edit_id') === (string) $sale->id && $errors->any();
+                                        $saleEditBorder = fn (string $field) => $saleEditHasErrors && $errors->has($field) ? 'border-rose-400 ring-2 ring-rose-100 dark:border-rose-400 dark:ring-rose-500/20' : 'border-slate-200 dark:border-white/10';
+                                    @endphp
+                                    <form action="{{ route('sales.update', $sale) }}" method="POST" class="overflow-hidden">
                                         @csrf
                                         @method('PATCH')
-                                        <div class="flex items-start justify-between gap-4">
+                                        <input type="hidden" name="sale_edit_id" value="{{ $sale->id }}">
+                                        <div class="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-white/10">
                                             <div>
                                                 <p class="text-sm font-semibold text-brand">Modifier vente</p>
                                                 <h3 class="mt-1 text-xl font-semibold">{{ $sale->number }}</h3>
+                                                <p class="mt-1 text-sm text-slate-500">Modifiez les informations administratives. Paiement et statut restent pilotés par les actions dédiées.</p>
                                             </div>
                                             <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
                                         </div>
-                                        <div class="mt-5 grid gap-3 sm:grid-cols-2">
-                                            <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Client</span><select name="contact_id" data-searchable-select data-placeholder="Client..." class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Client Grand Public</option>@foreach ($salesClients as $client)<option value="{{ $client->id }}" @selected($sale->contact_id === $client->id)>{{ $client->name }}{{ $client->phone ? ' · '.$client->phone : '' }}</option>@endforeach</select></label>
-                                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Référence</span><input name="reference_number" value="{{ data_get($sale->metadata, 'reference_number') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date d'échéance</span><input name="due_date" value="{{ data_get($sale->metadata, 'due_date') }}" type="date" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="status" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="paid" @selected($sale->status === 'paid')>payé</option><option value="partial" @selected($sale->status === 'partial')>Partiel</option><option value="unpaid" @selected($sale->status === 'unpaid')>Impayé</option><option value="refunded" @selected($sale->status === 'refunded')>Remboursé</option><option value="cancelled" @selected($sale->status === 'cancelled')>Annulé</option></select></label>
-                                            <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Note interne</span><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900">{{ data_get($sale->metadata, 'note') }}</textarea></label>
+                                        @if ($saleEditHasErrors)
+                                            <div class="mx-5 mt-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
+                                                <strong class="block">Le formulaire contient des informations à corriger.</strong>
+                                                <ul class="mt-2 list-inside list-disc space-y-1">
+                                                    @foreach ($errors->all() as $message)
+                                                        <li>{{ $message }}</li>
+                                                    @endforeach
+                                                </ul>
+                                            </div>
+                                        @endif
+                                        <div class="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+                                            <div class="grid gap-3 sm:grid-cols-2">
+                                                <label class="space-y-1.5 sm:col-span-2">
+                                                    <span class="text-xs font-semibold uppercase text-slate-500">Client</span>
+                                                    <select name="contact_id" data-searchable-select data-placeholder="Client..." class="h-11 w-full rounded-lg {{ $saleEditBorder('contact_id') }} bg-white px-3 text-sm dark:bg-slate-900">
+                                                        <option value="">Client Grand Public</option>
+                                                        @foreach ($salesClients as $client)
+                                                            <option value="{{ $client->id }}" @selected((int) old('contact_id', $sale->contact_id) === $client->id)>{{ $client->name }}{{ $client->phone ? ' · '.$client->phone : '' }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    @if ($saleEditHasErrors && $errors->has('contact_id'))<span class="text-xs font-semibold text-rose-600">{{ $errors->first('contact_id') }}</span>@endif
+                                                </label>
+                                                <label class="space-y-1.5">
+                                                    <span class="text-xs font-semibold uppercase text-slate-500">Référence</span>
+                                                    <input name="reference_number" value="{{ old('reference_number', data_get($sale->metadata, 'reference_number')) }}" class="h-11 w-full rounded-lg {{ $saleEditBorder('reference_number') }} px-3 text-sm dark:bg-slate-900" placeholder="Référence client, commande...">
+                                                    @if ($saleEditHasErrors && $errors->has('reference_number'))<span class="text-xs font-semibold text-rose-600">{{ $errors->first('reference_number') }}</span>@endif
+                                                </label>
+                                                <label class="space-y-1.5">
+                                                    <span class="text-xs font-semibold uppercase text-slate-500">Date d'échéance</span>
+                                                    <input name="due_date" value="{{ old('due_date', data_get($sale->metadata, 'due_date')) }}" type="date" class="h-11 w-full rounded-lg {{ $saleEditBorder('due_date') }} px-3 text-sm dark:bg-slate-900">
+                                                    @if ($saleEditHasErrors && $errors->has('due_date'))<span class="text-xs font-semibold text-rose-600">{{ $errors->first('due_date') }}</span>@endif
+                                                </label>
+                                                <label class="space-y-1.5 sm:col-span-2">
+                                                    <span class="text-xs font-semibold uppercase text-slate-500">Note interne</span>
+                                                    <textarea name="note" class="min-h-28 w-full rounded-lg {{ $saleEditBorder('note') }} px-3 py-2 text-sm dark:bg-slate-900" placeholder="Note visible uniquement par l'équipe">{{ old('note', data_get($sale->metadata, 'note')) }}</textarea>
+                                                    @if ($saleEditHasErrors && $errors->has('note'))<span class="text-xs font-semibold text-rose-600">{{ $errors->first('note') }}</span>@endif
+                                                </label>
+                                            </div>
+                                            <aside class="space-y-3">
+                                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                                    <span class="text-xs font-semibold uppercase text-slate-500">Statut calculé</span>
+                                                    <div class="mt-2"><x-status-pill :tone="$statusTone">{{ $paymentStatus }}</x-status-pill></div>
+                                                    <p class="mt-3 text-xs leading-5 text-slate-500">Le statut change automatiquement via les paiements, retours et annulations.</p>
+                                                </div>
+                                                <div class="grid gap-2 text-sm">
+                                                    <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Total</span><strong>{{ $money($sale->total_amount) }}</strong></div>
+                                                    <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Payé</span><strong class="text-emerald-600">{{ $money($paid) }}</strong></div>
+                                                    <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Reste</span><strong class="{{ $due > 0.001 ? 'text-rose-600' : 'text-emerald-600' }}">{{ $money($due) }}</strong></div>
+                                                    <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Paiements</span><strong>{{ $sale->payments->count() }}</strong></div>
+                                                </div>
+                                                @if ($sale->status === 'refunded' || $sale->status === 'cancelled')
+                                                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">Vente clôturée: les informations administratives restent modifiables, mais aucune action financière directe n'est disponible.</div>
+                                                @endif
+                                            </aside>
                                         </div>
-                                        <div class="mt-5 flex flex-wrap justify-end gap-2">
+                                        <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/5">
+                                            <p class="text-xs text-slate-500">Dernière modification: {{ data_get($sale->metadata, 'edited_at') ? \Illuminate\Support\Carbon::parse(data_get($sale->metadata, 'edited_at'))->format('d/m/Y H:i') : '—' }}</p>
+                                            <div class="flex flex-wrap justify-end gap-2">
                                             <button class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button">Annuler</button>
                                             <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">Enregistrer</button>
+                                            </div>
                                         </div>
                                     </form>
                                 </dialog>
+                                @if ((string) old('sale_edit_id') === (string) $sale->id)
+                                    <script>window.addEventListener('DOMContentLoaded', () => document.getElementById('sale-edit-{{ $sale->id }}')?.showModal());</script>
+                                @endif
+                                @endif
                                 <dialog id="sale-payments-{{ $sale->id }}" class="app-dialog w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
                                     <div class="border-b border-slate-200 p-5 dark:border-white/10">
                                         <div class="flex items-start justify-between gap-4">
@@ -585,25 +729,45 @@
                                     </div>
                                 </dialog>
                                 <dialog id="sale-payment-add-{{ $sale->id }}" class="app-dialog w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
-                                    <form action="{{ route('sales.payments.store') }}" method="POST" class="p-5">
-                                        @csrf
-                                        <input type="hidden" name="sale_id" value="{{ $sale->id }}">
-                                        <div class="flex items-start justify-between gap-4">
-                                            <div><p class="text-sm font-semibold text-brand">Recevoir paiement</p><h3 class="mt-1 text-xl font-semibold">Reste {{ $money($due) }}</h3></div>
-                                            <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                                    @if ($canReceivePayment)
+                                        <form action="{{ route('sales.payments.store') }}" method="POST" class="p-5">
+                                            @csrf
+                                            <input type="hidden" name="sale_id" value="{{ $sale->id }}">
+                                            <div class="flex items-start justify-between gap-4">
+                                                <div><p class="text-sm font-semibold text-brand">Recevoir paiement</p><h3 class="mt-1 text-xl font-semibold">Reste {{ $money($due) }}</h3><p class="mt-1 text-sm text-slate-500">Le montant reçu ne peut pas dépasser le reste à payer.</p></div>
+                                                <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                                            </div>
+                                            <div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+                                                Total {{ $money($sale->total_amount) }} · déjà payé {{ $money($paid) }} · maximum accepté {{ $money($due) }}.
+                                            </div>
+                                            <div class="mt-5 grid gap-3 sm:grid-cols-2">
+                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Méthode</span><select name="method" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="cash">Espèces</option><option value="card">Carte</option><option value="transfer">Virement</option><option value="advance">Avance</option></select></label>
+                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Montant *</span><input name="amount" type="number" min="0.01" max="{{ number_format($due, 2, '.', '') }}" step="0.01" value="{{ number_format($due, 2, '.', '') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" required></label>
+                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date</span><input name="paid_at" type="datetime-local" value="{{ now()->format('Y-m-d\\TH:i') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Référence</span><input name="reference" value="{{ $sale->number }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                                <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Note</span><textarea name="note" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900"></textarea></label>
+                                            </div>
+                                            <div class="mt-5 flex flex-wrap justify-end gap-2">
+                                                <button class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button">Annuler</button>
+                                                <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">Encaisser</button>
+                                            </div>
+                                        </form>
+                                    @else
+                                        <div class="p-5">
+                                            <div class="flex items-start justify-between gap-4">
+                                                <div><p class="text-sm font-semibold text-emerald-600">Paiement clôturé</p><h3 class="mt-1 text-xl font-semibold">{{ $sale->number }}</h3><p class="mt-1 text-sm text-slate-500">Cette vente ne peut pas recevoir de paiement supplémentaire.</p></div>
+                                                <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                                            </div>
+                                            <div class="mt-5 grid gap-3 sm:grid-cols-3">
+                                                <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5"><span class="text-xs uppercase text-slate-500">Total</span><strong class="mt-1 block">{{ $money($sale->total_amount) }}</strong></div>
+                                                <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5"><span class="text-xs uppercase text-slate-500">Payé</span><strong class="mt-1 block text-emerald-600">{{ $money($paid) }}</strong></div>
+                                                <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5"><span class="text-xs uppercase text-slate-500">Reste</span><strong class="mt-1 block">{{ $money($due) }}</strong></div>
+                                            </div>
+                                            <div class="mt-5 text-right">
+                                                <button class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button">Fermer</button>
+                                            </div>
                                         </div>
-                                        <div class="mt-5 grid gap-3 sm:grid-cols-2">
-                                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Méthode</span><select name="method" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="cash">Espèces</option><option value="card">Carte</option><option value="transfer">Virement</option><option value="advance">Avance</option></select></label>
-                                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Montant</span><input name="amount" type="number" min="0.01" step="0.01" value="{{ number_format($due, 2, '.', '') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" required></label>
-                                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date</span><input name="paid_at" type="datetime-local" value="{{ now()->format('Y-m-d\\TH:i') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Référence</span><input name="reference" value="{{ $sale->number }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                                            <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Note</span><textarea name="note" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900"></textarea></label>
-                                        </div>
-                                        <div class="mt-5 flex flex-wrap justify-end gap-2">
-                                            <button class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button">Annuler</button>
-                                            <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit" @disabled($due <= 0.001)>Encaisser</button>
-                                        </div>
-                                    </form>
+                                    @endif
                                 </dialog>
                                 <dialog id="sale-invoice-{{ $sale->id }}" class="app-dialog w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
                                     <div class="border-b border-slate-200 p-5 dark:border-white/10">
@@ -672,26 +836,86 @@
                                             <div class="mt-5 flex justify-end gap-2"><button class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button">Annuler</button><button class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white" type="submit">Valider le retour</button></div>
                                         </form>
                                     </dialog>
-                                    <dialog id="sale-delivery-{{ $sale->id }}" class="app-dialog w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
-                                        <form action="{{ route('sales.deliveries.store') }}" method="POST" class="p-5">
+                                    <dialog id="sale-delivery-{{ $sale->id }}" class="app-dialog w-[min(780px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                        @php
+                                            $deliveryHasErrors = (string) old('delivery_sale_id') === (string) $sale->id && $errors->any();
+                                            $deliveryBorder = fn (string $field) => $deliveryHasErrors && $errors->has($field) ? 'border-rose-400 ring-2 ring-rose-100 dark:border-rose-400 dark:ring-rose-500/20' : 'border-slate-200 dark:border-white/10';
+                                            $deliveryAddressValue = old('delivery_address', $sale->contact?->address ?: data_get($sale->metadata, 'delivery_address'));
+                                        @endphp
+                                        <form action="{{ route('sales.deliveries.store') }}" method="POST" class="overflow-hidden">
                                             @csrf
                                             <input type="hidden" name="sale_id" value="{{ $sale->id }}">
-                                            <div class="flex items-start justify-between gap-4">
-                                                <div><p class="text-sm font-semibold text-brand">Ajouter une livraison</p><h3 class="mt-1 text-xl font-semibold">{{ $sale->number }}</h3></div>
+                                            <input type="hidden" name="delivery_sale_id" value="{{ $sale->id }}">
+                                            <div class="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/80 p-5 dark:border-white/10 dark:bg-white/[0.04]">
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-semibold text-brand">Ajouter une livraison</p>
+                                                    <h3 class="mt-1 text-xl font-semibold">{{ $sale->number }} · {{ $money($sale->total_amount) }}</h3>
+                                                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $sale->contact?->name ?? 'Client comptoir' }} · {{ $sale->sold_at?->format('d/m/Y H:i') }}</p>
+                                                </div>
                                                 <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
                                             </div>
-                                            <div class="mt-5 grid gap-3">
-                                                <input name="assigned_to" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Livreur">
-                                                <input name="scheduled_at" type="datetime-local" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                                <textarea name="delivery_address" class="min-h-24 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Adresse de livraison">{{ $sale->contact?->address }}</textarea>
-                                                <textarea name="note" class="min-h-20 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note livraison"></textarea>
+                                            @if ($deliveryHasErrors)
+                                                <div class="mx-5 mt-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
+                                                    <strong class="block">La livraison contient des informations à corriger.</strong>
+                                                    <ul class="mt-2 list-inside list-disc space-y-1">
+                                                        @foreach ($errors->all() as $message)
+                                                            <li>{{ $message }}</li>
+                                                        @endforeach
+                                                    </ul>
+                                                </div>
+                                            @endif
+                                            <div class="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_260px]">
+                                                <div class="grid gap-3 sm:grid-cols-2">
+                                                    <label class="space-y-1.5">
+                                                        <span class="text-xs font-semibold uppercase text-slate-500">Livreur / responsable</span>
+                                                        <input name="assigned_to" value="{{ old('assigned_to') }}" class="h-11 w-full rounded-lg {{ $deliveryBorder('assigned_to') }} px-3 text-sm dark:bg-slate-900" placeholder="Nom livreur, équipe...">
+                                                        @if ($deliveryHasErrors && $errors->has('assigned_to'))<span class="text-xs font-semibold text-rose-600">{{ $errors->first('assigned_to') }}</span>@endif
+                                                    </label>
+                                                    <label class="space-y-1.5">
+                                                        <span class="text-xs font-semibold uppercase text-slate-500">Planifiée le</span>
+                                                        <input name="scheduled_at" value="{{ old('scheduled_at') }}" type="datetime-local" class="h-11 w-full rounded-lg {{ $deliveryBorder('scheduled_at') }} px-3 text-sm dark:bg-slate-900">
+                                                        @if ($deliveryHasErrors && $errors->has('scheduled_at'))<span class="text-xs font-semibold text-rose-600">{{ $errors->first('scheduled_at') }}</span>@endif
+                                                    </label>
+                                                    <label class="space-y-1.5 sm:col-span-2">
+                                                        <span class="text-xs font-semibold uppercase text-slate-500">Adresse de livraison *</span>
+                                                        <textarea name="delivery_address" required class="min-h-28 w-full rounded-lg {{ $deliveryBorder('delivery_address') }} px-3 py-2 text-sm dark:bg-slate-900" placeholder="Adresse complète, quartier, repère...">{{ $deliveryAddressValue }}</textarea>
+                                                        @if ($deliveryHasErrors && $errors->has('delivery_address'))<span class="text-xs font-semibold text-rose-600">{{ $errors->first('delivery_address') }}</span>@endif
+                                                    </label>
+                                                    <label class="space-y-1.5 sm:col-span-2">
+                                                        <span class="text-xs font-semibold uppercase text-slate-500">Note livraison</span>
+                                                        <textarea name="note" class="min-h-24 w-full rounded-lg {{ $deliveryBorder('note') }} px-3 py-2 text-sm dark:bg-slate-900" placeholder="Créneau, téléphone à appeler, consignes...">{{ old('note', data_get($sale->metadata, 'delivery_note')) }}</textarea>
+                                                        @if ($deliveryHasErrors && $errors->has('note'))<span class="text-xs font-semibold text-rose-600">{{ $errors->first('note') }}</span>@endif
+                                                    </label>
+                                                </div>
+                                                <aside class="space-y-3">
+                                                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-white/[0.04]">
+                                                        <span class="text-xs font-semibold uppercase text-slate-500">Résumé vente</span>
+                                                        <div class="mt-3 space-y-2">
+                                                            <div class="flex justify-between gap-3"><span class="text-slate-500">Client</span><strong class="text-right">{{ $sale->contact?->name ?? 'Client comptoir' }}</strong></div>
+                                                            <div class="flex justify-between gap-3"><span class="text-slate-500">Téléphone</span><strong>{{ $sale->contact?->phone ?? '—' }}</strong></div>
+                                                            <div class="flex justify-between gap-3"><span class="text-slate-500">Lignes</span><strong>{{ $sale->items->count() }}</strong></div>
+                                                            <div class="flex justify-between gap-3"><span class="text-slate-500">Livraisons</span><strong>{{ $sale->deliveryOrders->count() }}</strong></div>
+                                                            <div class="flex justify-between gap-3 border-t border-slate-200 pt-2 dark:border-white/10"><span class="text-slate-500">Statut</span><x-status-pill :tone="$statusTone">{{ $paymentStatus }}</x-status-pill></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
+                                                        <strong class="block">Conseil</strong>
+                                                        <p class="mt-1 leading-5">Renseignez une adresse exploitable par le livreur. La livraison démarre en statut “En attente”.</p>
+                                                    </div>
+                                                </aside>
                                             </div>
-                                            <div class="mt-4 rounded-xl bg-slate-50 p-3 text-sm dark:bg-white/5">
-                                                <strong>{{ $sale->deliveryOrders->count() }}</strong> livraison(s) déjà liée(s) à cette vente.
+                                            <div class="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
+                                                <p class="text-sm text-slate-500 dark:text-slate-400">Une trace sera conservée dans la liste des livraisons.</p>
+                                                <div class="flex justify-end gap-2">
+                                                    <button class="dialog-close rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950" type="button">Annuler</button>
+                                                    <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">Créer livraison</button>
+                                                </div>
                                             </div>
-                                            <div class="mt-5 flex justify-end gap-2"><button class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button">Annuler</button><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">Créer livraison</button></div>
                                         </form>
                                     </dialog>
+                                    @if ((string) old('delivery_sale_id') === (string) $sale->id)
+                                        <script>window.addEventListener('DOMContentLoaded', () => document.getElementById('sale-delivery-{{ $sale->id }}')?.showModal());</script>
+                                    @endif
                                 @endif
                             @empty
                                 <tr>
@@ -1691,6 +1915,7 @@
             $theme = array_merge($themeDefaults, $tenant->settings['theme'] ?? []);
             $themePreset = $tenant->settings['theme_preset'] ?? 'default';
             $posEditablePrice = (bool) data_get($tenant->settings, 'pos.editable_price', true);
+            $posAllowSaleEdit = (bool) data_get($tenant->settings, 'pos.allow_sale_edit', true);
             $posAllowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
             $posShowOutOfStock = (bool) data_get($tenant->settings, 'pos.show_out_of_stock', false);
             $posRequireAdjustmentReason = (bool) data_get($tenant->settings, 'pos.require_adjustment_reason', true);
@@ -1871,6 +2096,7 @@
                             </div>
                             <div class="app-action-row">
                                 <x-status-pill :tone="$posEditablePrice ? 'warning' : 'info'">{{ $posEditablePrice ? 'Prix modifiables' : 'Prix verrouillés' }}</x-status-pill>
+                                <x-status-pill :tone="$posAllowSaleEdit ? 'info' : 'danger'">{{ $posAllowSaleEdit ? 'Ventes modifiables' : 'Ventes verrouillées' }}</x-status-pill>
                                 <x-status-pill :tone="$posAllowOversell ? 'warning' : 'success'">{{ $posAllowOversell ? 'Hors stock autorisé' : 'Stock bloquant' }}</x-status-pill>
                                 <x-status-pill :tone="$posShowOutOfStock ? 'warning' : 'info'">{{ $posShowOutOfStock ? 'Ruptures visibles' : 'Ruptures masquées' }}</x-status-pill>
                             </div>
@@ -1881,6 +2107,7 @@
                         <form action="{{ route('settings.pos.update') }}" method="POST" class="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
                             @csrf
                             <input type="hidden" name="editable_price" value="0">
+                            <input type="hidden" name="allow_sale_edit" value="0">
                             <input type="hidden" name="allow_oversell" value="0">
                             <input type="hidden" name="show_out_of_stock" value="0">
                             <input type="hidden" name="require_adjustment_reason" value="0">
@@ -1898,6 +2125,15 @@
                                         <span>
                                             <span class="block text-sm font-semibold">Autoriser la modification du prix en caisse</span>
                                             <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Un appui long sur un produit ou le bouton modifier du panier ouvre le détail ligne pour ajuster prix, quantité et note.</span>
+                                        </span>
+                                    </span>
+                                </label>
+                                <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                    <span class="flex items-start gap-3">
+                                        <input name="allow_sale_edit" value="1" type="checkbox" @checked($posAllowSaleEdit) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                        <span>
+                                            <span class="block text-sm font-semibold">Autoriser la modification des ventes</span>
+                                            <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Permet de modifier client, référence, échéance et note depuis l’historique. Les paiements, retours et annulations restent gérés par leurs actions dédiées.</span>
                                         </span>
                                     </span>
                                 </label>

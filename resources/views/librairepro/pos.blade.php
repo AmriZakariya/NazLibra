@@ -21,6 +21,9 @@
                     $lastDiscountLabel = data_get($lastManualDiscount, 'type') === 'percentage'
                         ? number_format((float) data_get($lastManualDiscount, 'value', 0), 2, ',', ' ').'%'
                         : $money(data_get($lastManualDiscount, 'value', $lastSale->discount_amount));
+                    $lastSystemNoteDate = $lastSale->sold_at?->format('d/m/Y H:i') ?? '—';
+                    $lastSystemNote = data_get($lastSale->metadata, 'system_note')
+                        ?: 'Note système: vente '.$lastSale->number.' enregistrée le '.$lastSystemNoteDate.' pour '.($lastSale->contact?->name ?? 'Client comptoir').', '.$lastSale->items->count().' ligne(s), total '.$money($lastSale->total_amount).', paiement '.$lastSale->payment_method.'.';
                 @endphp
                 <div class="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
                     <article class="receipt-success max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-emerald-200 bg-white p-5 shadow-2xl dark:border-emerald-500/20 dark:bg-slate-950">
@@ -46,6 +49,11 @@
                                 <span class="text-xs font-semibold uppercase text-slate-500">Monnaie</span>
                                 <p class="mt-1 font-semibold">{{ $money($changeAmount) }}</p>
                             </div>
+                        </div>
+
+                        <div class="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
+                            <span class="text-xs font-semibold uppercase text-sky-700 dark:text-sky-200">Note système</span>
+                            <p class="mt-1 leading-6">{{ $lastSystemNote }}</p>
                         </div>
 
                         <div class="receipt-print-area mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-white/5">

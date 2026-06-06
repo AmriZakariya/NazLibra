@@ -119,6 +119,8 @@ class PosTest extends TestCase
         $this->assertArrayNotHasKey('invoice_number', $sale->metadata);
         $this->assertSame($client->id, $sale->contact_id);
         $this->assertSame('cash+advance', $sale->payment_method);
+        $this->assertStringContainsString('Note système: vente '.$sale->number, $sale->metadata['system_note']);
+        $this->assertStringContainsString('caisse POS', $sale->metadata['system_note']);
         $this->assertSame($total, (float) $sale->total_amount);
         $this->assertSame(2, $sale->items()->firstOrFail()->quantity);
         $this->assertSame($initialStock - 2, $item->fresh()->stock_quantity);
@@ -131,6 +133,11 @@ class PosTest extends TestCase
             'reference_id' => $sale->id,
         ]);
         $this->assertSame($initialAdvance - $advance, (float) $client->fresh()->advance_balance);
+
+        $this->get(route('pos', ['sale' => $sale->id]))
+            ->assertOk()
+            ->assertSee('Note système')
+            ->assertSee($sale->metadata['system_note']);
     }
 
     public function test_pos_accepts_percentage_discount_and_tracks_it(): void
@@ -263,12 +270,14 @@ class PosTest extends TestCase
 
         $this->post(route('settings.pos.update'), [
             'editable_price' => '0',
+            'allow_sale_edit' => '0',
             'allow_oversell' => '1',
             'show_out_of_stock' => '1',
         ])->assertRedirect();
 
         $settings = Tenant::firstOrFail()->fresh()->settings;
         $this->assertFalse((bool) data_get($settings, 'pos.editable_price'));
+        $this->assertFalse((bool) data_get($settings, 'pos.allow_sale_edit'));
         $this->assertTrue((bool) data_get($settings, 'pos.allow_oversell'));
         $this->assertTrue((bool) data_get($settings, 'pos.show_out_of_stock'));
     }
@@ -280,6 +289,7 @@ class PosTest extends TestCase
         $this->get(route('module', ['module' => 'settings', 'section' => 'store']))
             ->assertOk()
             ->assertSeeText('Caisse, stock & comportement comptoir')
+            ->assertSee('Autoriser la modification des ventes')
             ->assertSee('Autoriser la vente hors stock')
             ->assertSee('Afficher les articles hors stock dans la caisse')
             ->assertSee('Préférences magasin');
@@ -479,8 +489,15 @@ class PosTest extends TestCase
         $this->assertSame('paid', $sale->status);
         $this->assertSame('manual_sale', $sale->metadata['source']);
         $this->assertSame('BC-TEST-001', $sale->metadata['reference_number']);
+        $this->assertStringContainsString('Note système: vente '.$sale->number, $sale->metadata['system_note']);
+        $this->assertStringContainsString('vente manuelle', $sale->metadata['system_note']);
         $this->assertSame($initialStock - 2, $item->fresh()->stock_quantity);
         $this->assertSame(1, $sale->payments()->count());
+
+        $this->get(route('module', ['module' => 'sales', 'section' => 'list', 'ticket' => $sale->id]))
+            ->assertOk()
+            ->assertSee('Note système')
+            ->assertSee($sale->metadata['system_note']);
     }
 
     public function test_sale_invoice_can_be_created_from_sales_list(): void
@@ -509,18 +526,18 @@ class PosTest extends TestCase
 
         $sale = Sale::firstOrFail();
         $client = Contact::where('kind', 'client')->firstOrFail();
+        $originalStatus = $sale->status;
 
         $this->patch(route('sales.update', $sale), [
             'contact_id' => $client->id,
             'reference_number' => 'REF-ACTION-001',
             'due_date' => now()->addDays(7)->toDateString(),
             'note' => 'Note action',
-            'status' => 'partial',
         ])->assertRedirect();
 
         $sale->refresh();
         $this->assertSame($client->id, $sale->contact_id);
-        $this->assertSame('partial', $sale->status);
+        $this->assertSame($originalStatus, $sale->status);
         $this->assertSame('REF-ACTION-001', $sale->metadata['reference_number']);
 
         $this->delete(route('sales.destroy', $sale))->assertRedirect();
@@ -572,6 +589,116 @@ class PosTest extends TestCase
         $this->assertSame(35.0, (float) $sale->fresh()->metadata['paid_amount']);
     }
 
+    public function test_cannot_add_payment_to_fully_paid_sale(): void
+    {
+        $this->seed();
+
+        $sale = Sale::firstOrFail();
+        $sale->update([
+            'status' => 'paid',
+            'metadata' => array_merge($sale->metadata ?? [], ['paid_amount' => (float) $sale->total_amount]),
+        ]);
+
+        $response = $this->post(route('sales.payments.store'), [
+            'sale_id' => $sale->id,
+            'method' => 'cash',
+            'amount' => 1,
+        ]);
+
+        $response->assertSessionHasErrors('sale_id');
+        $this->assertSame(0, SalePayment::count());
+    }
+
+    public function test_sale_payment_cannot_exceed_remaining_amount(): void
+    {
+        $this->seed();
+
+        $sale = Sale::firstOrFail();
+        $sale->update([
+            'status' => 'partial',
+            'metadata' => array_merge($sale->metadata ?? [], ['paid_amount' => 10]),
+        ]);
+
+        $response = $this->post(route('sales.payments.store'), [
+            'sale_id' => $sale->id,
+            'method' => 'cash',
+            'amount' => (float) $sale->total_amount,
+        ]);
+
+        $response->assertSessionHasErrors('amount');
+        $this->assertSame(0, SalePayment::count());
+        $this->assertSame(10.0, (float) $sale->fresh()->metadata['paid_amount']);
+    }
+
+    public function test_sale_update_ignores_manual_status_and_keeps_payment_state(): void
+    {
+        $this->seed();
+
+        $sale = Sale::firstOrFail();
+        $sale->update([
+            'status' => 'unpaid',
+            'metadata' => [],
+        ]);
+
+        $response = $this->patch(route('sales.update', $sale), [
+            'contact_id' => null,
+            'reference_number' => 'BAD-STATUS',
+            'due_date' => null,
+            'note' => null,
+            'status' => 'paid',
+            'sale_edit_id' => $sale->id,
+        ]);
+
+        $response->assertRedirect();
+        $this->assertSame('unpaid', $sale->fresh()->status);
+        $this->assertSame('BAD-STATUS', $sale->fresh()->metadata['reference_number']);
+    }
+
+    public function test_sale_update_can_be_disabled_by_store_setting(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $tenant->update(['settings' => array_merge($tenant->settings ?? [], [
+            'pos' => array_merge(data_get($tenant->settings, 'pos', []), ['allow_sale_edit' => false]),
+        ])]);
+        $sale = Sale::firstOrFail();
+
+        $response = $this->patch(route('sales.update', $sale), [
+            'contact_id' => null,
+            'reference_number' => 'LOCKED-EDIT',
+            'due_date' => null,
+            'note' => null,
+            'sale_edit_id' => $sale->id,
+        ]);
+
+        $response->assertSessionHasErrors('sale_edit');
+        $this->assertNotSame('LOCKED-EDIT', data_get($sale->fresh()->metadata, 'reference_number'));
+
+        $this->get(route('module', ['module' => 'sales', 'section' => 'list']))
+            ->assertOk()
+            ->assertSee('Modification verrouillée')
+            ->assertDontSee('Modifier vente</button>', false);
+    }
+
+    public function test_sale_edit_validation_keeps_dialog_context(): void
+    {
+        $this->seed();
+
+        $sale = Sale::firstOrFail();
+
+        $response = $this->patch(route('sales.update', $sale), [
+            'contact_id' => null,
+            'reference_number' => str_repeat('R', 121),
+            'due_date' => 'not-a-date',
+            'note' => null,
+            'sale_edit_id' => $sale->id,
+        ]);
+
+        $response->assertSessionHasErrors(['reference_number', 'due_date']);
+        $response->assertSessionHasInput('sale_edit_id', (string) $sale->id);
+    }
+
     public function test_sale_can_be_refunded_and_restocked(): void
     {
         $this->seed();
@@ -612,13 +739,18 @@ class PosTest extends TestCase
         $response = $this->post(route('sales.deliveries.store'), [
             'sale_id' => $sale->id,
             'assigned_to' => 'Livreur test',
+            'scheduled_at' => now()->addDay()->format('Y-m-d H:i:s'),
             'delivery_address' => 'Casablanca',
+            'note' => 'Appeler avant livraison',
+            'delivery_sale_id' => $sale->id,
         ]);
 
         $delivery = DeliveryOrder::firstOrFail();
         $response->assertRedirect();
         $this->assertStringStartsWith('LIV', $delivery->number);
         $this->assertSame('pending', $delivery->status);
+        $this->assertSame('Casablanca', $delivery->delivery_address);
+        $this->assertSame('Appeler avant livraison', $delivery->note);
 
         $this->patch(route('sales.deliveries.update', $delivery), [
             'status' => 'delivered',
@@ -627,5 +759,32 @@ class PosTest extends TestCase
 
         $this->assertSame('delivered', $delivery->fresh()->status);
         $this->assertNotNull($delivery->fresh()->delivered_at);
+    }
+
+    public function test_delivery_creation_validates_required_address_and_closed_sale(): void
+    {
+        $this->seed();
+
+        $sale = Sale::firstOrFail();
+
+        $response = $this->post(route('sales.deliveries.store'), [
+            'sale_id' => $sale->id,
+            'delivery_address' => '',
+            'delivery_sale_id' => $sale->id,
+        ]);
+
+        $response->assertSessionHasErrors('delivery_address');
+        $response->assertSessionHasInput('delivery_sale_id', (string) $sale->id);
+        $this->assertSame(0, DeliveryOrder::count());
+
+        $sale->update(['status' => 'cancelled']);
+        $response = $this->post(route('sales.deliveries.store'), [
+            'sale_id' => $sale->id,
+            'delivery_address' => 'Casablanca',
+            'delivery_sale_id' => $sale->id,
+        ]);
+
+        $response->assertSessionHasErrors('sale_id');
+        $this->assertSame(0, DeliveryOrder::count());
     }
 }

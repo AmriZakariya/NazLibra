@@ -1903,6 +1903,7 @@ class LibraireProController extends Controller
         $settings = $tenant->settings ?? [];
         $settings['pos'] = array_merge($settings['pos'] ?? [], [
             'editable_price' => $request->boolean('editable_price'),
+            'allow_sale_edit' => $request->boolean('allow_sale_edit', true),
             'allow_oversell' => $request->boolean('allow_oversell'),
             'show_out_of_stock' => $request->boolean('show_out_of_stock'),
             'require_adjustment_reason' => $request->boolean('require_adjustment_reason'),
@@ -2742,6 +2743,8 @@ class LibraireProController extends Controller
 
                 $paymentMethod = collect($payments)->filter(fn ($amount) => $amount > 0.001)->keys()->join('+') ?: 'cash';
                 $saleNumber = $this->nextSaleNumber($tenant);
+                $saleReference = ! empty($data['ticket_id']) ? PosTicket::whereKey($data['ticket_id'])->value('number') : null;
+                $soldAt = now();
                 $changeAmount = max(0, round($paid - $total, 2));
                 $cashChange = min($payments['cash'], $changeAmount);
                 $cashDrawerIn = max(0, round($payments['cash'] - $cashChange, 2));
@@ -2756,9 +2759,9 @@ class LibraireProController extends Controller
                     'discount_amount' => $discount,
                     'tax_amount' => round($total * 0.2 / 1.2, 2),
                     'total_amount' => $total,
-                    'sold_at' => now(),
+                    'sold_at' => $soldAt,
                     'metadata' => [
-                        'reference_number' => ! empty($data['ticket_id']) ? PosTicket::whereKey($data['ticket_id'])->value('number') : null,
+                        'reference_number' => $saleReference,
                         'payments' => $payments,
                         'paid_amount' => $paid,
                         'change_amount' => $changeAmount,
@@ -2784,6 +2787,7 @@ class LibraireProController extends Controller
                             'coupon' => $couponDetail,
                         ],
                         'receipt_channel' => $data['receipt_channel'] ?? 'print',
+                        'system_note' => $this->saleSystemNote($tenant, $saleNumber, 'pos', $contact, count($saleLines), $total, $paymentMethod, 'paid', $soldAt, $saleReference),
                         'note' => $data['note'] ?? null,
                     ],
                 ]);
@@ -3093,6 +3097,7 @@ class LibraireProController extends Controller
 
                 $paymentMethod = collect($payments)->filter(fn ($amount) => $amount > 0.001)->keys()->join('+') ?: 'credit';
                 $saleNumber = $this->nextSaleNumber($tenant);
+                $soldAt = ! empty($data['sold_at']) ? Carbon::parse($data['sold_at']) : now();
                 $sale = Sale::create([
                     'tenant_id' => $tenant->id,
                     'contact_id' => $contact?->id,
@@ -3104,7 +3109,7 @@ class LibraireProController extends Controller
                     'discount_amount' => round($lineDiscountTotal + $globalDiscount, 2),
                     'tax_amount' => round($taxAmount, 2),
                     'total_amount' => $total,
-                    'sold_at' => ! empty($data['sold_at']) ? Carbon::parse($data['sold_at']) : now(),
+                    'sold_at' => $soldAt,
                     'metadata' => [
                         'reference_number' => $data['reference_number'] ?? null,
                         'paid_amount' => $paid,
@@ -3116,6 +3121,7 @@ class LibraireProController extends Controller
                         'payments' => $payments,
                         'delivery_address' => $data['delivery_address'] ?? null,
                         'delivery_note' => $data['delivery_note'] ?? null,
+                        'system_note' => $this->saleSystemNote($tenant, $saleNumber, 'manual_sale', $contact, count($saleLines), $total, $paymentMethod, $status, $soldAt, $data['reference_number'] ?? null),
                         'note' => $data['note'] ?? null,
                     ],
                 ]);
@@ -3189,14 +3195,19 @@ class LibraireProController extends Controller
     {
         $tenant = $this->tenant();
         abort_unless($sale->tenant_id === $tenant->id, 404);
+        if (! (bool) data_get($tenant->settings, 'pos.allow_sale_edit', true)) {
+            return back()->withErrors(['sale_edit' => 'La modification des ventes est désactivée dans les paramètres magasin.'])->withInput();
+        }
 
         $data = $request->validate([
             'contact_id' => ['nullable', 'integer', Rule::exists('contacts', 'id')->where('tenant_id', $tenant->id)->where('kind', 'client')],
             'reference_number' => ['nullable', 'string', 'max:120'],
             'due_date' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:500'],
-            'status' => ['required', 'in:paid,partial,unpaid,refunded,cancelled'],
         ]);
+
+        $paidAmount = $this->salePaidAmount($sale);
+        $expectedStatus = $this->salePaymentStatus($sale, $paidAmount);
 
         $metadata = $sale->metadata ?? [];
         $metadata['reference_number'] = $data['reference_number'] ?? null;
@@ -3204,10 +3215,11 @@ class LibraireProController extends Controller
         $metadata['note'] = $data['note'] ?? null;
         $metadata['edited_at'] = now()->toIso8601String();
         $metadata['edited_by'] = auth()->id();
+        $metadata['paid_amount'] = $paidAmount;
 
         $sale->update([
             'contact_id' => $data['contact_id'] ?? null,
-            'status' => $data['status'],
+            'status' => in_array($sale->status, ['refunded', 'cancelled'], true) ? $sale->status : $expectedStatus,
             'metadata' => $metadata,
         ]);
 
@@ -3417,8 +3429,8 @@ class LibraireProController extends Controller
     {
         $tenant = $this->tenant();
         abort_unless($sale->tenant_id === $tenant->id, 404);
-        if ($sale->status === 'refunded') {
-            return back()->withErrors(['sale' => 'Cette vente est déjà remboursée.']);
+        if (in_array($sale->status, ['refunded', 'cancelled'], true)) {
+            return back()->withErrors(['sale' => 'Cette vente est déjà clôturée.']);
         }
 
         $data = $request->validate([
@@ -3519,14 +3531,28 @@ class LibraireProController extends Controller
 
         DB::transaction(function () use ($tenant, $data): void {
             $sale = Sale::where('tenant_id', $tenant->id)->whereKey($data['sale_id'])->lockForUpdate()->firstOrFail();
+            if (in_array($sale->status, ['paid', 'refunded', 'cancelled'], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'sale_id' => $sale->status === 'paid'
+                        ? 'Cette vente est déjà entièrement payée.'
+                        : 'Cette vente est clôturée et ne peut plus recevoir de paiement.',
+                ]);
+            }
+
             $paidBefore = $this->salePaidAmount($sale);
-            $remaining = (float) $sale->total_amount - $paidBefore;
+            $remaining = round((float) $sale->total_amount - $paidBefore, 2);
             if ($remaining <= 0.001) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     'sale_id' => 'Cette vente est déjà entièrement payée.',
                 ]);
             }
-            $amount = min((float) $data['amount'], $remaining);
+
+            $amount = round((float) $data['amount'], 2);
+            if ($amount - $remaining > 0.001) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'amount' => 'Le montant reçu ne peut pas dépasser le reste à payer ('.number_format($remaining, 2, ',', ' ').' DH).',
+                ]);
+            }
 
             SalePayment::create([
                 'tenant_id' => $tenant->id,
@@ -3542,9 +3568,15 @@ class LibraireProController extends Controller
             ]);
 
             $metadata = $sale->metadata ?? [];
-            $metadata['paid_amount'] = min((float) $sale->total_amount, $paidBefore + $amount);
+            $metadata['paid_amount'] = min((float) $sale->total_amount, round($paidBefore + $amount, 2));
+            $metadata['last_payment'] = [
+                'amount' => $amount,
+                'method' => $data['method'],
+                'received_at' => now()->toIso8601String(),
+                'received_by' => auth()->id(),
+            ];
             $sale->update([
-                'status' => $metadata['paid_amount'] + 0.001 >= (float) $sale->total_amount ? 'paid' : 'partial',
+                'status' => $this->salePaymentStatus($sale, (float) $metadata['paid_amount']),
                 'metadata' => $metadata,
             ]);
         });
@@ -3557,13 +3589,17 @@ class LibraireProController extends Controller
         $tenant = $this->tenant();
         $data = $request->validate([
             'sale_id' => ['required', 'integer', Rule::exists('sales', 'id')->where('tenant_id', $tenant->id)],
-            'delivery_address' => ['nullable', 'string', 'max:1000'],
+            'delivery_address' => ['required', 'string', 'max:1000'],
             'assigned_to' => ['nullable', 'string', 'max:160'],
             'scheduled_at' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:500'],
         ]);
 
         $sale = Sale::where('tenant_id', $tenant->id)->with('contact')->whereKey($data['sale_id'])->firstOrFail();
+        if (in_array($sale->status, ['cancelled', 'refunded'], true)) {
+            return back()->withErrors(['sale_id' => 'Impossible de créer une livraison pour une vente clôturée.'])->withInput();
+        }
+
         DeliveryOrder::create([
             'tenant_id' => $tenant->id,
             'sale_id' => $sale->id,
@@ -3572,7 +3608,7 @@ class LibraireProController extends Controller
             'number' => $this->nextDeliveryNumber($tenant),
             'status' => 'pending',
             'assigned_to' => $data['assigned_to'] ?? null,
-            'delivery_address' => $data['delivery_address'] ?? $sale->contact?->address,
+            'delivery_address' => $data['delivery_address'],
             'note' => $data['note'] ?? null,
             'scheduled_at' => ! empty($data['scheduled_at']) ? Carbon::parse($data['scheduled_at']) : null,
         ]);
@@ -3736,6 +3772,7 @@ class LibraireProController extends Controller
                     ->keyBy('id');
 
                 $saleNumber = $this->nextSaleNumber($tenant);
+                $soldAt = now();
                 $sale = Sale::create([
                     'tenant_id' => $tenant->id,
                     'contact_id' => $quotation->contact_id,
@@ -3747,12 +3784,13 @@ class LibraireProController extends Controller
                     'discount_amount' => $quotation->discount_amount,
                     'tax_amount' => $quotation->tax_amount,
                     'total_amount' => $quotation->total_amount,
-                    'sold_at' => now(),
+                    'sold_at' => $soldAt,
                     'metadata' => [
                         'reference_number' => $quotation->number,
                         'paid_amount' => 0,
                         'due_date' => $quotation->expires_at?->toDateString(),
                         'source' => 'quotation',
+                        'system_note' => $this->saleSystemNote($tenant, $saleNumber, 'quotation', $quotation->contact, count($quotation->lines), (float) $quotation->total_amount, 'devis', 'unpaid', $soldAt, $quotation->number),
                     ],
                 ]);
 
@@ -5456,12 +5494,56 @@ class LibraireProController extends Controller
 
     private function salePaidAmount(Sale $sale): float
     {
-        $paid = data_get($sale->metadata, 'paid_amount');
-        if ($paid !== null) {
-            return min((float) $paid, (float) $sale->total_amount);
+        if ($sale->relationLoaded('payments')) {
+            $paid = (float) $sale->payments->sum('amount');
+        } else {
+            $paid = (float) $sale->payments()->sum('amount');
         }
 
-        return $sale->status === 'paid' ? (float) $sale->total_amount : 0.0;
+        $metadataPaid = data_get($sale->metadata, 'paid_amount');
+        if ($metadataPaid !== null) {
+            $paid = max($paid, (float) $metadataPaid);
+        }
+
+        if ($paid <= 0.001 && $sale->status === 'paid') {
+            $paid = (float) $sale->total_amount;
+        }
+
+        return min(round($paid, 2), (float) $sale->total_amount);
+    }
+
+    private function salePaymentStatus(Sale $sale, float $paidAmount): string
+    {
+        if ($paidAmount + 0.001 >= (float) $sale->total_amount) {
+            return 'paid';
+        }
+
+        return $paidAmount > 0.001 ? 'partial' : 'unpaid';
+    }
+
+    private function saleSystemNote(Tenant $tenant, string $saleNumber, string $source, ?Contact $contact, int $lineCount, float $total, string $paymentMethod, string $status, Carbon $soldAt, ?string $reference = null): string
+    {
+        $sourceLabel = match ($source) {
+            'pos' => 'caisse POS',
+            'manual_sale' => 'vente manuelle',
+            'quotation' => 'conversion devis',
+            default => $source,
+        };
+        $statusLabel = match ($status) {
+            'paid' => 'payée',
+            'partial' => 'partielle',
+            'unpaid' => 'impayée',
+            'refunded' => 'remboursée',
+            'cancelled' => 'annulée',
+            default => $status,
+        };
+        $storeName = $this->currentStore($tenant)['name'] ?? $tenant->name;
+        $userName = auth()->user()?->name ?? 'Système';
+        $clientName = $contact?->name ?? 'Client comptoir';
+        $formattedTotal = number_format($total, 2, ',', ' ').' DH';
+        $referenceText = $reference ? ' Référence: '.$reference.'.' : '';
+
+        return "Note système: vente {$saleNumber} créée automatiquement depuis {$sourceLabel} le ".$soldAt->format('d/m/Y H:i')." par {$userName}. Client: {$clientName}. {$lineCount} ligne(s), total {$formattedTotal}, paiement {$paymentMethod}, statut {$statusLabel}, magasin {$storeName}.{$referenceText}";
     }
 
     private function nextSaleInvoiceNumber(Tenant $tenant): string

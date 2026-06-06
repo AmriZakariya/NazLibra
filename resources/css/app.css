@@ -3639,6 +3639,13 @@
         color: var(--brand-primary);
     }
 
+    .sale-action-panel button:disabled {
+        background: color-mix(in srgb, var(--brand-success) 8%, transparent);
+        color: var(--text-muted);
+        cursor: not-allowed;
+        opacity: .88;
+    }
+
     .sale-action-panel button span,
     .sale-action-panel a span {
         align-items: center;
@@ -3652,6 +3659,11 @@
         height: 28px;
         justify-content: center;
         width: 28px;
+    }
+
+    .sale-action-panel button:disabled span {
+        background: color-mix(in srgb, var(--brand-success) 12%, transparent);
+        color: var(--brand-success);
     }
 
     .sale-action-panel button.is-danger {

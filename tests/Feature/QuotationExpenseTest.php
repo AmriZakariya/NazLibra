@@ -72,6 +72,8 @@ class QuotationExpenseTest extends TestCase
 
         $sale = Sale::orderByDesc('id')->firstOrFail();
         $this->assertSame('unpaid', $sale->status);
+        $this->assertStringContainsString('Note système: vente '.$sale->number, $sale->metadata['system_note']);
+        $this->assertStringContainsString('conversion devis', $sale->metadata['system_note']);
         $this->assertSame($quote->fresh()->converted_sale_id, $sale->id);
         $this->assertSame($initialStock - 2, $item->fresh()->stock_quantity);
         $this->assertDatabaseHas('stock_movements', [
