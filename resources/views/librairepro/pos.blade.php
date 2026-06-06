@@ -4,6 +4,7 @@
     $resumeDiscountType = old('discount_type', $resumeTicket?->discount_type ?: 'fixed');
     $resumeDiscountValue = old('discount_value', $resumeTicket?->discount_value ?? $resumeTicket?->discount_amount ?? 0);
     $resumeCouponCode = old('coupon_code', $resumeTicket?->coupon_code ?? '');
+    $resumeNote = old('note', $resumeTicket?->note ?? '');
 @endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · Caisse">
@@ -51,12 +52,12 @@
                             </div>
                         </div>
 
-                        <div class="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
-                            <span class="text-xs font-semibold uppercase text-sky-700 dark:text-sky-200">Note système</span>
+                        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-900 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
+                            <span class="text-xs font-semibold uppercase text-slate-600 dark:text-slate-300">Note système</span>
                             <p class="mt-1 leading-6">{{ $lastSystemNote }}</p>
                         </div>
 
-                        <div class="receipt-print-area mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-white/5">
+                        <div class="receipt-print-area thermal-receipt mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-white/5" data-thermal-receipt>
                             <div class="text-center">
                                 <strong class="block text-base">{{ $tenant->name }}</strong>
                                 <span class="text-xs text-slate-500">{{ $tenant->address }} · {{ $tenant->phone }}</span>
@@ -79,13 +80,17 @@
                                 <div class="flex justify-between"><span>Remise {{ $lastSale->discount_amount > 0 ? '('.$lastDiscountLabel.')' : '' }}</span><span>{{ $money($lastSale->discount_amount) }}</span></div>
                                 <div class="flex justify-between text-base font-bold"><span>Total</span><span>{{ $money($lastSale->total_amount) }}</span></div>
                                 <div class="mt-2 text-xs text-slate-500">Paiement: {{ $lastSale->payment_method }}</div>
+                                <div class="text-xs text-slate-500">Payé: {{ $money($paidAmount) }} · Monnaie: {{ $money($changeAmount) }}</div>
+                            </div>
+                            <div class="mt-4 border-t border-slate-200 pt-3 text-center text-xs text-slate-500 dark:border-white/10">
+                                Merci pour votre achat
                             </div>
                         </div>
 
                         <div class="mt-4 grid gap-2 sm:grid-cols-4">
                             <a href="{{ route('pos') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold dark:border-white/10 dark:bg-white/5">Nouveau ticket</a>
                             <button class="pos-print-ticket rounded-lg bg-brand px-4 py-3 text-sm font-semibold text-white" type="button">Imprimer ticket</button>
-                            <button class="pos-print-pdf rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm font-semibold dark:border-white/10 dark:bg-white/5" type="button">PDF</button>
+                            <a href="{{ route('sales.pdf', $lastSale) }}" target="_blank" rel="noreferrer" class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold dark:border-white/10 dark:bg-white/5">PDF vente</a>
                             <a href="https://wa.me/?text={{ $shareText }}" target="_blank" rel="noreferrer" class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold dark:border-white/10 dark:bg-white/5">Partager</a>
                         </div>
                     </article>
@@ -202,31 +207,6 @@
                                     ✕ Effacer
                                 </button>
                             </div>
-                        </div>
-                    </details>
-                </div>
-            </details>
-
-            <details class="pos-client-card pos-collapsible rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                <summary class="pos-collapsible-summary flex cursor-pointer list-none items-center justify-between gap-3 p-3">
-                    <span>
-                        <span class="block text-xs font-semibold uppercase text-slate-500">Client</span>
-                        <span class="block text-sm font-semibold">{{ $resumeTicket ? 'Ticket '.$resumeTicket->number : 'Vente '.$nextSaleNumber }}</span>
-                    </span>
-                    <span class="pos-collapsible-chevron grid size-8 shrink-0 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-sm font-bold text-slate-600 dark:border-white/10 dark:bg-white/5">⌄</span>
-                </summary>
-                <div class="grid gap-3 border-t border-slate-200 p-3 dark:border-white/10 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start">
-                    <select form="pos-checkout-form" name="contact_id" class="pos-client h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                        <option value="">Client comptoir</option>
-                        @foreach ($clients as $client)
-                            <option value="{{ $client->id }}" data-advance="{{ $client->advance_balance }}" @selected($resumeTicket?->contact_id === $client->id)>{{ $client->name }} · avance {{ $money($client->advance_balance) }}</option>
-                        @endforeach
-                    </select>
-                    <details class="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 dark:border-white/10 dark:bg-white/5">
-                        <summary class="cursor-pointer text-xs font-semibold text-slate-500">Créer un client rapide</summary>
-                        <div class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-                            <input form="pos-checkout-form" name="client_name" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10" placeholder="Nouveau client">
-                            <input form="pos-checkout-form" name="client_phone" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10" placeholder="Téléphone">
                         </div>
                     </details>
                 </div>
@@ -393,25 +373,90 @@
                 <section class="pos-checkout-panel grid min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="pos-cart-header relative border-b border-slate-200 p-4 dark:border-white/10">
                         <div class="flex items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                <h2 class="text-lg font-semibold">Panier</h2>
-                                <p class="text-xs text-slate-500"><span class="pos-cart-count">0</span> ligne(s), panier en cours</p>
+                            <div class="min-w-0 flex-1">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h2 class="text-xl font-black leading-tight">Panier</h2>
+                                    <span class="pos-client-summary hidden max-w-full rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-bold text-brand"></span>
+                                </div>
+                                <p class="mt-1 text-sm text-slate-500"><span class="pos-cart-count">0</span> ligne(s), panier en cours</p>
                             </div>
-                            <div class="pos-checkout-actions flex min-w-0 shrink-0 items-center gap-1">
-                                <button class="pos-adjustment-toggle pos-discount-toggle" data-pos-panel-toggle="discount" type="button" aria-expanded="false">
-                                    <span class="text-base leading-none">-</span>
-                                    <span class="hidden sm:inline">Remise</span>
-                                    <span class="pos-discount-summary-value hidden rounded-full bg-white px-1.5 py-0.5 text-[10px] text-brand dark:bg-slate-950"></span>
+                            <div class="pos-checkout-actions flex shrink-0 items-start gap-2">
+                                <details class="pos-actions-menu relative">
+                                    <summary class="pos-actions-trigger">
+                                        <span class="text-base leading-none">⚡</span>
+                                        <span>Actions</span>
+                                        <span class="pos-actions-chevron text-xs">⌄</span>
+                                    </summary>
+                                    <div class="pos-actions-dropdown">
+                                        <button class="pos-action-item pos-client-toggle" data-pos-panel-toggle="client" type="button" aria-expanded="false">
+                                            <span class="pos-action-icon">👤</span>
+                                            <span class="min-w-0 flex-1">
+                                                <strong>Client</strong>
+                                                <small class="pos-action-client-label">Client comptoir</small>
+                                            </span>
+                                        </button>
+                                        <button class="pos-action-item pos-discount-toggle" data-pos-panel-toggle="discount" type="button" aria-expanded="false">
+                                            <span class="pos-action-icon">−</span>
+                                            <span class="min-w-0 flex-1">
+                                                <strong>Remise</strong>
+                                                <small><span class="pos-discount-summary-value hidden"></span><span class="pos-discount-empty">Fixe ou %</span></small>
+                                            </span>
+                                        </button>
+                                        <button class="pos-action-item pos-coupon-toggle" data-pos-panel-toggle="coupon" type="button" aria-expanded="false">
+                                            <span class="pos-action-icon">%</span>
+                                            <span class="min-w-0 flex-1">
+                                                <strong>Coupon</strong>
+                                                <small><span class="pos-coupon-summary-code hidden uppercase"></span><span class="pos-coupon-empty">Code promo</span></small>
+                                            </span>
+                                        </button>
+                                        <button class="pos-action-item pos-note-toggle" data-pos-panel-toggle="note" type="button" aria-expanded="false">
+                                            <span class="pos-action-icon">✎</span>
+                                            <span class="min-w-0 flex-1">
+                                                <strong>Note</strong>
+                                                <small>Observation ticket</small>
+                                            </span>
+                                        </button>
+                                    </div>
+                                </details>
+                                <button class="pos-clear pos-icon-action text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10" type="button">
+                                    <span aria-hidden="true">🗑</span>
+                                    <span class="hidden sm:inline">Vider</span>
                                 </button>
-                                <button class="pos-adjustment-toggle pos-coupon-toggle" data-pos-panel-toggle="coupon" type="button" aria-expanded="false">
-                                    <span class="text-[11px] font-black leading-none">CP</span>
-                                    <span class="hidden sm:inline">Coupon</span>
-                                    <span class="pos-coupon-summary-code hidden rounded-full bg-white px-1.5 py-0.5 text-[10px] uppercase text-brand dark:bg-slate-950"></span>
-                                </button>
-                                <button class="pos-clear pos-icon-action text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10" type="button">Vider</button>
                             </div>
                         </div>
                         <div class="pos-adjustment-popovers pointer-events-none absolute inset-x-4 top-[calc(100%-0.25rem)] z-40">
+                            <div class="pos-adjustment-popover pos-client-panel pointer-events-auto ml-auto hidden w-full max-w-[430px] rounded-xl border border-slate-200 bg-white p-3 text-slate-950 shadow-2xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" data-pos-panel="client">
+                                <div class="mb-3 flex items-start justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-black">Client du ticket</p>
+                                        <p class="pos-client-current mt-0.5 truncate text-xs text-slate-500">Client comptoir</p>
+                                    </div>
+                                    <button class="pos-panel-close grid size-8 place-items-center rounded-lg border border-slate-200 text-sm font-black dark:border-white/10" data-pos-panel-close type="button">×</button>
+                                </div>
+                                <label class="block">
+                                    <span class="text-[11px] font-bold uppercase text-slate-500">Sélectionner un client</span>
+                                    <select form="pos-checkout-form" name="contact_id" class="pos-client mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
+                                        <option value="" data-advance="0">Client comptoir</option>
+                                        @foreach ($clients as $client)
+                                            <option value="{{ $client->id }}" data-advance="{{ $client->advance_balance }}" @selected($resumeTicket?->contact_id === $client->id)>{{ $client->name }} · avance {{ $money($client->advance_balance) }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                                <div class="pos-client-info mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                                    <span class="font-semibold">Client comptoir</span>
+                                    <span class="mt-0.5 block">Ticket rapide sans compte client.</span>
+                                </div>
+                                <details class="pos-quick-client mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-slate-900/60">
+                                    <summary class="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-bold uppercase text-slate-500">
+                                        <span>Créer un client rapide</span>
+                                        <span class="text-base leading-none">+</span>
+                                    </summary>
+                                    <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                                        <input form="pos-checkout-form" name="client_name" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" placeholder="Nouveau client">
+                                        <input form="pos-checkout-form" name="client_phone" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" placeholder="Téléphone">
+                                    </div>
+                                </details>
+                            </div>
                             <div class="pos-adjustment-popover pos-discount-panel pointer-events-auto ml-auto hidden w-full max-w-[380px] rounded-xl border border-slate-200 bg-white p-3 text-slate-950 shadow-2xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" data-pos-panel="discount">
                                 <div class="mb-2 flex items-center justify-between gap-2">
                                     <div><p class="text-sm font-black">Remise</p><p class="text-xs text-slate-500">Montant fixe ou pourcentage.</p></div>
@@ -437,6 +482,16 @@
                                     <button class="pos-apply-coupon h-11 rounded-lg border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 transition hover:border-brand hover:text-brand disabled:cursor-wait disabled:opacity-60 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200 sm:mt-5" type="button">Appliquer</button>
                                 </div>
                                 <p class="pos-coupon-message mt-2 text-xs font-semibold text-slate-500">Saisissez un code coupon si le client en possède un.</p>
+                            </div>
+                            <div class="pos-adjustment-popover pos-note-panel pointer-events-auto ml-auto hidden w-full max-w-[420px] rounded-xl border border-slate-200 bg-white p-3 text-slate-950 shadow-2xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" data-pos-panel="note">
+                                <div class="mb-2 flex items-center justify-between gap-2">
+                                    <div><p class="text-sm font-black">Note ticket</p><p class="text-xs text-slate-500">Note manuelle visible dans le détail de vente.</p></div>
+                                    <button class="pos-panel-close grid size-8 place-items-center rounded-lg border border-slate-200 text-sm font-black dark:border-white/10" data-pos-panel-close type="button">×</button>
+                                </div>
+                                <label class="block">
+                                    <span class="text-[11px] font-bold uppercase text-slate-500">Note manuelle</span>
+                                    <textarea name="note" maxlength="500" class="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" placeholder="Ex: client demande livraison après 18h, emballage cadeau, observation comptoir...">{{ $resumeNote }}</textarea>
+                                </label>
                             </div>
                         </div>
                     </div>

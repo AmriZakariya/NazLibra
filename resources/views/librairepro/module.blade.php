@@ -546,13 +546,13 @@
                                                     </section>
 
                                                     @if (data_get($sale->metadata, 'note'))
-                                                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
-                                                            <span class="text-xs font-semibold uppercase text-slate-500">Note interne</span>
-                                                            <p class="mt-2">{{ data_get($sale->metadata, 'note') }}</p>
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-900 shadow-sm dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
+                                                            <span class="text-xs font-semibold uppercase text-slate-600 dark:text-slate-300">Note manuelle</span>
+                                                            <p class="mt-2 leading-6">{{ data_get($sale->metadata, 'note') }}</p>
                                                         </div>
                                                     @endif
-                                                    <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
-                                                        <span class="text-xs font-semibold uppercase text-sky-700 dark:text-sky-200">Note système</span>
+                                                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-900 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
+                                                        <span class="text-xs font-semibold uppercase text-slate-600 dark:text-slate-300">Note système</span>
                                                         <p class="mt-2 leading-6">{{ $systemNote }}</p>
                                                     </div>
                                                 </div>

@@ -402,6 +402,10 @@
                                 </div>
                             </div>
                         </div>
+                        <button class="app-fullscreen-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:bg-slate-50 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Mode plein écran') }}" title="{{ $tr('Mode plein écran') }}" aria-pressed="false" data-fullscreen-toggle>
+                            <span class="app-fullscreen-enter" aria-hidden="true">⛶</span>
+                            <span class="app-fullscreen-exit hidden" aria-hidden="true">×</span>
+                        </button>
                         <button class="app-theme-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Basculer le thème') }}">◐</button>
                         <details class="relative hidden sm:block">
                             <summary class="current-store-trigger flex h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
@@ -470,7 +474,7 @@
                     @endif
                 </header>
 
-                <div class="px-4 py-6 lg:px-8">
+                <div class="app-page-content px-4 py-6 lg:px-8">
                     {{ $slot }}
                 </div>
             </main>

@@ -27,6 +27,8 @@ class PosTest extends TestCase
             ->assertSee('data-command-menu', false)
             ->assertSee('Trouver une section, une action, un paramètre...')
             ->assertSee('data-command-input', false)
+            ->assertSee('data-fullscreen-toggle', false)
+            ->assertSee('Mode plein écran')
             ->assertSee('pos caisse encaisser barcode', false)
             ->assertSee('stock correction inventaire', false)
             ->assertSee('stock inventaire rupture alerte', false)
@@ -49,6 +51,8 @@ class PosTest extends TestCase
             ->assertSee('Effacer')
             ->assertSee('Espèces')
             ->assertSee('50/50')
+            ->assertSee('Actions')
+            ->assertSee('Client du ticket')
             ->assertSee('name="discount_type"', false)
             ->assertSee('name="discount_value"', false)
             ->assertSee('data-price-editable="1"', false)
@@ -108,6 +112,7 @@ class PosTest extends TestCase
             'card_amount' => 0,
             'transfer_amount' => 0,
             'receipt_channel' => 'print',
+            'note' => 'Note comptoir test',
         ]);
 
         $this->assertSame($saleCount + 1, Sale::count());
@@ -121,6 +126,7 @@ class PosTest extends TestCase
         $this->assertSame('cash+advance', $sale->payment_method);
         $this->assertStringContainsString('Note système: vente '.$sale->number, $sale->metadata['system_note']);
         $this->assertStringContainsString('caisse POS', $sale->metadata['system_note']);
+        $this->assertSame('Note comptoir test', $sale->metadata['note']);
         $this->assertSame($total, (float) $sale->total_amount);
         $this->assertSame(2, $sale->items()->firstOrFail()->quantity);
         $this->assertSame($initialStock - 2, $item->fresh()->stock_quantity);
@@ -137,7 +143,16 @@ class PosTest extends TestCase
         $this->get(route('pos', ['sale' => $sale->id]))
             ->assertOk()
             ->assertSee('Note système')
-            ->assertSee($sale->metadata['system_note']);
+            ->assertSee($sale->metadata['system_note'])
+            ->assertSee('data-thermal-receipt', false)
+            ->assertSee('PDF vente')
+            ->assertSee(route('sales.pdf', $sale), false)
+            ->assertDontSee('pos-print-pdf', false);
+
+        $this->get(route('module', ['module' => 'sales', 'section' => 'list', 'ticket' => $sale->id]))
+            ->assertOk()
+            ->assertSee('Note manuelle')
+            ->assertSee('Note comptoir test');
     }
 
     public function test_pos_accepts_percentage_discount_and_tracks_it(): void

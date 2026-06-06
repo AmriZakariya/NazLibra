@@ -86,6 +86,48 @@ if (localStorage.getItem('librairepro-theme') === 'dark') {
     document.documentElement.classList.add('dark');
 }
 
+const fullscreenButtons = [...document.querySelectorAll('[data-fullscreen-toggle]')];
+const fullscreenStorageKey = 'librairepro-app-fullscreen';
+const setAppFullscreen = (enabled) => {
+    document.body.classList.toggle('app-fullscreen-mode', enabled);
+    fullscreenButtons.forEach((button) => {
+        button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        button.title = enabled ? translate('Quitter le plein écran') : translate('Mode plein écran');
+        button.setAttribute('aria-label', button.title);
+        button.querySelector('.app-fullscreen-enter')?.classList.toggle('hidden', enabled);
+        button.querySelector('.app-fullscreen-exit')?.classList.toggle('hidden', !enabled);
+    });
+};
+
+if (localStorage.getItem(fullscreenStorageKey) === '1') {
+    setAppFullscreen(true);
+}
+
+fullscreenButtons.forEach((button) => {
+    button.addEventListener('click', async () => {
+        const nextState = !document.body.classList.contains('app-fullscreen-mode');
+        setAppFullscreen(nextState);
+        localStorage.setItem(fullscreenStorageKey, nextState ? '1' : '0');
+
+        try {
+            if (nextState && !document.fullscreenElement && document.documentElement.requestFullscreen) {
+                await document.documentElement.requestFullscreen();
+            } else if (!nextState && document.fullscreenElement && document.exitFullscreen) {
+                await document.exitFullscreen();
+            }
+        } catch (error) {
+            // Browsers may block fullscreen outside a trusted click; the app layout mode still applies.
+        }
+    });
+});
+
+document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && document.body.classList.contains('app-fullscreen-mode')) {
+        setAppFullscreen(false);
+        localStorage.setItem(fullscreenStorageKey, '0');
+    }
+});
+
 document.querySelectorAll('[data-command-menu]').forEach((menu) => {
     const input = menu.querySelector('[data-command-input]');
     const panel = menu.querySelector('[data-command-panel]');
@@ -818,6 +860,13 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const couponButton = screen.querySelector('.pos-apply-coupon');
     const couponMessage = screen.querySelector('.pos-coupon-message');
     const couponSummaryCode = screen.querySelector('.pos-coupon-summary-code');
+    const clientSelect = screen.querySelector('.pos-client');
+    const clientSummary = screen.querySelector('.pos-client-summary');
+    const clientActionLabel = screen.querySelector('.pos-action-client-label');
+    const clientCurrent = screen.querySelector('.pos-client-current');
+    const clientInfo = screen.querySelector('.pos-client-info');
+    const quickClientName = screen.querySelector('[name="client_name"]');
+    const quickClientPhone = screen.querySelector('[name="client_phone"]');
     const paymentInputs = [...screen.querySelectorAll('.pos-payment')];
     const viewButtons = [...screen.querySelectorAll('.pos-view-btn')];
     const productsGrid = screen.querySelector('.pos-products');
@@ -1044,6 +1093,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
     adjustmentToggles.forEach((button) => {
         button.addEventListener('click', () => {
+            button.closest('.pos-actions-menu')?.removeAttribute('open');
             const panel = screen.querySelector(`[data-pos-panel="${button.dataset.posPanelToggle}"]`);
             if (panel && !panel.classList.contains('hidden')) {
                 closeAdjustmentPanels();
@@ -1051,7 +1101,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             }
             openAdjustmentPanel(button.dataset.posPanelToggle);
             window.setTimeout(() => {
-                const focusable = screen.querySelector(`[data-pos-panel="${button.dataset.posPanelToggle}"] input, [data-pos-panel="${button.dataset.posPanelToggle}"] select`);
+                const focusable = screen.querySelector(`[data-pos-panel="${button.dataset.posPanelToggle}"] input, [data-pos-panel="${button.dataset.posPanelToggle}"] select, [data-pos-panel="${button.dataset.posPanelToggle}"] textarea`);
                 focusable?.focus();
             }, 0);
         });
@@ -1063,26 +1113,65 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
     document.addEventListener('click', (event) => {
         if (!screen.contains(event.target)) return;
+        if (!event.target.closest('.pos-actions-menu')) {
+            screen.querySelectorAll('.pos-actions-menu[open]').forEach((menu) => menu.removeAttribute('open'));
+        }
         if (event.target.closest('[data-pos-panel], [data-pos-panel-toggle]')) return;
         closeAdjustmentPanels();
     });
 
     const syncCouponSummary = (total = totals()) => {
         const code = String(couponInput?.value || '').trim().toUpperCase();
+        const couponEmpty = screen.querySelector('.pos-coupon-empty');
         if (couponSummaryCode) {
             couponSummaryCode.textContent = code;
             couponSummaryCode.classList.toggle('hidden', !code);
             couponSummaryCode.classList.toggle('text-emerald-600', appliedCoupon.valid && appliedCoupon.code === code);
             couponSummaryCode.classList.toggle('text-amber-600', Boolean(code) && (!appliedCoupon.valid || appliedCoupon.code !== code));
         }
+        couponEmpty?.classList.toggle('hidden', Boolean(code));
     };
 
     const syncDiscountSummary = (total) => {
+        const discountEmpty = screen.querySelector('.pos-discount-empty');
         if (!discountSummaryValue) return;
         discountSummaryValue.textContent = total.discountType === 'percentage' && total.discount > 0
             ? `${Number(total.discountValue).toFixed(0)}%`
             : money.format(total.discount);
         discountSummaryValue.classList.toggle('hidden', total.discount <= 0);
+        discountEmpty?.classList.toggle('hidden', total.discount > 0);
+    };
+
+    const syncClientSummary = () => {
+        const selectedOption = clientSelect?.selectedOptions?.[0];
+        const quickName = String(quickClientName?.value || '').trim();
+        const quickPhone = String(quickClientPhone?.value || '').trim();
+        const selectedText = selectedOption?.textContent?.trim() || 'Client comptoir';
+        const advance = Number(selectedOption?.dataset.advance || 0);
+        const isCounter = !clientSelect?.value && !quickName;
+        const label = quickName || selectedText.split('·')[0].trim() || 'Client comptoir';
+        const shortLabel = label.length > 16 ? `${label.slice(0, 15)}…` : label;
+
+        if (clientSummary) {
+            clientSummary.textContent = shortLabel;
+            clientSummary.classList.remove('hidden');
+        }
+
+        if (clientActionLabel) {
+            clientActionLabel.textContent = label;
+        }
+
+        if (clientCurrent) {
+            clientCurrent.textContent = isCounter
+                ? 'Client comptoir'
+                : `${label}${quickPhone ? ` · ${quickPhone}` : ''}`;
+        }
+
+        if (clientInfo) {
+            clientInfo.innerHTML = isCounter
+                ? '<span class="font-semibold">Client comptoir</span><span class="mt-0.5 block">Ticket rapide sans compte client.</span>'
+                : `<span class="font-semibold">${escapeHtml(label)}</span><span class="mt-0.5 block">Avance disponible: ${escapeHtml(money.format(advance))}${quickPhone ? ` · ${escapeHtml(quickPhone)}` : ''}</span>`;
+        }
     };
 
     const applyCoupon = async () => {
@@ -1104,7 +1193,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         const url = new URL(couponPreviewUrl, window.location.origin);
         url.searchParams.set('code', code);
         url.searchParams.set('subtotal', subtotal.toFixed(2));
-        const contactId = screen.querySelector('.pos-client')?.value;
+        const contactId = clientSelect?.value;
         if (contactId) url.searchParams.set('contact_id', contactId);
 
         if (couponButton) couponButton.disabled = true;
@@ -1589,13 +1678,16 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     });
     discountTypeInput?.addEventListener('change', renderCart);
     couponButton?.addEventListener('click', applyCoupon);
-    screen.querySelector('.pos-client')?.addEventListener('change', () => {
+    clientSelect?.addEventListener('change', () => {
+        syncClientSummary();
         if (couponInput?.value) {
             appliedCoupon = { code: '', amount: 0, message: '', valid: false };
             setCouponMessage('Client changé: vérifiez à nouveau le coupon.');
             renderCart();
         }
     });
+    quickClientName?.addEventListener('input', syncClientSummary);
+    quickClientPhone?.addEventListener('input', syncClientSummary);
 
     const setCheckoutBusy = (busy, submitter = null) => {
         submitting = busy;
@@ -1742,8 +1834,13 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     setProductView(localStorage.getItem('librairepro-pos-view') || 'compact');
     setProductColumns(localStorage.getItem('librairepro-pos-columns') || columnsInput?.value || 4);
     refreshFavorites();
-    screen.querySelectorAll('.pos-print-ticket, .pos-print-pdf').forEach((button) => {
-        button.addEventListener('click', () => window.print());
+    syncClientSummary();
+    screen.querySelectorAll('.pos-print-ticket').forEach((button) => {
+        button.addEventListener('click', () => {
+            document.body.classList.add('thermal-print-mode');
+            window.print();
+            window.setTimeout(() => document.body.classList.remove('thermal-print-mode'), 500);
+        });
     });
 
     filterProducts();
