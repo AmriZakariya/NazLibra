@@ -867,8 +867,12 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const cartJson = screen.querySelector('.pos-cart-json');
     const submit = screen.querySelector('.pos-submit');
     const cartCount = screen.querySelector('.pos-cart-count');
-    const discountInput = screen.querySelector('.pos-discount');
-    const discountTypeInput = screen.querySelector('.pos-discount-type');
+    const discountInput = screen.querySelector('.pos-discount-value');
+    const discountTypeInput = screen.querySelector('.pos-discount-type-value');
+    const discountDraftInput = screen.querySelector('.pos-discount-draft');
+    const discountDraftTypeInput = screen.querySelector('.pos-discount-type-draft');
+    const discountConfirmButton = screen.querySelector('.pos-discount-confirm');
+    const discountResetButton = screen.querySelector('.pos-discount-reset');
     const discountAmountInput = screen.querySelector('.pos-discount-amount');
     const discountHelper = screen.querySelector('.pos-discount-helper');
     const discountSummaryValue = screen.querySelector('.pos-discount-summary-value');
@@ -883,6 +887,11 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const clientActionLabel = screen.querySelector('.pos-action-client-label');
     const clientCurrent = screen.querySelector('.pos-client-current');
     const clientInfo = screen.querySelector('.pos-client-info');
+    const noteInput = screen.querySelector('.pos-note-value');
+    const noteDraftInput = screen.querySelector('.pos-note-draft');
+    const noteConfirmButton = screen.querySelector('.pos-note-confirm');
+    const noteResetButton = screen.querySelector('.pos-note-reset');
+    const noteSummaryValue = screen.querySelector('.pos-note-summary-value');
     const quickClientName = screen.querySelector('[name="client_name"]');
     const quickClientPhone = screen.querySelector('[name="client_phone"]');
     const paymentInputs = [...screen.querySelectorAll('.pos-payment')];
@@ -919,6 +928,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     let searchTimer = null;
     let searchSequence = 0;
     let appliedCoupon = { code: '', amount: 0, message: '', valid: false };
+    let discountDraftDirty = false;
+    let noteDraftDirty = false;
 
     const normalizeText = (value) => String(value || '')
         .normalize('NFD')
@@ -1062,6 +1073,24 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         };
     };
 
+    const draftDiscountPreview = () => {
+        const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        const couponCode = String(couponInput?.value || '').trim().toUpperCase();
+        const couponAmount = appliedCoupon.valid && appliedCoupon.code === couponCode
+            ? Math.min(Number(appliedCoupon.amount || 0), subtotal)
+            : 0;
+        const subtotalAfterCoupon = Math.max(0, subtotal - couponAmount);
+        const type = discountDraftTypeInput?.value === 'percentage' ? 'percentage' : 'fixed';
+        const requested = Math.max(0, Number(discountDraftInput?.value || 0));
+        const maxValue = type === 'percentage' ? 100 : subtotalAfterCoupon;
+        const effective = Math.min(requested, maxValue);
+        const amount = type === 'percentage'
+            ? Math.min(subtotalAfterCoupon, subtotalAfterCoupon * effective / 100)
+            : Math.min(effective, subtotalAfterCoupon);
+
+        return { type, requested, effective, amount, maxValue, capped: requested > maxValue, subtotalAfterCoupon };
+    };
+
     const stockLabel = (item) => item.stock >= 999999 ? 'illimité' : item.stock;
 
     const canExceedStock = (item) => allowOversell || item.type === 'service' || item.stock >= 999999;
@@ -1095,6 +1124,12 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     };
 
     const openAdjustmentPanel = (name) => {
+        if (name === 'discount' && !discountDraftDirty) {
+            syncDiscountDraftFromApplied();
+        }
+        if (name === 'note' && !noteDraftDirty) {
+            syncNoteDraftFromApplied();
+        }
         let opened = false;
         adjustmentPanels.forEach((panel) => {
             const match = panel.dataset.posPanel === name;
@@ -1158,6 +1193,74 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             : money.format(total.discount);
         discountSummaryValue.classList.toggle('hidden', total.discount <= 0);
         discountEmpty?.classList.toggle('hidden', total.discount > 0);
+    };
+
+    const syncNoteSummary = () => {
+        const note = String(noteInput?.value || '').trim();
+        const noteEmpty = screen.querySelector('.pos-note-empty');
+        if (noteSummaryValue) {
+            noteSummaryValue.textContent = note.length > 24 ? `${note.slice(0, 23)}…` : note;
+            noteSummaryValue.classList.toggle('hidden', !note);
+        }
+        noteEmpty?.classList.toggle('hidden', Boolean(note));
+    };
+
+    const updateDiscountDraftHelper = () => {
+        if (!discountHelper) return;
+        const preview = draftDiscountPreview();
+        const baseText = preview.type === 'percentage'
+            ? `Aperçu ${money.format(preview.amount)} · limite 100%`
+            : `Aperçu ${money.format(preview.amount)} · maximum ${money.format(preview.subtotalAfterCoupon)}`;
+        discountHelper.textContent = preview.capped
+            ? `${baseText}. La valeur sera plafonnée à ${preview.type === 'percentage' ? '100%' : money.format(preview.subtotalAfterCoupon)}.`
+            : baseText;
+        discountHelper.classList.toggle('text-amber-600', preview.capped);
+        discountHelper.classList.toggle('text-slate-500', !preview.capped);
+    };
+
+    function syncDiscountDraftFromApplied() {
+        if (discountDraftInput && discountInput) discountDraftInput.value = discountInput.value || '0';
+        if (discountDraftTypeInput && discountTypeInput) discountDraftTypeInput.value = discountTypeInput.value || 'fixed';
+        discountDraftDirty = false;
+        updateDiscountDraftHelper();
+    }
+
+    function syncNoteDraftFromApplied() {
+        if (noteDraftInput && noteInput) noteDraftInput.value = noteInput.value || '';
+        noteDraftDirty = false;
+    }
+
+    const applyDiscountDraft = () => {
+        if (!discountInput || !discountTypeInput || !discountDraftInput || !discountDraftTypeInput) return;
+        const preview = draftDiscountPreview();
+        discountTypeInput.value = preview.type;
+        discountInput.value = preview.effective.toFixed(2);
+        discountDraftInput.value = preview.effective.toFixed(2);
+        discountDraftDirty = false;
+        renderCart();
+        closeAdjustmentPanels();
+        showToast(preview.amount > 0 ? `Remise confirmée: ${money.format(preview.amount)}.` : 'Remise retirée.');
+    };
+
+    const resetDiscountDraft = () => {
+        if (discountDraftInput) discountDraftInput.value = '0';
+        if (discountDraftTypeInput) discountDraftTypeInput.value = 'fixed';
+        discountDraftDirty = true;
+        updateDiscountDraftHelper();
+    };
+
+    const applyNoteDraft = () => {
+        if (!noteInput || !noteDraftInput) return;
+        noteInput.value = noteDraftInput.value.trim();
+        noteDraftDirty = false;
+        syncNoteSummary();
+        closeAdjustmentPanels();
+        showToast(noteInput.value ? 'Note ticket confirmée.' : 'Note ticket retirée.');
+    };
+
+    const resetNoteDraft = () => {
+        if (noteDraftInput) noteDraftInput.value = '';
+        noteDraftDirty = true;
     };
 
     const syncClientSummary = () => {
@@ -1295,9 +1398,14 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             discountAmountInput.value = total.discount.toFixed(2);
         }
         if (discountHelper) {
-            discountHelper.textContent = total.discountType === 'percentage'
+            const appliedText = total.discountType === 'percentage'
                 ? `Pourcentage, montant appliqué ${money.format(total.discount)}`
                 : `Fixe en DH, maximum ${money.format(Math.max(0, total.subtotal - total.couponAmount))}`;
+            if (!discountDraftDirty) {
+                discountHelper.textContent = appliedText;
+                discountHelper.classList.remove('text-amber-600');
+                discountHelper.classList.add('text-slate-500');
+            }
         }
         screen.querySelector('.pos-subtotal').textContent = money.format(total.subtotal);
         screen.querySelector('.pos-tax').textContent = money.format(total.tax);
@@ -1310,6 +1418,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         screen.querySelector('.pos-total').textContent = money.format(total.total);
         screen.querySelector('.pos-remaining').textContent = money.format(total.remaining);
         screen.querySelector('.pos-change').textContent = money.format(total.change);
+        syncNoteSummary();
         if (submit) {
             const blocked = cart.length === 0 || total.paid + 0.001 < total.total;
             submit.disabled = false;
@@ -1685,8 +1794,15 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             item.quantity = normalizeQuantity(item, Number(input.value || 1), true);
             renderCart();
         }
-        if (event.target.matches('.pos-payment, .pos-discount, .pos-discount-type')) {
+        if (event.target.matches('.pos-payment')) {
             renderCart();
+        }
+        if (event.target.matches('.pos-discount-draft, .pos-discount-type-draft')) {
+            discountDraftDirty = true;
+            updateDiscountDraftHelper();
+        }
+        if (event.target.matches('.pos-note-draft')) {
+            noteDraftDirty = true;
         }
         if (event.target.matches('.pos-coupon-code')) {
             appliedCoupon = { code: '', amount: 0, message: '', valid: false };
@@ -1694,7 +1810,14 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             renderCart();
         }
     });
-    discountTypeInput?.addEventListener('change', renderCart);
+    discountDraftTypeInput?.addEventListener('change', () => {
+        discountDraftDirty = true;
+        updateDiscountDraftHelper();
+    });
+    discountConfirmButton?.addEventListener('click', applyDiscountDraft);
+    discountResetButton?.addEventListener('click', resetDiscountDraft);
+    noteConfirmButton?.addEventListener('click', applyNoteDraft);
+    noteResetButton?.addEventListener('click', resetNoteDraft);
     couponButton?.addEventListener('click', applyCoupon);
     clientSelect?.addEventListener('change', () => {
         syncClientSummary();
@@ -1730,11 +1853,12 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         if (couponInput) couponInput.value = '';
         if (discountInput) discountInput.value = '0';
         if (discountTypeInput) discountTypeInput.value = 'fixed';
+        syncDiscountDraftFromApplied();
         paymentInputs.forEach((input) => {
             input.value = '';
         });
-        const noteInput = checkout?.querySelector('[name="note"]');
         if (noteInput) noteInput.value = '';
+        syncNoteDraftFromApplied();
         if (clientSelect) clientSelect.value = '';
         if (quickClientName) quickClientName.value = '';
         if (quickClientPhone) quickClientPhone.value = '';
@@ -1835,6 +1959,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 applyCoupon();
                 return;
             }
+            if (target.matches('.pos-discount-draft, .pos-discount-type-draft')) {
+                applyDiscountDraft();
+                return;
+            }
             renderCart();
         }
     });
@@ -1907,6 +2035,21 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             return;
         }
 
+        if (discountDraftDirty) {
+            event.preventDefault();
+            showToast('Confirmez la remise avant de continuer.');
+            openAdjustmentPanel('discount');
+            discountDraftInput?.focus();
+            return;
+        }
+        if (noteDraftDirty) {
+            event.preventDefault();
+            showToast('Confirmez la note avant de continuer.');
+            openAdjustmentPanel('note');
+            noteDraftInput?.focus();
+            return;
+        }
+
         if (submitter?.classList.contains('pos-hold-submit')) {
             event.preventDefault();
             holdTicketInline(submitter);
@@ -1953,6 +2096,9 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     setProductColumns(localStorage.getItem('librairepro-pos-columns') || columnsInput?.value || 4);
     refreshFavorites();
     syncClientSummary();
+    syncDiscountDraftFromApplied();
+    syncNoteDraftFromApplied();
+    syncNoteSummary();
     screen.querySelectorAll('.pos-print-ticket').forEach((button) => {
         button.addEventListener('click', () => {
             document.body.classList.add('thermal-print-mode');

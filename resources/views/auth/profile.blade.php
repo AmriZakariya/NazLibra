@@ -1,7 +1,7 @@
 <x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · Profil">
     <section class="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03] lg:flex-row lg:items-center lg:justify-between">
         <div class="flex items-center gap-4">
-            <span class="grid size-14 shrink-0 place-items-center rounded-2xl text-base font-bold text-white shadow-sm" style="background: {{ $user->avatar_color ?: 'var(--brand-primary)' }}">{{ Str::upper(Str::substr($user->name, 0, 2)) }}</span>
+            <x-user-avatar :user="$user" size="xl" rounded="rounded-2xl" />
             <div>
             <p class="text-sm font-semibold text-brand">Compte utilisateur</p>
             <h1 class="mt-1 text-2xl font-semibold tracking-normal">Mon profil</h1>
@@ -48,7 +48,7 @@
     @endif
 
     <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <form action="{{ route('profile.update') }}" method="POST" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+        <form action="{{ route('profile.update') }}" method="POST" enctype="multipart/form-data" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
             @csrf
             @method('PUT')
             <div class="mb-5 flex items-start justify-between gap-4 border-b border-slate-200 pb-4 dark:border-white/10">
@@ -62,6 +62,24 @@
                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email</span><input name="email" required type="email" value="{{ old('email', $user->email) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" value="{{ old('phone', $user->phone) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Couleur avatar</span><input name="avatar_color" type="color" value="{{ old('avatar_color', $user->avatar_color) }}" class="h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900"></label>
+            </div>
+            <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                    <x-user-avatar :user="$user" size="xl" rounded="rounded-2xl" />
+                    <div class="min-w-0 flex-1">
+                        <label class="block space-y-1.5">
+                            <span class="text-xs font-semibold uppercase text-slate-500">Photo de profil</span>
+                            <input name="profile_photo" type="file" accept="image/*" class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white dark:border-white/10 dark:bg-slate-900">
+                        </label>
+                        <p class="mt-2 text-xs text-slate-500">JPG, PNG ou WebP. Taille maximum 2 Mo.</p>
+                        @if ($user->profile_photo_path)
+                            <label class="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-rose-600">
+                                <input name="remove_profile_photo" value="1" type="checkbox" class="size-4 accent-rose-500">
+                                Retirer la photo actuelle
+                            </label>
+                        @endif
+                    </div>
+                </div>
             </div>
 
             <div class="mt-6 border-t border-slate-200 pt-5 dark:border-white/10">
@@ -82,7 +100,7 @@
 
         <aside class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
             <div class="flex items-center gap-3">
-                <span class="grid size-12 place-items-center rounded-xl text-sm font-bold text-white" style="background: {{ $user->avatar_color ?: 'var(--brand-primary)' }}">{{ Str::upper(Str::substr($user->name, 0, 2)) }}</span>
+                <x-user-avatar :user="$user" size="lg" rounded="rounded-xl" />
                 <div class="min-w-0">
                     <p class="truncate font-semibold">{{ $user->name }}</p>
                     <p class="truncate text-sm text-slate-500">{{ $user->email }}</p>

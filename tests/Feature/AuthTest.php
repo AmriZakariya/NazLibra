@@ -5,7 +5,9 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Models\Tenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class AuthTest extends TestCase
@@ -131,6 +133,7 @@ class AuthTest extends TestCase
     public function test_authenticated_user_can_update_profile_and_password(): void
     {
         $this->seed();
+        Storage::fake('public');
         $user = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
 
         $this->actingAs($user)
@@ -139,6 +142,7 @@ class AuthTest extends TestCase
                 'email' => 'amina.atlas@example.test',
                 'phone' => '+212 600 111 222',
                 'avatar_color' => '#0D9488',
+                'profile_photo' => UploadedFile::fake()->image('amina.jpg', 320, 320),
                 'current_password' => 'password',
                 'password' => 'new-password',
                 'password_confirmation' => 'new-password',
@@ -151,7 +155,36 @@ class AuthTest extends TestCase
         $this->assertSame('amina.atlas@example.test', $user->email);
         $this->assertSame('+212 600 111 222', $user->phone);
         $this->assertSame('#0D9488', $user->avatar_color);
+        $this->assertNotNull($user->profile_photo_path);
+        Storage::disk('public')->assertExists($user->profile_photo_path);
         $this->assertTrue(Hash::check('new-password', $user->password));
+    }
+
+    public function test_authenticated_user_can_remove_profile_photo(): void
+    {
+        $this->seed();
+        Storage::fake('public');
+        $user = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+        $user->forceFill([
+            'profile_photo_path' => UploadedFile::fake()->image('existing.jpg', 120, 120)->store('users/profile-photos', 'public'),
+        ])->save();
+
+        $oldPath = $user->profile_photo_path;
+
+        $this->actingAs($user)
+            ->put(route('profile.update'), [
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'avatar_color' => $user->avatar_color,
+                'remove_profile_photo' => '1',
+            ])
+            ->assertRedirect();
+
+        $user->refresh();
+
+        $this->assertNull($user->profile_photo_path);
+        Storage::disk('public')->assertMissing($oldPath);
     }
 
     public function test_profile_and_navbar_show_current_role_name(): void

@@ -25,39 +25,62 @@
                     $lastSystemNoteDate = $lastSale->sold_at?->format('d/m/Y H:i') ?? '—';
                     $lastSystemNote = data_get($lastSale->metadata, 'system_note')
                         ?: 'Note système: vente '.$lastSale->number.' enregistrée le '.$lastSystemNoteDate.' pour '.($lastSale->contact?->name ?? 'Client comptoir').', '.$lastSale->items->count().' ligne(s), total '.$money($lastSale->total_amount).', paiement '.$lastSale->payment_method.'.';
+                    $lastManualNote = trim((string) data_get($lastSale->metadata, 'note', ''));
                 @endphp
                 <div class="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
-                    <article class="receipt-success max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-emerald-200 bg-white p-5 shadow-2xl dark:border-emerald-500/20 dark:bg-slate-950">
-                        <div class="flex items-start justify-between gap-4">
-                            <div>
-                                <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Paiement validé</p>
-                                <h2 class="mt-1 text-2xl font-semibold">{{ $lastSale->number }} · {{ $money($lastSale->total_amount) }}</h2>
-                                <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">Ticket {{ $lastSale->number }} · {{ $lastSale->sold_at->format('d/m/Y H:i') }}</p>
+                    <article class="receipt-success flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950">
+                        <div class="shrink-0 border-b border-slate-200 p-5 dark:border-white/10">
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="flex min-w-0 items-start gap-3">
+                                    <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-emerald-50 text-xl font-black text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20">✓</span>
+                                    <span class="min-w-0">
+                                        <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Paiement validé</p>
+                                        <h2 class="mt-1 truncate text-2xl font-black tracking-normal">{{ $lastSale->number }} · {{ $money($lastSale->total_amount) }}</h2>
+                                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $lastSale->sold_at->format('d/m/Y H:i') }}</p>
+                                    </span>
+                                </div>
+                                <a href="{{ route('pos') }}" class="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-xl font-black text-slate-700 shadow-sm transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">×</a>
                             </div>
-                            <a href="{{ route('pos') }}" class="grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10">×</a>
                         </div>
 
-                        <div class="mt-4 grid gap-3 sm:grid-cols-3">
-                            <div class="rounded-xl bg-emerald-50 p-3 dark:bg-emerald-500/10">
-                                <span class="text-xs font-semibold uppercase text-slate-500">Client</span>
-                                <p class="mt-1 font-semibold">{{ $lastSale->contact?->name ?? 'Client comptoir' }}</p>
+                        <div class="min-h-0 flex-1 overflow-y-auto p-5 pb-6">
+                        <div class="grid gap-3 sm:grid-cols-3">
+                            <div class="rounded-xl border border-emerald-100 bg-emerald-50 p-3 dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                                <span class="text-[11px] font-bold uppercase text-emerald-700 dark:text-emerald-300">Client</span>
+                                <p class="mt-1 truncate font-semibold">{{ $lastSale->contact?->name ?? 'Client comptoir' }}</p>
                             </div>
-                            <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
-                                <span class="text-xs font-semibold uppercase text-slate-500">Payé</span>
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                                <span class="text-[11px] font-bold uppercase text-slate-500">Payé</span>
                                 <p class="mt-1 font-semibold">{{ $money($paidAmount) }}</p>
                             </div>
-                            <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
-                                <span class="text-xs font-semibold uppercase text-slate-500">Monnaie</span>
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                                <span class="text-[11px] font-bold uppercase text-slate-500">Monnaie</span>
                                 <p class="mt-1 font-semibold">{{ $money($changeAmount) }}</p>
                             </div>
                         </div>
 
-                        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-900 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
-                            <span class="text-xs font-semibold uppercase text-slate-600 dark:text-slate-300">Note système</span>
-                            <p class="mt-1 leading-6">{{ $lastSystemNote }}</p>
-                        </div>
+                        @if ($lastManualNote !== '')
+                            <div class="mt-4 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-900 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-100">
+                                <span class="text-[11px] font-bold uppercase text-brand">Note ticket</span>
+                                <p class="mt-1 leading-6">{{ $lastManualNote }}</p>
+                            </div>
+                        @else
+                            <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                                <span class="text-[11px] font-bold uppercase text-slate-500">Note ticket</span>
+                                <p class="mt-1">Aucune note manuelle ajoutée.</p>
+                            </div>
+                        @endif
 
-                        <div class="receipt-print-area thermal-receipt mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-white/5" data-thermal-receipt>
+                        <details class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                            <summary class="cursor-pointer list-none text-[11px] font-bold uppercase text-slate-500">Info système</summary>
+                            <p class="mt-2 leading-6">{{ $lastSystemNote }}</p>
+                        </details>
+
+                        <div class="mt-4 flex items-center justify-between gap-3">
+                            <h3 class="text-sm font-black">Aperçu ticket</h3>
+                            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500 dark:bg-white/10">Thermique</span>
+                        </div>
+                        <div class="receipt-print-area thermal-receipt mt-2 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-white/5" data-thermal-receipt>
                             <div class="text-center">
                                 <strong class="block text-base">{{ $tenant->name }}</strong>
                                 <span class="text-xs text-slate-500">{{ $tenant->address }} · {{ $tenant->phone }}</span>
@@ -81,17 +104,22 @@
                                 <div class="flex justify-between text-base font-bold"><span>Total</span><span>{{ $money($lastSale->total_amount) }}</span></div>
                                 <div class="mt-2 text-xs text-slate-500">Paiement: {{ $lastSale->payment_method }}</div>
                                 <div class="text-xs text-slate-500">Payé: {{ $money($paidAmount) }} · Monnaie: {{ $money($changeAmount) }}</div>
+                                @if ($lastManualNote !== '')
+                                    <div class="mt-2 rounded-lg bg-white px-2 py-1 text-xs text-slate-600 dark:bg-slate-950/40 dark:text-slate-300">Note: {{ $lastManualNote }}</div>
+                                @endif
                             </div>
                             <div class="mt-4 border-t border-slate-200 pt-3 text-center text-xs text-slate-500 dark:border-white/10">
                                 Merci pour votre achat
                             </div>
                         </div>
-
-                        <div class="mt-4 grid gap-2 sm:grid-cols-4">
-                            <a href="{{ route('pos') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold dark:border-white/10 dark:bg-white/5">Nouveau ticket</a>
-                            <button class="pos-print-ticket rounded-lg bg-brand px-4 py-3 text-sm font-semibold text-white" type="button">Imprimer ticket</button>
-                            <a href="{{ route('sales.pdf', $lastSale) }}" target="_blank" rel="noreferrer" class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold dark:border-white/10 dark:bg-white/5">PDF vente</a>
-                            <a href="https://wa.me/?text={{ $shareText }}" target="_blank" rel="noreferrer" class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-center text-sm font-semibold dark:border-white/10 dark:bg-white/5">Partager</a>
+                        </div>
+                        <div class="shrink-0 border-t border-slate-200 bg-white p-4 shadow-[0_-14px_30px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950">
+                            <div class="grid gap-2 sm:grid-cols-4">
+                                <a href="{{ route('pos') }}" class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-bold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">Nouveau</a>
+                                <button class="pos-print-ticket rounded-xl bg-brand px-3 py-3 text-sm font-bold text-white shadow-sm shadow-indigo-500/20 transition hover:brightness-110" type="button">Imprimer</button>
+                                <a href="{{ route('sales.pdf', $lastSale) }}" target="_blank" rel="noreferrer" class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-bold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">PDF vente</a>
+                                <a href="https://wa.me/?text={{ $shareText }}" target="_blank" rel="noreferrer" class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-bold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">Partager</a>
+                            </div>
                         </div>
                     </article>
                 </div>
@@ -411,7 +439,7 @@
                                             <span class="pos-action-icon">✎</span>
                                             <span class="min-w-0 flex-1">
                                                 <strong>Note</strong>
-                                                <small>Observation ticket</small>
+                                                <small><span class="pos-note-summary-value hidden"></span><span class="pos-note-empty">Observation ticket</span></small>
                                             </span>
                                         </button>
                                     </div>
@@ -455,20 +483,26 @@
                                     </div>
                                 </details>
                             </div>
-                            <div class="pos-adjustment-popover pos-discount-panel pointer-events-auto ml-auto hidden w-full max-w-[380px] rounded-xl border border-slate-200 bg-white p-3 text-slate-950 shadow-2xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" data-pos-panel="discount">
+                            <div class="pos-adjustment-popover pos-discount-panel pointer-events-auto ml-auto hidden w-full max-w-[400px] rounded-xl border border-slate-200 bg-white p-3 text-slate-950 shadow-2xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" data-pos-panel="discount">
                                 <div class="mb-2 flex items-center justify-between gap-2">
                                     <div><p class="text-sm font-black">Remise</p><p class="text-xs text-slate-500">Montant fixe ou pourcentage.</p></div>
                                     <button class="pos-panel-close grid size-8 place-items-center rounded-lg border border-slate-200 text-sm font-black dark:border-white/10" data-pos-panel-close type="button">×</button>
                                 </div>
                                 <div class="grid grid-cols-[86px_minmax(0,1fr)] gap-2">
-                                    <select name="discount_type" class="pos-discount-type h-11 rounded-lg border border-slate-200 bg-white px-2 text-sm font-bold text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
+                                    <select class="pos-discount-type-draft h-11 rounded-lg border border-slate-200 bg-white px-2 text-sm font-bold text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
                                         <option value="fixed" @selected($resumeDiscountType === 'fixed')>DH</option>
                                         <option value="percentage" @selected(in_array($resumeDiscountType, ['percentage', 'percent'], true))>%</option>
                                     </select>
-                                    <input name="discount_value" value="{{ $resumeDiscountValue }}" min="0" step="0.01" type="number" class="pos-discount h-11 w-full rounded-lg border border-slate-200 px-3 text-base font-semibold dark:border-white/10 dark:bg-slate-900" placeholder="0">
+                                    <input value="{{ $resumeDiscountValue }}" min="0" step="0.01" type="number" class="pos-discount-draft h-11 w-full rounded-lg border border-slate-200 px-3 text-base font-semibold dark:border-white/10 dark:bg-slate-900" placeholder="0">
+                                    <input name="discount_type" value="{{ in_array($resumeDiscountType, ['percentage', 'percent'], true) ? 'percentage' : 'fixed' }}" type="hidden" class="pos-discount-type-value">
+                                    <input name="discount_value" value="{{ $resumeDiscountValue }}" type="hidden" class="pos-discount-value">
                                     <input name="discount_amount" value="0" type="hidden" class="pos-discount-amount">
                                 </div>
                                 <span class="pos-discount-helper mt-2 block text-xs font-semibold text-slate-500">Fixe en DH</span>
+                                <div class="mt-3 grid grid-cols-[1fr_1.35fr] gap-2">
+                                    <button class="pos-discount-reset rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold dark:border-white/10" type="button">Réinitialiser</button>
+                                    <button class="pos-discount-confirm rounded-lg bg-brand px-3 py-2 text-xs font-bold text-white" type="button">Confirmer remise</button>
+                                </div>
                             </div>
                             <div class="pos-adjustment-popover pos-coupon-panel pos-coupon-body pointer-events-auto ml-auto hidden w-full max-w-[400px] rounded-xl border border-slate-200 bg-white p-3 text-slate-950 shadow-2xl dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" data-pos-panel="coupon">
                                 <div class="mb-2 flex items-center justify-between gap-2">
@@ -488,8 +522,13 @@
                                 </div>
                                 <label class="block">
                                     <span class="text-[11px] font-bold uppercase text-slate-500">Note manuelle</span>
-                                    <textarea name="note" maxlength="500" class="mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" placeholder="Ex: client demande livraison après 18h, emballage cadeau, observation comptoir...">{{ $resumeNote }}</textarea>
+                                    <textarea maxlength="500" class="pos-note-draft mt-1 min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100" placeholder="Ex: client demande livraison après 18h, emballage cadeau, observation comptoir...">{{ $resumeNote }}</textarea>
+                                    <input name="note" value="{{ $resumeNote }}" type="hidden" class="pos-note-value">
                                 </label>
+                                <div class="mt-3 grid grid-cols-[1fr_1.35fr] gap-2">
+                                    <button class="pos-note-reset rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold dark:border-white/10" type="button">Effacer</button>
+                                    <button class="pos-note-confirm rounded-lg bg-brand px-3 py-2 text-xs font-bold text-white" type="button">Confirmer note</button>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -45,6 +45,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use Yajra\DataTables\Facades\DataTables;
@@ -2302,6 +2303,9 @@ class LibraireProController extends Controller
             'phone' => $data['phone'] ?? null,
             'password' => Hash::make($data['password']),
             'avatar_color' => $data['avatar_color'] ?? '#4F46E5',
+            'profile_photo_path' => $request->hasFile('profile_photo')
+                ? $request->file('profile_photo')->store('users/profile-photos', 'public')
+                : null,
             'is_active' => $request->boolean('is_active', true),
         ]);
 
@@ -2330,6 +2334,17 @@ class LibraireProController extends Controller
 
         if (! empty($data['password'])) {
             $payload['password'] = Hash::make($data['password']);
+        }
+
+        if ($request->hasFile('profile_photo')) {
+            if ($user->profile_photo_path) {
+                Storage::disk('public')->delete($user->profile_photo_path);
+            }
+
+            $payload['profile_photo_path'] = $request->file('profile_photo')->store('users/profile-photos', 'public');
+        } elseif ($request->boolean('remove_profile_photo') && $user->profile_photo_path) {
+            Storage::disk('public')->delete($user->profile_photo_path);
+            $payload['profile_photo_path'] = null;
         }
 
         $user->update($payload);
@@ -5722,6 +5737,8 @@ class LibraireProController extends Controller
             'phone' => ['nullable', 'string', 'max:60'],
             'password' => [$user ? 'nullable' : 'required', 'string', 'min:8', 'max:120'],
             'avatar_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'profile_photo' => ['nullable', 'image', 'max:2048'],
+            'remove_profile_photo' => ['nullable', 'boolean'],
             'role' => ['required', Rule::in($roleKeys)],
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['string', Rule::in($permissionKeys)],

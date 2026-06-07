@@ -2466,7 +2466,7 @@
                                             <tr class="bg-white align-middle transition hover:bg-slate-50 dark:bg-transparent dark:hover:bg-white/5">
                                                 <td class="px-4 py-4">
                                                     <div class="flex min-w-0 items-center gap-3">
-                                                        <span class="grid size-11 shrink-0 place-items-center rounded-xl text-sm font-bold text-white shadow-sm" style="background: {{ $user->avatar_color }}">{{ Str::upper(Str::substr($user->name, 0, 2)) }}</span>
+                                                        <x-user-avatar :user="$user" size="md" rounded="rounded-xl" />
                                                         <span class="min-w-0">
                                                             <strong class="block truncate">{{ $user->name }}</strong>
                                                             <small class="mt-1 block truncate text-slate-500">{{ $user->email }}{{ $user->phone ? ' · '.$user->phone : '' }}</small>
@@ -2494,12 +2494,12 @@
                                                 </td>
                                             </tr>
                                             <dialog id="user-edit-{{ $user->id }}" class="app-dialog app-user-dialog w-[min(980px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
-                                                <form action="{{ route('settings.users.update', $user) }}" method="POST" class="flex max-h-[calc(100dvh-2rem)] flex-col">
+                                                <form action="{{ route('settings.users.update', $user) }}" method="POST" enctype="multipart/form-data" class="flex max-h-[calc(100dvh-2rem)] flex-col">
                                                     @csrf
                                                     @method('PUT')
                                                     <div class="shrink-0 bg-white flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-white/10 dark:bg-slate-950">
                                                         <div class="flex min-w-0 items-center gap-3">
-                                                            <span class="grid size-12 shrink-0 place-items-center rounded-xl text-sm font-bold text-white" style="background: {{ $user->avatar_color }}">{{ Str::upper(Str::substr($user->name, 0, 2)) }}</span>
+                                                            <x-user-avatar :user="$user" size="lg" rounded="rounded-xl" />
                                                             <div class="min-w-0">
                                                                 <p class="text-sm font-semibold text-brand">Utilisateur · rôle · permissions</p>
                                                                 <h3 class="truncate text-xl font-semibold">{{ $user->name }}</h3>
@@ -2522,6 +2522,10 @@
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nouveau mot de passe</span><input name="password" type="password" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Laisser vide si inchangé"></label>
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Rôle *</span><select name="role" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($settingsRoles as $role)<option value="{{ $role->key }}" @selected($user->pivot->role === $role->key)>{{ $role->name }}</option>@endforeach</select></label>
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Couleur avatar</span><input name="avatar_color" type="color" value="{{ $user->avatar_color }}" class="h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900"></label>
+                                                                <label class="space-y-1.5 md:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Photo de profil</span><input name="profile_photo" type="file" accept="image/*" class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white dark:border-white/10 dark:bg-slate-900"></label>
+                                                                @if ($user->profile_photo_path)
+                                                                    <label class="flex h-11 items-center gap-2 rounded-lg border border-rose-200 px-3 text-sm font-semibold text-rose-600 dark:border-rose-500/30"><input name="remove_profile_photo" value="1" type="checkbox" class="size-4 accent-rose-500"> Retirer la photo</label>
+                                                                @endif
                                                                 <label class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10"><input name="is_active" value="1" type="checkbox" @checked($user->is_active) class="size-4 accent-[var(--brand-primary)]"> Compte actif</label>
                                                             </div>
                                                         </section>
@@ -2570,7 +2574,7 @@
                     </div>
 
                     <dialog id="user-create-dialog" class="app-dialog app-user-dialog w-[min(980px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
-                        <form action="{{ route('settings.users.store') }}" method="POST" class="flex max-h-[calc(100dvh-2rem)] flex-col">
+                        <form action="{{ route('settings.users.store') }}" method="POST" enctype="multipart/form-data" class="flex max-h-[calc(100dvh-2rem)] flex-col">
                             @csrf
                             <div class="shrink-0 bg-white flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-white/10 dark:bg-slate-950">
                                 <div>
@@ -2594,6 +2598,7 @@
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Mot de passe temporaire *</span><input name="password" required type="password" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Minimum 8 caractères"></label>
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Rôle *</span><select name="role" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($settingsRoles as $role)<option value="{{ $role->key }}">{{ $role->name }}</option>@endforeach</select></label>
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Couleur avatar</span><input name="avatar_color" type="color" value="#3157D5" class="h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900"></label>
+                                        <label class="space-y-1.5 md:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Photo de profil</span><input name="profile_photo" type="file" accept="image/*" class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white dark:border-white/10 dark:bg-slate-900"></label>
                                         <label class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10"><input name="is_active" value="1" checked type="checkbox" class="size-4 accent-[var(--brand-primary)]"> Compte actif</label>
                                     </div>
                                 </section>

@@ -440,10 +440,16 @@
                                 $accountRoleName = \App\Models\Role::where('tenant_id', $accountTenant?->id)->where('key', $accountRoleKey)->value('name') ?: ucfirst($accountRoleKey ?: 'Aucun rôle');
                             @endphp
                             <details class="relative">
-                                <summary class="grid size-11 cursor-pointer list-none place-items-center rounded-full text-sm font-bold text-white" style="background: {{ $accountUser->avatar_color ?: 'var(--brand-primary)' }}">{{ Str::upper(Str::substr($accountUser->name, 0, 2)) }}</summary>
+                                <summary class="grid size-11 cursor-pointer list-none place-items-center overflow-hidden rounded-full text-sm font-bold text-white" @unless($accountUser->profile_photo_path) style="background: {{ $accountUser->avatar_color ?: 'var(--brand-primary)' }}" @endunless>
+                                    @if ($accountUser->profile_photo_path)
+                                        <img src="{{ asset('storage/'.$accountUser->profile_photo_path) }}" alt="{{ $accountUser->name }}" class="h-full w-full object-cover">
+                                    @else
+                                        {{ Str::upper(Str::substr($accountUser->name, 0, 2)) }}
+                                    @endif
+                                </summary>
                                 <div class="absolute right-0 top-12 z-40 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-slate-950">
                                     <div class="flex items-center gap-3 border-b border-slate-200 pb-3 dark:border-white/10">
-                                        <span class="grid size-10 place-items-center rounded-lg text-sm font-bold text-white" style="background: {{ $accountUser->avatar_color ?: 'var(--brand-primary)' }}">{{ Str::upper(Str::substr($accountUser->name, 0, 2)) }}</span>
+                                        <x-user-avatar :user="$accountUser" size="sm" rounded="rounded-lg" />
                                         <span class="min-w-0">
                                             <strong class="block truncate text-sm">{{ $accountUser->name }}</strong>
                                             <small class="block truncate text-xs text-slate-500">{{ $accountUser->email }}</small>

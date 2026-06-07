@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -155,6 +156,8 @@ class AuthController extends Controller
             'email' => ['required', 'email', 'max:190', Rule::unique('users', 'email')->ignore($user->id)],
             'phone' => ['nullable', 'string', 'max:60'],
             'avatar_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+            'profile_photo' => ['nullable', 'image', 'max:2048'],
+            'remove_profile_photo' => ['nullable', 'boolean'],
             'current_password' => ['nullable', 'required_with:password', 'string'],
             'password' => ['nullable', 'confirmed', 'min:8', 'max:120'],
         ]);
@@ -174,6 +177,17 @@ class AuthController extends Controller
 
         if (! empty($data['password'])) {
             $user->password = $data['password'];
+        }
+
+        if ($request->hasFile('profile_photo')) {
+            if ($user->profile_photo_path) {
+                Storage::disk('public')->delete($user->profile_photo_path);
+            }
+
+            $user->profile_photo_path = $request->file('profile_photo')->store('users/profile-photos', 'public');
+        } elseif ($request->boolean('remove_profile_photo') && $user->profile_photo_path) {
+            Storage::disk('public')->delete($user->profile_photo_path);
+            $user->profile_photo_path = null;
         }
 
         $user->save();

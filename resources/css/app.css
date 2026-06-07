@@ -3325,7 +3325,8 @@
 
     .pos-client-summary,
     .pos-coupon-summary-code,
-    .pos-discount-summary-value {
+    .pos-discount-summary-value,
+    .pos-note-summary-value {
         max-width: 96px;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -3624,7 +3625,8 @@
     .pos-payment-footer .pos-money-field,
     .pos-payment-footer .pos-discount-field input,
     .pos-adjustment-popover input,
-    .pos-adjustment-popover select {
+    .pos-adjustment-popover select,
+    .pos-adjustment-popover textarea {
         background: color-mix(in srgb, var(--surface-muted) 34%, var(--surface));
         transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
     }
@@ -3632,11 +3634,37 @@
     .pos-payment-footer .pos-money-field:focus-within,
     .pos-payment-footer .pos-discount-field:focus-within input,
     .pos-adjustment-popover input:focus,
-    .pos-adjustment-popover select:focus {
+    .pos-adjustment-popover select:focus,
+    .pos-adjustment-popover textarea:focus {
         background: var(--surface);
         border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--border-soft)) !important;
         box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 10%, transparent);
         outline: none;
+    }
+
+    .pos-discount-confirm,
+    .pos-note-confirm {
+        box-shadow: 0 10px 22px color-mix(in srgb, var(--brand-primary) 16%, transparent);
+        transition: filter 160ms ease, transform 160ms ease;
+    }
+
+    .pos-discount-confirm:hover,
+    .pos-note-confirm:hover {
+        filter: brightness(1.06);
+        transform: translateY(-1px);
+    }
+
+    .pos-discount-reset,
+    .pos-note-reset {
+        background: color-mix(in srgb, var(--surface-muted) 38%, var(--surface));
+        color: var(--text-main);
+        transition: background-color 160ms ease, border-color 160ms ease;
+    }
+
+    .pos-discount-reset:hover,
+    .pos-note-reset:hover {
+        background: var(--surface);
+        border-color: color-mix(in srgb, var(--brand-primary) 35%, var(--border-soft)) !important;
     }
 
     .pos-payment-footer label.rounded-lg:focus-within {
