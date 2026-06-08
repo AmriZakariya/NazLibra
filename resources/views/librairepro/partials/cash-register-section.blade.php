@@ -19,52 +19,52 @@
 @endphp
 
 <section class="mt-6 space-y-6">
-    <div class="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-        <div class="grid gap-5 border-b border-slate-200 p-5 dark:border-white/10 lg:grid-cols-[1fr_420px] lg:items-center">
-            <div class="flex gap-4">
-                <span class="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand text-lg font-bold text-white shadow-sm">TC</span>
+    <div class="cash-register-shell">
+        <div class="cash-register-header">
+            <div class="flex min-w-0 items-start gap-4">
+                <span class="cash-register-hero-icon">TC</span>
                 <div class="min-w-0">
-                    <p class="text-sm font-semibold uppercase tracking-wide text-brand">Caisse · tiroir</p>
+                    <p class="text-xs font-black uppercase tracking-wide text-brand">Caisse · tiroir</p>
                     <h2 class="mt-1 text-2xl font-semibold text-slate-950 dark:text-white">Suivi du tiroir espèces</h2>
-                    <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">Ouvrez le fond de caisse, suivez les encaissements POS, ajoutez les entrées/sorties manuelles et clôturez avec écart.</p>
+                    <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">Pilotez l’ouverture, les entrées/sorties, les encaissements POS et la clôture de caisse.</p>
+                    <div class="cash-register-header-meta">
+                        <span class="cash-register-badge {{ $openSession ? 'is-open' : 'is-closed' }}">{{ $openSession ? 'Ouvert' : 'Fermé' }}</span>
+                        <span class="cash-register-badge">{{ $currentStore['name'] ?? 'Magasin' }}</span>
+                        <span class="cash-register-badge">{{ $cashRegister['todayCount'] }} mouvement(s) aujourd’hui</span>
+                    </div>
                 </div>
             </div>
-            <div class="grid gap-3 sm:grid-cols-3">
-                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-900/70">
-                    <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Statut</span>
-                    <strong class="mt-2 block text-lg {{ $openSession ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-950 dark:text-white' }}">{{ $openSession ? 'Ouvert' : 'Fermé' }}</strong>
-                </div>
-                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-900/70">
-                    <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Magasin</span>
-                    <strong class="mt-2 block truncate text-lg text-slate-950 dark:text-white">{{ $currentStore['name'] ?? 'Magasin' }}</strong>
-                </div>
-                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-slate-900/70">
-                    <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Aujourd'hui</span>
-                    <strong class="mt-2 block text-lg text-slate-950 dark:text-white">{{ $cashRegister['todayCount'] }} mouvement(s)</strong>
-                </div>
+            <div class="cash-register-actions">
+                <a href="{{ route('pos') }}" class="cash-register-button is-secondary"><span>PV</span> Caisse POS</a>
+                @if ($openSession)
+                    <a href="#cash-register-manual-movement" class="cash-register-button is-primary"><span>+</span> Mouvement</a>
+                    <a href="#cash-register-close" class="cash-register-button is-danger"><span>CL</span> Clôturer</a>
+                @else
+                    <a href="#cash-register-open" class="cash-register-button is-primary"><span>+</span> Ouvrir tiroir</a>
+                @endif
             </div>
         </div>
 
         <div class="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
-            <article class="rounded-2xl border border-slate-200 bg-slate-950 p-5 text-white shadow-sm dark:border-white/10 dark:bg-slate-900">
-                <span class="text-xs font-semibold uppercase text-slate-300">Solde attendu tiroir</span>
-                <strong class="mt-3 block text-4xl font-semibold tracking-tight">{{ $money($openSession?->expected_cash_amount ?? 0) }}</strong>
-                <p class="mt-3 text-sm text-slate-300">{{ $openSession ? 'Session '.$openSession->number.' ouverte depuis '.$openSession->opened_at?->format('H:i') : 'Aucun tiroir ouvert actuellement.' }}</p>
+            <article class="cash-register-metric is-primary">
+                <span>Solde attendu tiroir</span>
+                <strong>{{ $money($openSession?->expected_cash_amount ?? 0) }}</strong>
+                <p>{{ $openSession ? 'Session '.$openSession->number.' ouverte depuis '.$openSession->opened_at?->format('H:i') : 'Aucun tiroir ouvert actuellement.' }}</p>
             </article>
-            <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/70">
-                <span class="inline-flex items-center gap-2 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400"><span class="size-2 rounded-full bg-emerald-500"></span>Entrées espèces</span>
-                <strong class="mt-3 block text-3xl font-semibold text-slate-950 dark:text-white">{{ $money($cashRegister['todayIn']) }}</strong>
-                <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">Ventes cash incluses: <span class="font-semibold text-emerald-600 dark:text-emerald-300">{{ $money($cashRegister['todaySalesCash']) }}</span></p>
+            <article class="cash-register-metric">
+                <span><em class="bg-emerald-500"></em>Entrées espèces</span>
+                <strong>{{ $money($cashRegister['todayIn']) }}</strong>
+                <p>Ventes cash incluses: <b class="text-emerald-700 dark:text-emerald-300">{{ $money($cashRegister['todaySalesCash']) }}</b></p>
             </article>
-            <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/70">
-                <span class="inline-flex items-center gap-2 text-xs font-semibold uppercase text-slate-500 dark:text-slate-400"><span class="size-2 rounded-full bg-rose-500"></span>Sorties espèces</span>
-                <strong class="mt-3 block text-3xl font-semibold text-slate-950 dark:text-white">{{ $money($cashRegister['todayOut']) }}</strong>
-                <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">Sorties manuelles et corrections négatives.</p>
+            <article class="cash-register-metric">
+                <span><em class="bg-rose-500"></em>Sorties espèces</span>
+                <strong>{{ $money($cashRegister['todayOut']) }}</strong>
+                <p>Sorties manuelles et corrections négatives.</p>
             </article>
-            <article class="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-white/10 dark:bg-slate-900/70">
-                <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Dernière clôture</span>
-                <strong class="mt-3 block text-3xl font-semibold {{ ($cashRegister['lastClosed']?->difference_amount ?? 0) == 0 ? 'text-slate-950 dark:text-white' : 'text-amber-600 dark:text-amber-300' }}">{{ $money($cashRegister['lastClosed']?->difference_amount ?? 0) }}</strong>
-                <p class="mt-3 text-sm text-slate-500 dark:text-slate-400">{{ $cashRegister['lastClosed'] ? $cashRegister['lastClosed']->number.' · '.$cashRegister['lastClosed']->closed_at?->format('d/m/Y H:i') : 'Pas encore de clôture.' }}</p>
+            <article class="cash-register-metric">
+                <span><em class="bg-slate-400"></em>Dernière clôture</span>
+                <strong class="{{ ($cashRegister['lastClosed']?->difference_amount ?? 0) == 0 ? '' : 'text-amber-700 dark:text-amber-300' }}">{{ $money($cashRegister['lastClosed']?->difference_amount ?? 0) }}</strong>
+                <p>{{ $cashRegister['lastClosed'] ? $cashRegister['lastClosed']->number.' · '.$cashRegister['lastClosed']->closed_at?->format('d/m/Y H:i') : 'Pas encore de clôture.' }}</p>
             </article>
         </div>
     </div>
@@ -88,15 +88,15 @@
                     </dl>
                 </article>
 
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <article id="cash-register-manual-movement" class="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <h3 class="text-lg font-semibold text-slate-950 dark:text-white">Entrée / sortie manuelle</h3>
                     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Exemples: retrait dépôt banque, correction monnaie, appoint manuel.</p>
                     <form action="{{ route('cash-register.movements.store') }}" method="POST" class="mt-4 space-y-3">
                         @csrf
                         <div class="grid grid-cols-3 gap-2">
-                            <label class="cursor-pointer rounded-xl border border-slate-200 p-3 text-sm font-semibold dark:border-white/10"><input class="sr-only peer" type="radio" name="type" value="cash_in" checked><span class="peer-checked:text-emerald-600">Entrée</span></label>
-                            <label class="cursor-pointer rounded-xl border border-slate-200 p-3 text-sm font-semibold dark:border-white/10"><input class="sr-only peer" type="radio" name="type" value="cash_out"><span class="peer-checked:text-rose-600">Sortie</span></label>
-                            <label class="cursor-pointer rounded-xl border border-slate-200 p-3 text-sm font-semibold dark:border-white/10"><input class="sr-only peer" type="radio" name="type" value="correction"><span class="peer-checked:text-amber-600">Correction</span></label>
+                            <label class="cash-register-choice is-in"><input class="sr-only" type="radio" name="type" value="cash_in" checked><span>Entrée<small>Ajouter du cash</small></span></label>
+                            <label class="cash-register-choice is-out"><input class="sr-only" type="radio" name="type" value="cash_out"><span>Sortie<small>Retrait ou dépense</small></span></label>
+                            <label class="cash-register-choice"><input class="sr-only" type="radio" name="type" value="correction"><span>Correction<small>Écart contrôlé</small></span></label>
                         </div>
                         <input name="amount" required type="number" step="0.01" min="0.01" class="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Montant DH">
                         <input name="reference" class="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Référence optionnelle">
@@ -105,7 +105,7 @@
                     </form>
                 </article>
 
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <article id="cash-register-close" class="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <h3 class="text-lg font-semibold text-slate-950 dark:text-white">Clôturer le tiroir</h3>
                     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Comptez le cash physique. L’écart sera calculé automatiquement.</p>
                     <form action="{{ route('cash-register.close', $openSession) }}" method="POST" class="mt-4 space-y-3">
@@ -116,7 +116,7 @@
                     </form>
                 </article>
             @else
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <article id="cash-register-open" class="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <h3 class="text-xl font-semibold text-slate-950 dark:text-white">Ouvrir le tiroir</h3>
                     <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Démarrez la journée ou le shift avec le fond de caisse réel.</p>
                     <form action="{{ route('cash-register.open') }}" method="POST" class="mt-5 space-y-3">

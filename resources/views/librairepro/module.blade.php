@@ -1920,6 +1920,7 @@
             $posAllowSaleEdit = (bool) data_get($tenant->settings, 'pos.allow_sale_edit', true);
             $posAllowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
             $posShowOutOfStock = (bool) data_get($tenant->settings, 'pos.show_out_of_stock', false);
+            $posShowCashDrawerNavbar = (bool) data_get($tenant->settings, 'pos.show_cash_drawer_navbar', true);
             $posRequireAdjustmentReason = (bool) data_get($tenant->settings, 'pos.require_adjustment_reason', true);
             $posUpdateCostOnPurchase = (bool) data_get($tenant->settings, 'pos.update_cost_on_purchase', true);
             $posLowStockDashboard = (bool) data_get($tenant->settings, 'pos.low_stock_dashboard', true);
@@ -2101,6 +2102,7 @@
                                 <x-status-pill :tone="$posAllowSaleEdit ? 'info' : 'danger'">{{ $posAllowSaleEdit ? 'Ventes modifiables' : 'Ventes verrouillées' }}</x-status-pill>
                                 <x-status-pill :tone="$posAllowOversell ? 'warning' : 'success'">{{ $posAllowOversell ? 'Hors stock autorisé' : 'Stock bloquant' }}</x-status-pill>
                                 <x-status-pill :tone="$posShowOutOfStock ? 'warning' : 'info'">{{ $posShowOutOfStock ? 'Ruptures visibles' : 'Ruptures masquées' }}</x-status-pill>
+                                <x-status-pill :tone="$posShowCashDrawerNavbar ? 'success' : 'neutral'">{{ $posShowCashDrawerNavbar ? 'Tiroir navbar' : 'Tiroir masqué' }}</x-status-pill>
                             </div>
                         </div>
                     </div>
@@ -2112,6 +2114,7 @@
                             <input type="hidden" name="allow_sale_edit" value="0">
                             <input type="hidden" name="allow_oversell" value="0">
                             <input type="hidden" name="show_out_of_stock" value="0">
+                            <input type="hidden" name="show_cash_drawer_navbar" value="0">
                             <input type="hidden" name="require_adjustment_reason" value="0">
                             <input type="hidden" name="update_cost_on_purchase" value="0">
                             <input type="hidden" name="low_stock_dashboard" value="0">
@@ -2154,6 +2157,15 @@
                                         <span>
                                             <span class="block text-sm font-semibold">Afficher les articles hors stock dans la caisse</span>
                                             <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Les articles sans stock restent visibles et grisés. Un clic ouvre le détail stock avec un raccourci vers l’ajustement préfiltré.</span>
+                                        </span>
+                                    </span>
+                                </label>
+                                <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                    <span class="flex items-start gap-3">
+                                        <input name="show_cash_drawer_navbar" value="1" type="checkbox" @checked($posShowCashDrawerNavbar) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                        <span>
+                                            <span class="block text-sm font-semibold">Afficher le tiroir caisse dans la barre supérieure</span>
+                                            <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Ajoute un indicateur rapide du solde attendu et de l’état du tiroir dans la navbar.</span>
                                         </span>
                                     </span>
                                 </label>

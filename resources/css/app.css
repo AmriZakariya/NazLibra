@@ -2302,7 +2302,7 @@
 
     .catalog-quick-actions {
         display: grid;
-        gap: 12px;
+        gap: 10px;
         grid-template-columns: repeat(1, minmax(0, 1fr));
     }
 
@@ -2319,54 +2319,70 @@
     }
 
     .catalog-quick-action {
-        --quick-bg: var(--surface-muted);
-        --quick-border: var(--border-soft);
-        --quick-text: var(--text-main);
-        --quick-muted: var(--text-muted);
-        --quick-icon-bg: var(--surface);
-        --quick-icon-text: var(--text-main);
+        --quick-accent: var(--brand-primary);
         align-items: center;
-        background:
-            linear-gradient(135deg, color-mix(in srgb, var(--quick-bg) 86%, #ffffff) 0, var(--quick-bg) 100%);
-        border: 1px solid var(--quick-border);
-        box-shadow: 0 10px 24px color-mix(in srgb, var(--text-main) 5%, transparent);
-        color: var(--quick-text);
+        background: var(--surface);
+        border: 1px solid color-mix(in srgb, var(--border-soft) 90%, transparent);
+        border-radius: 14px;
+        color: var(--text-main);
         display: flex;
-        gap: 12px;
-        min-height: 84px;
-        padding: 14px;
+        gap: 11px;
+        min-height: 72px;
+        padding: 12px 14px;
         text-decoration: none;
-        transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+        transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
     }
 
     .catalog-quick-action:hover {
-        box-shadow: 0 16px 32px color-mix(in srgb, var(--quick-text) 12%, transparent);
+        background: color-mix(in srgb, var(--quick-accent) 5%, var(--surface));
+        border-color: color-mix(in srgb, var(--quick-accent) 34%, var(--border-soft));
+        box-shadow: 0 12px 24px color-mix(in srgb, var(--quick-accent) 10%, transparent);
         transform: translateY(-1px);
     }
 
     .catalog-quick-action:focus-visible {
-        outline: 3px solid color-mix(in srgb, var(--quick-text) 22%, transparent);
+        outline: 3px solid color-mix(in srgb, var(--quick-accent) 22%, transparent);
         outline-offset: 2px;
     }
 
     .catalog-quick-action-icon {
         align-items: center;
-        background: var(--quick-icon-bg);
-        border: 1px solid color-mix(in srgb, var(--quick-border) 70%, transparent);
-        box-shadow: 0 8px 18px color-mix(in srgb, var(--text-main) 10%, transparent);
-        color: var(--quick-icon-text);
+        background: color-mix(in srgb, var(--quick-accent) 10%, white);
+        border: 1px solid color-mix(in srgb, var(--quick-accent) 16%, transparent);
+        color: var(--quick-accent);
         display: grid;
-        flex: 0 0 44px;
-        font-size: 0.75rem;
-        font-weight: 900;
-        height: 44px;
+        flex: 0 0 40px;
+        font-size: 1.1rem;
+        font-weight: 950;
+        height: 40px;
         justify-content: center;
         place-items: center;
-        width: 44px;
+        width: 40px;
+        border-radius: 12px;
     }
 
     .catalog-quick-action-copy {
+        flex: 1 1 auto;
         min-width: 0;
+    }
+
+    .catalog-quick-action-arrow {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        flex: 0 0 auto;
+        place-items: center;
+        border-radius: 999px;
+        color: color-mix(in srgb, var(--quick-accent) 82%, var(--text-muted));
+        font-size: 1.45rem;
+        font-weight: 500;
+        line-height: 1;
+        transition: background 160ms ease, transform 160ms ease;
+    }
+
+    .catalog-quick-action:hover .catalog-quick-action-arrow {
+        background: color-mix(in srgb, var(--quick-accent) 9%, transparent);
+        transform: translateX(2px);
     }
 
     .catalog-quick-action-title,
@@ -2376,94 +2392,59 @@
     }
 
     .catalog-quick-action-title {
-        color: var(--quick-text);
-        font-size: 0.98rem;
-        font-weight: 820;
+        color: var(--text-main);
+        font-size: 0.95rem;
+        font-weight: 850;
         line-height: 1.2;
     }
 
     .catalog-quick-action small {
-        color: var(--quick-muted);
-        font-size: 0.82rem;
+        color: var(--text-muted);
+        font-size: 0.8rem;
         font-weight: 650;
         line-height: 1.35;
         margin-top: 3px;
     }
 
     .catalog-quick-action.is-primary {
-        --quick-bg: color-mix(in srgb, var(--brand-primary) 10%, var(--surface));
-        --quick-border: color-mix(in srgb, var(--brand-primary) 40%, var(--border-soft));
-        --quick-text: color-mix(in srgb, var(--brand-primary) 82%, #111827);
-        --quick-muted: color-mix(in srgb, var(--brand-primary) 64%, var(--text-muted));
-        --quick-icon-bg: color-mix(in srgb, var(--brand-primary) 14%, #ffffff);
-        --quick-icon-text: color-mix(in srgb, var(--brand-primary) 88%, #111827);
+        --quick-accent: var(--brand-primary);
     }
 
     .catalog-quick-action.is-success {
-        --quick-bg: color-mix(in srgb, var(--brand-success) 10%, var(--surface));
-        --quick-border: color-mix(in srgb, var(--brand-success) 36%, var(--border-soft));
-        --quick-text: color-mix(in srgb, var(--brand-success) 78%, #0f172a);
-        --quick-muted: color-mix(in srgb, var(--brand-success) 58%, var(--text-muted));
-        --quick-icon-bg: color-mix(in srgb, var(--brand-success) 14%, #ffffff);
-        --quick-icon-text: color-mix(in srgb, var(--brand-success) 86%, #0f172a);
+        --quick-accent: var(--brand-success);
     }
 
     .catalog-quick-action.is-warning {
-        --quick-bg: color-mix(in srgb, var(--brand-warning) 10%, var(--surface));
-        --quick-border: color-mix(in srgb, var(--brand-warning) 42%, var(--border-soft));
-        --quick-text: color-mix(in srgb, var(--brand-warning) 74%, #111827);
-        --quick-muted: color-mix(in srgb, var(--brand-warning) 56%, var(--text-muted));
-        --quick-icon-bg: color-mix(in srgb, var(--brand-warning) 15%, #ffffff);
-        --quick-icon-text: color-mix(in srgb, var(--brand-warning) 82%, #111827);
+        --quick-accent: var(--brand-warning);
     }
 
     .catalog-quick-action.is-neutral {
-        --quick-bg: color-mix(in srgb, var(--surface-muted) 82%, var(--surface));
-        --quick-border: var(--border-soft);
-        --quick-text: var(--text-main);
-        --quick-muted: color-mix(in srgb, var(--text-muted) 92%, var(--text-main));
-        --quick-icon-bg: var(--surface);
-        --quick-icon-text: var(--text-main);
+        --quick-accent: var(--text-muted);
     }
 
     .dark .catalog-quick-action {
-        box-shadow: 0 14px 30px rgb(0 0 0 / 20%);
+        background: #111827;
+        border-color: rgb(255 255 255 / 10%);
+        box-shadow: none;
     }
 
-    .dark .catalog-quick-action.is-primary {
-        --quick-bg: color-mix(in srgb, var(--brand-primary) 16%, #0b1220);
-        --quick-border: color-mix(in srgb, var(--brand-primary) 42%, #ffffff22);
-        --quick-text: color-mix(in srgb, var(--brand-primary) 26%, #ffffff);
-        --quick-muted: color-mix(in srgb, var(--brand-primary) 18%, #dbeafe);
-        --quick-icon-bg: color-mix(in srgb, var(--brand-primary) 26%, #020617);
-        --quick-icon-text: #ffffff;
+    .dark .catalog-quick-action:hover {
+        background: color-mix(in srgb, var(--quick-accent) 11%, #111827);
+        border-color: color-mix(in srgb, var(--quick-accent) 38%, rgb(255 255 255 / 12%));
     }
 
-    .dark .catalog-quick-action.is-success {
-        --quick-bg: color-mix(in srgb, var(--brand-success) 16%, #0b1220);
-        --quick-border: color-mix(in srgb, var(--brand-success) 40%, #ffffff22);
-        --quick-text: color-mix(in srgb, var(--brand-success) 24%, #ffffff);
-        --quick-muted: color-mix(in srgb, var(--brand-success) 16%, #dcfce7);
-        --quick-icon-bg: color-mix(in srgb, var(--brand-success) 24%, #020617);
-        --quick-icon-text: #ffffff;
+    .dark .catalog-quick-action-icon {
+        background: color-mix(in srgb, var(--quick-accent) 18%, #020617);
+        border-color: color-mix(in srgb, var(--quick-accent) 24%, transparent);
+        color: color-mix(in srgb, var(--quick-accent) 68%, #ffffff);
     }
 
-    .dark .catalog-quick-action.is-warning {
-        --quick-bg: color-mix(in srgb, var(--brand-warning) 16%, #0b1220);
-        --quick-border: color-mix(in srgb, var(--brand-warning) 46%, #ffffff22);
-        --quick-text: color-mix(in srgb, var(--brand-warning) 20%, #ffffff);
-        --quick-muted: color-mix(in srgb, var(--brand-warning) 18%, #fef3c7);
-        --quick-icon-bg: color-mix(in srgb, var(--brand-warning) 25%, #020617);
-        --quick-icon-text: #ffffff;
+    .dark .catalog-quick-action-title {
+        color: #f8fafc;
     }
 
-    .dark .catalog-quick-action.is-neutral {
-        --quick-bg: color-mix(in srgb, #ffffff 6%, #0b1220);
-        --quick-border: color-mix(in srgb, #ffffff 13%, transparent);
-        --quick-text: #f8fafc;
-        --quick-muted: #cbd5e1;
-        --quick-icon-bg: color-mix(in srgb, #ffffff 8%, #020617);
-        --quick-icon-text: #f8fafc;
+    .dark .catalog-quick-action small {
+        color: #94a3b8;
     }
 
     .purchase-detail-dialog {
@@ -4084,6 +4065,573 @@
         background: color-mix(in srgb, var(--brand-primary) 11%, var(--surface));
         color: var(--brand-primary);
         box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-primary) 10%, transparent);
+    }
+
+    .topbar-cashdrawer {
+        display: inline-flex;
+        height: 44px;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid color-mix(in srgb, var(--border-soft) 86%, transparent);
+        border-radius: 14px;
+        background: color-mix(in srgb, var(--surface) 92%, white);
+        padding: 5px 10px 5px 6px;
+        color: var(--text-main);
+        transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+    }
+
+    .topbar-cashdrawer:hover {
+        border-color: color-mix(in srgb, var(--brand-primary) 34%, var(--border-soft));
+        background: color-mix(in srgb, var(--brand-primary) 6%, var(--surface));
+        transform: translateY(-1px);
+    }
+
+    .topbar-cashdrawer-icon {
+        display: grid;
+        width: 32px;
+        height: 32px;
+        place-items: center;
+        border-radius: 11px;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .04em;
+    }
+
+    .topbar-cashdrawer.is-open .topbar-cashdrawer-icon {
+        background: color-mix(in srgb, var(--brand-success) 13%, white);
+        color: var(--brand-success);
+    }
+
+    .topbar-cashdrawer.is-closed .topbar-cashdrawer-icon {
+        background: color-mix(in srgb, var(--brand-danger) 10%, white);
+        color: var(--brand-danger);
+    }
+
+    .topbar-cashdrawer-copy strong,
+    .topbar-cashdrawer-copy small {
+        display: block;
+        line-height: 1.05;
+    }
+
+    .topbar-cashdrawer-copy strong {
+        font-size: 13px;
+        font-weight: 850;
+        color: var(--text-main);
+    }
+
+    .topbar-cashdrawer-copy small {
+        margin-top: 3px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text-muted);
+    }
+
+    .dark .topbar-cashdrawer {
+        border-color: rgb(255 255 255 / 10%);
+        background: rgb(255 255 255 / 5%);
+        color: white;
+    }
+
+    .dark .topbar-cashdrawer:hover {
+        border-color: color-mix(in srgb, var(--brand-primary) 46%, white 8%);
+        background: rgb(255 255 255 / 8%);
+    }
+
+    .dark .topbar-cashdrawer-copy strong {
+        color: white;
+    }
+
+    .dark .topbar-cashdrawer.is-open .topbar-cashdrawer-icon {
+        background: rgb(16 185 129 / 16%);
+        color: #6ee7b7;
+    }
+
+    .dark .topbar-cashdrawer.is-closed .topbar-cashdrawer-icon {
+        background: rgb(244 63 94 / 16%);
+        color: #fda4af;
+    }
+
+    .cash-register-choice {
+        cursor: pointer;
+    }
+
+    .cash-register-shell {
+        overflow: hidden;
+        border: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
+        border-radius: 20px;
+        background: var(--surface);
+        box-shadow: 0 12px 28px color-mix(in srgb, var(--text-main) 6%, transparent);
+    }
+
+    .cash-register-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+        border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 86%, transparent);
+        padding: 24px;
+    }
+
+    .cash-register-hero-icon {
+        display: grid;
+        width: 54px;
+        height: 54px;
+        flex: 0 0 auto;
+        place-items: center;
+        border-radius: 16px;
+        background: color-mix(in srgb, var(--brand-primary) 11%, white);
+        color: var(--brand-primary);
+        font-size: 17px;
+        font-weight: 950;
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-primary) 14%, transparent);
+    }
+
+    .cash-register-header-meta {
+        display: flex;
+        max-width: 100%;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+    }
+
+    .cash-register-badge {
+        display: inline-flex;
+        max-width: 100%;
+        align-items: center;
+        border: 1px solid color-mix(in srgb, var(--border-soft) 86%, transparent);
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--surface-muted) 58%, white);
+        padding: 6px 10px;
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+
+    .cash-register-badge.is-open {
+        border-color: color-mix(in srgb, var(--brand-success) 26%, transparent);
+        background: color-mix(in srgb, var(--brand-success) 10%, white);
+        color: #047857;
+    }
+
+    .cash-register-badge.is-closed {
+        border-color: color-mix(in srgb, var(--brand-danger) 20%, transparent);
+        background: color-mix(in srgb, var(--brand-danger) 8%, white);
+        color: #be123c;
+    }
+
+    .cash-register-actions {
+        display: flex;
+        flex: 0 0 auto;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 10px;
+    }
+
+    .cash-register-button {
+        display: inline-flex;
+        min-height: 42px;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 850;
+        transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+        white-space: nowrap;
+    }
+
+    .cash-register-button:hover {
+        transform: translateY(-1px);
+    }
+
+    .cash-register-button span {
+        display: grid;
+        min-width: 24px;
+        height: 24px;
+        place-items: center;
+        border-radius: 8px;
+        font-size: 10px;
+        font-weight: 950;
+    }
+
+    .cash-register-button.is-secondary {
+        border: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
+        background: var(--surface);
+        color: var(--text-main);
+    }
+
+    .cash-register-button.is-secondary span {
+        background: color-mix(in srgb, var(--surface-muted) 82%, white);
+        color: var(--text-muted);
+    }
+
+    .cash-register-button.is-primary {
+        border: 1px solid color-mix(in srgb, var(--brand-primary) 75%, transparent);
+        background: var(--brand-primary);
+        color: white;
+        box-shadow: 0 10px 20px color-mix(in srgb, var(--brand-primary) 20%, transparent);
+    }
+
+    .cash-register-button.is-primary span {
+        background: rgb(255 255 255 / 16%);
+        color: white;
+    }
+
+    .cash-register-button.is-danger {
+        border: 1px solid color-mix(in srgb, var(--brand-danger) 24%, transparent);
+        background: var(--surface);
+        color: var(--brand-danger);
+    }
+
+    .cash-register-button.is-danger span {
+        background: color-mix(in srgb, var(--brand-danger) 9%, white);
+        color: var(--brand-danger);
+    }
+
+    .cash-register-mini-card {
+        min-width: 0;
+        min-height: 104px;
+        border: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
+        border-radius: 16px;
+        background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 36%, white), var(--surface));
+        padding: 16px;
+        box-shadow: inset 0 1px 0 rgb(255 255 255 / 72%);
+    }
+
+    .cash-register-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .cash-register-mini-card span {
+        display: block;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
+
+    .cash-register-mini-card strong {
+        display: block;
+        margin-top: 12px;
+        overflow-wrap: anywhere;
+        font-size: 18px;
+        font-weight: 850;
+        line-height: 1.18;
+    }
+
+    .cash-register-metric {
+        min-width: 0;
+        min-height: 148px;
+        border: 1px solid color-mix(in srgb, var(--border-soft) 90%, transparent);
+        border-radius: 18px;
+        background: var(--surface);
+        padding: 20px;
+        box-shadow: 0 10px 22px color-mix(in srgb, var(--text-main) 5%, transparent);
+    }
+
+    .cash-register-metric.is-primary {
+        border-color: color-mix(in srgb, var(--brand-primary) 24%, var(--border-soft));
+        background: color-mix(in srgb, var(--brand-primary) 5%, var(--surface));
+        box-shadow: 0 12px 24px color-mix(in srgb, var(--brand-primary) 8%, transparent);
+    }
+
+    .cash-register-metric span {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .045em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
+
+    .cash-register-metric span em {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        font-style: normal;
+    }
+
+    .cash-register-metric strong {
+        display: block;
+        margin-top: 16px;
+        overflow-wrap: anywhere;
+        font-size: clamp(27px, 3vw, 34px);
+        font-weight: 850;
+        letter-spacing: -0.01em;
+        line-height: 1;
+        color: var(--text-main);
+    }
+
+    .cash-register-metric p {
+        margin-top: 14px;
+        font-size: 14px;
+        line-height: 1.45;
+        color: var(--text-muted);
+    }
+
+    .cash-register-action-icon {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        place-items: center;
+        border-radius: 10px;
+        background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
+        color: var(--text-main);
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: .03em;
+    }
+
+    .cash-register-action-icon.is-light {
+        background: rgb(255 255 255 / 18%);
+        color: white;
+    }
+
+    .cash-register-action-icon.is-danger {
+        background: color-mix(in srgb, var(--brand-danger) 9%, white);
+        color: var(--brand-danger);
+    }
+
+    .cash-register-choice > span {
+        display: flex;
+        min-height: 76px;
+        flex-direction: column;
+        justify-content: center;
+        gap: 5px;
+        border: 1px solid color-mix(in srgb, var(--border-soft) 92%, transparent);
+        border-radius: 14px;
+        background: var(--surface);
+        padding: 12px;
+        font-size: 13px;
+        font-weight: 850;
+        color: var(--text-main);
+        transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+    }
+
+    .cash-register-choice small {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text-muted);
+    }
+
+    .cash-register-choice input:checked + span {
+        border-color: color-mix(in srgb, var(--brand-primary) 55%, var(--border-soft));
+        background: color-mix(in srgb, var(--brand-primary) 8%, var(--surface));
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-primary) 20%, transparent);
+    }
+
+    .cash-register-choice.is-in input:checked + span {
+        border-color: color-mix(in srgb, var(--brand-success) 55%, var(--border-soft));
+        background: color-mix(in srgb, var(--brand-success) 8%, var(--surface));
+    }
+
+    .cash-register-choice.is-out input:checked + span {
+        border-color: color-mix(in srgb, var(--brand-danger) 45%, var(--border-soft));
+        background: color-mix(in srgb, var(--brand-danger) 7%, var(--surface));
+    }
+
+    .cash-register-flow {
+        position: relative;
+        display: grid;
+        gap: 8px;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .cash-register-flow span {
+        position: relative;
+        z-index: 1;
+        min-width: 0;
+        border-radius: 14px;
+        border: 1px solid color-mix(in srgb, var(--border-soft) 74%, transparent);
+        background: var(--surface);
+        padding: 11px 10px;
+        text-align: center;
+        font-size: 12px;
+        font-weight: 850;
+        color: var(--text-muted);
+    }
+
+    .cash-register-flow strong {
+        display: block;
+        width: 24px;
+        height: 24px;
+        margin: 0 auto 5px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--brand-primary) 10%, white);
+        color: var(--brand-primary);
+        font-size: 12px;
+        line-height: 24px;
+    }
+
+    .dark .cash-register-mini-card,
+    .dark .cash-register-metric {
+        border-color: rgb(255 255 255 / 10%);
+        background: #111827;
+        box-shadow: none;
+    }
+
+    .dark .cash-register-shell {
+        border-color: rgb(255 255 255 / 10%);
+        background: #0f172a;
+        box-shadow: none;
+    }
+
+    .dark .cash-register-header {
+        border-color: rgb(255 255 255 / 10%);
+    }
+
+    .dark .cash-register-hero-icon {
+        background: rgb(49 87 213 / 18%);
+        color: #bfdbfe;
+        box-shadow: inset 0 0 0 1px rgb(147 197 253 / 16%);
+    }
+
+    .dark .cash-register-badge {
+        border-color: rgb(255 255 255 / 10%);
+        background: #111827;
+        color: #cbd5e1;
+    }
+
+    .dark .cash-register-badge.is-open {
+        border-color: rgb(16 185 129 / 24%);
+        background: rgb(16 185 129 / 10%);
+        color: #86efac;
+    }
+
+    .dark .cash-register-badge.is-closed {
+        border-color: rgb(244 63 94 / 24%);
+        background: rgb(244 63 94 / 10%);
+        color: #fda4af;
+    }
+
+    .dark .cash-register-button.is-secondary {
+        border-color: rgb(255 255 255 / 10%);
+        background: #111827;
+        color: #f8fafc;
+    }
+
+    .dark .cash-register-button.is-secondary span {
+        background: rgb(255 255 255 / 8%);
+        color: #cbd5e1;
+    }
+
+    .dark .cash-register-button.is-danger {
+        border-color: rgb(244 63 94 / 24%);
+        background: #111827;
+        color: #fda4af;
+    }
+
+    .dark .cash-register-button.is-danger span {
+        background: rgb(244 63 94 / 14%);
+        color: #fda4af;
+    }
+
+    .dark .cash-register-mini-card {
+        background: linear-gradient(180deg, #172033, #111827);
+    }
+
+    .dark .cash-register-mini-card span,
+    .dark .cash-register-metric span,
+    .dark .cash-register-metric p,
+    .dark .cash-register-choice small {
+        color: #94a3b8;
+    }
+
+    .dark .cash-register-mini-card strong,
+    .dark .cash-register-metric strong,
+    .dark .cash-register-choice > span {
+        color: #f8fafc;
+    }
+
+    .dark .cash-register-metric.is-primary {
+        border-color: color-mix(in srgb, var(--brand-primary) 36%, white 8%);
+        background: rgb(49 87 213 / 12%);
+    }
+
+    .dark .cash-register-metric strong,
+    .dark .cash-register-flow strong {
+        color: white;
+    }
+
+    .dark .cash-register-flow span {
+        border-color: rgb(255 255 255 / 10%);
+        background: #111827;
+        color: #94a3b8;
+    }
+
+    .dark .cash-register-flow strong {
+        background: rgb(49 87 213 / 20%);
+        color: #bfdbfe;
+    }
+
+    .dark .cash-register-action-icon {
+        background: rgb(255 255 255 / 8%);
+        color: white;
+    }
+
+    .dark .cash-register-action-icon.is-danger {
+        background: rgb(244 63 94 / 14%);
+        color: #fda4af;
+    }
+
+    .dark .cash-register-choice > span {
+        border-color: rgb(255 255 255 / 10%);
+        background: #111827;
+        color: white;
+    }
+
+    .dark .cash-register-choice input:checked + span {
+        background: rgb(49 87 213 / 14%);
+    }
+
+    @media (max-width: 1280px) {
+        .topbar-cashdrawer {
+            width: 44px;
+            justify-content: center;
+            padding: 5px;
+        }
+
+        .cash-register-summary-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 1024px) {
+        .cash-register-header {
+            flex-direction: column;
+        }
+
+        .cash-register-actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
+    }
+
+    @media (max-width: 640px) {
+        .cash-register-header {
+            padding: 18px;
+        }
+
+        .cash-register-actions,
+        .cash-register-button {
+            width: 100%;
+        }
+
+        .cash-register-summary-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .cash-register-flow {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
     }
 
     .app-fullscreen-mode .app-sidebar {

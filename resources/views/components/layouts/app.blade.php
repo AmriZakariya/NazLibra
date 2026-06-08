@@ -44,6 +44,16 @@
         ]);
     }
     $layoutCurrentStore = $layoutStores->firstWhere('key', $tenant->settings['current_store'] ?? null) ?? $layoutStores->first();
+    $layoutMoney = fn ($amount): string => number_format((float) $amount, 2, ',', ' ').' DH';
+    $showCashDrawerNavbar = (bool) data_get($tenant->settings, 'pos.show_cash_drawer_navbar', true);
+    $layoutCashRegisterSession = $showCashDrawerNavbar
+        ? \App\Models\CashRegisterSession::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('store_key', $layoutCurrentStore['key'] ?? null)
+            ->where('status', 'open')
+            ->latest('opened_at')
+            ->first()
+        : null;
 @endphp
 <!DOCTYPE html>
 <html lang="{{ $locale }}" dir="{{ $direction }}" data-locale="{{ $locale }}" style="--brand-primary: {{ $theme['primary'] }}; --brand-accent: {{ $theme['accent'] }}; --brand-success: {{ $theme['success'] }}; --brand-warning: {{ $theme['warning'] ?? '#D97706' }}; --brand-danger: {{ $theme['danger'] ?? '#E11D48' }}; --brand-info: {{ $theme['info'] ?? '#0284C7' }}; --app-bg: {{ $theme['background'] }}; --surface: {{ $theme['surface_color'] }}; --surface-muted: {{ $theme['surface_muted'] }}; --text-main: {{ $theme['text'] }}; --text-muted: {{ $theme['muted'] }}; --border-soft: {{ $theme['border'] }}; --font-scale: {{ $theme['font_scale'] }}; --brand-radius: {{ $theme['radius'] }}px;">
@@ -409,6 +419,15 @@
                             <span class="app-fullscreen-exit hidden" aria-hidden="true">×</span>
                         </button>
                         <button class="app-theme-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Basculer le thème') }}">◐</button>
+                        @if ($showCashDrawerNavbar)
+                            <a href="{{ route('module', 'cash-register') }}" class="topbar-cashdrawer {{ $layoutCashRegisterSession ? 'is-open' : 'is-closed' }}" title="{{ $layoutCashRegisterSession ? $tr('Tiroir ouvert') : $tr('Tiroir fermé') }}">
+                                <span class="topbar-cashdrawer-icon">TC</span>
+                                <span class="topbar-cashdrawer-copy hidden xl:block">
+                                    <strong>{{ $layoutCashRegisterSession ? $layoutMoney($layoutCashRegisterSession->expected_cash_amount) : $tr('Tiroir fermé') }}</strong>
+                                    <small>{{ $layoutCashRegisterSession ? $layoutCashRegisterSession->number : $tr('Ouvrir') }}</small>
+                                </span>
+                            </a>
+                        @endif
                         <details class="relative hidden sm:block">
                             <summary class="current-store-trigger flex h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
                                 <span class="grid size-6 place-items-center rounded-md bg-brand/10 text-xs text-brand">▣</span>

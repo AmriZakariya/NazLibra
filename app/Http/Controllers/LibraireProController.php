@@ -1910,6 +1910,7 @@ class LibraireProController extends Controller
             'allow_sale_edit' => $request->boolean('allow_sale_edit', true),
             'allow_oversell' => $request->boolean('allow_oversell'),
             'show_out_of_stock' => $request->boolean('show_out_of_stock'),
+            'show_cash_drawer_navbar' => $request->boolean('show_cash_drawer_navbar'),
             'require_adjustment_reason' => $request->boolean('require_adjustment_reason'),
             'update_cost_on_purchase' => $request->boolean('update_cost_on_purchase'),
             'low_stock_dashboard' => $request->boolean('low_stock_dashboard'),

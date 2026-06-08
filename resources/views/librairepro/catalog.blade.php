@@ -692,14 +692,14 @@
                         [
                             'label' => 'Vendre en caisse',
                             'hint' => 'Ouvrir le POS avec ce produit',
-                            'icon' => 'DH',
+                            'icon' => '↗',
                             'href' => route('pos', ['q' => $editItemSearch, 'stock' => 'all']),
                             'tone' => 'primary',
                         ],
                         [
                             'label' => 'Créer un achat',
                             'hint' => 'Préparer une commande fournisseur',
-                            'icon' => 'PO',
+                            'icon' => '+',
                             'href' => route('module', ['module' => 'purchases', 'section' => 'add', 'item' => $editItem->id]),
                             'tone' => 'success',
                             'hidden' => $editItemIsService,
@@ -715,7 +715,7 @@
                         [
                             'label' => 'Historique stock',
                             'hint' => 'Voir tous les mouvements',
-                            'icon' => 'ST',
+                            'icon' => '≡',
                             'href' => route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $editItem->id]).'#inventory-history',
                             'tone' => 'neutral',
                             'hidden' => $editItemIsService,
@@ -742,6 +742,7 @@
                                     <span class="catalog-quick-action-title">{{ $action['label'] }}</span>
                                     <small>{{ $action['hint'] }}</small>
                                 </span>
+                                <span class="catalog-quick-action-arrow" aria-hidden="true">›</span>
                             </a>
                         @endforeach
                     </div>

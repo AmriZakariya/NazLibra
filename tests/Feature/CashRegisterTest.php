@@ -102,4 +102,31 @@ class CashRegisterTest extends TestCase
         $this->assertSame($session->id, $sale->metadata['cash_register']['session_id']);
         $this->assertSame($movement->id, $sale->metadata['cash_register']['movement_id']);
     }
+
+    public function test_cash_drawer_navbar_indicator_can_be_hidden_from_settings(): void
+    {
+        $this->seed();
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('topbar-cashdrawer', false);
+
+        $this->post(route('settings.pos.update'), [
+            'editable_price' => '1',
+            'allow_sale_edit' => '1',
+            'allow_oversell' => '0',
+            'show_out_of_stock' => '0',
+            'show_cash_drawer_navbar' => '0',
+            'require_adjustment_reason' => '1',
+            'update_cost_on_purchase' => '1',
+            'low_stock_dashboard' => '1',
+            'auto_reorder_draft' => '0',
+            'inventory_cycle_days' => 30,
+            'default_min_stock_threshold' => 3,
+        ])->assertRedirect();
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertDontSee('topbar-cashdrawer', false);
+    }
 }

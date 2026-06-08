@@ -319,6 +319,7 @@ class PosTest extends TestCase
             'allow_sale_edit' => '0',
             'allow_oversell' => '1',
             'show_out_of_stock' => '1',
+            'show_cash_drawer_navbar' => '0',
         ])->assertRedirect();
 
         $settings = Tenant::firstOrFail()->fresh()->settings;
@@ -326,6 +327,7 @@ class PosTest extends TestCase
         $this->assertFalse((bool) data_get($settings, 'pos.allow_sale_edit'));
         $this->assertTrue((bool) data_get($settings, 'pos.allow_oversell'));
         $this->assertTrue((bool) data_get($settings, 'pos.show_out_of_stock'));
+        $this->assertFalse((bool) data_get($settings, 'pos.show_cash_drawer_navbar'));
     }
 
     public function test_settings_store_section_groups_pos_and_stock_settings(): void
@@ -338,6 +340,7 @@ class PosTest extends TestCase
             ->assertSee('Autoriser la modification des ventes')
             ->assertSee('Autoriser la vente hors stock')
             ->assertSee('Afficher les articles hors stock dans la caisse')
+            ->assertSee('Afficher le tiroir caisse dans la barre supérieure')
             ->assertSee('Préférences magasin');
     }
 
