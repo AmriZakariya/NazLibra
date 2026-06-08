@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Category;
 use App\Models\AuditLog;
 use App\Models\Brand;
+use App\Models\CashRegisterMovement;
+use App\Models\CashRegisterSession;
 use App\Models\Contact;
 use App\Models\Coupon;
 use App\Models\CustomerAdvance;
@@ -257,9 +259,9 @@ class LibraireProController extends Controller
                 'days' => $periodDays,
             ],
             'stats' => [
-                ['label' => 'Chiffre d’affaires', 'value' => $this->money($periodRevenue), 'tone' => $revenueDelta >= 0 ? 'success' : 'danger', 'delta' => ($revenueDelta >= 0 ? '+' : '').number_format($revenueDelta, 0, ',', ' ').'% vs période précédente'],
+                ['label' => 'Chiffre d’affaires', 'value' => $this->money($periodRevenue), 'tone' => $revenueDelta >= 0 ? 'success' : 'danger', 'delta_value' => ($revenueDelta >= 0 ? '+' : '').number_format($revenueDelta, 0, ',', ' ').'%', 'delta_label' => 'vs période précédente'],
                 ['label' => 'Articles vendus', 'value' => number_format((float) $dailyItems, 0, ',', ' '), 'tone' => 'info', 'delta' => $periodLabels[$preset]],
-                ['label' => 'Ticket moyen', 'value' => $this->money($averageTicket), 'tone' => 'primary', 'delta' => number_format($ticketCount, 0, ',', ' ').' ticket(s)'],
+                ['label' => 'Ticket moyen', 'value' => $this->money($averageTicket), 'tone' => 'primary', 'delta_value' => number_format($ticketCount, 0, ',', ' '), 'delta_label' => 'ticket(s)'],
                 ['label' => 'Résultat net estimé', 'value' => $this->money($netProfit), 'tone' => $netProfit >= 0 ? 'success' : 'danger', 'delta' => 'Ventes - coûts - dépenses'],
             ],
             'reportCards' => [
@@ -277,6 +279,7 @@ class LibraireProController extends Controller
                 'pending_deliveries' => DeliveryOrder::where('tenant_id', $tenant->id)->whereIn('status', ['pending', 'preparing', 'dispatched'])->count(),
                 'open_quotes' => Quotation::where('tenant_id', $tenant->id)->whereIn('status', ['draft', 'sent'])->count(),
                 'draft_purchases' => Purchase::where('tenant_id', $tenant->id)->whereIn('status', ['draft', 'ordered', 'partially_received'])->count(),
+                'open_cash_register' => CashRegisterSession::where('tenant_id', $tenant->id)->where('status', 'open')->exists(),
             ],
             'stockSummary' => [
                 'health' => $stockHealth,
@@ -2848,6 +2851,28 @@ class LibraireProController extends Controller
                     $remainingPaymentToAllocate = max(0, round($remainingPaymentToAllocate - $allocatedAmount, 2));
                 }
 
+                if ($cashDrawerIn > 0.001 && $session = $this->openCashRegisterSession($tenant, true)) {
+                    $movement = $this->recordCashRegisterMovement($tenant, $session, 'sale_cash', 'in', $cashDrawerIn, [
+                        'sale_id' => $sale->id,
+                        'reference' => $sale->number,
+                        'payment_method' => 'cash',
+                        'note' => 'Encaissement espèces vente '.$sale->number,
+                        'metadata' => [
+                            'cash_received' => $payments['cash'],
+                            'cash_change' => $cashChange,
+                            'paid_amount' => $paid,
+                        ],
+                    ]);
+                    $metadata = $sale->metadata ?? [];
+                    $metadata['cash_register'] = array_merge($metadata['cash_register'] ?? [], [
+                        'session_id' => $session->id,
+                        'session_number' => $session->number,
+                        'movement_id' => $movement->id,
+                        'movement_number' => $movement->number,
+                    ]);
+                    $sale->forceFill(['metadata' => $metadata])->save();
+                }
+
                 if ($couponDetail['coupon_id']) {
                     Coupon::where('tenant_id', $tenant->id)->whereKey($couponDetail['coupon_id'])->update([
                         'uses_count' => DB::raw('uses_count + 1'),
@@ -4023,6 +4048,127 @@ class LibraireProController extends Controller
         return redirect()->route('module', ['module' => 'finance', 'section' => 'transfers'])->with('status', 'Transfert enregistré.');
     }
 
+    public function openCashRegister(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $storeKeys = collect($this->storeCatalog($tenant))->pluck('key')->all();
+        $data = $request->validate([
+            'financial_account_id' => ['nullable', 'integer', Rule::exists('financial_accounts', 'id')->where('tenant_id', $tenant->id)->where('type', 'cash')],
+            'store_key' => ['nullable', Rule::in($storeKeys)],
+            'opening_amount' => ['required', 'numeric', 'min:0', 'max:99999999'],
+            'note' => ['nullable', 'string', 'max:700'],
+        ]);
+
+        $storeKey = $data['store_key'] ?? $this->currentStore($tenant)['key'];
+        if ($this->openCashRegisterSession($tenant, false, $storeKey)) {
+            return back()->withErrors(['cash_register' => 'Un tiroir est déjà ouvert pour ce magasin. Clôturez-le avant d’en ouvrir un autre.']);
+        }
+
+        $session = DB::transaction(function () use ($tenant, $data, $storeKey): CashRegisterSession {
+            $session = CashRegisterSession::create([
+                'tenant_id' => $tenant->id,
+                'financial_account_id' => $data['financial_account_id'] ?? null,
+                'opened_by' => auth()->id(),
+                'store_key' => $storeKey,
+                'number' => $this->nextCashRegisterSessionNumber($tenant),
+                'status' => 'open',
+                'opening_amount' => round((float) $data['opening_amount'], 2),
+                'expected_cash_amount' => 0,
+                'opened_at' => now(),
+                'note' => $data['note'] ?? null,
+            ]);
+
+            $this->recordCashRegisterMovement($tenant, $session, 'opening', 'in', (float) $session->opening_amount, [
+                'payment_method' => 'cash',
+                'reference' => $session->number,
+                'note' => 'Fond de caisse initial',
+            ]);
+
+            return $session;
+        });
+
+        return redirect()->route('module', 'cash-register')->with('status', 'Tiroir '.$session->number.' ouvert.');
+    }
+
+    public function storeCashRegisterMovement(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $request->validate([
+            'type' => ['required', Rule::in(['cash_in', 'cash_out', 'correction'])],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999'],
+            'reference' => ['nullable', 'string', 'max:160'],
+            'note' => ['required', 'string', 'max:700'],
+        ]);
+
+        $session = $this->openCashRegisterSession($tenant, true);
+        if (! $session) {
+            return back()->withErrors(['cash_register' => 'Ouvrez le tiroir avant d’ajouter un mouvement.']);
+        }
+
+        $direction = $data['type'] === 'cash_out' ? 'out' : 'in';
+        DB::transaction(function () use ($tenant, $session, $data, $direction): void {
+            $lockedSession = CashRegisterSession::where('tenant_id', $tenant->id)->lockForUpdate()->findOrFail($session->id);
+            $this->recordCashRegisterMovement($tenant, $lockedSession, $data['type'], $direction, round((float) $data['amount'], 2), [
+                'payment_method' => 'cash',
+                'reference' => $data['reference'] ?? null,
+                'note' => $data['note'],
+            ]);
+        });
+
+        return redirect()->route('module', 'cash-register')->with('status', 'Mouvement de tiroir enregistré.');
+    }
+
+    public function closeCashRegister(Request $request, CashRegisterSession $session): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless((int) $session->tenant_id === (int) $tenant->id, 404);
+        if ($session->status !== 'open') {
+            return back()->withErrors(['cash_register' => 'Ce tiroir est déjà clôturé.']);
+        }
+
+        $data = $request->validate([
+            'counted_cash_amount' => ['required', 'numeric', 'min:0', 'max:99999999'],
+            'closing_note' => ['nullable', 'string', 'max:900'],
+        ]);
+
+        DB::transaction(function () use ($tenant, $session, $data): void {
+            $lockedSession = CashRegisterSession::where('tenant_id', $tenant->id)->lockForUpdate()->findOrFail($session->id);
+            $counted = round((float) $data['counted_cash_amount'], 2);
+            $expected = round((float) $lockedSession->expected_cash_amount, 2);
+            $difference = round($counted - $expected, 2);
+            $lockedSession->update([
+                'status' => 'closed',
+                'closed_by' => auth()->id(),
+                'counted_cash_amount' => $counted,
+                'difference_amount' => $difference,
+                'closed_at' => now(),
+                'closing_note' => $data['closing_note'] ?? null,
+            ]);
+
+            CashRegisterMovement::create([
+                'tenant_id' => $tenant->id,
+                'cash_register_session_id' => $lockedSession->id,
+                'user_id' => auth()->id(),
+                'number' => $this->nextCashRegisterMovementNumber($tenant),
+                'type' => 'closing',
+                'direction' => 'neutral',
+                'amount' => $counted,
+                'balance_after' => $expected,
+                'payment_method' => 'cash',
+                'reference' => $lockedSession->number,
+                'note' => 'Clôture du tiroir',
+                'moved_at' => now(),
+                'metadata' => [
+                    'expected_cash_amount' => $expected,
+                    'counted_cash_amount' => $counted,
+                    'difference_amount' => $difference,
+                ],
+            ]);
+        });
+
+        return redirect()->route('module', 'cash-register')->with('status', 'Tiroir '.$session->number.' clôturé.');
+    }
+
     public function storeCustomerAdvance(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();
@@ -4335,6 +4481,7 @@ class LibraireProController extends Controller
             'loans' => ['title' => 'Emprunts', 'subtitle' => 'Prêts, retours, pénalités, réservations et cartes membre.', 'active' => 'loans'],
             'contacts' => ['title' => 'Contacts', 'subtitle' => 'Clients, écoles, fournisseurs, segmentation et communication.', 'active' => 'contacts'],
             'finance' => ['title' => 'Finances', 'subtitle' => 'Avances, coupons, dépenses, balances et clôture de caisse.', 'active' => 'finance'],
+            'cash-register' => ['title' => 'Tiroir caisse', 'subtitle' => 'Ouverture, clôture, solde attendu et historique du tiroir.', 'active' => 'finance'],
             'reports' => ['title' => 'Rapports', 'subtitle' => 'Analytique ventes, inventaire, finances et bibliothèque.', 'active' => 'reports'],
             'settings' => ['title' => 'Paramètres', 'subtitle' => 'Profil librairie, utilisateurs, rôles, intégrations et sécurité.', 'active' => 'settings'],
         ];
@@ -4376,6 +4523,7 @@ class LibraireProController extends Controller
         $coupons = $this->couponsQuery($tenant, $request)->paginate(25, ['*'], 'coupons_page')->withQueryString();
         $financialAccounts = FinancialAccount::where('tenant_id', $tenant->id)->orderByDesc('is_active')->orderBy('name')->get();
         $accountTransactions = $this->accountTransactionsQuery($tenant, $request)->paginate(25, ['*'], 'account_transactions_page')->withQueryString();
+        $cashRegisterContext = $this->cashRegisterContext($tenant, $request);
         $reportContext = $this->reportContext($tenant, $request);
         $editContact = null;
         if ($module === 'contacts' && $request->filled('edit')) {
@@ -4455,6 +4603,7 @@ class LibraireProController extends Controller
             ],
             'financialAccounts' => $financialAccounts,
             'accountTransactions' => $accountTransactions,
+            'cashRegister' => $cashRegisterContext,
             'accountStats' => [
                 'balance' => $financialAccounts->sum('current_balance'),
                 'active' => $financialAccounts->where('is_active', true)->count(),
@@ -4990,6 +5139,72 @@ class LibraireProController extends Controller
         return 'ACC'.str_pad((string) ($max + 1), 6, '0', STR_PAD_LEFT);
     }
 
+    private function nextCashRegisterSessionNumber(Tenant $tenant): string
+    {
+        $max = CashRegisterSession::where('tenant_id', $tenant->id)
+            ->where('number', 'like', 'CR%')
+            ->pluck('number')
+            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
+            ->max() ?? 0;
+
+        return 'CR'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
+    }
+
+    private function nextCashRegisterMovementNumber(Tenant $tenant): string
+    {
+        $max = CashRegisterMovement::where('tenant_id', $tenant->id)
+            ->where('number', 'like', 'CRM%')
+            ->pluck('number')
+            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
+            ->max() ?? 0;
+
+        return 'CRM'.str_pad((string) ($max + 1), 6, '0', STR_PAD_LEFT);
+    }
+
+    private function openCashRegisterSession(Tenant $tenant, bool $lock = false, ?string $storeKey = null): ?CashRegisterSession
+    {
+        $query = CashRegisterSession::where('tenant_id', $tenant->id)
+            ->where('status', 'open')
+            ->where('store_key', $storeKey ?? $this->currentStore($tenant)['key'])
+            ->latest('opened_at');
+
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        return $query->first();
+    }
+
+    private function recordCashRegisterMovement(Tenant $tenant, CashRegisterSession $session, string $type, string $direction, float $amount, array $data = []): CashRegisterMovement
+    {
+        $amount = round(abs($amount), 2);
+        $delta = match ($direction) {
+            'out' => -$amount,
+            'neutral' => 0.0,
+            default => $amount,
+        };
+        $balance = round((float) $session->expected_cash_amount + $delta, 2);
+        $session->forceFill(['expected_cash_amount' => $balance])->save();
+
+        return CashRegisterMovement::create([
+            'tenant_id' => $tenant->id,
+            'cash_register_session_id' => $session->id,
+            'user_id' => auth()->id(),
+            'sale_id' => $data['sale_id'] ?? null,
+            'account_transaction_id' => $data['account_transaction_id'] ?? null,
+            'number' => $this->nextCashRegisterMovementNumber($tenant),
+            'type' => $type,
+            'direction' => $direction,
+            'amount' => $amount,
+            'balance_after' => $balance,
+            'payment_method' => $data['payment_method'] ?? null,
+            'reference' => $data['reference'] ?? null,
+            'note' => $data['note'] ?? null,
+            'moved_at' => $data['moved_at'] ?? now(),
+            'metadata' => $data['metadata'] ?? null,
+        ]);
+    }
+
     private function recordAccountTransaction(Tenant $tenant, FinancialAccount $account, string $type, string $direction, float $amount, array $data = []): AccountTransaction
     {
         $signedAmount = $direction === 'out' ? -abs($amount) : abs($amount);
@@ -5414,6 +5629,56 @@ class LibraireProController extends Controller
             ->when($request->query('to'), fn (Builder $builder, $to) => $builder->whereDate('transacted_at', '<=', $to))
             ->latest('transacted_at')
             ->latest();
+    }
+
+    private function cashRegisterContext(Tenant $tenant, Request $request): array
+    {
+        $storeKey = $this->currentStore($tenant)['key'];
+        $query = trim((string) $request->query('q'));
+        $movementQuery = CashRegisterMovement::query()
+            ->with(['session.openedBy', 'user', 'sale'])
+            ->where('tenant_id', $tenant->id)
+            ->when($query !== '', function (Builder $builder) use ($query): void {
+                $builder->where(function (Builder $builder) use ($query): void {
+                    $builder->where('number', 'like', "%{$query}%")
+                        ->orWhere('type', 'like', "%{$query}%")
+                        ->orWhere('reference', 'like', "%{$query}%")
+                        ->orWhere('note', 'like', "%{$query}%")
+                        ->orWhereHas('session', fn (Builder $session) => $session->where('number', 'like', "%{$query}%"))
+                        ->orWhereHas('sale', fn (Builder $sale) => $sale->where('number', 'like', "%{$query}%"));
+                });
+            })
+            ->when($request->query('movement_type'), fn (Builder $builder, $type) => $builder->where('type', $type))
+            ->when($request->query('from'), fn (Builder $builder, $from) => $builder->whereDate('moved_at', '>=', $from))
+            ->when($request->query('to'), fn (Builder $builder, $to) => $builder->whereDate('moved_at', '<=', $to))
+            ->latest('moved_at')
+            ->latest();
+
+        $sessionsQuery = CashRegisterSession::query()
+            ->with(['openedBy', 'closedBy', 'account'])
+            ->where('tenant_id', $tenant->id)
+            ->when($request->query('session_status'), fn (Builder $builder, $status) => $builder->where('status', $status))
+            ->latest('opened_at')
+            ->latest();
+
+        $todayMovements = CashRegisterMovement::where('tenant_id', $tenant->id)->whereDate('moved_at', now()->toDateString())->get();
+
+        return [
+            'openSession' => CashRegisterSession::with(['openedBy', 'account', 'movements' => fn ($query) => $query->latest('moved_at')->take(8)])
+                ->where('tenant_id', $tenant->id)
+                ->where('store_key', $storeKey)
+                ->where('status', 'open')
+                ->latest('opened_at')
+                ->first(),
+            'movements' => $movementQuery->paginate(30, ['*'], 'cash_movements_page')->withQueryString(),
+            'sessions' => $sessionsQuery->paginate(12, ['*'], 'cash_sessions_page')->withQueryString(),
+            'cashAccounts' => FinancialAccount::where('tenant_id', $tenant->id)->where('type', 'cash')->where('is_active', true)->orderBy('name')->get(),
+            'todayIn' => $todayMovements->where('direction', 'in')->sum('amount'),
+            'todayOut' => $todayMovements->where('direction', 'out')->sum('amount'),
+            'todaySalesCash' => $todayMovements->where('type', 'sale_cash')->sum('amount'),
+            'todayCount' => $todayMovements->count(),
+            'lastClosed' => CashRegisterSession::where('tenant_id', $tenant->id)->where('status', 'closed')->latest('closed_at')->first(),
+        ];
     }
 
     private function expenseCategoriesQuery(Tenant $tenant, Request $request): Builder

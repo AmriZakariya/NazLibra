@@ -88,6 +88,7 @@ if (localStorage.getItem('librairepro-theme') === 'dark') {
 
 const fullscreenButtons = [...document.querySelectorAll('[data-fullscreen-toggle]')];
 const fullscreenStorageKey = 'librairepro-app-fullscreen';
+const fullscreenEnabled = () => localStorage.getItem(fullscreenStorageKey) === '1';
 const setAppFullscreen = (enabled) => {
     document.body.classList.toggle('app-fullscreen-mode', enabled);
     fullscreenButtons.forEach((button) => {
@@ -99,9 +100,21 @@ const setAppFullscreen = (enabled) => {
     });
 };
 
-if (localStorage.getItem(fullscreenStorageKey) === '1') {
+if (fullscreenEnabled()) {
     setAppFullscreen(true);
 }
+
+const ensureNativeFullscreen = async () => {
+    if (!fullscreenEnabled() || document.fullscreenElement || !document.documentElement.requestFullscreen) {
+        return;
+    }
+
+    try {
+        await document.documentElement.requestFullscreen();
+    } catch (error) {
+        // Native fullscreen requires a trusted user gesture; the app layout mode still persists.
+    }
+};
 
 fullscreenButtons.forEach((button) => {
     button.addEventListener('click', async () => {
@@ -122,8 +135,26 @@ fullscreenButtons.forEach((button) => {
 });
 
 document.addEventListener('fullscreenchange', () => {
+    if (fullscreenEnabled()) {
+        setAppFullscreen(true);
+    }
+
     fullscreenButtons.forEach((button) => {
         button.dataset.nativeFullscreen = document.fullscreenElement ? '1' : '0';
+    });
+});
+
+document.querySelectorAll('[data-pos-close-success]').forEach((link) => {
+    link.addEventListener('click', async (event) => {
+        const modal = link.closest('.fixed');
+        if (!modal || !fullscreenEnabled()) return;
+
+        event.preventDefault();
+        modal.remove();
+        window.history.replaceState({}, '', link.getAttribute('href') || window.location.pathname);
+        setAppFullscreen(true);
+        await ensureNativeFullscreen();
+        document.querySelector('.pos-search')?.focus();
     });
 });
 
@@ -2103,7 +2134,13 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         button.addEventListener('click', () => {
             document.body.classList.add('thermal-print-mode');
             window.print();
-            window.setTimeout(() => document.body.classList.remove('thermal-print-mode'), 500);
+            window.setTimeout(() => {
+                document.body.classList.remove('thermal-print-mode');
+                if (fullscreenEnabled()) {
+                    setAppFullscreen(true);
+                    ensureNativeFullscreen();
+                }
+            }, 500);
         });
     });
 

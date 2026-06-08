@@ -170,6 +170,9 @@ Route::put('/comptes/{account}', [LibraireProController::class, 'updateFinancial
 Route::delete('/comptes/{account}', [LibraireProController::class, 'destroyFinancialAccount'])->name('accounts.destroy');
 Route::post('/comptes/depots', [LibraireProController::class, 'storeMoneyDeposit'])->name('accounts.deposits.store');
 Route::post('/comptes/transferts', [LibraireProController::class, 'storeMoneyTransfer'])->name('accounts.transfers.store');
+Route::post('/caisse/registre/ouvrir', [LibraireProController::class, 'openCashRegister'])->name('cash-register.open');
+Route::post('/caisse/registre/mouvements', [LibraireProController::class, 'storeCashRegisterMovement'])->name('cash-register.movements.store');
+Route::post('/caisse/registre/{session}/fermer', [LibraireProController::class, 'closeCashRegister'])->name('cash-register.close');
 Route::post('/parametres/theme', [LibraireProController::class, 'updateTheme'])->name('settings.theme.update');
 Route::post('/parametres/societe', [LibraireProController::class, 'updateCompanyProfile'])->name('settings.company.update');
 Route::post('/parametres/caisse', [LibraireProController::class, 'updatePosSettings'])->name('settings.pos.update');

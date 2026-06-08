@@ -176,6 +176,7 @@
                     ['label' => 'Liste des comptes', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'accounts'])],
                     ['label' => "Liste des transferts d'argent", 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'transfers'])],
                     ['label' => 'Liste de dépôt', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'deposits'])],
+                    ['label' => 'Tiroir caisse', 'icon' => '▣', 'href' => route('module', 'cash-register'), 'keywords' => 'cash register tiroir caisse ouverture cloture balance drawer'],
                     ['label' => 'Transactions en espèces', 'icon' => '⇄', 'href' => route('module', ['module' => 'finance', 'section' => 'cash'])],
                 ]],
                 ['key' => 'stock', 'label' => 'Stock', 'icon' => '⌛', 'href' => route('stock'), 'children' => [
@@ -262,6 +263,7 @@
                 'Liste des avances' => 'avances paiements client crédit',
                 'Ajouter un compte' => 'banque caisse compte rib',
                 'Liste des comptes' => 'banque comptes cash trésorerie',
+                'Tiroir caisse' => 'cash register tiroir caisse drawer ouverture clôture cloture balance fond espèces z report',
                 'Transactions en espèces' => 'cash mouvements caisse monnaie',
                 'Rapports' => 'analytics statistiques ventes stock profit perte taxe',
                 'Liste des utilisateurs' => 'user équipe staff accès permission',

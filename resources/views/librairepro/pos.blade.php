@@ -39,7 +39,7 @@
                                         <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $lastSale->sold_at->format('d/m/Y H:i') }}</p>
                                     </span>
                                 </div>
-                                <a href="{{ route('pos') }}" class="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-xl font-black text-slate-700 shadow-sm transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">×</a>
+                                <a href="{{ route('pos') }}" data-pos-close-success class="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-xl font-black text-slate-700 shadow-sm transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">×</a>
                             </div>
                         </div>
 
@@ -115,7 +115,7 @@
                         </div>
                         <div class="shrink-0 border-t border-slate-200 bg-white p-4 shadow-[0_-14px_30px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950">
                             <div class="grid gap-2 sm:grid-cols-4">
-                                <a href="{{ route('pos') }}" class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-bold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">Nouveau</a>
+                                <a href="{{ route('pos') }}" data-pos-close-success class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-bold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">Nouveau</a>
                                 <button class="pos-print-ticket rounded-xl bg-brand px-3 py-3 text-sm font-bold text-white shadow-sm shadow-indigo-500/20 transition hover:brightness-110" type="button">Imprimer</button>
                                 <a href="{{ route('sales.pdf', $lastSale) }}" target="_blank" rel="noreferrer" class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-bold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">PDF vente</a>
                                 <a href="https://wa.me/?text={{ $shareText }}" target="_blank" rel="noreferrer" class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-bold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">Partager</a>

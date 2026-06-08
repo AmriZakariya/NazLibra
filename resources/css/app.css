@@ -858,6 +858,96 @@
         color: var(--brand-info);
     }
 
+    .dashboard-revenue-chart {
+        background:
+            linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 42%, transparent), transparent 74%),
+            var(--surface);
+        border: 1px solid color-mix(in srgb, var(--border-soft) 76%, transparent);
+        border-radius: calc(var(--brand-radius) + 4px) !important;
+        min-height: 280px;
+        overflow: hidden;
+        padding: 12px;
+        position: relative;
+    }
+
+    .dashboard-revenue-chart svg {
+        display: block;
+        height: 245px;
+        overflow: visible;
+        width: 100%;
+    }
+
+    .dashboard-chart-grid {
+        stroke: color-mix(in srgb, var(--border-soft) 72%, transparent);
+        stroke-width: 1;
+    }
+
+    .dashboard-chart-bar {
+        fill: color-mix(in srgb, var(--brand-primary) 18%, var(--surface));
+        transition: fill 160ms ease, opacity 160ms ease;
+    }
+
+    .dashboard-chart-bar:hover {
+        fill: color-mix(in srgb, var(--brand-primary) 42%, var(--surface));
+    }
+
+    .dashboard-chart-line {
+        fill: none;
+        stroke: var(--brand-primary);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 4;
+    }
+
+    .dashboard-chart-dot {
+        fill: var(--surface);
+        stroke: var(--brand-primary);
+        stroke-width: 3;
+    }
+
+    .dashboard-chart-label {
+        fill: var(--text-muted);
+        font-size: 11px;
+        font-weight: 800;
+    }
+
+    .dashboard-chart-summary {
+        align-items: center;
+        border-top: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: space-between;
+        padding-top: 10px;
+    }
+
+    .dashboard-chart-summary span {
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 750;
+    }
+
+    .dashboard-chart-summary strong {
+        color: var(--text-main);
+        font-weight: 900;
+    }
+
+    .dashboard-chart-empty {
+        align-items: center;
+        background: color-mix(in srgb, var(--surface) 86%, transparent);
+        border: 1px dashed color-mix(in srgb, var(--border-soft) 90%, transparent);
+        border-radius: var(--brand-radius) !important;
+        color: var(--text-muted);
+        display: flex;
+        font-size: 13px;
+        font-weight: 800;
+        inset: 54px 24px 70px;
+        justify-content: center;
+        pointer-events: none;
+        position: absolute;
+        text-align: center;
+    }
+
     .dashboard-hour-grid {
         display: grid;
         gap: 8px;
@@ -928,6 +1018,49 @@
         padding: 12px;
         text-decoration: none;
         transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+    }
+
+    .dashboard-action-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .dashboard-action-icon {
+        align-items: center;
+        background: color-mix(in srgb, var(--brand-primary) 10%, var(--surface));
+        border: 1px solid color-mix(in srgb, var(--brand-primary) 18%, var(--border-soft));
+        color: var(--brand-primary);
+        display: inline-flex;
+        flex: 0 0 auto;
+        font-size: 12px;
+        font-weight: 900;
+        height: 38px;
+        justify-content: center;
+        width: 38px;
+    }
+
+    .dashboard-action-row.is-success .dashboard-action-icon {
+        background: color-mix(in srgb, var(--brand-success) 12%, var(--surface));
+        border-color: color-mix(in srgb, var(--brand-success) 24%, var(--border-soft));
+        color: var(--brand-success);
+    }
+
+    .dashboard-action-row.is-warning .dashboard-action-icon {
+        background: color-mix(in srgb, var(--brand-warning) 12%, var(--surface));
+        border-color: color-mix(in srgb, var(--brand-warning) 24%, var(--border-soft));
+        color: var(--brand-warning);
+    }
+
+    .dashboard-action-row.is-danger .dashboard-action-icon {
+        background: color-mix(in srgb, var(--brand-danger) 10%, var(--surface));
+        border-color: color-mix(in srgb, var(--brand-danger) 22%, var(--border-soft));
+        color: var(--brand-danger);
+    }
+
+    .dashboard-action-row.is-info .dashboard-action-icon {
+        background: color-mix(in srgb, var(--brand-info) 10%, var(--surface));
+        border-color: color-mix(in srgb, var(--brand-info) 22%, var(--border-soft));
+        color: var(--brand-info);
     }
 
     .dashboard-action-row:hover,

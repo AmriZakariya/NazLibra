@@ -1537,6 +1537,8 @@
                 </article>
             </section>
         @endif
+    @elseif ($module === 'cash-register')
+        @include('librairepro.partials.cash-register-section')
     @elseif ($module === 'finance')
         @php
             $financeSection = request('section', 'expenses');
