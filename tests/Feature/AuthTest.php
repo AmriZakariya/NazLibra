@@ -203,4 +203,93 @@ class AuthTest extends TestCase
             ->assertOk()
             ->assertSee('Owner');
     }
+
+    public function test_user_can_lock_and_unlock_session_with_pin(): void
+    {
+        $this->seed();
+
+        $user = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+        $user->forceFill(['pin_hash' => Hash::make('1234')])->save();
+
+        $this->actingAs($user)
+            ->post(route('session.lock'))
+            ->assertRedirect(route('session.locked'));
+
+        $this->get(route('dashboard'))
+            ->assertRedirect(route('session.locked'));
+
+        $this->get(route('session.locked'))
+            ->assertOk()
+            ->assertSee('Session verrouillée')
+            ->assertSee('PIN caisse');
+
+        $this->post(route('session.unlock'), ['pin' => '9999'])
+            ->assertSessionHasErrors('pin');
+
+        $this->post(route('session.unlock'), ['pin' => '1234'])
+            ->assertRedirect(route('dashboard'));
+
+        $this->get(route('dashboard'))
+            ->assertOk();
+    }
+
+    public function test_forgot_pin_can_unlock_with_password(): void
+    {
+        $this->seed();
+
+        $user = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('session.lock'))
+            ->assertRedirect(route('session.locked'));
+
+        $this->post(route('session.forgot-pin'), ['password' => 'password'])
+            ->assertRedirect(route('dashboard'));
+
+        $this->get(route('dashboard'))
+            ->assertOk();
+    }
+
+    public function test_only_owner_can_set_user_pin(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $owner = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+        $cashier = User::where('email', 'caisse@librairie-atlas.ma')->firstOrFail();
+
+        $this->actingAs($owner)
+            ->put(route('settings.users.update', $cashier), [
+                'name' => $cashier->name,
+                'email' => $cashier->email,
+                'phone' => $cashier->phone,
+                'role' => 'cashier',
+                'store_access' => ['Magasin principal'],
+                'permissions' => [],
+                'is_active' => '1',
+                'pin' => '2468',
+            ])
+            ->assertRedirect();
+
+        $this->assertTrue(Hash::check('2468', $cashier->fresh()->pin_hash));
+
+        $tenant->users()->updateExistingPivot($cashier->id, [
+            'role' => 'cashier',
+            'permissions' => json_encode(['settings.users']),
+            'store_access' => json_encode(['Magasin principal']),
+        ]);
+
+        $this->actingAs($cashier)
+            ->put(route('settings.users.update', $cashier), [
+                'name' => $cashier->name,
+                'email' => $cashier->email,
+                'phone' => $cashier->phone,
+                'role' => 'cashier',
+                'store_access' => ['Magasin principal'],
+                'permissions' => [],
+                'is_active' => '1',
+                'pin' => '1357',
+            ])
+            ->assertForbidden();
+    }
 }

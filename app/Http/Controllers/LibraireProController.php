@@ -2306,6 +2306,7 @@ class LibraireProController extends Controller
             'email' => $data['email'],
             'phone' => $data['phone'] ?? null,
             'password' => Hash::make($data['password']),
+            'pin_hash' => ! empty($data['pin']) ? Hash::make($data['pin']) : null,
             'avatar_color' => $data['avatar_color'] ?? '#4F46E5',
             'profile_photo_path' => $request->hasFile('profile_photo')
                 ? $request->file('profile_photo')->store('users/profile-photos', 'public')
@@ -2338,6 +2339,12 @@ class LibraireProController extends Controller
 
         if (! empty($data['password'])) {
             $payload['password'] = Hash::make($data['password']);
+        }
+
+        if (! empty($data['pin'])) {
+            $payload['pin_hash'] = Hash::make($data['pin']);
+        } elseif ($request->boolean('clear_pin')) {
+            $payload['pin_hash'] = null;
         }
 
         if ($request->hasFile('profile_photo')) {
@@ -6002,6 +6009,8 @@ class LibraireProController extends Controller
             'email' => ['required', 'email', 'max:190', Rule::unique('users', 'email')->ignore($user?->id)],
             'phone' => ['nullable', 'string', 'max:60'],
             'password' => [$user ? 'nullable' : 'required', 'string', 'min:8', 'max:120'],
+            'pin' => ['nullable', 'digits_between:4,8'],
+            'clear_pin' => ['nullable', 'boolean'],
             'avatar_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'profile_photo' => ['nullable', 'image', 'max:2048'],
             'remove_profile_photo' => ['nullable', 'boolean'],
@@ -6015,7 +6024,24 @@ class LibraireProController extends Controller
         $data['permissions'] ??= [];
         $data['store_access'] ??= [];
 
+        if ((! empty($data['pin']) || $request->boolean('clear_pin')) && ! $this->currentUserIsOwner($tenant)) {
+            abort(403, 'Seul le propriétaire peut définir ou réinitialiser un PIN.');
+        }
+
         return $data;
+    }
+
+    private function currentUserIsOwner(Tenant $tenant): bool
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        $tenantUser = $tenant->users()->whereKey($user->id)->first();
+
+        return (string) ($tenantUser?->pivot?->role ?? '') === 'owner';
     }
 
     private function tenantUserPayload(array $data): array

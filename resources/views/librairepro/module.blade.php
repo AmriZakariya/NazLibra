@@ -2412,6 +2412,7 @@
                     @php
                         $activeUsersCount = $settingsUsers->where('is_active', true)->count();
                         $inactiveUsersCount = $settingsUsers->count() - $activeUsersCount;
+                        $canManageUserPins = (string) ($tenant->users()->whereKey(auth()->id())->first()?->pivot?->role ?? '') === 'owner';
                     @endphp
                     <div class="border-b border-slate-200 bg-white p-5 text-slate-950 dark:border-white/10 dark:bg-slate-950 dark:text-white">
                         <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -2457,13 +2458,14 @@
                                 </div>
                             </div>
                             <div class="overflow-x-auto">
-                                <table id="settings-users-table" class="w-full min-w-[1040px] text-left text-sm">
+                                <table id="settings-users-table" class="w-full min-w-[1120px] text-left text-sm">
                                     <thead class="bg-white text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950/40">
                                         <tr>
                                             <th class="px-4 py-3">Utilisateur</th>
                                             <th class="px-4 py-3">Rôle</th>
                                             <th class="px-4 py-3">Magasins</th>
                                             <th class="px-4 py-3">Permissions directes</th>
+                                            <th class="px-4 py-3">PIN</th>
                                             <th class="px-4 py-3">Statut</th>
                                             <th class="px-4 py-3 text-right">Action</th>
                                         </tr>
@@ -2501,6 +2503,9 @@
                                                     <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-white/10 dark:text-slate-200">{{ count($userPermissions) }} permission(s)</span>
                                                 </td>
                                                 <td class="px-4 py-4">
+                                                    <x-status-pill :tone="$user->pin_hash ? 'success' : 'warning'">{{ $user->pin_hash ? 'Configuré' : 'À définir' }}</x-status-pill>
+                                                </td>
+                                                <td class="px-4 py-4">
                                                     <x-status-pill :tone="$user->is_active ? 'success' : 'danger'">{{ $user->is_active ? 'Actif' : 'Désactivé' }}</x-status-pill>
                                                 </td>
                                                 <td class="px-4 py-4 text-right">
@@ -2534,11 +2539,17 @@
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email *</span><input name="email" required type="email" value="{{ $user->email }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" value="{{ $user->phone }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nouveau mot de passe</span><input name="password" type="password" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Laisser vide si inchangé"></label>
+                                                                @if ($canManageUserPins)
+                                                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">PIN caisse</span><input name="pin" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="4 à 8 chiffres"></label>
+                                                                @endif
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Rôle *</span><select name="role" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($settingsRoles as $role)<option value="{{ $role->key }}" @selected($user->pivot->role === $role->key)>{{ $role->name }}</option>@endforeach</select></label>
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Couleur avatar</span><input name="avatar_color" type="color" value="{{ $user->avatar_color }}" class="h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900"></label>
                                                                 <label class="space-y-1.5 md:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Photo de profil</span><input name="profile_photo" type="file" accept="image/*" class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white dark:border-white/10 dark:bg-slate-900"></label>
                                                                 @if ($user->profile_photo_path)
                                                                     <label class="flex h-11 items-center gap-2 rounded-lg border border-rose-200 px-3 text-sm font-semibold text-rose-600 dark:border-rose-500/30"><input name="remove_profile_photo" value="1" type="checkbox" class="size-4 accent-rose-500"> Retirer la photo</label>
+                                                                @endif
+                                                                @if ($canManageUserPins && $user->pin_hash)
+                                                                    <label class="flex h-11 items-center gap-2 rounded-lg border border-amber-200 px-3 text-sm font-semibold text-amber-700 dark:border-amber-500/30 dark:text-amber-200"><input name="clear_pin" value="1" type="checkbox" class="size-4 accent-amber-500"> Réinitialiser le PIN</label>
                                                                 @endif
                                                                 <label class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10"><input name="is_active" value="1" type="checkbox" @checked($user->is_active) class="size-4 accent-[var(--brand-primary)]"> Compte actif</label>
                                                             </div>
@@ -2579,7 +2590,7 @@
                                                 </form>
                                             </dialog>
                                         @empty
-                                            <tr><td colspan="6" class="px-4 py-12 text-center text-slate-500">Aucun utilisateur configuré.</td></tr>
+                                            <tr><td colspan="7" class="px-4 py-12 text-center text-slate-500">Aucun utilisateur configuré.</td></tr>
                                         @endforelse
                                     </tbody>
                                 </table>
@@ -2610,6 +2621,9 @@
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email *</span><input name="email" required type="email" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="nom@librairie.ma"></label>
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212 ..."></label>
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Mot de passe temporaire *</span><input name="password" required type="password" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Minimum 8 caractères"></label>
+                                        @if ($canManageUserPins)
+                                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">PIN caisse</span><input name="pin" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="4 à 8 chiffres"></label>
+                                        @endif
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Rôle *</span><select name="role" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($settingsRoles as $role)<option value="{{ $role->key }}">{{ $role->name }}</option>@endforeach</select></label>
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Couleur avatar</span><input name="avatar_color" type="color" value="#3157D5" class="h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900"></label>
                                         <label class="space-y-1.5 md:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Photo de profil</span><input name="profile_photo" type="file" accept="image/*" class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white dark:border-white/10 dark:bg-slate-900"></label>

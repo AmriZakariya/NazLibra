@@ -419,6 +419,10 @@
                             <span class="app-fullscreen-exit hidden" aria-hidden="true">×</span>
                         </button>
                         <button class="app-theme-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Basculer le thème') }}">◐</button>
+                        <form action="{{ route('session.lock') }}" method="POST" class="hidden sm:block">
+                            @csrf
+                            <button class="grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-sm font-black text-slate-600 transition hover:border-brand/40 hover:bg-slate-50 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="submit" aria-label="Verrouiller la session" title="Verrouiller la session">LK</button>
+                        </form>
                         @if ($showCashDrawerNavbar)
                             <a href="{{ route('module', 'cash-register') }}" class="topbar-cashdrawer {{ $layoutCashRegisterSession ? 'is-open' : 'is-closed' }}" title="{{ $layoutCashRegisterSession ? $tr('Tiroir ouvert') : $tr('Tiroir fermé') }}">
                                 <span class="topbar-cashdrawer-icon">TC</span>
@@ -479,6 +483,10 @@
                                     </div>
                                     <a href="{{ route('profile') }}" class="mt-2 block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Mon profil') }}</a>
                                     <a href="{{ route('module', ['module' => 'settings', 'section' => 'users']) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Utilisateurs & rôles') }}</a>
+                                    <form action="{{ route('session.lock') }}" method="POST" class="mt-1">
+                                        @csrf
+                                        <button class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="submit">Verrouiller la session</button>
+                                    </form>
                                     <form action="{{ route('logout') }}" method="POST" class="mt-2 border-t border-slate-200 pt-2 dark:border-white/10">
                                         @csrf
                                         <button class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10">{{ $tr('Déconnexion') }}</button>

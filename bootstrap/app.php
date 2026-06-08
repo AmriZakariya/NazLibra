@@ -13,6 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'tenant.access' => \App\Http\Middleware\EnsureTenantAccess::class,
+            'session.unlocked' => \App\Http\Middleware\EnsureSessionUnlocked::class,
         ]);
 
         $middleware->web(append: [

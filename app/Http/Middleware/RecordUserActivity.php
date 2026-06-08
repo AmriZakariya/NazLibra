@@ -119,6 +119,8 @@ class RecordUserActivity
             'password',
             'password_confirmation',
             'current_password',
+            'pin',
+            'clear_pin',
             'token',
             'api_key',
             'secret',

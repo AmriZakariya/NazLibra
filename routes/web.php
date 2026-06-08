@@ -7,11 +7,15 @@ use Illuminate\Support\Facades\Route;
 Route::get('/connexion', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/connexion', [AuthController::class, 'login'])->name('login.store');
 Route::post('/deconnexion', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
-Route::get('/profil', [AuthController::class, 'profile'])->middleware('auth')->name('profile');
-Route::put('/profil', [AuthController::class, 'updateProfile'])->middleware('auth')->name('profile.update');
-Route::get('/profil/activite', [AuthController::class, 'activity'])->middleware(['auth', 'tenant.access'])->name('profile.activity');
+Route::get('/profil', [AuthController::class, 'profile'])->middleware(['auth', 'session.unlocked'])->name('profile');
+Route::put('/profil', [AuthController::class, 'updateProfile'])->middleware(['auth', 'session.unlocked'])->name('profile.update');
+Route::get('/profil/activite', [AuthController::class, 'activity'])->middleware(['auth', 'tenant.access', 'session.unlocked'])->name('profile.activity');
+Route::get('/session/verrouillee', [AuthController::class, 'lockedScreen'])->middleware(['auth', 'tenant.access'])->name('session.locked');
+Route::post('/session/verrouiller', [AuthController::class, 'lockSession'])->middleware(['auth', 'tenant.access'])->name('session.lock');
+Route::post('/session/deverrouiller', [AuthController::class, 'unlockSession'])->middleware(['auth', 'tenant.access'])->name('session.unlock');
+Route::post('/session/pin-oublie', [AuthController::class, 'unlockWithPassword'])->middleware(['auth', 'tenant.access'])->name('session.forgot-pin');
 
-Route::middleware(['auth', 'tenant.access'])->group(function (): void {
+Route::middleware(['auth', 'tenant.access', 'session.unlocked'])->group(function (): void {
 Route::post('/langue/{locale}', [LibraireProController::class, 'switchLocale'])->name('locale.switch');
 Route::get('/', [LibraireProController::class, 'dashboard'])->name('dashboard');
 

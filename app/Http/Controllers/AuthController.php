@@ -42,8 +42,72 @@ class AuthController extends Controller
         }
 
         $request->session()->regenerate();
+        $request->session()->forget(['pos_session_locked', 'pos_session_locked_at']);
 
         return redirect()->intended(route('dashboard'))->with('status', 'Connexion réussie.');
+    }
+
+    public function lockSession(Request $request): RedirectResponse
+    {
+        $request->session()->put('pos_session_locked', true);
+        $request->session()->put('pos_session_locked_at', now()->toIso8601String());
+
+        return redirect()->route('session.locked');
+    }
+
+    public function lockedScreen(Request $request): View|RedirectResponse
+    {
+        if (! (bool) $request->session()->get('pos_session_locked', false)) {
+            return redirect()->route('dashboard');
+        }
+
+        $user = $request->user();
+        $tenant = $user?->currentTenant ?: Tenant::query()->first();
+
+        return view('auth.locked', [
+            'tenant' => $tenant,
+            'user' => $user,
+            'lockedAt' => $request->session()->get('pos_session_locked_at'),
+            'hasPin' => filled($user?->pin_hash),
+        ]);
+    }
+
+    public function unlockSession(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'pin' => ['required', 'digits_between:4,8'],
+        ]);
+
+        $user = $request->user();
+
+        if (! $user?->pin_hash || ! Hash::check($data['pin'], $user->pin_hash)) {
+            throw ValidationException::withMessages([
+                'pin' => 'PIN incorrect.',
+            ]);
+        }
+
+        $request->session()->forget(['pos_session_locked', 'pos_session_locked_at']);
+
+        return redirect()->intended(route('dashboard'))->with('status', 'Session déverrouillée.');
+    }
+
+    public function unlockWithPassword(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'password' => ['required', 'string'],
+        ]);
+
+        $user = $request->user();
+
+        if (! $user || ! Hash::check($data['password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'password' => 'Mot de passe incorrect.',
+            ]);
+        }
+
+        $request->session()->forget(['pos_session_locked', 'pos_session_locked_at']);
+
+        return redirect()->route('dashboard')->with('status', 'Session déverrouillée. Demandez au propriétaire de définir ou réinitialiser votre PIN.');
     }
 
     public function logout(Request $request): RedirectResponse

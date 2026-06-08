@@ -4031,6 +4031,190 @@
 }
 
 @layer utilities {
+    .lock-screen {
+        display: grid;
+        min-height: 100dvh;
+        place-items: center;
+        background:
+            radial-gradient(circle at top left, rgb(49 87 213 / 26%), transparent 34rem),
+            linear-gradient(145deg, #020617, #0f172a);
+        padding: 24px;
+    }
+
+    .lock-card {
+        width: min(480px, 100%);
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 28px;
+        background: rgb(15 23 42 / 82%);
+        padding: 28px;
+        box-shadow: 0 32px 80px rgb(0 0 0 / 36%);
+    }
+
+    .lock-brand,
+    .lock-user {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .lock-brand > span {
+        display: grid;
+        width: 54px;
+        height: 54px;
+        place-items: center;
+        border-radius: 18px;
+        background: var(--brand-primary, #3157d5);
+        font-weight: 950;
+        color: white;
+    }
+
+    .lock-brand p,
+    .lock-user span {
+        color: #94a3b8;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .lock-brand h1 {
+        margin-top: 3px;
+        color: white;
+        font-size: 26px;
+        font-weight: 850;
+        letter-spacing: -0.01em;
+    }
+
+    .lock-user {
+        margin-top: 26px;
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 18px;
+        background: rgb(255 255 255 / 5%);
+        padding: 12px;
+    }
+
+    .lock-user strong {
+        display: block;
+        color: white;
+        font-size: 16px;
+        font-weight: 850;
+    }
+
+    .lock-form {
+        margin-top: 22px;
+    }
+
+    .lock-form label span {
+        display: block;
+        margin-bottom: 8px;
+        color: #cbd5e1;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    .lock-form input,
+    .lock-forgot input {
+        width: 100%;
+        border: 1px solid rgb(255 255 255 / 12%);
+        border-radius: 18px;
+        background: rgb(2 6 23 / 72%);
+        color: white;
+        outline: none;
+    }
+
+    .lock-form input {
+        height: 64px;
+        padding: 0 18px;
+        text-align: center;
+        font-size: 30px;
+        font-weight: 900;
+        letter-spacing: .28em;
+    }
+
+    .lock-forgot input {
+        height: 48px;
+        margin-top: 12px;
+        padding: 0 14px;
+        font-size: 14px;
+    }
+
+    .lock-form input:focus,
+    .lock-forgot input:focus {
+        border-color: rgb(147 197 253 / 70%);
+        box-shadow: 0 0 0 4px rgb(49 87 213 / 24%);
+    }
+
+    .lock-form button,
+    .lock-forgot button {
+        width: 100%;
+        border-radius: 16px;
+        background: var(--brand-primary, #3157d5);
+        color: white;
+        font-size: 15px;
+        font-weight: 850;
+    }
+
+    .lock-form button {
+        height: 54px;
+        margin-top: 14px;
+    }
+
+    .lock-forgot button {
+        min-height: 46px;
+        margin-top: 12px;
+    }
+
+    .lock-error,
+    .lock-warning {
+        margin-top: 10px;
+        border-radius: 12px;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 750;
+    }
+
+    .lock-error {
+        background: rgb(244 63 94 / 14%);
+        color: #fecdd3;
+    }
+
+    .lock-warning {
+        background: rgb(245 158 11 / 14%);
+        color: #fde68a;
+    }
+
+    .lock-forgot {
+        margin-top: 16px;
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 16px;
+        padding: 12px 14px;
+    }
+
+    .lock-forgot summary {
+        cursor: pointer;
+        color: #cbd5e1;
+        font-size: 13px;
+        font-weight: 850;
+    }
+
+    .lock-forgot p {
+        margin-top: 10px;
+        color: #94a3b8;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .lock-logout {
+        margin-top: 14px;
+        text-align: center;
+    }
+
+    .lock-logout button {
+        color: #94a3b8;
+        font-size: 13px;
+        font-weight: 800;
+    }
+
     .app-main-shell {
         background:
             linear-gradient(180deg, color-mix(in srgb, var(--surface) 42%, transparent) 0, transparent 220px),
