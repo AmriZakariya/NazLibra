@@ -325,6 +325,207 @@ class LibraireProController extends Controller
         ]);
     }
 
+    public function functionalityGuide(): View
+    {
+        $tenant = $this->tenant();
+        $groups = $this->functionalityGuideGroups();
+        $features = collect($groups)->flatMap(fn (array $group) => $group['features']);
+        $visibleCount = $features->where('status', 'visible')->count();
+        $codeOnlyCount = $features->where('status', 'code')->count();
+        $reviewCount = $features->where('status', 'review')->count();
+
+        return view('librairepro.functionality-guide', [
+            'tenant' => $tenant,
+            'active' => 'guide',
+            'groups' => $groups,
+            'summary' => [
+                'groups' => count($groups),
+                'features' => $features->count(),
+                'visible' => $visibleCount,
+                'code' => $codeOnlyCount,
+                'review' => $reviewCount,
+            ],
+        ]);
+    }
+
+    private function functionalityGuideGroups(): array
+    {
+        $feature = function (string $name, string $description, string $href, string $status = 'visible'): array {
+            return compact('name', 'description', 'href', 'status');
+        };
+
+        return [
+            [
+                'title' => 'Pilotage',
+                'description' => 'Vue globale, raccourcis et indicateurs opérationnels.',
+                'features' => [
+                    $feature('Tableau de bord', 'KPIs de vente, stock, caisse, paiements, clients actifs, tendances et période filtrable.', route('dashboard')),
+                    $feature('Centre d action', 'Tickets en attente, livraisons, devis ouverts, achats à suivre et état du tiroir caisse.', route('dashboard')),
+                    $feature('Raccourcis rapides', 'Accès direct aux étiquettes, import, création client et achat depuis le dashboard.', route('dashboard')),
+                    $feature('Guide des fonctionnalités', 'Inventaire scannable des modules, liens et éléments à revoir.', route('functionality-guide')),
+                ],
+            ],
+            [
+                'title' => 'Catalogue',
+                'description' => 'Articles, services, référentiels, imports et impression.',
+                'features' => [
+                    $feature('Liste des articles', 'Recherche, filtres, tri, pagination, export catalogue et accès modification.', route('catalog', ['panel' => 'articles'])),
+                    $feature('Liste des services', 'Services sans stock réel avec prix, catégorie et informations de vente.', route('catalog', ['panel' => 'services'])),
+                    $feature('Ajouter un article', 'Création livre ou produit avec ISBN, code-barres, prix, taxes, stock, seuil et visibilité.', route('catalog', ['panel' => 'ajouter'])),
+                    $feature('Ajouter un service', 'Création de prestation ou service non physique utilisable en vente et caisse.', route('catalog', ['panel' => 'ajouter-service'])),
+                    $feature('Import articles/services', 'Import Excel/CSV avec modèles exemple pour articles et services.', route('catalog', ['panel' => 'import', 'kind' => 'items'])),
+                    $feature('Catégories', 'Référentiel de familles, descriptions, hiérarchie et import côté catalogue.', route('catalog', ['panel' => 'categories'])),
+                    $feature('Marques / éditeurs', 'Gestion des marques, éditeurs, contacts et type fournisseur/éditeur.', route('catalog', ['panel' => 'marques'])),
+                    $feature('Unités', 'Unités de mesure utilisées par articles, achats et services.', route('catalog', ['panel' => 'unites'])),
+                    $feature('Impôts / TVA', 'Taux fiscaux actifs utilisés sur le catalogue, la caisse et les documents.', route('catalog', ['panel' => 'impots'])),
+                    $feature('Variantes', 'Options de variante et suivi des articles ayant des variantes.', route('catalog', ['panel' => 'variantes'])),
+                    $feature('Étiquettes code-barres', 'Workbench d impression d étiquettes prix/code-barres avec sélection d articles.', route('catalog.labels')),
+                    $feature('Recherche rapide produit', 'Recherche globale topbar par article, ISBN, code-barres et SKU.', route('catalog')),
+                ],
+            ],
+            [
+                'title' => 'Stock',
+                'description' => 'Ajustements, transferts, inventaire et mouvements.',
+                'features' => [
+                    $feature('Ajustement de stock', 'Correction multi-lignes avec raison, entrepôt, ajout/retrait/définition et recherche article.', route('stock', ['panel' => 'stock-adjustment-add'])),
+                    $feature('Historique des ajustements', 'Liste filtrable des corrections avec détail des lignes et quantités.', route('stock', ['panel' => 'stock-adjustments'])),
+                    $feature('Transfert de stock', 'Déplacement d articles entre magasins, dépôts ou rayons.', route('stock', ['panel' => 'stock-transfer-add'])),
+                    $feature('Historique des transferts', 'Suivi des transferts, statuts et quantités déplacées.', route('stock', ['panel' => 'stock-transfers'])),
+                    $feature('Inventaire et mouvements', 'Tables de mouvements de stock et valorisation achat/vente disponibles dans le workspace stock.', route('stock', ['panel' => 'stock-adjustments'])),
+                    $feature('Alertes stock', 'Détection bas stock/rupture et options POS liées au stock.', route('module', ['module' => 'settings', 'section' => 'store'])),
+                ],
+            ],
+            [
+                'title' => 'Caisse POS',
+                'description' => 'Encaissement comptoir, tickets, remises et tiroir.',
+                'features' => [
+                    $feature('Point de vente', 'Recherche/scanner, filtres produits, panier, client, paiement et validation ticket.', route('pos')),
+                    $feature('Tickets en attente', 'Mise en attente, reprise et suppression de tickets POS.', route('pos')),
+                    $feature('Remises et coupons POS', 'Remise manuelle et vérification de coupons avant paiement.', route('pos')),
+                    $feature('Ticket reçu', 'Aperçu thermique, impression, PDF vente et partage WhatsApp après paiement.', route('pos')),
+                    $feature('Paramètres caisse', 'Prix modifiable, oversell, affichage rupture, seuil stock, tiroir navbar et règles d inventaire.', route('module', ['module' => 'settings', 'section' => 'store'])),
+                    $feature('Verrouillage session', 'Verrouillage/déverrouillage par PIN ou mot de passe pour sécuriser la caisse.', route('session.locked')),
+                ],
+            ],
+            [
+                'title' => 'Ventes',
+                'description' => 'Ventes manuelles, paiements, retours, livraisons, factures et devis.',
+                'features' => [
+                    $feature('Ajouter une vente', 'Saisie complète hors caisse: client, lignes, taxes, remises, échéance, note, livraison et paiements.', route('module', ['module' => 'sales', 'section' => 'add'])),
+                    $feature('Liste des ventes', 'Historique filtrable avec détail, PDF, facture, remboursement et suppression.', route('module', 'sales')),
+                    $feature('Paiements des ventes', 'Liste et ajout d encaissements par espèce, carte, virement ou avance client.', route('module', ['module' => 'sales', 'section' => 'payments'])),
+                    $feature('Retours de vente', 'Création et suivi des remboursements avec option de restock.', route('module', ['module' => 'sales', 'section' => 'returns'])),
+                    $feature('Livraisons', 'Bons de livraison, statuts, adresses et ventes à expédier.', route('module', ['module' => 'sales', 'section' => 'delivery'])),
+                    $feature('Factures', 'Liste des factures de vente, recherche et téléchargement PDF.', route('module', ['module' => 'sales', 'section' => 'invoices'])),
+                    $feature('Nouveau devis', 'Création d offre client sans impact stock avant conversion.', route('module', ['module' => 'sales', 'section' => 'quote-add'])),
+                    $feature('Liste des devis', 'Suivi des devis, statuts, détail et conversion en vente.', route('module', ['module' => 'sales', 'section' => 'quotes'])),
+                ],
+            ],
+            [
+                'title' => 'Achats',
+                'description' => 'Commandes fournisseurs, réception, PDF et retours.',
+                'features' => [
+                    $feature('Nouvel achat', 'Commande fournisseur multi-lignes avec entrepôt, échéance, taxes, frais et notes.', route('module', ['module' => 'purchases', 'section' => 'add'])),
+                    $feature('Liste des achats', 'Suivi filtrable des commandes, détail, réception stock et PDF.', route('module', ['module' => 'purchases', 'section' => 'list'])),
+                    $feature('Réception achat', 'Confirmation de réception et mise à jour du stock/coût selon paramètres.', route('module', ['module' => 'purchases', 'section' => 'list'])),
+                    $feature('Retours achat', 'Création et suivi des retours fournisseur avec sources d achat reçues.', route('module', ['module' => 'purchases', 'section' => 'returns'])),
+                    $feature('Paiements achat', 'Routes de rapports et libellés existent, mais aucun écran de saisie dédié n est visible.', route('module', ['module' => 'reports', 'section' => 'purchase-payments']), 'review'),
+                ],
+            ],
+            [
+                'title' => 'Contacts CRM',
+                'description' => 'Clients, fournisseurs, soldes, imports et segmentation.',
+                'features' => [
+                    $feature('Ajouter un client', 'Fiche client avec coordonnées, CIN, crédit, avance, solde, adhésion, niveau de prix et adresses.', route('module', ['module' => 'contacts', 'section' => 'customer-add'])),
+                    $feature('Liste des clients', 'Recherche, filtres, soldes, édition et accès aux informations CRM.', route('module', ['module' => 'contacts', 'section' => 'customers'])),
+                    $feature('Importer des clients', 'Import de contacts clients via fichier exemple.', route('module', ['module' => 'contacts', 'section' => 'import-customers'])),
+                    $feature('Ajouter un fournisseur', 'Fiche fournisseur avec fiscalité, solde précédent, adresses et coordonnées.', route('module', ['module' => 'contacts', 'section' => 'supplier-add'])),
+                    $feature('Liste des fournisseurs', 'Gestion des fournisseurs, soldes achats/retours et édition.', route('module', ['module' => 'contacts', 'section' => 'suppliers'])),
+                    $feature('Importer des fournisseurs', 'Import de contacts fournisseurs via fichier exemple.', route('module', ['module' => 'contacts', 'section' => 'import-suppliers'])),
+                ],
+            ],
+            [
+                'title' => 'Finances',
+                'description' => 'Avances, coupons, dépenses, comptes et mouvements de caisse.',
+                'features' => [
+                    $feature('Ajouter une avance', 'Enregistrement des acomptes clients et impact sur le solde d avance.', route('module', ['module' => 'finance', 'section' => 'advance-add'])),
+                    $feature('Liste des avances', 'Historique filtrable des avances et balances clients.', route('module', ['module' => 'finance', 'section' => 'advances'])),
+                    $feature('Créer un coupon client', 'Coupon lié à un client avec montant, dates et suivi usage.', route('module', ['module' => 'finance', 'section' => 'customer-coupon-add'])),
+                    $feature('Coupons client', 'Liste des coupons affectés aux clients.', route('module', ['module' => 'finance', 'section' => 'customer-coupons'])),
+                    $feature('Créer un coupon', 'Création de coupon de remise global utilisable en caisse.', route('module', ['module' => 'finance', 'section' => 'coupon-add'])),
+                    $feature('Maître des coupons', 'Gestion des coupons actifs, expirations, montants utilisés et suppression.', route('module', ['module' => 'finance', 'section' => 'coupons'])),
+                    $feature('Ajouter un compte', 'Création comptes banque, caisse ou TPE par magasin.', route('module', ['module' => 'finance', 'section' => 'account-add'])),
+                    $feature('Liste des comptes', 'Soldes, comptes actifs et édition/suppression des comptes financiers.', route('module', ['module' => 'finance', 'section' => 'accounts'])),
+                    $feature('Dépôts', 'Enregistrement et liste des dépôts vers comptes financiers.', route('module', ['module' => 'finance', 'section' => 'deposits'])),
+                    $feature('Transferts argent', 'Transfert entre comptes avec trace de transaction.', route('module', ['module' => 'finance', 'section' => 'transfers'])),
+                    $feature('Transactions espèces', 'Mouvements des comptes de type caisse et historique associé.', route('module', ['module' => 'finance', 'section' => 'cash'])),
+                    $feature('Tiroir caisse', 'Ouverture, mouvements, clôture, solde attendu et historique par magasin.', route('module', 'cash-register')),
+                    $feature('Ajouter une dépense', 'Saisie frais/charges avec catégorie, paiement, référence et note.', route('module', ['module' => 'finance', 'section' => 'expense-add'])),
+                    $feature('Liste des dépenses', 'Recherche et filtres par catégorie, période, paiement et détail.', route('module', ['module' => 'finance', 'section' => 'expenses'])),
+                    $feature('Catégories de dépenses', 'Création et liste des catégories avec couleur et description.', route('module', ['module' => 'finance', 'section' => 'expense-categories'])),
+                ],
+            ],
+            [
+                'title' => 'Rapports',
+                'description' => 'Analytique filtrable, impression/PDF et copie de tableau.',
+                'features' => [
+                    $feature('Profit et pertes', 'Synthèse ventes nettes, coûts, dépenses, marge et profit net.', route('module', ['module' => 'reports', 'section' => 'profit-loss'])),
+                    $feature('Ventes et paiements', 'Rapports de ventes, paiements, tickets, clients et statuts.', route('module', ['module' => 'reports', 'section' => 'sales-payments'])),
+                    $feature('Commandes client', 'Onglet rapport présent, actuellement alimenté par la vue générique ventes.', route('module', ['module' => 'reports', 'section' => 'customer-orders']), 'review'),
+                    $feature('Ventes / récapitulatif', 'Rapports ventes, résumé ventes et articles vendus.', route('module', ['module' => 'reports', 'section' => 'sales-summary'])),
+                    $feature('Retours ventes', 'Retours, articles retournés et paiements retours.', route('module', ['module' => 'reports', 'section' => 'sales-return'])),
+                    $feature('Achats', 'Rapport achat, retours achat, articles fournisseur et taxes achat.', route('module', ['module' => 'reports', 'section' => 'purchases'])),
+                    $feature('Dépenses', 'Rapport dépenses filtrable par période et recherche.', route('module', ['module' => 'reports', 'section' => 'expenses'])),
+                    $feature('Stock', 'Rapport de stock et transferts de stock.', route('module', ['module' => 'reports', 'section' => 'stock'])),
+                    $feature('Taxes/GST', 'Onglets taxe vente/achat, GSTR et TPS présents avec données agrégées génériques.', route('module', ['module' => 'reports', 'section' => 'sales-tax']), 'review'),
+                    $feature('Points vendeur', 'Onglet visible dans les rapports, source de données spécialisée non identifiée.', route('module', ['module' => 'reports', 'section' => 'seller-points']), 'review'),
+                ],
+            ],
+            [
+                'title' => 'Paramètres et administration',
+                'description' => 'Configuration société, magasins, sécurité, référentiels et intégrations.',
+                'features' => [
+                    $feature('Société', 'Profil magasin, fiscalité, formats, devise, numérotation, documents et conditions.', route('module', ['module' => 'settings', 'section' => 'company'])),
+                    $feature('Magasins / dépôts', 'Catalogue magasins, dépôt, rayon, magasin courant et activation.', route('module', ['module' => 'settings', 'section' => 'warehouses'])),
+                    $feature('Caisse & stock', 'Règles POS, stock, seuils, coût achat, inventaire et tiroir navbar.', route('module', ['module' => 'settings', 'section' => 'store'])),
+                    $feature('PDF', 'Réglages documents PDF, branding et informations société liées.', route('module', ['module' => 'settings', 'section' => 'documents'])),
+                    $feature('Utilisateurs', 'Gestion des accès utilisateurs, rôles, magasins, permissions directes, PIN et photo.', route('module', ['module' => 'settings', 'section' => 'users'])),
+                    $feature('Rôles', 'Création de rôles et attribution des permissions métier.', route('module', ['module' => 'settings', 'section' => 'roles'])),
+                    $feature('Taxes', 'Référentiel taxes côté paramètres.', route('module', ['module' => 'settings', 'section' => 'taxes'])),
+                    $feature('Unités', 'Référentiel unités côté paramètres.', route('module', ['module' => 'settings', 'section' => 'units'])),
+                    $feature('Types de paiement', 'Référentiel modes de paiement actifs.', route('module', ['module' => 'settings', 'section' => 'payment-types'])),
+                    $feature('Pays et états', 'Référentiels pays/régions utilisés dans les fiches.', route('module', ['module' => 'settings', 'section' => 'countries'])),
+                    $feature('Mot de passe', 'Changement du mot de passe utilisateur connecté.', route('module', ['module' => 'settings', 'section' => 'password'])),
+                    $feature('Messagerie', 'Configuration, envoi manuel, modèles, canaux SMS/WhatsApp et outbox.', route('module', ['module' => 'settings', 'section' => 'messaging'])),
+                    $feature('Thème', 'Préréglages visuels et personnalisation couleurs/densité/rayon.', route('module', ['module' => 'settings', 'section' => 'theme'])),
+                    $feature('Profil utilisateur', 'Informations personnelles, avatar et résumé activité.', route('profile')),
+                    $feature('Journal d activité', 'Audit log filtrable par utilisateur, période, méthode et action pour propriétaire.', route('profile.activity')),
+                ],
+            ],
+            [
+                'title' => 'Code existe / non visible',
+                'description' => 'Fonctionnalités présentes en route, modèle ou vue mais absentes ou peu exposées dans le menu principal.',
+                'features' => [
+                    $feature('Emprunts', 'Module loans, modèle Loan et rendu simple existent, mais aucun lien sidebar n est exposé.', route('module', 'loans'), 'code'),
+                    $feature('Imports catégories/marques/variantes', 'Libellés d import existent côté catalogue; les routes principales importent surtout articles/services.', route('catalog', ['panel' => 'import', 'kind' => 'categories']), 'code'),
+                    $feature('Routes legacy', 'Nombreux anciens chemins redirigent vers les nouveaux modules pour compatibilité.', route('dashboard'), 'code'),
+                    $feature('Modèles ressources étendus', 'SaleInvoice, DeliveryOrder, CashRegisterSession, AccountTransaction, StockTransfer et autres modèles alimentent les écrans.', route('functionality-guide'), 'code'),
+                ],
+            ],
+            [
+                'title' => 'Missing / To Review',
+                'description' => 'Éléments attendus ou présents en libellé mais incomplets, génériques ou non reliés clairement.',
+                'features' => [
+                    $feature('Paiements fournisseurs complets', 'Le reporting mentionne les paiements achat, mais aucun workflow de paiement fournisseur dédié n a été trouvé.', route('module', ['module' => 'reports', 'section' => 'purchase-payments']), 'review'),
+                    $feature('Rapports fiscaux spécialisés', 'GSTR/TPS/taxes utilisent des tableaux génériques; vérifier les règles fiscales attendues.', route('module', ['module' => 'reports', 'section' => 'gstr-1']), 'review'),
+                    $feature('Gestion emprunts complète', 'Le module prêts existe mais semble réduit à une liste sans création/retour/pénalité visible.', route('module', 'loans'), 'review'),
+                    $feature('Exports modules', 'Des boutons Exporter sont visibles sur certains modules, mais les exports dédiés ne sont pas toujours câblés.', route('module', 'sales'), 'review'),
+                    $feature('Permissions appliquées par écran', 'Rôles et permissions existent; vérifier l enforcement fin sur toutes les routes sensibles.', route('module', ['module' => 'settings', 'section' => 'roles']), 'review'),
+                ],
+            ],
+        ];
+    }
+
     public function catalog(Request $request): View
     {
         $tenant = $this->tenant();

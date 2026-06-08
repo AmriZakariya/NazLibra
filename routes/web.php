@@ -18,6 +18,7 @@ Route::post('/session/pin-oublie', [AuthController::class, 'unlockWithPassword']
 Route::middleware(['auth', 'tenant.access', 'session.unlocked'])->group(function (): void {
 Route::post('/langue/{locale}', [LibraireProController::class, 'switchLocale'])->name('locale.switch');
 Route::get('/', [LibraireProController::class, 'dashboard'])->name('dashboard');
+Route::get('/guide-fonctionnalites', [LibraireProController::class, 'functionalityGuide'])->name('functionality-guide');
 
 Route::redirect('/items', '/catalogue?panel=articles')->name('legacy.items');
 Route::redirect('/items/add', '/catalogue?panel=ajouter')->name('legacy.items.add');

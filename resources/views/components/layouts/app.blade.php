@@ -138,6 +138,7 @@
             ];
             $nav = [
                 ['key' => 'dashboard', 'label' => 'Tableau de bord', 'icon' => '⌂', 'href' => route('dashboard')],
+                ['key' => 'guide', 'label' => 'Guide fonctionnalités', 'icon' => '□', 'href' => route('functionality-guide')],
                 ['key' => 'catalog', 'label' => 'Articles', 'icon' => '▦', 'href' => route('catalog'), 'children' => $articleLinks],
                 ['key' => 'sales', 'label' => 'Ventes', 'icon' => '₧', 'href' => route('pos'), 'children' => [
                     ['label' => 'Point de vente', 'icon' => '◉', 'href' => route('pos')],
@@ -275,6 +276,7 @@
                 'Liste des comptes' => 'banque comptes cash trésorerie',
                 'Tiroir caisse' => 'cash register tiroir caisse drawer ouverture clôture cloture balance fond espèces z report',
                 'Transactions en espèces' => 'cash mouvements caisse monnaie',
+                'Guide fonctionnalités' => 'guide documentation summary fonctionnalites user guide modules routes missing review',
                 'Rapports' => 'analytics statistiques ventes stock profit perte taxe',
                 'Liste des utilisateurs' => 'user équipe staff accès permission',
                 'Liste des rôles' => 'role permission accès droit',
