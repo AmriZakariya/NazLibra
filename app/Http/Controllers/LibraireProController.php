@@ -4112,6 +4112,11 @@ class LibraireProController extends Controller
             ['color' => '#4F46E5']
         );
 
+        $reference = $data['reference'] ?? '';
+        if ($reference === '') {
+            $reference = $this->nextExpenseReference($tenant);
+        }
+
         $expense = Expense::create([
             'tenant_id' => $tenant->id,
             'number' => $this->nextExpenseNumber($tenant),
@@ -4119,10 +4124,22 @@ class LibraireProController extends Controller
             'label' => $data['label'],
             'amount' => round((float) $data['amount'], 2),
             'payment_method' => $data['payment_method'],
-            'reference' => $data['reference'] ?? null,
+            'reference' => $reference,
             'note' => $data['note'] ?? null,
             'spent_at' => $data['spent_at'] ?? now()->toDateString(),
         ]);
+
+        if ($data['payment_method'] === 'cash') {
+            $session = $this->openCashRegisterSession($tenant);
+            if ($session) {
+                $this->recordCashRegisterMovement($tenant, $session, 'cash_out', 'out', (float) $expense->amount, [
+                    'payment_method' => 'cash',
+                    'reference' => $expense->number,
+                    'note' => 'Dépense: '.$expense->label.' ('.$expense->category.')',
+                    'moved_at' => $expense->spent_at,
+                ]);
+            }
+        }
 
         return redirect()
             ->route('module', ['module' => 'finance', 'section' => 'expenses'])
@@ -4456,6 +4473,7 @@ class LibraireProController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120', Rule::unique('expense_categories', 'name')->where('tenant_id', $tenant->id)],
             'color' => ['nullable', 'string', 'max:16'],
+            'icon' => ['nullable', 'string', 'max:50'],
             'description' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -4463,6 +4481,7 @@ class LibraireProController extends Controller
             'tenant_id' => $tenant->id,
             'name' => $data['name'],
             'color' => $data['color'] ?? '#4F46E5',
+            'icon' => $data['icon'] ?? null,
             'description' => $data['description'] ?? null,
         ]);
 
@@ -4792,6 +4811,7 @@ class LibraireProController extends Controller
                 'month' => Expense::where('tenant_id', $tenant->id)->whereDate('spent_at', '>=', now()->startOfMonth())->sum('amount'),
                 'page' => $expenses->sum('amount'),
                 'categories' => $expenseCategories->count(),
+                'total' => Expense::where('tenant_id', $tenant->id)->sum('amount'),
             ],
             'financeClients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
             'customerAdvances' => $customerAdvances,
@@ -5335,6 +5355,17 @@ class LibraireProController extends Controller
             ->max() ?? 0;
 
         return 'DEP'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
+    }
+
+    private function nextExpenseReference(Tenant $tenant): string
+    {
+        $max = Expense::where('tenant_id', $tenant->id)
+            ->where('reference', 'like', 'DEP-REF-%')
+            ->pluck('reference')
+            ->map(fn ($ref) => (int) preg_replace('/\D+/', '', (string) $ref))
+            ->max() ?? 0;
+
+        return 'DEP-REF-'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
     }
 
     private function nextAccountTransactionNumber(Tenant $tenant): string

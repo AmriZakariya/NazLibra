@@ -155,6 +155,7 @@
                     ['label' => "Liste des retours d'achat", 'icon' => '≡', 'href' => route('module', ['module' => 'purchases', 'section' => 'returns'])],
                 ]],
                 ['key' => 'finance', 'label' => 'Dépenses', 'icon' => '−', 'href' => route('module', ['module' => 'finance', 'section' => 'expenses']), 'children' => [
+                    ['label' => 'Ajouter une dépense', 'icon' => '+', 'href' => route('module', ['module' => 'finance', 'section' => 'expense-add'])],
                     ['label' => 'Liste des dépenses', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'expenses'])],
                     ['label' => 'Liste des catégories', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'expense-categories'])],
                 ]],
@@ -257,6 +258,9 @@
                 'Services d\'importation' => 'import excel csv migration mylibrairie upload',
                 'Imprimer des étiquettes' => 'labels barcode etiquette zpl prix impression',
                 'Liste des catégories' => 'categorie famille structure rayon',
+                'Ajouter une dépense' => 'depense frais charge loyer transport achat fournisseur cash caisse add create nouveau',
+                'Liste des dépenses' => 'depense historique search filtre periode categorie paiement reference',
+                'Liste des catégories dépenses' => 'categorie depense classification groupe color icone',
                 'Liste des marques' => 'marque éditeur publisher brand',
                 'Liste des variantes' => 'variant attribut format taille couleur',
                 'Liste des unités' => 'unite mesure piece pack boite',
