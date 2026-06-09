@@ -1050,7 +1050,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             const favoriteButton = product.querySelector('.pos-favorite-star');
             favoriteButton?.classList.toggle('is-active', active);
             favoriteButton?.setAttribute('aria-pressed', active ? 'true' : 'false');
-            favoriteButton?.setAttribute('title', active ? 'Retirer des favoris' : 'Ajouter aux favoris');
+            favoriteButton?.setAttribute('title', active ? translate('Retirer des favoris') : translate('Ajouter aux favoris'));
         });
     };
 
@@ -1061,7 +1061,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         const isOutOfStock = Boolean(item.out_of_stock);
         const isSellable = Boolean(item.sellable);
         const statusTone = isOutOfStock ? 'danger' : (isService ? 'info' : (stock <= lowThreshold ? 'warning' : 'success'));
-        const statusLabel = isOutOfStock ? 'Rupture' : (isService ? 'Service' : stock);
+        const statusLabel = isOutOfStock ? translate('Rupture') : (isService ? translate('Service') : stock);
         const statusClasses = {
             success: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20',
             warning: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20',
@@ -1073,10 +1073,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             ? `<img src="${escapeHtml(item.image_url)}" alt="" class="size-12 rounded-lg object-cover">`
             : `<div class="grid size-12 place-items-center rounded-lg bg-slate-100 text-sm font-bold text-slate-500 dark:bg-white/10">${initials}</div>`;
         const soldBadge = Number(item.sold || 0) > 0
-            ? `<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-white/10">${Number(item.sold || 0)} vendus</span>`
+            ? `<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-white/10">${Number(item.sold || 0)} ${translate('vendus')}</span>`
             : '';
         const unavailable = !isSellable
-            ? '<p class="mt-2 rounded-lg bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20">Non vendable · cliquer pour gérer le stock</p>'
+            ? '<p class="mt-2 rounded-lg bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20">' + translate('Non vendable · cliquer pour gérer le stock') + '</p>'
             : '';
 
         return `
@@ -1103,10 +1103,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                     <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${statusClasses}">${escapeHtml(statusLabel)}</span>
                 </div>
                 <div class="pos-product-name mt-3 flex items-start gap-2">
-                    <button class="pos-favorite-star text-base text-slate-300" data-product-id="${escapeHtml(item.id)}" type="button" aria-label="Basculer favori" title="Basculer favori">★</button>
+                    <button class="pos-favorite-star text-base text-slate-300" data-product-id="${escapeHtml(item.id)}" type="button" aria-label="${translate('Basculer favori')}" title="${translate('Basculer favori')}">★</button>
                     <p class="line-clamp-2 min-h-10 text-sm font-semibold">${escapeHtml(item.name)}</p>
                 </div>
-                <p class="pos-product-meta mt-2 truncate text-xs text-slate-500">${escapeHtml(item.category_name || 'Sans catégorie')} · ${escapeHtml(item.barcode || 'Sans code')}</p>
+                <p class="pos-product-meta mt-2 truncate text-xs text-slate-500">${escapeHtml(item.category_name || translate('Sans catégorie'))} · ${escapeHtml(item.barcode || translate('Sans code'))}</p>
                 ${unavailable}
                 <div class="pos-product-footer mt-3 flex items-center justify-between gap-2">
                     <p class="text-lg font-semibold">${money.format(Number(item.price || 0))}</p>
@@ -1179,7 +1179,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         return { type, requested, effective, amount, maxValue, capped: requested > maxValue, subtotalAfterCoupon };
     };
 
-    const stockLabel = (item) => item.stock >= 999999 ? 'illimité' : item.stock;
+    const stockLabel = (item) => item.stock >= 999999 ? translate('illimité') : item.stock;
 
     const canExceedStock = (item) => allowOversell || item.type === 'service' || item.stock >= 999999;
 
@@ -1189,7 +1189,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
         const limited = Math.min(item.stock, requested);
         if (warn && requested > limited) {
-            showToast(`Stock disponible atteint pour ${item.name}: ${stockLabel(item)} unité(s).`);
+            showToast(translate('Stock disponible atteint pour') + ' ' + item.name + ': ' + stockLabel(item) + ' ' + translate('unité(s).'));
         }
 
         return limited;
@@ -1297,10 +1297,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         if (!discountHelper) return;
         const preview = draftDiscountPreview();
         const baseText = preview.type === 'percentage'
-            ? `Aperçu ${money.format(preview.amount)} · limite 100%`
-            : `Aperçu ${money.format(preview.amount)} · maximum ${money.format(preview.subtotalAfterCoupon)}`;
+            ? translate('Aperçu') + ' ' + money.format(preview.amount) + ' · ' + translate('limite 100%')
+            : translate('Aperçu') + ' ' + money.format(preview.amount) + ' · ' + translate('maximum') + ' ' + money.format(preview.subtotalAfterCoupon);
         discountHelper.textContent = preview.capped
-            ? `${baseText}. La valeur sera plafonnée à ${preview.type === 'percentage' ? '100%' : money.format(preview.subtotalAfterCoupon)}.`
+            ? baseText + '. ' + translate('La valeur sera plafonnée à') + ' ' + (preview.type === 'percentage' ? '100%' : money.format(preview.subtotalAfterCoupon)) + '.'
             : baseText;
         discountHelper.classList.toggle('text-amber-600', preview.capped);
         discountHelper.classList.toggle('text-slate-500', !preview.capped);
@@ -1327,7 +1327,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         discountDraftDirty = false;
         renderCart();
         closeAdjustmentPanels();
-        showToast(preview.amount > 0 ? `Remise confirmée: ${money.format(preview.amount)}.` : 'Remise retirée.');
+        showToast(preview.amount > 0 ? translate('Remise confirmée') + ': ' + money.format(preview.amount) + '.' : translate('Remise retirée.'));
     };
 
     const resetDiscountDraft = () => {
@@ -1343,7 +1343,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         noteDraftDirty = false;
         syncNoteSummary();
         closeAdjustmentPanels();
-        showToast(noteInput.value ? 'Note ticket confirmée.' : 'Note ticket retirée.');
+        showToast(noteInput.value ? translate('Note ticket confirmée.') : translate('Note ticket retirée.'));
     };
 
     const resetNoteDraft = () => {
@@ -1355,10 +1355,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         const selectedOption = clientSelect?.selectedOptions?.[0];
         const quickName = String(quickClientName?.value || '').trim();
         const quickPhone = String(quickClientPhone?.value || '').trim();
-        const selectedText = selectedOption?.textContent?.trim() || 'Client comptoir';
+        const selectedText = selectedOption?.textContent?.trim() || translate('Client comptoir');
         const advance = Number(selectedOption?.dataset.advance || 0);
         const isCounter = !clientSelect?.value && !quickName;
-        const label = quickName || selectedText.split('·')[0].trim() || 'Client comptoir';
+        const label = quickName || selectedText.split('·')[0].trim() || translate('Client comptoir');
         const shortLabel = label.length > 16 ? `${label.slice(0, 15)}…` : label;
 
         if (clientSummary) {
@@ -1372,14 +1372,14 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
         if (clientCurrent) {
             clientCurrent.textContent = isCounter
-                ? 'Client comptoir'
+                ? translate('Client comptoir')
                 : `${label}${quickPhone ? ` · ${quickPhone}` : ''}`;
         }
 
         if (clientInfo) {
             clientInfo.innerHTML = isCounter
-                ? '<span class="font-semibold">Client comptoir</span><span class="mt-0.5 block">Ticket rapide sans compte client.</span>'
-                : `<span class="font-semibold">${escapeHtml(label)}</span><span class="mt-0.5 block">Avance disponible: ${escapeHtml(money.format(advance))}${quickPhone ? ` · ${escapeHtml(quickPhone)}` : ''}</span>`;
+                ? '<span class="font-semibold">' + translate('Client comptoir') + '</span><span class="mt-0.5 block">' + translate('Ticket rapide sans compte client.') + '</span>'
+                : `<span class="font-semibold">${escapeHtml(label)}</span><span class="mt-0.5 block">${translate('Avance disponible')}: ${escapeHtml(money.format(advance))}${quickPhone ? ` · ${escapeHtml(quickPhone)}` : ''}</span>`;
         }
     };
 
@@ -1389,12 +1389,12 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         couponInput.value = code;
         if (!code) {
             appliedCoupon = { code: '', amount: 0, message: '', valid: false };
-            setCouponMessage('Saisissez un code coupon si le client en possède un.');
+            setCouponMessage(translate('Saisissez un code coupon si le client en possède un.'));
             renderCart();
             return;
         }
         if (cart.length === 0) {
-            showToast('Ajoutez au moins un article avant d’appliquer un coupon.');
+            showToast(translate('Ajoutez au moins un article avant d’appliquer un coupon.'));
             return;
         }
 
@@ -1406,12 +1406,12 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         if (contactId) url.searchParams.set('contact_id', contactId);
 
         if (couponButton) couponButton.disabled = true;
-        setCouponMessage('Vérification du coupon...');
+        setCouponMessage(translate('Vérification du coupon...'));
         try {
             const response = await fetch(url, { headers: { Accept: 'application/json' } });
             const payload = await response.json();
             if (!response.ok || !payload.valid) {
-                appliedCoupon = { code: '', amount: 0, message: payload.message || 'Coupon invalide.', valid: false };
+                appliedCoupon = { code: '', amount: 0, message: payload.message || translate('Coupon invalide.'), valid: false };
                 setCouponMessage(appliedCoupon.message, 'danger');
                 renderCart();
                 return;
@@ -1419,13 +1419,13 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             appliedCoupon = {
                 code,
                 amount: Number(payload.coupon?.amount || 0),
-                message: payload.coupon?.message || payload.message || 'Coupon appliqué.',
+                message: payload.coupon?.message || payload.message || translate('Coupon appliqué.'),
                 valid: true,
             };
             setCouponMessage(appliedCoupon.message, 'success');
             renderCart();
         } catch {
-            appliedCoupon = { code: '', amount: 0, message: 'Impossible de vérifier ce coupon.', valid: false };
+            appliedCoupon = { code: '', amount: 0, message: translate('Impossible de vérifier ce coupon.'), valid: false };
             setCouponMessage(appliedCoupon.message, 'danger');
             renderCart();
         } finally {
@@ -1441,10 +1441,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
                     <div class="min-w-0">
                         <p class="pos-cart-title">${item.name}</p>
-                        <p class="pos-cart-meta">${item.barcode || 'Sans code'} · ${money.format(item.price)} · stock ${stockLabel(item)}${item.note ? ` · ${item.note}` : ''}</p>
+                        <p class="pos-cart-meta">${item.barcode || translate('Sans code')} · ${money.format(item.price)} · stock ${stockLabel(item)}${item.note ? ` · ${item.note}` : ''}</p>
                     </div>
                     <div class="flex items-center gap-1">
-                        <button class="pos-cart-edit grid size-8 place-items-center rounded-md bg-slate-100 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-200" data-index="${index}" type="button" title="Modifier">✎</button>
+                        <button class="pos-cart-edit grid size-8 place-items-center rounded-md bg-slate-100 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-200" data-index="${index}" type="button" title="${translate('Modifier')}">✎</button>
                         <button class="pos-remove grid size-8 place-items-center rounded-md bg-rose-50 text-base font-bold text-rose-600" data-index="${index}" type="button">×</button>
                     </div>
                 </div>
@@ -1455,7 +1455,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                         <button class="pos-qty h-8 w-8 text-sm font-bold" data-index="${index}" data-delta="1" type="button">+</button>
                     </div>
                     <div class="text-right">
-                        <span class="block text-[11px] font-semibold uppercase tracking-normal text-slate-500">Ligne</span>
+                        <span class="block text-[11px] font-semibold uppercase tracking-normal text-slate-500">${translate('Ligne')}</span>
                         <strong class="text-base">${money.format(item.price * item.quantity)}</strong>
                     </div>
                 </div>
@@ -1477,8 +1477,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             if (total.discountCapped) {
                 discountInput.value = total.discountType === 'percentage' ? '100' : Math.max(0, total.subtotal - total.couponAmount).toFixed(2);
                 showToast(total.discountType === 'percentage'
-                    ? 'La remise en pourcentage est limitée à 100%.'
-                    : 'La remise ne peut pas dépasser le total après coupon.');
+                    ? translate('La remise en pourcentage est limitée à 100%.')
+                    : translate('La remise ne peut pas dépasser le total après coupon.'));
                 return renderCart();
             }
         }
@@ -1487,8 +1487,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
         if (discountHelper) {
             const appliedText = total.discountType === 'percentage'
-                ? `Pourcentage, montant appliqué ${money.format(total.discount)}`
-                : `Fixe en DH, maximum ${money.format(Math.max(0, total.subtotal - total.couponAmount))}`;
+                ? translate('Pourcentage, montant appliqué') + ' ' + money.format(total.discount)
+                : translate('Fixe en DH, maximum') + ' ' + money.format(Math.max(0, total.subtotal - total.couponAmount));
             if (!discountDraftDirty) {
                 discountHelper.textContent = appliedText;
                 discountHelper.classList.remove('text-amber-600');
@@ -1515,8 +1515,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
         if (submitLabel) {
             submitLabel.textContent = cart.length === 0
-                ? 'Panier vide'
-                : (total.paid + 0.001 < total.total ? `Reste ${money.format(total.remaining)}` : `Encaisser ${money.format(total.total)}`);
+                ? translate('Panier vide')
+                : (total.paid + 0.001 < total.total ? translate('Reste') + ' ' + money.format(total.remaining) : translate('Encaisser') + ' ' + money.format(total.total));
         }
     };
 
