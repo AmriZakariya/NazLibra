@@ -99,14 +99,20 @@
                             </label>
                             <label class="block space-y-1.5">
                                 <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Mot de passe') }}</span>
-                                <input name="password" type="password" required autocomplete="current-password" class="h-12 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Minimum 8 caractères') }}">
+                                <div class="relative">
+                                    <input name="password" type="password" required autocomplete="current-password" class="h-12 w-full rounded-xl border border-slate-200 px-3 pr-10 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Minimum 8 caractères') }}" id="login-password">
+                                    <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" onclick="const p=document.getElementById('login-password');p.type=p.type==='password'?'text':'password';this.querySelector('svg:first-child').classList.toggle('hidden');this.querySelector('svg:last-child').classList.toggle('hidden')" tabindex="-1" aria-label="Afficher/masquer le mot de passe">
+                                        <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                        <svg class="size-5 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                    </button>
+                                </div>
                             </label>
                             <div class="flex items-center justify-between gap-3">
                                 <label class="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
                                     <input name="remember" value="1" type="checkbox" class="size-4 accent-[var(--brand-primary)]">
                                     {{ $tr('Se souvenir de moi') }}
                                 </label>
-                                <span class="text-xs font-semibold text-slate-400">{{ $tr('Accès équipe') }}</span>
+                                <a href="{{ route('password.request') }}" class="text-xs font-semibold text-brand hover:text-brand-600 transition">{{ $tr('Mot de passe oublié ?') }}</a>
                             </div>
                             <button class="h-12 w-full rounded-xl bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20 transition hover:brightness-110">{{ $tr('Se connecter') }}</button>
                         </form>

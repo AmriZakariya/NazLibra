@@ -14,6 +14,14 @@ Route::get('/session/verrouillee', [AuthController::class, 'lockedScreen'])->mid
 Route::post('/session/verrouiller', [AuthController::class, 'lockSession'])->middleware(['auth', 'tenant.access'])->name('session.lock');
 Route::post('/session/deverrouiller', [AuthController::class, 'unlockSession'])->middleware(['auth', 'tenant.access'])->name('session.unlock');
 Route::post('/session/pin-oublie', [AuthController::class, 'unlockWithPassword'])->middleware(['auth', 'tenant.access'])->name('session.forgot-pin');
+Route::post('/session/envoi-reinitialisation-pin', [AuthController::class, 'sendPinResetEmail'])->middleware(['auth', 'tenant.access'])->name('session.send-pin-reset');
+
+Route::get('/mot-de-passe-oublie', [AuthController::class, 'showForgotPassword'])->name('password.request');
+Route::post('/mot-de-passe-oublie', [AuthController::class, 'sendPasswordResetLink'])->name('password.email');
+Route::get('/reinitialiser-mot-de-passe', [AuthController::class, 'showResetPassword'])->name('password.reset');
+Route::post('/reinitialiser-mot-de-passe', [AuthController::class, 'updatePassword'])->name('password.update');
+Route::get('/reinitialiser-pin', [AuthController::class, 'showResetPin'])->name('pin.reset');
+Route::post('/reinitialiser-pin', [AuthController::class, 'updatePin'])->name('pin.reset.update');
 
 Route::middleware(['auth', 'tenant.access', 'session.unlocked'])->group(function (): void {
 Route::post('/langue/{locale}', [LibraireProController::class, 'switchLocale'])->name('locale.switch');

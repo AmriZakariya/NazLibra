@@ -4204,6 +4204,62 @@
         line-height: 1.5;
     }
 
+    .lock-icon-wrap {
+        display: grid;
+        place-items: center;
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 6px;
+        border-radius: 50%;
+        background: rgb(255 255 255 / 6%);
+        border: 1px solid rgb(255 255 255 / 10%);
+    }
+
+    .lock-icon {
+        width: 30px;
+        height: 30px;
+        color: #cbd5e1;
+    }
+
+    .lock-forgot-body {
+        margin-top: 10px;
+    }
+
+    .lock-forgot-divider {
+        margin: 14px 0;
+        border: none;
+        border-top: 1px solid rgb(255 255 255 / 8%);
+    }
+
+    .lock-forgot-email-btn {
+        width: 100%;
+        min-height: 46px;
+        margin-top: 10px;
+        border-radius: 16px;
+        border: 1px solid rgb(255 255 255 / 12%);
+        background: transparent;
+        color: #cbd5e1;
+        font-size: 13px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: background .15s, border-color .15s;
+    }
+
+    .lock-forgot-email-btn:hover {
+        background: rgb(255 255 255 / 6%);
+        border-color: rgb(255 255 255 / 20%);
+    }
+
+    .lock-success {
+        margin-top: 10px;
+        border-radius: 12px;
+        background: rgb(34 197 94 / 14%);
+        color: #bbf7d0;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 750;
+    }
+
     .lock-logout {
         margin-top: 14px;
         text-align: center;
@@ -4213,6 +4269,11 @@
         color: #94a3b8;
         font-size: 13px;
         font-weight: 800;
+        transition: color .15s;
+    }
+
+    .lock-logout button:hover {
+        color: #e2e8f0;
     }
 
     .app-main-shell {
@@ -4249,6 +4310,12 @@
         background: color-mix(in srgb, var(--brand-primary) 11%, var(--surface));
         color: var(--brand-primary);
         box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-primary) 10%, transparent);
+    }
+
+    .app-sidebar-nav-toggle.is-active {
+        border-color: color-mix(in srgb, var(--brand-primary) 35%, transparent);
+        background: color-mix(in srgb, var(--brand-primary) 11%, var(--surface));
+        color: var(--brand-primary);
     }
 
     .topbar-cashdrawer {
@@ -4819,7 +4886,38 @@
     }
 
     .app-fullscreen-mode .app-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 50;
+        height: 100vh;
+        display: flex;
+        transform: translateX(-100%);
+        opacity: 0;
+        pointer-events: none;
+        transition: transform 220ms cubic-bezier(.4, 0, .2, 1), opacity 200ms ease, box-shadow 200ms ease;
+        box-shadow: none;
+    }
+
+    .app-fullscreen-mode .app-sidebar.is-visible {
+        transform: translateX(0);
+        opacity: 1;
+        pointer-events: auto;
+        box-shadow: 24px 0 80px rgba(15, 23, 42, .28);
+    }
+
+    .app-sidebar-peek-zone {
         display: none;
+    }
+
+    .app-fullscreen-mode .app-sidebar-peek-zone {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 10px;
+        height: 100vh;
+        z-index: 49;
     }
 
     .app-fullscreen-mode .app-main-shell {

@@ -346,9 +346,20 @@
                 <button class="dialog-close text-2xl leading-none text-slate-400" type="button">&times;</button>
             </div>
             <div class="mt-5 space-y-4" data-inline-create data-endpoint="{{ route('catalog.categories.store') }}" data-target="category_id">
+                @php $catIcons = ['📚','📖','✏️','📝','📐','🎨','🧮','🔬','🌍','📜','🎵','💻','🏫','👶','🧑‍🎓','📦','🎒','👕','⚽','🎮','🍎','🔧','🧪','📏','🖼️','🗺️','⏰','💡','🛒','🏪','📓','📕']; @endphp
                 <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Nom {!! $required !!}</span><input name="name" required class="{{ $input }}"></label>
-                <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Parent</span><select name="parent_id" data-searchable-select data-placeholder="Rechercher un parent..." class="{{ $select }}"><option value="">Aucun</option>@foreach ($categories as $category)<option value="{{ $category->id }}">{{ $category->name }}</option>@endforeach</select></label>
-                <div class="grid gap-4 sm:grid-cols-2"><label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Icône</span><input name="icon" class="{{ $input }}" placeholder="book-open"></label><label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Couleur</span><input name="color" type="color" value="#4F46E5" class="{{ $input }} p-1"></label></div>
+                <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">Parent</span><select name="parent_id" data-searchable-select data-placeholder="Rechercher un parent..." class="{{ $select }}"><option value="">Aucun</option>@foreach ($categories->where('parent_id', null) as $rootCat)<option value="{{ $rootCat->id }}">{{ $rootCat->name }}</option>@foreach ($categories->where('parent_id', $rootCat->id) as $childCat)<option value="{{ $childCat->id }}"> └ {{ $childCat->name }}</option>@endforeach @endforeach</select></label>
+                <div>
+                    <div class="flex flex-wrap gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-white/10 dark:bg-white/5">
+                        <input name="icon" class="category-icon-input h-10 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Icône" id="icon-input-inline" readonly onclick="document.getElementById('icon-picker-inline').classList.toggle('hidden')">
+                        <input name="color" type="color" value="#4F46E5" class="h-10 w-16 rounded-lg border border-slate-200 bg-white px-1 dark:border-white/10 dark:bg-slate-900">
+                    </div>
+                    <div id="icon-picker-inline" class="mt-1 hidden flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-slate-900">
+                        @foreach($catIcons as $ico)
+                            <button type="button" class="rounded-lg px-2.5 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-white/10" onclick="document.getElementById('icon-input-inline').value='{{ $ico }}'; document.getElementById('icon-picker-inline').classList.add('hidden')">{{ $ico }}</button>
+                        @endforeach
+                    </div>
+                </div>
                 <input name="loan_duration_days" value="14" type="hidden"><input name="daily_fine_amount" value="2" type="hidden">
                 <p class="inline-create-error hidden rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700"></p>
                 <button class="inline-create-submit w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white" type="button">Ajouter</button>

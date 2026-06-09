@@ -911,14 +911,25 @@
                         @csrf
                         <input name="name" required class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom de catégorie">
                         <select name="parent_id" data-searchable-select data-placeholder="Rechercher un parent..." class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                            <option value="">Aucun parent</option>
-                            @foreach ($categories as $category)
-                                <option value="{{ $category->id }}">{{ $category->name }}</option>
+                            <option value="">Aucun parent (catégorie racine)</option>
+                            @foreach ($categories->where('parent_id', null) as $rootCat)
+                                <option value="{{ $rootCat->id }}">{{ $rootCat->name }}</option>
+                                @foreach ($categories->where('parent_id', $rootCat->id) as $childCat)
+                                    <option value="{{ $childCat->id }}"> └ {{ $childCat->name }}</option>
+                                @endforeach
                             @endforeach
                         </select>
-                        <div class="grid grid-cols-[1fr_72px] gap-3">
-                            <input name="icon" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Icône">
-                            <input name="color" type="color" value="#4F46E5" class="h-10 rounded-lg border border-slate-200 px-2 dark:border-white/10 dark:bg-slate-900">
+                        <div>
+                            <div class="flex flex-wrap gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-white/10 dark:bg-white/5">
+                                <input name="icon" value="{{ old('icon') }}" class="category-icon-input h-10 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Icône" id="icon-input-create" readonly onclick="document.getElementById('icon-picker-create').classList.toggle('hidden')">
+                                <input name="color" type="color" value="#4F46E5" class="h-10 w-16 rounded-lg border border-slate-200 bg-white px-1 dark:border-white/10 dark:bg-slate-900">
+                            </div>
+                            <div id="icon-picker-create" class="mt-1 hidden flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-slate-900">
+                                @php $categoryIconOptions = ['📚','📖','✏️','📝','📐','🎨','🧮','🔬','🌍','📜','🎵','💻','🏫','👶','🧑‍🎓','📦','🎒','👕','⚽','🎮','🍎','🔧','🧪','📏','🖼️','🗺️','⏰','💡','🛒','🏪','📓','📕']; @endphp
+                                @foreach($categoryIconOptions as $ico)
+                                    <button type="button" class="rounded-lg px-2.5 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-white/10" onclick="document.getElementById('icon-input-create').value='{{ $ico }}'; document.getElementById('icon-picker-create').classList.add('hidden')">{{ $ico }}</button>
+                                @endforeach
+                            </div>
                         </div>
                         <textarea name="description" rows="3" class="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Description"></textarea>
                         <input name="loan_duration_days" value="14" type="hidden">
@@ -1013,44 +1024,132 @@
                 </div>
 
                 <div class="catalog-reference-scroll max-h-[620px] overflow-y-auto p-4">
-                    <div class="grid gap-3">
+                    <div class="grid gap-2">
                         @if ($panel === 'categories')
-                            @forelse ($categoryList as $category)
+                            @php
+                                $categoryIconOptions = ['📚','📖','✏️','📝','📐','🎨','🧮','🔬','🌍','📜','🎵','💻','🏫','👶','🧑‍🎓','📦','🎒','👕','⚽','🎮','🍎','🔧','🧪','📏','🖼️','🗺️','⏰','💡','🛒','🏪','📓','📕'];
+                            @endphp
+                            @forelse ($categoryList->where('parent_id', null) as $rootCategory)
+                                @php
+                                    $rootChildren = $categoryList->where('parent_id', $rootCategory->id);
+                                @endphp
                                 <details class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                                     <summary class="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                         <div class="flex items-center gap-3">
-                                            <span class="grid size-10 place-items-center rounded-lg text-xs font-bold text-white" style="background: {{ $category->color ?? '#4F46E5' }}">{{ Str::upper(Str::substr($category->name, 0, 2)) }}</span>
-                                            <span><strong>{{ $category->name }}</strong><span class="mt-1 block text-xs text-slate-500">{{ $category->parent?->name ? 'Parent: '.$category->parent->name : 'Catégorie racine' }} · {{ $category->items_count }} article(s)</span></span>
+                                            <span class="grid size-10 place-items-center rounded-lg text-sm" style="background: {{ $rootCategory->color ?? '#4F46E5' }}20; color: {{ $rootCategory->color ?? '#4F46E5' }}">{{ $rootCategory->icon ?: Str::upper(Str::substr($rootCategory->name, 0, 2)) }}</span>
+                                            <span>
+                                                <strong>{{ $rootCategory->name }}</strong>
+                                                <span class="mt-1 flex flex-wrap gap-1.5 text-xs text-slate-500">
+                                                    @if($rootCategory->children_count > 0)<span class="rounded-full bg-sky-100 px-2 py-0.5 font-semibold text-sky-600 dark:bg-sky-900/30 dark:text-sky-400">{{ $rootCategory->children_count }} sous-catégorie(s)</span>@endif
+                                                    <span>{{ $rootCategory->items_count }} article(s)</span>
+                                                </span>
+                                            </span>
                                         </div>
                                         <span class="text-xs font-semibold text-brand">Modifier</span>
                                     </summary>
                                     <div class="mt-4 border-t border-slate-200 pt-4 dark:border-white/10">
-                                        <form action="{{ route('catalog.categories.update', $category) }}" method="POST" class="grid gap-3 lg:grid-cols-2">
+                                        @if($rootChildren->isNotEmpty())
+                                            <div class="mb-4 space-y-2">
+                                                <p class="text-xs font-semibold uppercase text-slate-500">Sous-catégories</p>
+                                                @foreach ($rootChildren as $child)
+                                                    <div class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                                        <div class="flex items-center gap-2.5">
+                                                            <span class="grid size-8 shrink-0 place-items-center rounded-md text-xs" style="background: {{ $child->color ?? '#4F46E5' }}20; color: {{ $child->color ?? '#4F46E5' }}">{{ $child->icon ?: Str::upper(Str::substr($child->name, 0, 1)) }}</span>
+                                                            <div>
+                                                                <span class="text-sm font-semibold">{{ $child->name }}</span>
+                                                                <span class="ml-2 text-xs text-slate-500">{{ $child->items_count }} article(s)</span>
+                                                            </div>
+                                                        </div>
+                                                        <button type="button" onclick="document.getElementById('category-edit-{{ $child->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold dark:border-white/10">Modifier</button>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        @endif
+                                        <form action="{{ route('catalog.categories.update', $rootCategory) }}" method="POST" class="grid gap-3 lg:grid-cols-2">
                                             @csrf
                                             @method('PUT')
-                                            <input name="name" required value="{{ $category->name }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                            <input name="name" required value="{{ $rootCategory->name }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                                             <select name="parent_id" data-searchable-select data-placeholder="Rechercher un parent..." class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                                <option value="">Aucun parent</option>
-                                                @foreach ($categories->where('id', '!=', $category->id) as $parent)
-                                                    <option value="{{ $parent->id }}" @selected((string) $category->parent_id === (string) $parent->id)>{{ $parent->name }}</option>
+                                                <option value="">Aucun parent (racine)</option>
+                                                @foreach ($categories->where('parent_id', null)->where('id', '!=', $rootCategory->id) as $rootCat)
+                                                    <option value="{{ $rootCat->id }}" @selected((string) $rootCategory->parent_id === (string) $rootCat->id)>{{ $rootCat->name }}</option>
+                                                    @foreach ($categories->where('parent_id', $rootCat->id)->where('id', '!=', $rootCategory->id) as $childCat)
+                                                        <option value="{{ $childCat->id }}" @selected((string) $rootCategory->parent_id === (string) $childCat->id)> └ {{ $childCat->name }}</option>
+                                                    @endforeach
                                                 @endforeach
                                             </select>
-                                            <input name="icon" value="{{ $category->icon }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Icône">
-                                            <input name="color" type="color" value="{{ $category->color ?? '#4F46E5' }}" class="h-10 rounded-lg border border-slate-200 px-2 dark:border-white/10 dark:bg-slate-900">
-                                            <textarea name="description" rows="2" class="rounded-lg border border-slate-200 px-3 py-2 text-sm lg:col-span-2 dark:border-white/10 dark:bg-slate-900" placeholder="Description">{{ $category->description }}</textarea>
-                                            <input name="loan_duration_days" value="{{ $category->loan_duration_days ?? 14 }}" type="hidden">
-                                            <input name="daily_fine_amount" value="{{ $category->daily_fine_amount ?? 2 }}" type="hidden">
+                                            <div class="lg:col-span-2">
+                                                <div class="flex flex-wrap gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-white/10 dark:bg-white/5">
+                                                    <input name="icon" value="{{ $rootCategory->icon }}" class="category-icon-input h-10 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Icône" id="icon-input-{{ $rootCategory->id }}" readonly onclick="document.getElementById('icon-picker-{{ $rootCategory->id }}').classList.toggle('hidden')">
+                                                    <input name="color" type="color" value="{{ $rootCategory->color ?? '#4F46E5' }}" class="h-10 w-16 rounded-lg border border-slate-200 bg-white px-1 dark:border-white/10 dark:bg-slate-900">
+                                                </div>
+                                                <div id="icon-picker-{{ $rootCategory->id }}" class="mt-1 hidden flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-slate-900">
+                                                    @foreach($categoryIconOptions as $ico)
+                                                        <button type="button" class="rounded-lg px-2.5 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-white/10" onclick="document.getElementById('icon-input-{{ $rootCategory->id }}').value='{{ $ico }}'; document.getElementById('icon-picker-{{ $rootCategory->id }}').classList.add('hidden')">{{ $ico }}</button>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                            <textarea name="description" rows="2" class="rounded-lg border border-slate-200 px-3 py-2 text-sm lg:col-span-2 dark:border-white/10 dark:bg-slate-900" placeholder="Description">{{ $rootCategory->description }}</textarea>
+                                            <input name="loan_duration_days" value="{{ $rootCategory->loan_duration_days ?? 14 }}" type="hidden">
+                                            <input name="daily_fine_amount" value="{{ $rootCategory->daily_fine_amount ?? 2 }}" type="hidden">
                                             <div class="flex justify-end gap-2 lg:col-span-2">
                                                 <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer</button>
                                             </div>
                                         </form>
-                                        <form action="{{ route('catalog.categories.destroy', $category) }}" method="POST" class="mt-2 flex justify-end" onsubmit="return confirm('Supprimer cette catégorie ?')">
+                                        <form action="{{ route('catalog.categories.destroy', $rootCategory) }}" method="POST" class="mt-2 flex justify-end" onsubmit="return confirm('Supprimer cette catégorie ?')">
                                             @csrf
                                             @method('DELETE')
                                             <button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 dark:border-rose-500/30">Supprimer</button>
                                         </form>
                                     </div>
                                 </details>
+                                @foreach ($rootChildren as $child)
+                                    <dialog id="category-edit-{{ $child->id }}" class="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                        <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                                            <div class="flex justify-between gap-4">
+                                                <div><p class="text-sm font-semibold text-brand">Modifier sous-catégorie</p><h3 class="mt-1 text-lg font-semibold">{{ $child->name }}</h3></div>
+                                                <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button" onclick="this.closest('dialog').close()">×</button>
+                                            </div>
+                                        </div>
+                                        <form action="{{ route('catalog.categories.update', $child) }}" method="POST" class="space-y-4 p-5">
+                                            @csrf
+                                            @method('PUT')
+                                            <div class="grid gap-4 sm:grid-cols-2">
+                                                <label class="block space-y-1"><span class="text-xs font-semibold uppercase text-slate-500">Nom</span><input name="name" required value="{{ $child->name }}" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                                <label class="block space-y-1"><span class="text-xs font-semibold uppercase text-slate-500">Parent</span>
+                                                    <select name="parent_id" data-searchable-select data-placeholder="Rechercher un parent..." class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                                        <option value="">Aucun parent (racine)</option>
+                                                        @foreach ($categories->where('parent_id', null)->where('id', '!=', $child->id) as $rootCat)
+                                                            <option value="{{ $rootCat->id }}" @selected((string) $child->parent_id === (string) $rootCat->id)>{{ $rootCat->name }}</option>
+                                                            @foreach ($categories->where('parent_id', $rootCat->id)->where('id', '!=', $child->id) as $childCat)
+                                                                <option value="{{ $childCat->id }}" @selected((string) $child->parent_id === (string) $childCat->id)> └ {{ $childCat->name }}</option>
+                                                            @endforeach
+                                                        @endforeach
+                                                    </select>
+                                                </label>
+                                            </div>
+                                            <div>
+                                                <div class="flex flex-wrap gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2 dark:border-white/10 dark:bg-white/5">
+                                                    <input name="icon" value="{{ $child->icon }}" class="category-icon-input h-10 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Icône" id="icon-input-child-{{ $child->id }}" readonly onclick="document.getElementById('icon-picker-child-{{ $child->id }}').classList.toggle('hidden')">
+                                                    <input name="color" type="color" value="{{ $child->color ?? '#4F46E5' }}" class="h-10 w-16 rounded-lg border border-slate-200 bg-white px-1 dark:border-white/10 dark:bg-slate-900">
+                                                </div>
+                                                <div id="icon-picker-child-{{ $child->id }}" class="mt-1 hidden flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-2 dark:border-white/10 dark:bg-slate-900">
+                                                    @foreach($categoryIconOptions as $ico)
+                                                        <button type="button" class="rounded-lg px-2.5 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-white/10" onclick="document.getElementById('icon-input-child-{{ $child->id }}').value='{{ $ico }}'; document.getElementById('icon-picker-child-{{ $child->id }}').classList.add('hidden')">{{ $ico }}</button>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                            <textarea name="description" rows="2" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Description">{{ $child->description }}</textarea>
+                                            <input name="loan_duration_days" value="{{ $child->loan_duration_days ?? 14 }}" type="hidden">
+                                            <input name="daily_fine_amount" value="{{ $child->daily_fine_amount ?? 2 }}" type="hidden">
+                                            <div class="flex justify-between gap-2">
+                                                <button type="button" onclick="if(confirm('Supprimer cette catégorie ?')){document.getElementById('delete-category-{{ $child->id }}').submit()}" class="rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 dark:border-rose-500/30">Supprimer</button>
+                                                <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer</button>
+                                            </div>
+                                        </form>
+                                        <form id="delete-category-{{ $child->id }}" action="{{ route('catalog.categories.destroy', $child) }}" method="POST" class="hidden">@csrf @method('DELETE')</form>
+                                    </dialog>
+                                @endforeach
                             @empty
                                 <p class="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500 dark:border-white/10">Aucune catégorie trouvée.</p>
                             @endforelse

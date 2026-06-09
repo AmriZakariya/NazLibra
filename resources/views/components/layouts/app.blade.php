@@ -72,6 +72,9 @@
             if (libraireProSidebarState === null || libraireProSidebarState === 'collapsed') {
                 document.documentElement.classList.add('sidebar-collapsed');
             }
+            if (localStorage.getItem('librairepro-app-fullscreen') === '1') {
+                document.documentElement.classList.add('app-fullscreen-mode');
+            }
         </script>
         <script>
             window.libraireProLocale = @json($locale);
@@ -293,6 +296,7 @@
         @endphp
 
         <div class="flex min-h-screen">
+            <div class="app-sidebar-peek-zone" data-sidebar-peek></div>
             <aside class="app-sidebar sticky top-0 hidden h-screen w-72 shrink-0 overflow-hidden md:flex md:flex-col" data-sidebar>
                 <div class="sidebar-brand flex h-[76px] shrink-0 items-center gap-3 px-4">
                     <a href="{{ route('dashboard') }}" class="sidebar-brand-link flex min-w-0 flex-1 items-center gap-3" title="{{ $tenant->name }}">
@@ -420,15 +424,6 @@
                                 </div>
                             </div>
                         </div>
-                        <button class="app-fullscreen-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:bg-slate-50 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Mode plein écran') }}" title="{{ $tr('Mode plein écran') }}" aria-pressed="false" data-fullscreen-toggle>
-                            <span class="app-fullscreen-enter" aria-hidden="true">⛶</span>
-                            <span class="app-fullscreen-exit hidden" aria-hidden="true">×</span>
-                        </button>
-                        <button class="app-theme-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Basculer le thème') }}">◐</button>
-                        <form action="{{ route('session.lock') }}" method="POST" class="hidden sm:block">
-                            @csrf
-                            <button class="grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-sm font-black text-slate-600 transition hover:border-brand/40 hover:bg-slate-50 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="submit" aria-label="Verrouiller la session" title="Verrouiller la session">LK</button>
-                        </form>
                         @if ($showCashDrawerNavbar)
                             <a href="{{ route('module', 'cash-register') }}" class="topbar-cashdrawer {{ $layoutCashRegisterSession ? 'is-open' : 'is-closed' }}" title="{{ $layoutCashRegisterSession ? $tr('Tiroir ouvert') : $tr('Tiroir fermé') }}">
                                 <span class="topbar-cashdrawer-icon">TC</span>
@@ -438,30 +433,108 @@
                                 </span>
                             </a>
                         @endif
-                        <details class="relative hidden sm:block">
-                            <summary class="current-store-trigger flex h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-                                <span class="grid size-6 place-items-center rounded-md bg-brand/10 text-xs text-brand">▣</span>
-                                <span class="max-w-36 truncate">{{ $layoutCurrentStore['name'] }}</span>
+
+                        {{-- Tools dropdown (small screens) --}}
+                        <details class="relative lg:hidden">
+                            <summary class="grid size-11 cursor-pointer list-none place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:bg-slate-50 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" aria-label="{{ $tr('Outils') }}" title="{{ $tr('Outils') }}">
+                                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+                                </svg>
                             </summary>
-                            <div class="absolute right-0 top-12 z-40 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-slate-950">
-                                <p class="px-1 pb-2 text-xs font-semibold uppercase text-slate-500">{{ $tr('Magasin courant') }}</p>
-                                <form action="{{ route('settings.current-store.update') }}" method="POST" class="space-y-2">
-                                    @csrf
-                                    <select name="current_store" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                        @foreach ($layoutStores->where('is_active', true) as $store)
-                                            <option value="{{ $store['key'] }}" @selected($layoutCurrentStore['key'] === $store['key'])>{{ $store['name'] }}</option>
-                                        @endforeach
-                                    </select>
-                                    <button class="w-full rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">{{ $tr('Changer') }}</button>
-                                </form>
-                                <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="mt-2 block rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $tr('Gérer les magasins') }}</a>
+                            <div class="absolute right-0 top-12 z-40 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-white/10 dark:bg-slate-950">
+                                <div class="space-y-1">
+                                    <button class="app-sidebar-nav-toggle w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="button" data-sidebar-nav-toggle>
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                                        {{ $tr('Menu') }}
+                                    </button>
+                                    <button class="app-fullscreen-toggle w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="button" data-fullscreen-toggle>
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                                        <span class="fullscreen-label">{{ $tr('Plein écran') }}</span>
+                                    </button>
+                                    <button class="app-theme-toggle w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="button">
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                                        {{ $tr('Thème') }}
+                                    </button>
+                                    <form action="{{ route('session.lock') }}" method="POST">
+                                        @csrf
+                                        <button class="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="submit">
+                                            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                            {{ $tr('Verrouiller') }}
+                                        </button>
+                                    </form>
+                                    <details class="relative">
+                                        <summary class="flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">
+                                            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                                            {{ $tr('Magasin') }}
+                                        </summary>
+                                        <div class="p-2">
+                                            <form action="{{ route('settings.current-store.update') }}" method="POST" class="space-y-2">
+                                                @csrf
+                                                <select name="current_store" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                                    @foreach ($layoutStores->where('is_active', true) as $store)
+                                                        <option value="{{ $store['key'] }}" @selected($layoutCurrentStore['key'] === $store['key'])>{{ $store['name'] }}</option>
+                                                    @endforeach
+                                                </select>
+                                                <button class="w-full rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">{{ $tr('Changer') }}</button>
+                                            </form>
+                                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="mt-2 block rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $tr('Gérer les magasins') }}</a>
+                                        </div>
+                                    </details>
+                                    <form action="{{ route('locale.switch', \App\Support\Locale::opposite($locale)) }}" method="POST">
+                                        @csrf
+                                        <button class="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="submit">
+                                            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                                            {{ $locale === 'ar' ? 'Français' : 'العربية' }}
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </details>
-                        <form action="{{ route('locale.switch', \App\Support\Locale::opposite($locale)) }}" method="POST" class="hidden sm:block">
-                            @csrf
-                            <button class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="submit">{{ $locale === 'ar' ? 'Français' : 'العربية' }}</button>
-                        </form>
-                        <a href="{{ route('pos') }}" class="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition brightness-100 hover:brightness-110">{{ $tr('Caisse') }}</a>
+
+                        {{-- Individual buttons (large screens) --}}
+                        <div class="hidden lg:flex items-center gap-2">
+                            <button class="app-sidebar-nav-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:bg-slate-50 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Afficher le menu') }}" title="{{ $tr('Afficher le menu') }}" data-sidebar-nav-toggle>
+                                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                            </button>
+                            <button class="app-fullscreen-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:bg-slate-50 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Mode plein écran') }}" title="{{ $tr('Mode plein écran') }}" aria-pressed="false" data-fullscreen-toggle>
+                                <span class="app-fullscreen-enter" aria-hidden="true">⛶</span>
+                                <span class="app-fullscreen-exit hidden" aria-hidden="true">×</span>
+                            </button>
+                            <button class="app-theme-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Basculer le thème') }}">◐</button>
+                            <form action="{{ route('session.lock') }}" method="POST">
+                                @csrf
+                                <button class="grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-amber-400/50 hover:bg-amber-50 hover:text-amber-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-amber-400/30 dark:hover:bg-amber-500/10" type="submit" aria-label="Verrouiller la session" title="Verrouiller la session">
+                                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                </button>
+                            </form>
+                            <details class="relative">
+                                <summary class="current-store-trigger grid size-11 cursor-pointer list-none place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" title="{{ $layoutCurrentStore['name'] }}">
+                                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                                </summary>
+                                <div class="absolute right-0 top-12 z-40 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-slate-950">
+                                    <p class="px-1 pb-2 text-xs font-semibold uppercase text-slate-500">{{ $tr('Magasin courant') }}</p>
+                                    <form action="{{ route('settings.current-store.update') }}" method="POST" class="space-y-2">
+                                        @csrf
+                                        <select name="current_store" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                            @foreach ($layoutStores->where('is_active', true) as $store)
+                                                <option value="{{ $store['key'] }}" @selected($layoutCurrentStore['key'] === $store['key'])>{{ $store['name'] }}</option>
+                                            @endforeach
+                                        </select>
+                                        <button class="w-full rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">{{ $tr('Changer') }}</button>
+                                    </form>
+                                    <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="mt-2 block rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $tr('Gérer les magasins') }}</a>
+                                </div>
+                            </details>
+                        </div>
+
+                        {{-- POS --}}
+                        <a href="{{ route('pos') }}" class="grid size-11 place-items-center rounded-lg bg-brand text-white shadow-sm transition brightness-100 hover:brightness-110" title="{{ $tr('Caisse') }}">
+                            <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+                            </svg>
+                        </a>
+
+                        {{-- Profile --}}
                         @auth
                             @php
                                 $accountUser = auth()->user();
@@ -489,9 +562,15 @@
                                     </div>
                                     <a href="{{ route('profile') }}" class="mt-2 block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Mon profil') }}</a>
                                     <a href="{{ route('module', ['module' => 'settings', 'section' => 'users']) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Utilisateurs & rôles') }}</a>
+                                    <form action="{{ route('locale.switch', \App\Support\Locale::opposite($locale)) }}" method="POST">
+                                        @csrf
+                                        <button class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="submit">
+                                            <span class="mr-2">🌐</span>{{ $locale === 'ar' ? 'Français' : 'العربية' }}
+                                        </button>
+                                    </form>
                                     <form action="{{ route('session.lock') }}" method="POST" class="mt-1">
                                         @csrf
-                                        <button class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="submit">Verrouiller la session</button>
+                                        <button class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="submit">{{ $tr('Verrouiller la session') }}</button>
                                     </form>
                                     <form action="{{ route('logout') }}" method="POST" class="mt-2 border-t border-slate-200 pt-2 dark:border-white/10">
                                         @csrf
@@ -500,7 +579,9 @@
                                 </div>
                             </details>
                         @else
-                            <a href="{{ route('login') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">Connexion</a>
+                            <a href="{{ route('login') }}" class="grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" title="{{ $tr('Connexion') }}">
+                                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                            </a>
                         @endauth
                     </div>
                     @if (session('status'))

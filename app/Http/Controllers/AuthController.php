@@ -5,12 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\Tenant;
 use App\Models\AuditLog;
 use App\Models\Role;
+use App\Models\User;
+use App\Notifications\ResetPasswordNotification;
+use App\Notifications\ResetPinNotification;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -257,6 +263,141 @@ class AuthController extends Controller
         $user->save();
 
         return back()->with('status', 'Profil mis à jour.');
+    }
+
+    public function showForgotPassword(): View|RedirectResponse
+    {
+        if (Auth::check()) {
+            return redirect()->route('dashboard');
+        }
+
+        return view('auth.password.forgot', [
+            'tenant' => Tenant::query()->first(),
+        ]);
+    }
+
+    public function sendPasswordResetLink(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'email' => ['required', 'email', 'exists:users,email'],
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+        $token = Str::random(64);
+
+        DB::table('password_reset_tokens')->updateOrInsert(
+            ['email' => $request->email],
+            ['token' => Hash::make($token), 'created_at' => now()]
+        );
+
+        $user->notify(new ResetPasswordNotification($token, $request->email));
+
+        return back()->with('status', 'Un lien de réinitialisation vous a été envoyé par email.');
+    }
+
+    public function showResetPassword(Request $request): View|RedirectResponse
+    {
+        if (Auth::check()) {
+            return redirect()->route('dashboard');
+        }
+
+        return view('auth.password.reset', [
+            'tenant' => Tenant::query()->first(),
+            'token' => $request->token,
+            'email' => $request->email,
+        ]);
+    }
+
+    public function updatePassword(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'token' => ['required', 'string'],
+            'email' => ['required', 'email'],
+            'password' => ['required', 'confirmed', 'min:8', 'max:120'],
+        ]);
+
+        $record = DB::table('password_reset_tokens')->where('email', $data['email'])->first();
+
+        if (! $record || ! Hash::check($data['token'], $record->token)) {
+            return back()->withErrors(['email' => 'Lien de réinitialisation invalide ou expiré.']);
+        }
+
+        if (now()->diffInMinutes($record->created_at) > 60) {
+            DB::table('password_reset_tokens')->where('email', $data['email'])->delete();
+
+            return back()->withErrors(['email' => 'Ce lien a expiré. Veuillez refaire une demande.']);
+        }
+
+        $user = User::where('email', $data['email'])->first();
+
+        if (! $user) {
+            return back()->withErrors(['email' => 'Utilisateur introuvable.']);
+        }
+
+        $user->password = $data['password'];
+        $user->save();
+
+        DB::table('password_reset_tokens')->where('email', $data['email'])->delete();
+
+        return redirect()->route('login')->with('status', 'Mot de passe réinitialisé. Connectez-vous avec votre nouveau mot de passe.');
+    }
+
+    public function sendPinResetEmail(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        $token = Str::random(64);
+
+        DB::table('pin_reset_tokens')->updateOrInsert(
+            ['email' => $user->email],
+            ['token' => Hash::make($token), 'created_at' => now()]
+        );
+
+        $user->notify(new ResetPinNotification($token, $user->email));
+
+        return back()->with('status', 'Un lien de réinitialisation du PIN vous a été envoyé par email.');
+    }
+
+    public function showResetPin(Request $request): View|RedirectResponse
+    {
+        return view('auth.pin.reset', [
+            'tenant' => Tenant::query()->first(),
+            'token' => $request->token,
+            'email' => $request->email,
+        ]);
+    }
+
+    public function updatePin(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'token' => ['required', 'string'],
+            'email' => ['required', 'email'],
+            'pin' => ['required', 'digits_between:4,8', 'confirmed'],
+        ]);
+
+        $record = DB::table('pin_reset_tokens')->where('email', $data['email'])->first();
+
+        if (! $record || ! Hash::check($data['token'], $record->token)) {
+            return back()->withErrors(['pin' => 'Lien de réinitialisation invalide ou expiré.']);
+        }
+
+        if (now()->diffInMinutes($record->created_at) > 60) {
+            DB::table('pin_reset_tokens')->where('email', $data['email'])->delete();
+
+            return back()->withErrors(['pin' => 'Ce lien a expiré. Veuillez refaire une demande.']);
+        }
+
+        $user = User::where('email', $data['email'])->first();
+
+        if (! $user) {
+            return back()->withErrors(['pin' => 'Utilisateur introuvable.']);
+        }
+
+        $user->pin_hash = Hash::make($data['pin']);
+        $user->save();
+
+        DB::table('pin_reset_tokens')->where('email', $data['email'])->delete();
+
+        return redirect()->route('login')->with('status', 'PIN réinitialisé. Vous pouvez maintenant vous connecter et verrouiller votre session.');
     }
 
     private function isOwner(Tenant $tenant, mixed $user): bool

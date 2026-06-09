@@ -90,13 +90,19 @@ const fullscreenButtons = [...document.querySelectorAll('[data-fullscreen-toggle
 const fullscreenStorageKey = 'librairepro-app-fullscreen';
 const fullscreenEnabled = () => localStorage.getItem(fullscreenStorageKey) === '1';
 const setAppFullscreen = (enabled) => {
-    document.body.classList.toggle('app-fullscreen-mode', enabled);
+    document.documentElement.classList.toggle('app-fullscreen-mode', enabled);
+    if (!enabled) {
+        sidebarEl?.classList.remove('is-visible');
+        updateNavToggle();
+    }
     fullscreenButtons.forEach((button) => {
         button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
         button.title = enabled ? translate('Quitter le plein écran') : translate('Mode plein écran');
         button.setAttribute('aria-label', button.title);
         button.querySelector('.app-fullscreen-enter')?.classList.toggle('hidden', enabled);
         button.querySelector('.app-fullscreen-exit')?.classList.toggle('hidden', !enabled);
+        const label = button.querySelector('.fullscreen-label');
+        if (label) label.textContent = enabled ? translate('Quitter le plein écran') : translate('Mode plein écran');
     });
 };
 
@@ -118,7 +124,7 @@ const ensureNativeFullscreen = async () => {
 
 fullscreenButtons.forEach((button) => {
     button.addEventListener('click', async () => {
-        const nextState = !document.body.classList.contains('app-fullscreen-mode');
+        const nextState = !document.documentElement.classList.contains('app-fullscreen-mode');
         setAppFullscreen(nextState);
         localStorage.setItem(fullscreenStorageKey, nextState ? '1' : '0');
 
@@ -359,8 +365,8 @@ document.querySelectorAll('[data-product-search]').forEach((search) => {
         empty?.classList.add('hidden');
         results.innerHTML = `
             <div class="app-product-search-hint">
-                <strong>Recherche catalogue</strong>
-                <span>Nom, ISBN, code article, SKU ou code-barres.</span>
+                <strong>${translate('Recherche catalogue')}</strong>
+                <span>${translate('Nom, ISBN, code article, SKU ou code-barres.')}</span>
             </div>
         `;
         open();
@@ -555,6 +561,57 @@ document.querySelectorAll('[data-sidebar]').forEach((sidebar) => {
         const scrollBox = scrollArea.getBoundingClientRect();
         if (currentBox.top < scrollBox.top + 24 || currentBox.bottom > scrollBox.bottom - 24) {
             current.scrollIntoView({ block: 'center' });
+        }
+    });
+});
+
+const sidebarPeek = document.querySelector('[data-sidebar-peek]');
+const sidebarEl = document.querySelector('[data-sidebar]');
+let peekTimeout;
+
+const updateNavToggle = () => {
+    document.querySelectorAll('[data-sidebar-nav-toggle]').forEach((b) => {
+        b.classList.toggle('is-active', sidebarEl?.classList.contains('is-visible'));
+    });
+};
+
+const showSidebarPeek = () => {
+    if (!document.documentElement.classList.contains('app-fullscreen-mode')) return;
+    clearTimeout(peekTimeout);
+    sidebarEl?.classList.add('is-visible');
+    updateNavToggle();
+};
+
+const hideSidebarPeek = () => {
+    peekTimeout = setTimeout(() => {
+        if (!sidebarEl?.matches(':hover') && !sidebarPeek?.matches(':hover')) {
+            sidebarEl?.classList.remove('is-visible');
+            updateNavToggle();
+        }
+    }, 250);
+};
+
+sidebarPeek?.addEventListener('mouseenter', showSidebarPeek);
+sidebarEl?.addEventListener('mouseenter', showSidebarPeek);
+sidebarPeek?.addEventListener('mouseleave', hideSidebarPeek);
+sidebarEl?.addEventListener('mouseleave', hideSidebarPeek);
+
+document.querySelectorAll('[data-sidebar-nav-toggle]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+        if (document.documentElement.classList.contains('app-fullscreen-mode')) {
+            sidebarEl?.classList.toggle('is-visible');
+            updateNavToggle();
+            btn.setAttribute('aria-label', sidebarEl?.classList.contains('is-visible') ? 'Masquer le menu' : 'Afficher le menu');
+            btn.title = btn.getAttribute('aria-label');
+        } else {
+            const toggle = sidebarEl?.querySelector('[data-sidebar-toggle]');
+            if (toggle) {
+                const isCollapsed = document.documentElement.classList.contains('sidebar-collapsed');
+                document.documentElement.classList.toggle('sidebar-collapsed', !isCollapsed);
+                localStorage.setItem('librairepro-sidebar', !isCollapsed ? 'collapsed' : 'expanded');
+                toggle.setAttribute('aria-pressed', !isCollapsed ? 'true' : 'false');
+                toggle.setAttribute('aria-label', !isCollapsed ? 'Ouvrir le menu' : 'Réduire le menu');
+            }
         }
     });
 });
@@ -1873,7 +1930,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
         if (busy && submitter) {
             submitter.dataset.originalText = submitter.textContent.trim();
-            submitter.textContent = 'Traitement...';
+            submitter.textContent = translate('Traitement...');
         }
     };
 
@@ -2195,7 +2252,7 @@ document.querySelectorAll('.label-select-all').forEach((button) => {
         checks.forEach((check) => {
             check.checked = shouldCheck;
         });
-        button.textContent = shouldCheck ? 'Tout désélectionner' : 'Tout sélectionner';
+        button.textContent = shouldCheck ? translate('Tout désélectionner') : translate('Tout sélectionner');
         updateLabelSelection(form);
     });
 });
@@ -2543,7 +2600,7 @@ document.querySelectorAll('[data-collapsible-menu]').forEach((menu, index) => {
 
     const refresh = () => {
         if (stateNode) {
-            stateNode.textContent = menu.open ? 'Masquer' : 'Afficher';
+            stateNode.textContent = menu.open ? translate('Masquer') : translate('Afficher');
         }
     };
 
@@ -3369,12 +3426,12 @@ document.querySelectorAll('[data-report-copy]').forEach((button) => {
 
         try {
             await navigator.clipboard.writeText(text);
-            button.textContent = 'Copié';
+            button.textContent = translate('Copié');
             setTimeout(() => {
-                button.textContent = 'Copier tableau';
+                button.textContent = translate('Copier tableau');
             }, 1600);
         } catch {
-            button.textContent = 'Copie indisponible';
+            button.textContent = translate('Copie indisponible');
         }
     });
 });
@@ -3400,7 +3457,7 @@ document.querySelectorAll('[data-inline-create]').forEach((container) => {
 
         errorNode?.classList.add('hidden');
         submit.disabled = true;
-        submit.textContent = 'Ajout...';
+        submit.textContent = translate('Ajout...');
 
         try {
             const response = await fetch(container.dataset.endpoint, {
@@ -3441,7 +3498,7 @@ document.querySelectorAll('[data-inline-create]').forEach((container) => {
             }
         } finally {
             submit.disabled = false;
-            submit.textContent = 'Ajouter';
+            submit.textContent = translate('Ajouter');
         }
     });
 });
@@ -3515,7 +3572,7 @@ document.querySelectorAll('.barcode-scan-btn').forEach((button) => {
 
             video.addEventListener('loadedmetadata', tick, { once: true });
         } catch (error) {
-            status.textContent = 'Caméra indisponible. Vous pouvez saisir le code manuellement.';
+            status.textContent = translate('Caméra indisponible. Vous pouvez saisir le code manuellement.');
             dialog.showModal();
         }
     });

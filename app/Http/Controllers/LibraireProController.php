@@ -648,13 +648,13 @@ class LibraireProController extends Controller
             'tenant' => $tenant,
             'active' => $request->routeIs('stock') ? 'stock' : 'catalog',
             'items' => $items,
-            'categories' => Category::where('tenant_id', $tenant->id)->with(['parent'])->withCount('items')->orderBy('name')->get(),
+            'categories' => Category::where('tenant_id', $tenant->id)->with(['parent'])->withCount(['items', 'children'])->orderBy('name')->get(),
             'brands' => Brand::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'units' => Unit::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'taxes' => Tax::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'categoryList' => Category::where('tenant_id', $tenant->id)
-                ->with(['parent'])
-                ->withCount('items')
+                ->with(['parent', 'children'])
+                ->withCount(['items', 'children'])
                 ->when($referenceQuery !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($referenceQuery): void {
                     $builder->where('name', 'like', "%{$referenceQuery}%")
                         ->orWhere('description', 'like', "%{$referenceQuery}%");
