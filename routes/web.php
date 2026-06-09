@@ -4,6 +4,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LibraireProController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/manifest.json', [LibraireProController::class, 'manifest'])->name('manifest');
+Route::get('/app-icon/{size}', [LibraireProController::class, 'appIcon'])->where('size', '192|512')->name('app.icon');
 Route::get('/connexion', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/connexion', [AuthController::class, 'login'])->name('login.store');
 Route::post('/deconnexion', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
@@ -160,6 +162,7 @@ Route::patch('/ventes/livraisons/{delivery}', [LibraireProController::class, 'up
 Route::post('/devis', [LibraireProController::class, 'storeQuotation'])->name('quotations.store');
 Route::patch('/devis/{quotation}', [LibraireProController::class, 'updateQuotationStatus'])->name('quotations.update');
 Route::post('/devis/{quotation}/convertir', [LibraireProController::class, 'convertQuotationToSale'])->name('quotations.convert');
+Route::delete('/devis/{quotation}', [LibraireProController::class, 'destroyQuotation'])->name('quotations.destroy');
 Route::post('/achats', [LibraireProController::class, 'storePurchase'])->name('purchases.store');
 Route::post('/achats/{purchase}/recevoir', [LibraireProController::class, 'receivePurchase'])->name('purchases.receive');
 Route::get('/achats/{purchase}/pdf', [LibraireProController::class, 'downloadPurchasePdf'])->name('purchases.pdf');

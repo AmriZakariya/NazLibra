@@ -498,6 +498,7 @@ class LibraireProController extends Controller
                     $feature('Mot de passe', 'Changement du mot de passe utilisateur connecté.', route('module', ['module' => 'settings', 'section' => 'password'])),
                     $feature('Messagerie', 'Configuration, envoi manuel, modèles, canaux SMS/WhatsApp et outbox.', route('module', ['module' => 'settings', 'section' => 'messaging'])),
                     $feature('Thème', 'Préréglages visuels et personnalisation couleurs/densité/rayon.', route('module', ['module' => 'settings', 'section' => 'theme'])),
+                    $feature('Matériel', 'Configuration imprimante thermique ESC/POS, tiroir-caisse et lecteur code-barres via Web Serial API.', route('module', ['module' => 'settings', 'section' => 'hardware'])),
                     $feature('Profil utilisateur', 'Informations personnelles, avatar et résumé activité.', route('profile')),
                     $feature('Journal d activité', 'Audit log filtrable par utilisateur, période, méthode et action pour propriétaire.', route('profile.activity')),
                 ],
@@ -2024,6 +2025,8 @@ class LibraireProController extends Controller
             'postcode' => ['nullable', 'string', 'max:40'],
             'address' => ['nullable', 'string', 'max:1000'],
             'store_logo' => ['nullable', 'string', 'max:500'],
+            'store_logo_file' => ['nullable', 'image', 'max:2048'],
+            'remove_store_logo' => ['nullable', 'boolean'],
             'timezone' => ['required', 'string', 'max:80'],
             'date_format' => ['required', 'in:dd-mm-yyyy,dd/mm/yyyy,mm-dd-yyyy,yyyy-mm-dd'],
             'time_format' => ['required', 'in:12,24'],
@@ -2064,10 +2067,38 @@ class LibraireProController extends Controller
             'purchase_return_payment_init' => ['nullable', 'string', 'max:20'],
             'expense_payment_init' => ['nullable', 'string', 'max:20'],
             'cust_advance_init' => ['nullable', 'string', 'max:20'],
+            'app_icon' => ['nullable', 'image', 'max:2048'],
+            'remove_app_icon' => ['nullable', 'boolean'],
         ]);
 
         foreach (['show_signature', 'round_off', 'mrp_column', 'change_return', 'previous_balance_bit', 't_and_c_status', 't_and_c_status_pos', 'toggle_header_footer'] as $boolean) {
             $data[$boolean] = $request->boolean($boolean);
+        }
+
+        if ($request->boolean('remove_app_icon')) {
+            $this->deleteAppIconFiles();
+            $data['app_icon'] = null;
+        } elseif ($request->hasFile('app_icon')) {
+            $this->processAppIconUpload($request->file('app_icon'));
+            $data['app_icon'] = 'custom';
+        } else {
+            $data['app_icon'] = $tenant->settings['company_profile']['app_icon'] ?? null;
+        }
+
+        if ($request->boolean('remove_store_logo')) {
+            $old = $tenant->settings['company_profile']['store_logo'] ?? '';
+            if ($old && !Str::startsWith($old, ['http://', 'https://'])) {
+                $oldPath = public_path($old);
+                if (is_file($oldPath)) @unlink($oldPath);
+            }
+            $data['store_logo'] = '';
+        } elseif ($request->hasFile('store_logo_file')) {
+            $file = $request->file('store_logo_file');
+            $filename = 'logo-'.time().'.'.$file->getClientOriginalExtension();
+            $path = $file->storeAs('public/logos', $filename);
+            $data['store_logo'] = 'storage/logos/'.$filename;
+        } else {
+            $data['store_logo'] = $tenant->settings['company_profile']['store_logo'] ?? '';
         }
 
         $settings = $tenant->settings ?? [];
@@ -2096,6 +2127,58 @@ class LibraireProController extends Controller
         return redirect()
             ->route('module', ['module' => 'settings', 'section' => 'company'])
             ->with('status', 'Profil société mis à jour.');
+    }
+
+    public function manifest(): \Illuminate\Http\JsonResponse
+    {
+        $tenant = Tenant::query()->first();
+        $theme = data_get($tenant?->settings, 'theme.primary', '#3157D5');
+        $locale = $tenant?->locale ?? 'fr';
+        $dir = str_starts_with($locale, 'ar') ? 'rtl' : 'ltr';
+
+        return response()->json([
+            'name' => $tenant?->name ?? 'LibrairePro',
+            'short_name' => $tenant?->name ?? 'LibrairePro',
+            'description' => 'Caisse, stock, ventes et achats pour librairie',
+            'start_url' => '/',
+            'display' => 'standalone',
+            'background_color' => '#F4F7FB',
+            'theme_color' => $theme,
+            'orientation' => 'any',
+            'scope' => '/',
+            'icons' => [
+                [
+                    'src' => '/icons/icon-192x192.png',
+                    'sizes' => '192x192',
+                    'type' => 'image/png',
+                ],
+                [
+                    'src' => '/icons/icon-512x512.png',
+                    'sizes' => '512x512',
+                    'type' => 'image/png',
+                ],
+                [
+                    'src' => '/icons/icon-192x192.png',
+                    'sizes' => '192x192',
+                    'type' => 'image/png',
+                    'purpose' => 'maskable',
+                ],
+            ],
+            'categories' => ['business', 'finance'],
+            'lang' => $locale === 'ar' ? 'ar' : ($locale === 'en_US' ? 'en' : 'fr'),
+            'dir' => $dir,
+        ]);
+    }
+
+    public function appIcon(string $size): \Symfony\Component\HttpFoundation\BinaryFileResponse|\Illuminate\Http\Response
+    {
+        $path = public_path("icons/icon-{$size}x{$size}.png");
+
+        if (file_exists($path)) {
+            return response()->file($path, ['Content-Type' => 'image/png']);
+        }
+
+        return response('', 404);
     }
 
     public function updatePosSettings(Request $request): RedirectResponse
@@ -4023,8 +4106,14 @@ class LibraireProController extends Controller
 
         if ($quotation->converted_sale_id) {
             return redirect()
-                ->route('module', ['module' => 'sales', 'section' => 'list'])
+                ->route('module', ['module' => 'sales', 'section' => 'quotes'])
                 ->with('status', 'Ce devis est déjà converti.');
+        }
+
+        if ($quotation->status !== 'accepted') {
+            return redirect()
+                ->route('module', ['module' => 'sales', 'section' => 'quotes'])
+                ->withErrors(['quotation' => 'Le devis doit être marqué "Accepté" avant conversion.']);
         }
 
         try {
@@ -4090,8 +4179,27 @@ class LibraireProController extends Controller
         }
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'list'])
+            ->route('module', ['module' => 'sales', 'section' => 'quotes'])
             ->with('status', 'Devis '.$quotation->number.' converti en vente '.$sale->number.'.');
+    }
+
+    public function destroyQuotation(Quotation $quotation): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless($quotation->tenant_id === $tenant->id, 404);
+
+        if ($quotation->converted_sale_id) {
+            return redirect()
+                ->route('module', ['module' => 'sales', 'section' => 'quotes'])
+                ->withErrors(['quotation' => 'Impossible de supprimer un devis déjà converti.']);
+        }
+
+        $number = $quotation->number;
+        $quotation->delete();
+
+        return redirect()
+            ->route('module', ['module' => 'sales', 'section' => 'quotes'])
+            ->with('status', 'Devis '.$number.' supprimé.');
     }
 
     public function storeExpense(Request $request): RedirectResponse
@@ -6117,6 +6225,66 @@ class LibraireProController extends Controller
         ]);
 
         return $pdf->download($document['filename']);
+    }
+
+    private function processAppIconUpload(\Illuminate\Http\UploadedFile $file): void
+    {
+        $source = $file->getRealPath();
+        $sizes = [192 => 'icon-192x192.png', 512 => 'icon-512x512.png'];
+        $iconsDir = public_path('icons');
+
+        if (! is_dir($iconsDir)) {
+            mkdir($iconsDir, 0755, true);
+        }
+
+        foreach ($sizes as $size => $filename) {
+            $this->resizePng($source, $iconsDir.'/'.$filename, $size, $size);
+        }
+    }
+
+    private function deleteAppIconFiles(): void
+    {
+        $defaultDir = resource_path('icons/default');
+        $iconsDir = public_path('icons');
+
+        foreach (['icon-192x192.png', 'icon-512x512.png'] as $filename) {
+            $default = $defaultDir.'/'.$filename;
+            $target = $iconsDir.'/'.$filename;
+
+            if (file_exists($default)) {
+                copy($default, $target);
+            } elseif (file_exists($target)) {
+                unlink($target);
+            }
+        }
+    }
+
+    private function resizePng(string $source, string $destination, int $width, int $height): void
+    {
+        $info = getimagesize($source);
+        $mime = $info['mime'] ?? 'image/png';
+        $srcWidth = $info[0];
+        $srcHeight = $info[1];
+
+        $srcImage = match ($mime) {
+            'image/jpeg' => imagecreatefromjpeg($source),
+            'image/png' => imagecreatefrompng($source),
+            'image/webp' => imagecreatefromwebp($source),
+            'image/gif' => imagecreatefromgif($source),
+            default => imagecreatefrompng($source),
+        };
+
+        $dstImage = imagecreatetruecolor($width, $height);
+        imagealphablending($dstImage, false);
+        imagesavealpha($dstImage, true);
+        $transparent = imagecolorallocatealpha($dstImage, 0, 0, 0, 127);
+        imagefill($dstImage, 0, 0, $transparent);
+
+        imagecopyresampled($dstImage, $srcImage, 0, 0, 0, 0, $width, $height, $srcWidth, $srcHeight);
+        imagepng($dstImage, $destination, 9);
+
+        imagedestroy($srcImage);
+        imagedestroy($dstImage);
     }
 
     private function companyProfile(Tenant $tenant): array

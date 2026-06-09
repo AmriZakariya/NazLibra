@@ -54,15 +54,42 @@
             ->latest('opened_at')
             ->first()
         : null;
+    $appIcon = !empty($tenant->settings['company_profile']['app_icon']);
+    $appIcon192 = $appIcon ? '/icons/icon-192x192.png' : '/icons/icon-192x192.png';
+    $appIcon512 = $appIcon ? '/icons/icon-512x512.png' : '/icons/icon-512x512.png';
 @endphp
 <!DOCTYPE html>
 <html lang="{{ $locale }}" dir="{{ $direction }}" data-locale="{{ $locale }}" style="--brand-primary: {{ $theme['primary'] }}; --brand-accent: {{ $theme['accent'] }}; --brand-success: {{ $theme['success'] }}; --brand-warning: {{ $theme['warning'] ?? '#D97706' }}; --brand-danger: {{ $theme['danger'] ?? '#E11D48' }}; --brand-info: {{ $theme['info'] ?? '#0284C7' }}; --app-bg: {{ $theme['background'] }}; --surface: {{ $theme['surface_color'] }}; --surface-muted: {{ $theme['surface_muted'] }}; --text-main: {{ $theme['text'] }}; --text-muted: {{ $theme['muted'] }}; --border-soft: {{ $theme['border'] }}; --font-scale: {{ $theme['font_scale'] }}; --brand-radius: {{ $theme['radius'] }}px;">
     <head>
+        <script>
+            (function(){
+                if(localStorage.getItem('librairepro-app-fullscreen')==='1'){
+                    document.documentElement.classList.add('app-fullscreen-mode');
+                }
+                document.documentElement.classList.add('app-loading');
+            })();
+        </script>
+        <style>
+            html.app-loading * { transition: none !important; animation: none !important; }
+            .app-fullscreen-mode .app-sidebar{transform:translateX(-100%)!important;opacity:0!important;pointer-events:none!important;}
+            html[dir="rtl"].app-fullscreen-mode .app-sidebar{transform:translateX(100%)!important;}
+            .app-fullscreen-mode .app-main-shell{width:100%!important;}
+            .app-fullscreen-mode .app-topbar{padding-block:10px!important;padding-inline:16px!important;}
+            .app-fullscreen-mode .app-page-content{padding:16px!important;}
+        </style>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="color-scheme" content="light dark">
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>{{ $title ?? 'LibrairePro' }}</title>
+        <link rel="manifest" href="/manifest.json">
+        <meta name="theme-color" content="{{ $theme['primary'] }}">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="default">
+        <meta name="apple-mobile-web-app-title" content="{{ $tenant->name }}">
+        <link rel="apple-touch-icon" href="{{ $appIcon192 }}">
+        <link rel="icon" type="image/png" sizes="192x192" href="{{ $appIcon192 }}">
+        <link rel="icon" type="image/png" sizes="512x512" href="{{ $appIcon512 }}">
         <script>
             const libraireProForceCollapsedSidebar = @json(request()->routeIs('pos'));
             if (libraireProForceCollapsedSidebar) {
@@ -83,6 +110,7 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-slate-50 text-slate-950 antialiased dark:bg-slate-950 dark:text-slate-100">
+        <script>requestAnimationFrame(()=>setTimeout(()=>document.documentElement.classList.remove('app-loading'),0));</script>
         @php
             $currentPath = trim(request()->path(), '/');
             $currentQuery = request()->query();
@@ -219,6 +247,7 @@
                     ['label' => 'Liste des pays', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'countries'])],
                     ['label' => 'Liste des états', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'states'])],
                     ['label' => 'Changer le mot de passe', 'icon' => '⌐', 'href' => route('module', ['module' => 'settings', 'section' => 'password'])],
+                    ['label' => 'Matériel', 'icon' => '🖨', 'href' => route('module', ['module' => 'settings', 'section' => 'hardware'])],
                 ]],
             ];
             $commandLinks = collect($nav)
@@ -292,6 +321,7 @@
                 'Types de paiement' => 'paiement cash carte virement avance',
                 'Changer le mot de passe' => 'password sécurité compte profil',
                 'Paramètres' => 'settings configuration thème langue caisse stock',
+                'Matériel' => 'imprimante thermique tiroir caisse lecteur code-barres barcode scanner printer usb serial pos hardware device',
             ];
         @endphp
 
@@ -359,6 +389,10 @@
                         <small>{{ $releaseLabel }} · {{ now()->format('d/m/Y') }}</small>
                     </span>
                 </div>
+                <button class="sidebar-peek-toggle mx-3 mb-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300" type="button" data-sidebar-peek-toggle title="Afficher automatiquement le menu au survol">
+                    <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    <span class="sidebar-peek-label">Au survol</span>
+                </button>
 
             </aside>
 
@@ -462,6 +496,7 @@
                                             {{ $tr('Verrouiller') }}
                                         </button>
                                     </form>
+                                    @if ($layoutStores->count() > 1)
                                     <details class="relative">
                                         <summary class="flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">
                                             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -480,6 +515,7 @@
                                             <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="mt-2 block rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $tr('Gérer les magasins') }}</a>
                                         </div>
                                     </details>
+                                    @endif
                                     <form action="{{ route('locale.switch', \App\Support\Locale::opposite($locale)) }}" method="POST">
                                         @csrf
                                         <button class="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="submit">
@@ -507,6 +543,7 @@
                                     <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                                 </button>
                             </form>
+                            @if ($layoutStores->count() > 1)
                             <details class="relative">
                                 <summary class="current-store-trigger grid size-11 cursor-pointer list-none place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" title="{{ $layoutCurrentStore['name'] }}">
                                     <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
@@ -525,6 +562,7 @@
                                     <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="mt-2 block rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $tr('Gérer les magasins') }}</a>
                                 </div>
                             </details>
+                            @endif
                         </div>
 
                         {{-- POS --}}

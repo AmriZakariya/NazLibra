@@ -1,6 +1,8 @@
 @php
     $money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' DH';
     $pageTitle = 'LibrairePro · '.$meta['title'];
+    $locale = \App\Support\Locale::current($tenant);
+    $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
 @endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" :title="$pageTitle">
@@ -167,53 +169,83 @@
                 </aside>
             </section>
         @elseif ($salesSection === 'quote-add')
-            <section class="mt-6 grid gap-6 xl:grid-cols-[1fr_340px]">
-                <form action="{{ route('quotations.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+            <section class="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
+                <form action="{{ route('quotations.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]" data-quote-form>
                     @csrf
                     <div class="flex flex-col gap-2 border-b border-slate-200 pb-4 dark:border-white/10 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                             <h2 class="text-lg font-semibold">Nouveau devis</h2>
                             <p class="mt-1 text-sm text-slate-500">Préparez une offre client sans impacter le stock avant conversion.</p>
                         </div>
-                        <button class="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">Enregistrer le devis</button>
+                        <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white">Enregistrer le devis</button>
                     </div>
                     <div class="grid gap-4 lg:grid-cols-4">
                         <label class="space-y-1.5 lg:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Client existant</span><select name="contact_id" data-searchable-select data-placeholder="Client..." class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Client comptoir / nouveau</option>@foreach ($salesClients as $client)<option value="{{ $client->id }}" @selected(old('contact_id') == $client->id)>{{ $client->name }} · {{ $client->phone }}</option>@endforeach</select></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date</span><input name="quoted_at" value="{{ old('quoted_at', now()->format('Y-m-d\TH:i')) }}" type="datetime-local" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date devis</span><input name="quoted_at" value="{{ old('quoted_at', now()->format('Y-m-d\TH:i')) }}" type="datetime-local" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Expiration</span><input name="expires_at" value="{{ old('expires_at', now()->addDays(15)->toDateString()) }}" type="date" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nouveau client</span><input name="client_name" value="{{ old('client_name') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom client"></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="client_phone" value="{{ old('client_phone') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212..."></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Référence</span><input name="reference" value="{{ old('reference') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Bon, école..."></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="status" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="draft">Brouillon</option><option value="sent">Envoyé</option><option value="accepted">Accepté</option></select></label>
                     </div>
-                    <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
-                        <div class="grid gap-2 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500 dark:bg-white/5 lg:grid-cols-[1fr_100px_140px_120px]"><span>Article</span><span>Qté</span><span>Prix</span><span>Total</span></div>
-                        @for ($i = 0; $i < 8; $i++)
-                            <div class="grid gap-2 border-t border-slate-200 p-2 dark:border-white/10 lg:grid-cols-[1fr_100px_140px_120px]">
-                                <select name="items[{{ $i }}][item_id]" data-searchable-select data-placeholder="Rechercher article, ISBN, code-barres..." class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Article</option>@foreach ($quoteItems as $item)<option value="{{ $item->id }}">{{ $item->title }} · {{ $money($item->sale_price) }} · stock {{ $item->type === 'service' ? '∞' : $item->stock_quantity }}</option>@endforeach</select>
-                                <input name="items[{{ $i }}][quantity]" type="number" min="1" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Qté">
-                                <input name="items[{{ $i }}][unit_price]" type="number" min="0" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Prix DH">
-                                <div class="flex h-10 items-center rounded-lg bg-slate-50 px-3 text-sm text-slate-500 dark:bg-white/5">calculé</div>
-                            </div>
-                        @endfor
+                    <div>
+                        <div class="flex items-center justify-between pb-2">
+                            <h3 class="text-sm font-semibold">Lignes devis</h3>
+                            <button type="button" class="quote-add-line inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold dark:border-white/10 dark:bg-white/5">
+                                <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                                Ajouter une ligne
+                            </button>
+                        </div>
+                        <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10" data-quote-lines>
+                            <div class="grid gap-2 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500 dark:bg-white/5 lg:grid-cols-[1fr_90px_120px_120px_40px]"><span>Article</span><span class="text-center">Qté</span><span class="text-right">Prix</span><span class="text-right">Total</span><span></span></div>
+                            @for ($i = 0; $i < 5; $i++)
+                                <div class="quote-line grid gap-2 border-t border-slate-200 p-2 dark:border-white/10 lg:grid-cols-[1fr_90px_120px_120px_40px]" data-line-index="{{ $i }}">
+                                    <select name="items[{{ $i }}][item_id]" data-quote-item data-searchable-select data-placeholder="Rechercher article..." class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value=""></option>@foreach ($quoteItems as $item)<option value="{{ $item->id }}" data-price="{{ $item->sale_price }}">{{ $item->title }} · {{ $money($item->sale_price) }} · stock {{ $item->type === 'service' ? '∞' : $item->stock_quantity }}</option>@endforeach</select>
+                                    <input name="items[{{ $i }}][quantity]" data-quote-qty type="number" min="1" value="1" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-center dark:border-white/10 dark:bg-slate-900">
+                                    <input name="items[{{ $i }}][unit_price]" data-quote-price type="number" min="0" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900">
+                                    <div class="flex h-10 items-center justify-end rounded-lg bg-slate-50 px-3 text-sm font-semibold dark:bg-white/5" data-quote-line-total>0,00 DH</div>
+                                    <button type="button" class="quote-remove-line grid size-10 place-items-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Retirer"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+                                </div>
+                            @endfor
+                        </div>
                     </div>
-                    <div class="grid gap-4 lg:grid-cols-[1fr_180px]">
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note</span><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Conditions, délai, commentaire...">{{ old('note') }}</textarea></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise DH</span><input name="discount_amount" value="{{ old('discount_amount', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><span class="block text-xs text-slate-500">La TVA incluse sera calculée automatiquement.</span></label>
+                    <div class="grid gap-4 lg:grid-cols-[1fr_200px]">
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note / Conditions</span><textarea name="note" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Conditions, délai, commentaire...">{{ old('note') }}</textarea></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale (DH)</span><input name="discount_amount" data-quote-discount value="{{ old('discount_amount', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><span class="block text-xs text-slate-500">La TVA incluse (20%) sera calculée automatiquement.</span></label>
                     </div>
                 </form>
                 <aside class="space-y-4">
-                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">Flux recommandé</h3><p class="mt-2 text-sm text-slate-500">Créez le devis, envoyez-le au client, puis convertissez-le en vente quand il confirme. La conversion crée une vente impayée et réserve le stock.</p></article>
-                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">Raccourcis utiles</h3><p class="mt-2 text-sm text-slate-500">Utilisez la recherche article pour retrouver rapidement ISBN, code-barres, services et fournitures. Les prix restent modifiables avant validation.</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <h3 class="font-semibold">Récapitulatif</h3>
+                        <dl class="mt-4 space-y-3 text-sm">
+                            <div class="flex justify-between"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold" data-quote-summary-subtotal>0,00 DH</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Remise</dt><dd class="font-semibold text-rose-600" data-quote-summary-discount>0,00 DH</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">TVA (20%)</dt><dd class="font-semibold" data-quote-summary-tax>0,00 DH</dd></div>
+                            <div class="flex justify-between border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-semibold">Total TTC</dt><dd class="font-bold text-brand" data-quote-summary-total>0,00 DH</dd></div>
+                        </dl>
+                    </article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <h3 class="font-semibold">Flux recommandé</h3>
+                        <div class="mt-3 space-y-2 text-sm text-slate-500">
+                            <p><span class="inline-flex size-5 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">1</span> Créez le devis en brouillon</p>
+                            <p><span class="inline-flex size-5 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">2</span> Envoyez-le au client (marquez "Envoyé")</p>
+                            <p><span class="inline-flex size-5 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">3</span> Quand le client confirme, marquez "Accepté"</p>
+                            <p><span class="inline-flex size-5 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">4</span> Convertissez en vente — le stock est alors décrémenté</p>
+                        </div>
+                    </article>
                 </aside>
             </section>
         @elseif ($salesSection === 'quotes')
+            @php
+                $quoteStatusLabels = ['draft' => 'Brouillon', 'sent' => 'Envoyé', 'accepted' => 'Accepté', 'rejected' => 'Rejeté', 'expired' => 'Expiré'];
+                $quoteStatusTones = ['draft' => 'warning', 'sent' => 'info', 'accepted' => 'success', 'rejected' => 'danger', 'expired' => 'danger'];
+            @endphp
             <section class="mt-6 space-y-5">
                 <div class="grid gap-3 md:grid-cols-4">
-                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Devis</span><p class="mt-2 text-2xl font-semibold">{{ $quotations->total() }}</p></article>
-                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Montant page</span><p class="mt-2 text-2xl font-semibold">{{ $money($quotations->sum('total_amount')) }}</p></article>
-                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Acceptés</span><p class="mt-2 text-2xl font-semibold text-emerald-600">{{ $quotations->where('status', 'accepted')->count() }}</p></article>
-                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">À relancer</span><p class="mt-2 text-2xl font-semibold text-amber-600">{{ $quotations->whereIn('status', ['draft', 'sent'])->count() }}</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Devis total</span><p class="mt-2 text-2xl font-semibold">{{ $quotations->total() }}</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Montant filtré</span><p class="mt-2 text-2xl font-semibold">{{ $money($quotations->sum('total_amount')) }}</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Acceptés</span><p class="mt-2 text-2xl font-semibold text-emerald-600">{{ \App\Models\Quotation::where('tenant_id', $tenant->id)->where('status', 'accepted')->count() }}</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">À relancer</span><p class="mt-2 text-2xl font-semibold text-amber-600">{{ \App\Models\Quotation::where('tenant_id', $tenant->id)->whereIn('status', ['draft', 'sent'])->where(function($q){$q->whereNull('expires_at')->orWhereDate('expires_at', '>=', now());})->count() }}</p></article>
                 </div>
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <form class="grid gap-3 lg:grid-cols-[1fr_190px_150px_150px_160px_auto]" method="GET" action="{{ route('module', ['module' => 'sales', 'section' => 'quotes']) }}">
@@ -222,13 +254,119 @@
                         <select name="client" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous clients</option>@foreach ($salesClients as $client)<option value="{{ $client->id }}" @selected((string) request('client') === (string) $client->id)>{{ $client->name }}</option>@endforeach</select>
                         <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                        <select name="quote_status" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous statuts</option>@foreach (['draft' => 'Brouillon', 'sent' => 'Envoyé', 'accepted' => 'Accepté', 'rejected' => 'Rejeté', 'expired' => 'Expiré'] as $key => $label)<option value="{{ $key }}" @selected(request('quote_status') === $key)>{{ $label }}</option>@endforeach</select>
+                        <select name="quote_status" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous statuts</option>@foreach ($quoteStatusLabels as $key => $label)<option value="{{ $key }}" @selected(request('quote_status') === $key)>{{ $label }}</option>@endforeach</select>
                         <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'sales', 'section' => 'quotes']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
                     </form>
                 </article>
-                <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <div class="overflow-x-auto"><table class="w-full min-w-[1120px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N° devis</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Expiration</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Référence</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($quotations as $quote)<tr><td class="px-3 py-3 font-semibold">{{ $quote->number }}</td><td class="px-3 py-3">{{ $quote->quoted_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3">{{ $quote->expires_at?->format('d/m/Y') ?? '—' }}</td><td class="px-3 py-3">{{ $quote->contact?->name ?? data_get($quote->metadata, 'client_name', 'Client comptoir') }}</td><td class="px-3 py-3 text-slate-500">{{ data_get($quote->metadata, 'reference', '—') }}</td><td class="px-3 py-3"><x-status-pill :tone="$quote->status === 'accepted' ? 'success' : ($quote->status === 'rejected' ? 'danger' : 'warning')">{{ $quote->status }}</x-status-pill></td><td class="px-3 py-3 text-right font-semibold">{{ $money($quote->total_amount) }}</td><td class="px-3 py-3"><div class="flex justify-end gap-2"><button type="button" onclick="document.getElementById('quote-detail-{{ $quote->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</button>@if (! $quote->converted_sale_id)<form action="{{ route('quotations.convert', $quote) }}" method="POST">@csrf<button class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Convertir</button></form>@endif</div></td></tr><dialog id="quote-detail-{{ $quote->id }}" class="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"><div class="border-b border-slate-200 p-5 dark:border-white/10"><div class="flex justify-between gap-4"><div><p class="text-sm font-semibold text-brand">Détail devis</p><h3 class="mt-1 text-xl font-semibold">{{ $quote->number }} · {{ $money($quote->total_amount) }}</h3><p class="mt-1 text-sm text-slate-500">{{ $quote->contact?->name ?? data_get($quote->metadata, 'client_name', 'Client comptoir') }}</p></div><button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button></div></div><div class="grid gap-4 p-5 lg:grid-cols-[1fr_240px]"><div class="space-y-2">@foreach ($quote->lines as $line)<div class="grid grid-cols-[1fr_70px_110px] gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-white/5"><span>{{ $line['name'] }}</span><span>x{{ $line['quantity'] }}</span><strong class="text-right">{{ $money($line['total_price']) }}</strong></div>@endforeach</div><aside class="space-y-3"><div class="rounded-xl bg-slate-50 p-4 dark:bg-white/5"><dl class="space-y-2 text-sm"><div class="flex justify-between"><dt>Sous-total</dt><dd class="font-semibold">{{ $money($quote->subtotal_amount) }}</dd></div><div class="flex justify-between"><dt>Remise</dt><dd class="font-semibold">{{ $money($quote->discount_amount) }}</dd></div><div class="flex justify-between text-base"><dt class="font-semibold">Total</dt><dd class="font-bold">{{ $money($quote->total_amount) }}</dd></div></dl></div><form action="{{ route('quotations.update', $quote) }}" method="POST" class="space-y-2">@csrf @method('PATCH')<select name="status" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach (['draft' => 'Brouillon', 'sent' => 'Envoyé', 'accepted' => 'Accepté', 'rejected' => 'Rejeté', 'expired' => 'Expiré'] as $key => $label)<option value="{{ $key }}" @selected($quote->status === $key)>{{ $label }}</option>@endforeach</select><button class="w-full rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Mettre à jour</button></form></aside></div></dialog>@empty<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun devis trouvé.</td></tr>@endforelse</tbody></table></div><div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $quotations->links() }}</div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[1120px] text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                                <tr>
+                                    <th class="px-3 py-3">N° devis</th>
+                                    <th class="px-3 py-3">Date</th>
+                                    <th class="px-3 py-3">Expiration</th>
+                                    <th class="px-3 py-3">Client</th>
+                                    <th class="px-3 py-3">Référence</th>
+                                    <th class="px-3 py-3">Statut</th>
+                                    <th class="px-3 py-3 text-right">Total</th>
+                                    <th class="px-3 py-3 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                @forelse ($quotations as $quote)
+                                    @php
+                                        $isExpired = $quote->expires_at && $quote->expires_at->isPast();
+                                        $isSoon = $quote->expires_at && ! $isExpired && $quote->expires_at->diffInDays(now()) <= 3;
+                                        $canConvert = ! $quote->converted_sale_id && $quote->status === 'accepted';
+                                    @endphp
+                                    <tr class="transition hover:bg-slate-50 dark:hover:bg-white/[0.02]">
+                                        <td class="px-3 py-3">
+                                            <p class="font-semibold">{{ $quote->number }}</p>
+                                            @if ($quote->converted_sale_id)
+                                                <p class="mt-0.5 text-xs text-emerald-600">Converti · {{ $quote->convertedSale?->number }}</p>
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-3">{{ $quote->quoted_at?->format('d/m/Y H:i') }}</td>
+                                        <td class="px-3 py-3">
+                                            <span class="{{ $isExpired ? 'text-rose-600 font-semibold' : ($isSoon ? 'text-amber-600 font-semibold' : '') }}">
+                                                {{ $quote->expires_at?->format('d/m/Y') ?? '—' }}
+                                            </span>
+                                            @if ($isExpired)<span class="ml-1 text-[10px] font-bold uppercase text-rose-600">Expiré</span>@endif
+                                            @if ($isSoon)<span class="ml-1 text-[10px] font-bold uppercase text-amber-600">Bientôt</span>@endif
+                                        </td>
+                                        <td class="px-3 py-3">{{ $quote->contact?->name ?? data_get($quote->metadata, 'client_name', 'Client comptoir') }}</td>
+                                        <td class="px-3 py-3 text-slate-500">{{ data_get($quote->metadata, 'reference', '—') }}</td>
+                                        <td class="px-3 py-3"><x-status-pill :tone="$quoteStatusTones[$quote->status] ?? 'warning'">{{ $quoteStatusLabels[$quote->status] ?? $quote->status }}</x-status-pill></td>
+                                        <td class="px-3 py-3 text-right font-semibold">{{ $money($quote->total_amount) }}</td>
+                                        <td class="px-3 py-3">
+                                            <div class="flex justify-end gap-2">
+                                                <button type="button" onclick="document.getElementById('quote-detail-{{ $quote->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</button>
+                                                @if ($canConvert)
+                                                    <form action="{{ route('quotations.convert', $quote) }}" method="POST" onsubmit="return confirm('Convertir ce devis en vente ? Le stock sera décrémenté.')">@csrf<button class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Convertir</button></form>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun devis trouvé.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $quotations->links() }}</div>
                 </article>
+                @foreach ($quotations as $quote)
+                    <dialog id="quote-detail-{{ $quote->id }}" class="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                        <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                            <div class="flex justify-between gap-4">
+                                <div>
+                                    <p class="text-sm font-semibold text-brand">Détail devis</p>
+                                    <h3 class="mt-1 text-xl font-semibold">{{ $quote->number }} · {{ $money($quote->total_amount) }}</h3>
+                                    <p class="mt-1 text-sm text-slate-500">{{ $quote->contact?->name ?? data_get($quote->metadata, 'client_name', 'Client comptoir') }}</p>
+                                </div>
+                                <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                            </div>
+                        </div>
+                        <div class="grid gap-4 p-5 lg:grid-cols-[1fr_280px]">
+                            <div class="space-y-2">
+                                @foreach ($quote->lines as $line)
+                                    <div class="grid grid-cols-[1fr_70px_110px] gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-white/5">
+                                        <span>{{ $line['name'] }}</span>
+                                        <span class="text-center">x{{ $line['quantity'] }}</span>
+                                        <strong class="text-right">{{ $money($line['total_price']) }}</strong>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <aside class="space-y-3">
+                                <div class="rounded-xl bg-slate-50 p-4 dark:bg-white/5">
+                                    <dl class="space-y-2 text-sm">
+                                        <div class="flex justify-between"><dt>Sous-total</dt><dd class="font-semibold">{{ $money($quote->subtotal_amount) }}</dd></div>
+                                        <div class="flex justify-between"><dt>Remise</dt><dd class="font-semibold">{{ $money($quote->discount_amount) }}</dd></div>
+                                        <div class="flex justify-between text-base"><dt class="font-semibold">Total</dt><dd class="font-bold">{{ $money($quote->total_amount) }}</dd></div>
+                                    </dl>
+                                </div>
+                                <div class="space-y-2">
+                                    <form action="{{ route('quotations.update', $quote) }}" method="POST">@csrf @method('PATCH')
+                                        <select name="status" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                            @foreach ($quoteStatusLabels as $key => $label)
+                                                <option value="{{ $key }}" @selected($quote->status === $key)>{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                        <button class="mt-2 w-full rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Mettre à jour le statut</button>
+                                    </form>
+                                    @if (! $quote->converted_sale_id && $quote->status === 'accepted')
+                                        <form action="{{ route('quotations.convert', $quote) }}" method="POST" onsubmit="return confirm('Convertir ce devis en vente ? Le stock sera décrémenté.')">@csrf<button class="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Convertir en vente</button></form>
+                                    @elseif ($quote->converted_sale_id)
+                                        <a href="{{ route('module', ['module' => 'sales', 'section' => 'list']) }}" class="block w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-sm font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">Vente {{ $quote->convertedSale?->number ?? '' }}</a>
+                                    @endif
+                                    @if (! $quote->converted_sale_id)
+                                        <form action="{{ route('quotations.destroy', $quote) }}" method="POST" onsubmit="return confirm('Supprimer définitivement ce devis ?')">@csrf @method('DELETE')<button type="submit" class="w-full rounded-lg border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-600 dark:border-rose-500/30 dark:text-rose-300">Supprimer le devis</button></form>
+                                    @endif
+                                </div>
+                            </aside>
+                        </div>
+                    </dialog>
+                @endforeach
             </section>
         @elseif ($salesSection === 'invoices')
             <section class="mt-6 space-y-4">
@@ -1957,6 +2095,7 @@
                 'message-templates' => 'Modèles',
                 'sms-api' => 'API messages',
                 'theme' => 'Thème',
+                'hardware' => 'Matériel',
             ];
             $settingsReferenceSections = ['taxes', 'units', 'payment-types', 'countries', 'states', 'password'];
             $companyProfile = array_merge([
@@ -2251,7 +2390,7 @@
                         <x-status-pill tone="primary">{{ strtoupper($companyProfile['currency']) }}</x-status-pill>
                     </div>
 
-                    <form action="{{ route('settings.company.update') }}" method="POST" class="mt-5 space-y-5">
+                    <form action="{{ route('settings.company.update') }}" method="POST" enctype="multipart/form-data" class="mt-5 space-y-5">
                         @csrf
                         <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                             <h3 class="text-sm font-semibold">Identification</h3>
@@ -2288,10 +2427,56 @@
                         <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                             <h3 class="text-sm font-semibold">Branding, signature & banque</h3>
                             <div class="mt-4 grid gap-3 md:grid-cols-2">
-                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Logo magasin (URL ou chemin fichier)</span><input name="store_logo" value="{{ old('store_logo', $companyProfile['store_logo']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <div class="space-y-1.5">
+                                    <span class="text-xs font-semibold uppercase text-slate-500">Logo magasin</span>
+                                    <div class="flex items-center gap-3">
+                                        @if (!empty($companyProfile['store_logo']))
+                                            <img src="{{ asset($companyProfile['store_logo']) }}" alt="Logo" class="size-14 rounded-lg border border-slate-200 object-contain dark:border-white/10">
+                                        @endif
+                                        <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">
+                                            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                            Choisir un fichier
+                                            <input type="file" name="store_logo_file" accept="image/png,image/jpeg,image/webp,image/gif" class="sr-only" onchange="this.closest('.space-y-1\.5').querySelector('.store-logo-filename').textContent = this.files[0]?.name || ''">
+                                        </label>
+                                        <span class="store-logo-filename text-sm text-slate-600 dark:text-slate-300"></span>
+                                    </div>
+                                    @if (!empty($companyProfile['store_logo']))
+                                        <label class="flex items-center gap-2 text-sm font-semibold text-rose-600">
+                                            <input type="checkbox" name="remove_store_logo" value="1" class="size-4 accent-rose-500">
+                                            Supprimer le logo actuel
+                                        </label>
+                                    @endif
+                                </div>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Signature (URL ou chemin fichier)</span><input name="signature" value="{{ old('signature', $companyProfile['signature']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                 <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950/40"><input name="show_signature" value="1" type="checkbox" @checked(old('show_signature', $companyProfile['show_signature'])) class="size-4 accent-[var(--brand-primary)]"> Afficher la signature</label>
                                 <label class="space-y-1.5 md:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Coordonnées bancaires</span><textarea name="bank_details" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900">{{ old('bank_details', $companyProfile['bank_details']) }}</textarea></label>
+                            </div>
+                            <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <h4 class="text-sm font-semibold">Icône de l'application</h4>
+                                        <p class="text-xs text-slate-500">Utilisée pour l'installation PWA (192×192 et 512×512 px). Formats : PNG, JPG, WEBP.</p>
+                                    </div>
+                                    @if (!empty($companyProfile['app_icon']))
+                                        <img src="/icons/icon-192x192.png" alt="App icon" class="size-12 rounded-xl object-cover">
+                                    @else
+                                        <span class="grid size-12 place-items-center rounded-xl bg-slate-100 text-lg text-slate-400 dark:bg-slate-800">🖼</span>
+                                    @endif
+                                </div>
+                                <div class="mt-3 flex flex-wrap items-center gap-3">
+                                    <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                        Choisir une image
+                                        <input type="file" name="app_icon" accept="image/png,image/jpeg,image/webp,image/gif" class="sr-only" onchange="this.closest('form').querySelector('.app-icon-filename').textContent = this.files[0]?.name || ''">
+                                    </label>
+                                    <span class="app-icon-filename text-sm text-slate-600 dark:text-slate-300"></span>
+                                    @if (!empty($companyProfile['app_icon']))
+                                        <label class="flex items-center gap-2 text-sm font-semibold text-rose-600">
+                                            <input type="checkbox" name="remove_app_icon" value="1" class="size-4 accent-rose-500">
+                                            Réinitialiser l'icône par défaut
+                                        </label>
+                                    @endif
+                                </div>
                             </div>
                         </section>
 
@@ -2777,6 +2962,160 @@
                             <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white">Enregistrer le thème</button>
                         </div>
                     </form>
+                </article>
+
+                @elseif ($settingsSection === 'hardware')
+                <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="flex items-start justify-between gap-4">
+                        <div>
+                            <p class="text-sm font-semibold text-brand">{{ $tr('Périphériques POS') }}</p>
+                            <h2 class="mt-1 text-xl font-semibold">{{ $tr('Matériel connecté') }}</h2>
+                            <p class="mt-1 text-sm text-slate-500">{{ $tr('Testez et configurez votre imprimante thermique, tiroir-caisse et lecteur de code-barres.') }}</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 grid gap-5 xl:grid-cols-[1fr_320px]">
+                        <div class="space-y-5">
+                            {{-- Printer --}}
+                            <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                <div class="flex items-center gap-3">
+                                    <span class="grid size-10 place-items-center rounded-xl bg-brand/10 text-lg text-brand">🖨️</span>
+                                    <div class="min-w-0 flex-1">
+                                        <h3 class="font-semibold">{{ $tr('Imprimante thermique') }}</h3>
+                                        <p class="text-sm text-slate-500">{{ $tr('USB-Serial via Web Serial API (Chrome/Edge Windows)') }}</p>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="pos-hw-printer-dot inline-block size-2.5 rounded-full bg-slate-300 dark:bg-slate-600"></span>
+                                        <span class="pos-hw-printer-status inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500 dark:bg-white/10">{{ $tr('Déconnecté') }}</span>
+                                    </div>
+                                </div>
+                                <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                    <label class="block space-y-1"><span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Port') }}</span>
+                                        <select class="pos-hw-printer-port h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                            <option value="auto">{{ $tr('Auto-détection') }}</option>
+                                        </select>
+                                    </label>
+                                    <label class="block space-y-1"><span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Baud rate') }}</span>
+                                        <select class="pos-hw-printer-baud h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                            <option value="9600" selected>9600</option>
+                                            <option value="115200">115200</option>
+                                            <option value="19200">19200</option>
+                                        </select>
+                                    </label>
+                                    <label class="block space-y-1"><span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Largeur ticket') }}</span>
+                                        <select class="pos-hw-printer-width h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                            <option value="58">58 mm</option>
+                                            <option value="80" selected>80 mm</option>
+                                        </select>
+                                    </label>
+                                    <label class="block space-y-1"><span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Commandes') }}</span>
+                                        <select class="pos-hw-printer-cmd h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                            <option value="escpos" selected>ESC/POS</option>
+                                            <option value="star">Star</option>
+                                        </select>
+                                    </label>
+                                </div>
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    <button class="pos-hw-connect-printer inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white" type="button">
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                                        {{ $tr('Connecter') }}
+                                    </button>
+                                    <button class="pos-hw-test-print inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold dark:border-white/10 dark:bg-white/5" type="button">
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+                                        {{ $tr('Test imprimante') }}
+                                    </button>
+                                    <button class="pos-hw-disconnect-printer hidden inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-600 dark:border-rose-500/30 dark:bg-rose-500/10" type="button">
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                        {{ $tr('Déconnecter') }}
+                                    </button>
+                                </div>
+                                <p class="pos-hw-print-feedback mt-3 hidden text-sm font-medium text-emerald-600 dark:text-emerald-400"></p>
+                            </div>
+
+                            {{-- Drawer --}}
+                            <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                <div class="flex items-center gap-3">
+                                    <span class="grid size-10 place-items-center rounded-xl bg-emerald-500/10 text-lg text-emerald-600">🗄️</span>
+                                    <div class="min-w-0 flex-1">
+                                        <h3 class="font-semibold">{{ $tr('Tiroir-caisse') }}</h3>
+                                        <p class="text-sm text-slate-500">{{ $tr('Connecté via l\'imprimante (RJ11/RJ12)') }}</p>
+                                    </div>
+                                </div>
+                                <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                    <label class="block space-y-1"><span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Pin') }}</span>
+                                        <select class="pos-hw-drawer-pin h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                            <option value="0" selected>Pin 2</option>
+                                            <option value="1">Pin 5</option>
+                                        </select>
+                                    </label>
+                                    <label class="block space-y-1"><span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Impulsion (ms)') }}</span>
+                                        <input type="number" value="25" min="10" max="100" class="pos-hw-drawer-pulse h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                    </label>
+                                </div>
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    <button class="pos-hw-test-drawer inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold dark:border-white/10 dark:bg-white/5" type="button">
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                        {{ $tr('Test tiroir') }}
+                                    </button>
+                                </div>
+                                <p class="pos-hw-drawer-feedback mt-3 hidden text-sm font-medium text-emerald-600 dark:text-emerald-400"></p>
+                            </div>
+
+                            {{-- Barcode Scanner --}}
+                            <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                <div class="flex items-center gap-3">
+                                    <span class="grid size-10 place-items-center rounded-xl bg-amber-500/10 text-lg text-amber-600">📷</span>
+                                    <div class="min-w-0 flex-1">
+                                        <h3 class="font-semibold">{{ $tr('Lecteur code-barres') }}</h3>
+                                        <p class="text-sm text-slate-500">{{ $tr('Mode clavier USB HID. Aucune configuration requise.') }}</p>
+                                    </div>
+                                </div>
+                                <div class="mt-4 rounded-lg bg-slate-50 p-4 dark:bg-white/5">
+                                    <p class="text-sm text-slate-600 dark:text-slate-300">{{ $tr('Branchez le scanner USB. Il fonctionne automatiquement en mode clavier. Scannez un code ci-dessous pour tester :') }}</p>
+                                    <div class="mt-3 flex gap-2">
+                                        <input type="text" class="pos-hw-barcode-test h-11 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold tracking-wide dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Scannez ici...') }}">
+                                        <span class="pos-hw-barcode-result hidden inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                            <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                                            {{ $tr('Code reçu !') }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Sidebar help --}}
+                        <aside class="space-y-4">
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                <h3 class="flex items-center gap-2 text-sm font-semibold">
+                                    <svg class="size-4 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                                    {{ $tr('Aide connexion') }}
+                                </h3>
+                                <ul class="mt-3 list-inside list-disc space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                                    <li>{{ $tr('Utilisez Chrome ou Edge sur Windows 10/11.') }}</li>
+                                    <li>{{ $tr('L\'imprimante doit apparaître comme un port COM dans le Gestionnaire de périphériques.') }}</li>
+                                    <li>{{ $tr('Si le port n\'apparaît pas, installez le driver du fabricant (FTDI/Prolific/CH340).') }}</li>
+                                    <li>{{ $tr('Le tiroir s\'ouvre via l\'imprimante : branchez-le sur le port RJ11 de l\'imprimante.') }}</li>
+                                </ul>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                <h3 class="text-sm font-semibold">{{ $tr('Compatibilité') }}</h3>
+                                <div class="mt-3 space-y-2 text-sm">
+                                    <div class="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                                        <svg class="size-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                                        <span>ESC/POS (Epson, Bixolon, Xprinter)</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                                        <svg class="size-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                                        <span>USB HID Scanner (Honeywell, Zebra, Datalogic)</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                                        <svg class="size-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                                        <span>Tiroir RJ11/RJ12 standard</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </aside>
+                    </div>
                 </article>
 
                 @endif

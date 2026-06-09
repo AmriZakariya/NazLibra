@@ -61,14 +61,14 @@ class QuotationExpenseTest extends TestCase
 
         $this->post(route('quotations.store'), [
             'client_name' => 'Client devis test',
-            'status' => 'draft',
+            'status' => 'accepted',
             'items' => [
                 ['item_id' => $item->id, 'quantity' => 2, 'unit_price' => 15],
             ],
         ])->assertRedirect();
 
         $quote = Quotation::firstOrFail();
-        $this->post(route('quotations.convert', $quote))->assertRedirect(route('module', ['module' => 'sales', 'section' => 'list']));
+        $this->post(route('quotations.convert', $quote))->assertRedirect(route('module', ['module' => 'sales', 'section' => 'quotes']));
 
         $sale = Sale::orderByDesc('id')->firstOrFail();
         $this->assertSame('unpaid', $sale->status);

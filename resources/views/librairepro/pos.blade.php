@@ -143,6 +143,9 @@
                             <x-status-pill tone="success">{{ $tr('Stock temps réel') }}</x-status-pill>
                             <x-status-pill :tone="$priceEditable ? 'warning' : 'info'">{{ $priceEditable ? $tr('Prix modifiable') : $tr('Prix verrouillés') }}</x-status-pill>
                             <x-status-pill :tone="$allowOversell ? 'warning' : 'success'">{{ $allowOversell ? $tr('Hors stock autorisé') : $tr('Stock bloquant') }}</x-status-pill>
+                            <button class="pos-hardware-connect hidden rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" title="Connecter imprimante / tiroir">
+                                <span class="pos-hardware-status">🔌 {{ $tr('Matériel') }}</span>
+                            </button>
                         </span>
                         <span class="pos-collapsible-chevron grid size-8 shrink-0 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-sm font-bold text-slate-600 dark:border-white/10 dark:bg-white/5">⌄</span>
                     </span>
@@ -396,6 +399,7 @@
                 @csrf
                 <input class="pos-cart-json" name="cart" type="hidden" value="[]">
                 <input name="ticket_id" type="hidden" value="{{ $resumeTicket?->id }}">
+                <input class="pos-receipt-data" type="hidden" value="{{ json_encode(['storeName' => $tenant?->name, 'ticketNumber' => $nextSaleNumber]) }}">
 
                 <section class="pos-checkout-panel grid min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="pos-cart-header relative border-b border-slate-200 p-4 dark:border-white/10">
@@ -566,10 +570,15 @@
 
                     <div class="mt-2 grid grid-cols-[1fr_1.5fr] gap-2">
                         <button class="pos-hold-submit rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50" type="submit" formaction="{{ route('pos.tickets.store') }}">
-                            Mettre en attente
+                            {{ $tr('Mettre en attente') }}
                         </button>
                         <button class="pos-submit rounded-lg bg-brand px-4 py-2.5 text-base font-bold text-white shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled>
-                            <span class="pos-submit-label">Ajouter un paiement</span>
+                            <span class="pos-submit-label">{{ $tr('Ajouter un paiement') }}</span>
+                        </button>
+                    </div>
+                    <div class="mt-2 flex gap-2">
+                        <button class="pos-drawer-kick hidden flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button">
+                            🗄️ {{ $tr('Ouvrir tiroir') }}
                         </button>
                     </div>
                 </section>

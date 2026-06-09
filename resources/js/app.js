@@ -1,5 +1,6 @@
 import DataTable from 'datatables.net-dt';
 import 'datatables.net-dt/css/dataTables.dataTables.css';
+import './hardware.js';
 
 const money = new Intl.NumberFormat('fr-MA', {
     style: 'currency',
@@ -569,20 +570,31 @@ const sidebarPeek = document.querySelector('[data-sidebar-peek]');
 const sidebarEl = document.querySelector('[data-sidebar]');
 let peekTimeout;
 
+// Peek setting
+const peekStorageKey = 'librairepro-sidebar-peek';
+const peekEnabled = () => localStorage.getItem(peekStorageKey) !== 'false';
+
 const updateNavToggle = () => {
     document.querySelectorAll('[data-sidebar-nav-toggle]').forEach((b) => {
         b.classList.toggle('is-active', sidebarEl?.classList.contains('is-visible'));
     });
 };
 
+// Show sidebar by default in normal mode
+if (sidebarEl && !document.documentElement.classList.contains('app-fullscreen-mode')) {
+    sidebarEl.classList.add('is-visible');
+    updateNavToggle();
+}
+
 const showSidebarPeek = () => {
-    if (!document.documentElement.classList.contains('app-fullscreen-mode')) return;
+    if (!peekEnabled()) return;
     clearTimeout(peekTimeout);
     sidebarEl?.classList.add('is-visible');
     updateNavToggle();
 };
 
 const hideSidebarPeek = () => {
+    if (!peekEnabled()) return;
     peekTimeout = setTimeout(() => {
         if (!sidebarEl?.matches(':hover') && !sidebarPeek?.matches(':hover')) {
             sidebarEl?.classList.remove('is-visible');
@@ -591,29 +603,149 @@ const hideSidebarPeek = () => {
     }, 250);
 };
 
-sidebarPeek?.addEventListener('mouseenter', showSidebarPeek);
-sidebarEl?.addEventListener('mouseenter', showSidebarPeek);
-sidebarPeek?.addEventListener('mouseleave', hideSidebarPeek);
-sidebarEl?.addEventListener('mouseleave', hideSidebarPeek);
+if (peekEnabled()) {
+    sidebarPeek?.addEventListener('mouseenter', showSidebarPeek);
+    sidebarEl?.addEventListener('mouseenter', showSidebarPeek);
+    sidebarPeek?.addEventListener('mouseleave', hideSidebarPeek);
+    sidebarEl?.addEventListener('mouseleave', hideSidebarPeek);
+}
 
+// Toggle sidebar visibility (show/hide) — same behavior in all modes
 document.querySelectorAll('[data-sidebar-nav-toggle]').forEach((btn) => {
     btn.addEventListener('click', () => {
-        if (document.documentElement.classList.contains('app-fullscreen-mode')) {
-            sidebarEl?.classList.toggle('is-visible');
-            updateNavToggle();
-            btn.setAttribute('aria-label', sidebarEl?.classList.contains('is-visible') ? 'Masquer le menu' : 'Afficher le menu');
-            btn.title = btn.getAttribute('aria-label');
+        const willShow = !sidebarEl?.classList.contains('is-visible');
+        sidebarEl?.classList.toggle('is-visible', willShow);
+        updateNavToggle();
+        const label = willShow ? 'Masquer le menu' : 'Afficher le menu';
+        btn.setAttribute('aria-label', label);
+        btn.title = label;
+    });
+});
+
+// Sidebar peek toggle
+document.querySelectorAll('[data-sidebar-peek-toggle]').forEach((btn) => {
+    const label = btn.querySelector('.sidebar-peek-label');
+    const updatePeekButton = () => {
+        const enabled = peekEnabled();
+        btn.classList.toggle('is-active', enabled);
+        if (label) label.textContent = enabled ? 'Au survol' : 'Manuel';
+        btn.title = enabled ? 'Le menu s\'affiche automatiquement au survol' : 'Le menu reste caché, utilisez le bouton pour l\'afficher';
+    };
+
+    updatePeekButton();
+
+    btn.addEventListener('click', () => {
+        const next = !peekEnabled();
+        localStorage.setItem(peekStorageKey, next ? 'true' : 'false');
+        updatePeekButton();
+
+        if (next) {
+            sidebarPeek?.addEventListener('mouseenter', showSidebarPeek);
+            sidebarEl?.addEventListener('mouseenter', showSidebarPeek);
+            sidebarPeek?.addEventListener('mouseleave', hideSidebarPeek);
+            sidebarEl?.addEventListener('mouseleave', hideSidebarPeek);
         } else {
-            const toggle = sidebarEl?.querySelector('[data-sidebar-toggle]');
-            if (toggle) {
-                const isCollapsed = document.documentElement.classList.contains('sidebar-collapsed');
-                document.documentElement.classList.toggle('sidebar-collapsed', !isCollapsed);
-                localStorage.setItem('librairepro-sidebar', !isCollapsed ? 'collapsed' : 'expanded');
-                toggle.setAttribute('aria-pressed', !isCollapsed ? 'true' : 'false');
-                toggle.setAttribute('aria-label', !isCollapsed ? 'Ouvrir le menu' : 'Réduire le menu');
-            }
+            sidebarPeek?.removeEventListener('mouseenter', showSidebarPeek);
+            sidebarEl?.removeEventListener('mouseenter', showSidebarPeek);
+            sidebarPeek?.removeEventListener('mouseleave', hideSidebarPeek);
+            sidebarEl?.removeEventListener('mouseleave', hideSidebarPeek);
+            clearTimeout(peekTimeout);
         }
     });
+});
+
+// Quotation live calculator
+document.querySelectorAll('[data-quote-form]').forEach((form) => {
+    const linesContainer = form.querySelector('[data-quote-lines]');
+    const discountInput = form.querySelector('[data-quote-discount]');
+    const summarySubtotal = form.querySelector('[data-quote-summary-subtotal]');
+    const summaryDiscount = form.querySelector('[data-quote-summary-discount]');
+    const summaryTax = form.querySelector('[data-quote-summary-tax]');
+    const summaryTotal = form.querySelector('[data-quote-summary-total]');
+
+    const fmt = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' DH';
+
+    const recalc = () => {
+        let subtotal = 0;
+        form.querySelectorAll('.quote-line').forEach((row) => {
+            const itemSelect = row.querySelector('[data-quote-item]');
+            const qtyInput = row.querySelector('[data-quote-qty]');
+            const priceInput = row.querySelector('[data-quote-price]');
+            const totalCell = row.querySelector('[data-quote-line-total]');
+
+            const qty = parseInt(qtyInput?.value || 0, 10) || 0;
+            const price = parseFloat(priceInput?.value || 0) || 0;
+            const lineTotal = qty * price;
+            subtotal += lineTotal;
+
+            if (totalCell) totalCell.textContent = fmt(lineTotal);
+
+            // Auto-fill price from selected item if empty
+            if (itemSelect && priceInput && !priceInput.value && itemSelect.selectedOptions[0]) {
+                const optPrice = itemSelect.selectedOptions[0].dataset.price;
+                if (optPrice) {
+                    priceInput.value = optPrice;
+                    const evt = new Event('input', { bubbles: true });
+                    priceInput.dispatchEvent(evt);
+                }
+            }
+        });
+
+        const discount = parseFloat(discountInput?.value || 0) || 0;
+        const afterDiscount = Math.max(0, subtotal - discount);
+        // TVA 20% included (Moroccan style: total = HT + TVA, but here storeQuotation does: tax = round(total * 0.2 / 1.2, 2))
+        // Let me match backend logic: tax = round(subtotal * 0.2, 2) when no discount, or more precisely:
+        // backend: total = subtotal - discount; tax_amount = round(total * 0.2 / 1.2, 2)
+        // Actually looking at storeQuotation: tax_amount = round($total * 0.2 / 1.2, 2) where $total = $subtotal - $discount
+        const tax = Math.round(afterDiscount * 0.2 / 1.2 * 100) / 100;
+        const total = afterDiscount;
+
+        if (summarySubtotal) summarySubtotal.textContent = fmt(subtotal);
+        if (summaryDiscount) summaryDiscount.textContent = fmt(discount);
+        if (summaryTax) summaryTax.textContent = fmt(tax);
+        if (summaryTotal) summaryTotal.textContent = fmt(total);
+    };
+
+    // Add line button
+    form.querySelector('.quote-add-line')?.addEventListener('click', () => {
+        if (!linesContainer) return;
+        const template = linesContainer.querySelector('.quote-line');
+        if (!template) return;
+        const clone = template.cloneNode(true);
+        const idx = linesContainer.querySelectorAll('.quote-line').length;
+        clone.dataset.lineIndex = idx;
+        clone.querySelectorAll('input, select').forEach((el) => {
+            const name = el.getAttribute('name');
+            if (name) el.setAttribute('name', name.replace(/items\[\d+\]/, `items[${idx}]`));
+            if (el.tagName === 'INPUT') el.value = el.type === 'number' && el.dataset.quoteQty ? '1' : '';
+            if (el.dataset.quoteLineTotal) el.textContent = '0,00 DH';
+        });
+        clone.querySelectorAll('[data-searchable-select]').forEach((el) => el.classList.remove('choices--enabled'));
+        linesContainer.appendChild(clone);
+        recalc();
+    });
+
+    // Remove line
+    form.addEventListener('click', (e) => {
+        const btn = e.target.closest('.quote-remove-line');
+        if (!btn) return;
+        const lines = form.querySelectorAll('.quote-line');
+        if (lines.length <= 1) {
+            // Clear instead of remove
+            const row = btn.closest('.quote-line');
+            row.querySelectorAll('input').forEach((el) => { el.value = ''; });
+            row.querySelectorAll('select').forEach((el) => { el.value = ''; });
+            row.querySelector('[data-quote-line-total]').textContent = '0,00 DH';
+        } else {
+            btn.closest('.quote-line').remove();
+        }
+        recalc();
+    });
+
+    // Recalc on any change
+    form.addEventListener('input', recalc);
+    form.addEventListener('change', recalc);
+    recalc();
 });
 
 translateStaticPage();
@@ -2188,7 +2320,31 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     syncNoteDraftFromApplied();
     syncNoteSummary();
     screen.querySelectorAll('.pos-print-ticket').forEach((button) => {
-        button.addEventListener('click', () => {
+        button.addEventListener('click', async () => {
+            if (window.LibraireProHardware?.connected) {
+                try {
+                    const total = totals();
+                    const receiptData = {
+                        storeName: screen.querySelector('.pos-receipt-data')?.value ? JSON.parse(screen.querySelector('.pos-receipt-data').value)?.storeName : 'LibrairePro',
+                        ticketNumber: screen.querySelector('.pos-receipt-data')?.value ? JSON.parse(screen.querySelector('.pos-receipt-data').value)?.ticketNumber : '',
+                        date: new Date().toLocaleString('fr-FR'),
+                        items: cart.map((item) => ({ name: item.name, quantity: item.quantity, price: item.price })),
+                        subtotal: total.subtotal,
+                        discount: total.discount,
+                        coupon: total.couponAmount,
+                        total: total.total,
+                        paid: total.paid,
+                        change: total.change,
+                        paymentMethod: paymentInputs.map((input) => input.name.replace('_amount', '').replace('cash', 'Espèces').replace('card', 'Carte').replace('transfer', 'Virement').replace('advance', 'Avance')).join(', ') || 'Espèces',
+                        note: String(noteInput?.value || '').trim(),
+                    };
+                    await window.LibraireProHardware.printReceipt(receiptData);
+                    showToast(translate('Ticket imprimé'));
+                    return;
+                } catch (error) {
+                    console.error('Hardware print error:', error);
+                }
+            }
             document.body.classList.add('thermal-print-mode');
             window.print();
             window.setTimeout(() => {
@@ -2200,6 +2356,48 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             }, 500);
         });
     });
+
+    // Hardware connect button
+    screen.querySelectorAll('.pos-hardware-connect').forEach((button) => {
+        button.classList.remove('hidden');
+        button.addEventListener('click', async () => {
+            if (window.LibraireProHardware?.connected) {
+                await window.LibraireProHardware.disconnect();
+                button.querySelector('.pos-hardware-status').textContent = '🔌 ' + translate('Matériel');
+                showToast(translate('Déconnecté'));
+            } else {
+                try {
+                    await window.LibraireProHardware.connect();
+                    button.querySelector('.pos-hardware-status').textContent = '✅ ' + translate('Matériel');
+                    showToast(translate('Imprimante connectée'));
+                } catch (error) {
+                    showToast(error.message || translate('Connexion impossible'));
+                }
+            }
+        });
+    });
+
+    // Drawer kick button
+    screen.querySelectorAll('.pos-drawer-kick').forEach((button) => {
+        button.classList.remove('hidden');
+        button.addEventListener('click', async () => {
+            if (window.LibraireProHardware?.connected) {
+                try {
+                    await window.LibraireProHardware.kickDrawer();
+                    showToast(translate('Tiroir ouvert'));
+                } catch (error) {
+                    showToast(translate('Impossible d\'ouvrir le tiroir'));
+                }
+            } else {
+                showToast(translate('Connectez d\'abord l\'imprimante'));
+            }
+        });
+    });
+
+    // Init barcode scanner auto-focus
+    if (window.LibraireProBarcodeScanner?.init) {
+        window.LibraireProBarcodeScanner.init();
+    }
 
     filterProducts();
     try {
