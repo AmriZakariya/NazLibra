@@ -2,7 +2,6 @@ import DataTable from 'datatables.net-dt';
 import 'datatables.net-dt/css/dataTables.dataTables.css';
 import './hardware.js';
 
-// Make DataTable available globally for inline scripts in blade files
 window.DataTable = DataTable;
 
 const money = new Intl.NumberFormat('fr-MA', {
@@ -13,8 +12,10 @@ const money = new Intl.NumberFormat('fr-MA', {
 
 const appLocale = document.documentElement.dataset.locale || window.libraireProLocale || 'fr';
 const translations = window.libraireProTranslations || {};
+
 const translate = (text) => {
     const value = (text || '').toString().replace(/\s+/g, ' ').trim();
+
     if (appLocale === 'ar') {
         if (value.startsWith('Bonjour, ')) return `مرحبا، ${value.replace('Bonjour, ', '')}`;
         if (/^\d+ alerte\(s\), \d+ rupture\(s\)$/.test(value)) {
@@ -44,6 +45,9 @@ const dataTableLanguage = (overrides = {}) => ({
     },
     ...overrides,
 });
+
+window.translate = translate;
+window.dataTableLanguage = dataTableLanguage;
 
 const translateStaticPage = () => {
     if (appLocale !== 'ar') return;

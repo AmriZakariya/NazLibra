@@ -246,7 +246,7 @@
                     autoWidth: false,
                     pageLength: 25,
                     order: [[0, "desc"]],
-                    language: dataTableLanguage(),
+                    language: typeof window.dataTableLanguage === "function" ? window.dataTableLanguage() : {},
                     columns: [
                         { data: "created_at", name: "created_at", searchable: false },
                         { data: "user_name", name: "user_id", orderable: false, searchable: false,
