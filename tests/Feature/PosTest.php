@@ -531,7 +531,7 @@ class PosTest extends TestCase
         ]);
 
         $sale = Sale::orderByDesc('id')->firstOrFail();
-        $response->assertRedirect(route('module', ['module' => 'sales', 'section' => 'list', 'ticket' => $sale->id]));
+        $response->assertRedirect(route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $sale->id]));
         $this->assertStringStartsWith('BL', $sale->number);
         $this->assertNull($sale->invoice);
         $this->assertSame($client->id, $sale->contact_id);

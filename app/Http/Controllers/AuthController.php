@@ -327,6 +327,21 @@ class AuthController extends Controller
                 'App\Models\PurchaseReturn' => ['module' => 'purchases', 'section' => 'returns', 'param' => 'detail_purchase_return'],
                 'App\Models\Item' => ['route' => 'catalog', 'query' => ['panel' => 'articles']],
                 'App\Models\Contact' => ['module' => 'contacts', 'section' => 'customers'],
+                'App\Models\Quotation' => ['module' => 'sales', 'section' => 'quotes', 'param' => 'detail_quote'],
+                'App\Models\DeliveryNote' => ['module' => 'sales', 'section' => 'delivery', 'param' => 'detail_delivery'],
+                'App\Models\SaleInvoice' => ['module' => 'sales', 'section' => 'invoices', 'param' => 'detail_invoice'],
+                'App\Models\StockAdjustment' => ['module' => 'stock', 'section' => 'adjustments', 'param' => 'detail_adjustment'],
+                'App\Models\StockTransfer' => ['module' => 'stock', 'section' => 'transfers', 'param' => 'detail_transfer'],
+                'App\Models\Expense' => ['module' => 'finance', 'section' => 'expenses', 'param' => 'detail_expense'],
+                'App\Models\CustomerAdvance' => ['module' => 'finance', 'section' => 'advances', 'param' => 'detail_advance'],
+                'App\Models\Coupon' => ['module' => 'finance', 'section' => 'coupons', 'param' => 'detail_coupon'],
+                'App\Models\FinancialAccount' => ['module' => 'finance', 'section' => 'accounts', 'param' => 'detail_account'],
+                'App\Models\Transfer' => ['module' => 'finance', 'section' => 'transfers', 'param' => 'detail_transfer'],
+                'App\Models\Deposit' => ['module' => 'finance', 'section' => 'deposits', 'param' => 'detail_deposit'],
+                'App\Models\Warehouse' => ['module' => 'settings', 'section' => 'warehouses', 'param' => 'detail_warehouse'],
+                'App\Models\Role' => ['module' => 'settings', 'section' => 'roles', 'param' => 'detail_role'],
+                'App\Models\User' => ['module' => 'settings', 'section' => 'users', 'param' => 'detail_user'],
+                'App\Models\Category' => ['route' => 'catalog', 'query' => ['panel' => 'categories']],
             ];
             if (isset($map[$type])) {
                 $m = $map[$type];
@@ -386,7 +401,7 @@ class AuthController extends Controller
                     'route_json' => json_encode($routeParams, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                 ], JSON_UNESCAPED_UNICODE);
             })
-            ->rawColumns(['action', 'reference', 'device', 'user_avatar'])
+            ->rawColumns(['action', 'reference', 'device', 'user_avatar', 'properties_json', 'action_raw'])
             ->toJson();
     }
 

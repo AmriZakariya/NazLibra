@@ -948,7 +948,7 @@ class LibraireProController extends Controller
         }
 
         return redirect()
-            ->route('stock', ['panel' => 'stock-adjustments'])
+            ->route('stock', ['panel' => 'stock-adjustments', 'detail_adjustment' => $adjustment->id])
             ->with('status', 'Ajustement '.$adjustment->number.' enregistré.');
     }
 
@@ -1113,7 +1113,7 @@ class LibraireProController extends Controller
         }
 
         return redirect()
-            ->route('stock', ['panel' => 'stock-transfers'])
+            ->route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $transfer->id])
             ->with('status', 'Transfert '.$transfer->number.' enregistré.');
     }
 
@@ -3028,8 +3028,9 @@ class LibraireProController extends Controller
 
         $coupon = Coupon::create($data);
 
+        $couponSection = $coupon->contact_id ? 'customer-coupons' : 'coupons';
         return redirect()
-            ->route('module', ['module' => 'finance', 'section' => $coupon->contact_id ? 'customer-coupons' : 'coupons'])
+            ->route('module', ['module' => 'finance', 'section' => $couponSection, 'detail_coupon' => $coupon->id])
             ->with('status', 'Coupon '.$coupon->code.' créé.');
     }
 
@@ -3667,7 +3668,7 @@ class LibraireProController extends Controller
         }
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'list', 'ticket' => $sale->id])
+            ->route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $sale->id])
             ->with('status', 'Vente '.$sale->number.' enregistrée.');
     }
 
@@ -4214,7 +4215,7 @@ class LibraireProController extends Controller
         });
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'quotes'])
+            ->route('module', ['module' => 'sales', 'section' => 'quotes', 'detail_quote' => $quotation->id])
             ->with('status', 'Devis '.$quotation->number.' enregistré.');
     }
 
@@ -4383,7 +4384,7 @@ class LibraireProController extends Controller
         }
 
         return redirect()
-            ->route('module', ['module' => 'finance', 'section' => 'expenses'])
+            ->route('module', ['module' => 'finance', 'section' => 'expenses', 'detail_expense' => $expense->id])
             ->with('status', 'Dépense '.$expense->number.' enregistrée.');
     }
 
@@ -4425,7 +4426,7 @@ class LibraireProController extends Controller
             ]);
         }
 
-        return redirect()->route('module', ['module' => 'finance', 'section' => 'accounts'])->with('status', 'Compte '.$account->name.' ajouté.');
+        return redirect()->route('module', ['module' => 'finance', 'section' => 'accounts', 'detail_account' => $account->id])->with('status', 'Compte '.$account->name.' ajouté.');
     }
 
     public function updateFinancialAccount(Request $request, FinancialAccount $account): RedirectResponse
@@ -4482,7 +4483,7 @@ class LibraireProController extends Controller
             return $this->recordAccountTransaction($tenant, $account, 'deposit', 'in', round((float) $data['amount'], 2), $data);
         });
 
-        return redirect()->route('module', ['module' => 'finance', 'section' => 'deposits'])->with('status', 'Dépôt '.$transaction->number.' enregistré.');
+        return redirect()->route('module', ['module' => 'finance', 'section' => 'deposits', 'detail_deposit' => $transaction->id])->with('status', 'Dépôt '.$transaction->number.' enregistré.');
     }
 
     public function storeMoneyTransfer(Request $request): RedirectResponse
@@ -4497,7 +4498,7 @@ class LibraireProController extends Controller
             'transacted_at' => ['nullable', 'date'],
         ]);
 
-        DB::transaction(function () use ($tenant, $data): void {
+        $transfer = DB::transaction(function () use ($tenant, $data): AccountTransaction {
             $accounts = FinancialAccount::where('tenant_id', $tenant->id)
                 ->whereIn('id', [$data['from_account_id'], $data['to_account_id']])
                 ->lockForUpdate()
@@ -4510,9 +4511,11 @@ class LibraireProController extends Controller
             $amount = round((float) $data['amount'], 2);
             $out = $this->recordAccountTransaction($tenant, $from, 'transfer', 'out', $amount, $data + ['related_account_id' => $to->id]);
             $this->recordAccountTransaction($tenant, $to, 'transfer', 'in', $amount, $data + ['related_account_id' => $from->id, 'transfer_pair' => $out->number]);
+
+            return $out;
         });
 
-        return redirect()->route('module', ['module' => 'finance', 'section' => 'transfers'])->with('status', 'Transfert enregistré.');
+        return redirect()->route('module', ['module' => 'finance', 'section' => 'transfers', 'detail_transfer' => $transfer->id])->with('status', 'Transfert enregistré.');
     }
 
     public function openCashRegister(Request $request): RedirectResponse
@@ -4674,7 +4677,7 @@ class LibraireProController extends Controller
         });
 
         return redirect()
-            ->route('module', ['module' => 'finance', 'section' => 'advances'])
+            ->route('module', ['module' => 'finance', 'section' => 'advances', 'detail_advance' => $advance->id])
             ->with('status', 'Avance '.$advance->number.' ajoutée au solde client.');
     }
 
@@ -4817,7 +4820,7 @@ class LibraireProController extends Controller
         });
 
         return redirect()
-            ->route('module', ['module' => 'purchases', 'section' => 'list'])
+            ->route('module', ['module' => 'purchases', 'section' => 'list', 'detail_purchase' => $purchase->id])
             ->with('status', 'Achat '.$purchase->number.' enregistré.');
     }
 

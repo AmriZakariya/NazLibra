@@ -17,14 +17,16 @@ class AccountsSectionTest extends TestCase
         $this->seed();
         $tenant = Tenant::firstOrFail();
 
-        $this->post(route('accounts.store'), [
+        $response = $this->post(route('accounts.store'), [
             'name' => 'Caisse principale',
             'type' => 'cash',
             'store_key' => 'magasin-principal',
             'holder_name' => 'Librairie Atlas',
             'opening_balance' => 500,
             'is_active' => '1',
-        ])->assertRedirect(route('module', ['module' => 'finance', 'section' => 'accounts']));
+        ]);
+        $account = FinancialAccount::where('tenant_id', $tenant->id)->where('name', 'Caisse principale')->firstOrFail();
+        $response->assertRedirect(route('module', ['module' => 'finance', 'section' => 'accounts', 'detail_account' => $account->id]));
 
         $account = FinancialAccount::where('tenant_id', $tenant->id)->where('name', 'Caisse principale')->firstOrFail();
 
@@ -63,21 +65,25 @@ class AccountsSectionTest extends TestCase
             'current_balance' => 1000,
         ]);
 
-        $this->post(route('accounts.deposits.store'), [
+        $depositResponse = $this->post(route('accounts.deposits.store'), [
             'financial_account_id' => $cash->id,
             'amount' => 250,
             'payment_method' => 'cash',
             'reference' => 'DEP-TEST',
-        ])->assertRedirect(route('module', ['module' => 'finance', 'section' => 'deposits']));
+        ]);
+        $transaction = AccountTransaction::where('tenant_id', $tenant->id)->where('type', 'deposit')->firstOrFail();
+        $depositResponse->assertRedirect(route('module', ['module' => 'finance', 'section' => 'deposits', 'detail_deposit' => $transaction->id]));
 
         $this->assertSame(350.0, (float) $cash->refresh()->current_balance);
 
-        $this->post(route('accounts.transfers.store'), [
+        $transferResponse = $this->post(route('accounts.transfers.store'), [
             'from_account_id' => $cash->id,
             'to_account_id' => $bank->id,
             'amount' => 150,
             'reference' => 'TR-TEST',
-        ])->assertRedirect(route('module', ['module' => 'finance', 'section' => 'transfers']));
+        ]);
+        $transfer = AccountTransaction::where('tenant_id', $tenant->id)->where('type', 'transfer')->firstOrFail();
+        $transferResponse->assertRedirect(route('module', ['module' => 'finance', 'section' => 'transfers', 'detail_transfer' => $transfer->id]));
 
         $this->assertSame(200.0, (float) $cash->refresh()->current_balance);
         $this->assertSame(1150.0, (float) $bank->refresh()->current_balance);

@@ -58,7 +58,7 @@ class PurchaseTest extends TestCase
         ]);
 
         $purchase = Purchase::orderByDesc('id')->firstOrFail();
-        $response->assertRedirect(route('module', ['module' => 'purchases', 'section' => 'list']));
+        $response->assertRedirect(route('module', ['module' => 'purchases', 'section' => 'list', 'detail_purchase' => $purchase->id]));
         $this->assertStringStartsWith('ACH', $purchase->number);
         $this->assertSame('ordered', $purchase->status);
         $this->assertSame($initialStock, $item->fresh()->stock_quantity);

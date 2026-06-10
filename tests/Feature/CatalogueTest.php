@@ -863,7 +863,7 @@ class CatalogueTest extends TestCase
         ]);
 
         $adjustment = StockAdjustment::firstOrFail();
-        $response->assertRedirect(route('stock', ['panel' => 'stock-adjustments']));
+        $response->assertRedirect(route('stock', ['panel' => 'stock-adjustments', 'detail_adjustment' => $adjustment->id]));
         $this->assertStringStartsWith('AJS', $adjustment->number);
         $this->assertSame($initialStock - 2, (int) $item->fresh()->stock_quantity);
 
@@ -951,7 +951,7 @@ class CatalogueTest extends TestCase
         ]);
 
         $transfer = StockTransfer::firstOrFail();
-        $response->assertRedirect(route('stock', ['panel' => 'stock-transfers']));
+        $response->assertRedirect(route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $transfer->id]));
         $this->assertStringStartsWith('TRS', $transfer->number);
         $this->assertSame($initialStock, (int) $item->fresh()->stock_quantity);
         $this->assertSame(3, (int) $transfer->total_quantity);

@@ -188,7 +188,7 @@
     <style>
         /* DataTables v2 wrapper */
         .dt-container { padding: 0 !important; }
-        #activity-table thead th { border-bottom: 1px solid #e2e8f0; }
+        #activity-table thead th { border-bottom: 1px solid #e2e8f0; padding: 0.75rem 1.25rem; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
         .dark #activity-table thead th { border-bottom-color: rgba(255,255,255,0.1); }
         #activity-table tbody tr { border-bottom: 1px solid #f1f5f9; transition: background-color 150ms; }
         .dark #activity-table tbody tr { border-bottom-color: rgba(255,255,255,0.05); }
@@ -216,6 +216,20 @@
         /* Hide default DataTables filter (we use our custom filter bar) */
         .dt-search { display: none !important; }
         .dt-length { display: none !important; }
+
+        /* Detail dialog improvements */
+        #audit-detail-dialog::backdrop { background: rgba(15, 23, 42, 0.45); }
+        .dark #audit-detail-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+
+        /* Method badge colors */
+        .method-post { background-color: #dcfce7; color: #166534; }
+        .method-put { background-color: #dbeafe; color: #1e40af; }
+        .method-patch { background-color: #fef3c7; color: #92400e; }
+        .method-delete { background-color: #fee2e2; color: #991b1b; }
+        .dark .method-post { background-color: rgba(22, 163, 74, 0.2); color: #4ade80; }
+        .dark .method-put { background-color: rgba(37, 99, 235, 0.2); color: #60a5fa; }
+        .dark .method-patch { background-color: rgba(180, 83, 9, 0.2); color: #fbbf24; }
+        .dark .method-delete { background-color: rgba(220, 38, 38, 0.2); color: #f87171; }
     </style>
 
     <script>
@@ -272,7 +286,10 @@
                                 btns += '<button type="button" onclick="auditOpenDetail(' + row.id + ')" class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-600 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-transparent dark:text-slate-300"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>';
                                 return btns;
                             }
-                        }
+                        },
+                        { data: "properties_json", name: "properties", visible: false, searchable: false },
+                        { data: "action_raw", name: "action", visible: false, searchable: false },
+                        { data: "id", name: "id", visible: false, searchable: false }
                     ],
                     columnDefs: [
                         { targets: [0], className: "whitespace-nowrap" },
@@ -281,6 +298,10 @@
                     createdRow: function(row, data) {
                         row.setAttribute("data-row-id", data.id || "");
                         row.setAttribute("data-row-data", JSON.stringify(data));
+                        row.style.cursor = "pointer";
+                        row.addEventListener("dblclick", function() {
+                            auditOpenDetail(data.id);
+                        });
                     },
                     drawCallback: function() {
                         var info = this.api().page.info();
@@ -295,14 +316,22 @@
         });
 
         function auditOpenDetail(id) {
+            if (!window.activityTable) {
+                console.error("Activity table not initialized");
+                return;
+            }
             var row = null;
-            window.activityTable.rows().every(function() {
-                if (this.data().id == id) {
-                    row = this.data();
-                    return false;
-                }
-            });
-            if (!row) return;
+            try {
+                row = window.activityTable.row(function(idx, data) {
+                    return data.id == id;
+                }).data();
+            } catch (e) {
+                console.error("Error finding row:", e);
+            }
+            if (!row) {
+                console.error("Row not found for id:", id);
+                return;
+            }
 
             var props = row.properties_json ? JSON.parse(row.properties_json) : {};
 

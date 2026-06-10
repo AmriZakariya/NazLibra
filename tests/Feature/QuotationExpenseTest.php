@@ -41,7 +41,7 @@ class QuotationExpenseTest extends TestCase
         ]);
 
         $quote = Quotation::firstOrFail();
-        $response->assertRedirect(route('module', ['module' => 'sales', 'section' => 'quotes']));
+        $response->assertRedirect(route('module', ['module' => 'sales', 'section' => 'quotes', 'detail_quote' => $quote->id]));
         $this->assertStringStartsWith('DEV', $quote->number);
         $this->assertSame('sent', $quote->status);
         $this->assertSame('39.00', number_format((float) $quote->total_amount, 2, '.', ''));
@@ -114,7 +114,7 @@ class QuotationExpenseTest extends TestCase
         ]);
 
         $expense = Expense::orderByDesc('id')->firstOrFail();
-        $response->assertRedirect(route('module', ['module' => 'finance', 'section' => 'expenses']));
+        $response->assertRedirect(route('module', ['module' => 'finance', 'section' => 'expenses', 'detail_expense' => $expense->id]));
         $this->assertStringStartsWith('DEP', (string) $expense->number);
         $this->assertSame('Transport test', $expense->category);
 
@@ -148,7 +148,7 @@ class QuotationExpenseTest extends TestCase
         ]);
 
         $advance = CustomerAdvance::firstOrFail();
-        $response->assertRedirect(route('module', ['module' => 'finance', 'section' => 'advances']));
+        $response->assertRedirect(route('module', ['module' => 'finance', 'section' => 'advances', 'detail_advance' => $advance->id]));
         $this->assertStringStartsWith('AVC', $advance->number);
         $this->assertSame($initialBalance + 120, (float) $client->fresh()->advance_balance);
 

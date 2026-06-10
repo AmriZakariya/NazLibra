@@ -49,6 +49,12 @@ class RecordUserActivity
             $subject = $this->subject($request);
             $device = $this->deviceInfo($request);
             $action = $request->route()?->getName() ?: $request->method().' '.$request->path();
+
+            // For store/create actions that don't have route parameters, try to extract subject from response
+            if (empty($subject['type']) && $response->isRedirect()) {
+                $subject = $this->subjectFromResponse($request, $response) ?: $subject;
+            }
+
             $snapshots = $this->subjectSnapshots($subject);
 
             DB::table('audit_logs')->insert([
@@ -343,6 +349,217 @@ class RecordUserActivity
             ->value();
     }
 
+    private function subjectFromResponse(Request $request, Response $response): ?array
+    {
+        $action = $request->route()?->getName();
+        $redirectUrl = $response->headers->get('Location');
+
+        if (! $redirectUrl) {
+            return null;
+        }
+
+        // Parse the redirect URL
+        $parsedUrl = parse_url($redirectUrl);
+        $query = [];
+        if (isset($parsedUrl['query'])) {
+            parse_str($parsedUrl['query'], $query);
+        }
+
+        // For POS store: redirect to /caisse?sale=123
+        if ($action === 'pos.store' && isset($query['sale'])) {
+            $saleId = (int) $query['sale'];
+            if ($saleId > 0) {
+                $sale = \App\Models\Sale::whereKey($saleId)->first();
+                if ($sale) {
+                    return [
+                        'type' => \App\Models\Sale::class,
+                        'id' => $saleId,
+                        'name' => $sale->number ?? null,
+                        'reference' => $sale->number ?? null,
+                    ];
+                }
+            }
+        }
+
+        // For sales.store: redirect to /modules/sales/list?detail_sale=123
+        if ($action === 'sales.store' && isset($query['detail_sale'])) {
+            $saleId = (int) $query['detail_sale'];
+            if ($saleId > 0) {
+                return ['type' => \App\Models\Sale::class, 'id' => $saleId];
+            }
+        }
+
+        // For purchases.store: redirect to /modules/purchases/list?detail_purchase=123
+        if ($action === 'purchases.store' && isset($query['detail_purchase'])) {
+            $purchaseId = (int) $query['detail_purchase'];
+            if ($purchaseId > 0) {
+                return ['type' => \App\Models\Purchase::class, 'id' => $purchaseId];
+            }
+        }
+
+        // For contacts.customers.store: redirect to /modules/contacts/customers?detail_customer=123
+        if ($action === 'contacts.customers.store' && isset($query['detail_customer'])) {
+            $contactId = (int) $query['detail_customer'];
+            if ($contactId > 0) {
+                return ['type' => \App\Models\Contact::class, 'id' => $contactId];
+            }
+        }
+
+        // For contacts.suppliers.store: redirect to /modules/contacts/suppliers?detail_supplier=123
+        if ($action === 'contacts.suppliers.store' && isset($query['detail_supplier'])) {
+            $contactId = (int) $query['detail_supplier'];
+            if ($contactId > 0) {
+                return ['type' => \App\Models\Contact::class, 'id' => $contactId];
+            }
+        }
+
+        // For catalog.items.store: redirect to /catalogue?panel=articles&detail_item=123
+        if ($action === 'catalog.items.store' && isset($query['detail_item'])) {
+            $itemId = (int) $query['detail_item'];
+            if ($itemId > 0) {
+                return ['type' => \App\Models\Item::class, 'id' => $itemId];
+            }
+        }
+
+        // For catalog.categories.store: redirect to /catalogue?panel=categories&detail_category=123
+        if ($action === 'catalog.categories.store' && isset($query['detail_category'])) {
+            $categoryId = (int) $query['detail_category'];
+            if ($categoryId > 0) {
+                return ['type' => \App\Models\Category::class, 'id' => $categoryId];
+            }
+        }
+
+        // For stock.adjustments.store: redirect to /modules/stock/adjustments?detail_adjustment=123
+        if ($action === 'stock.adjustments.store' && isset($query['detail_adjustment'])) {
+            $adjustmentId = (int) $query['detail_adjustment'];
+            if ($adjustmentId > 0) {
+                return ['type' => \App\Models\StockAdjustment::class, 'id' => $adjustmentId];
+            }
+        }
+
+        // For stock.transfers.store: redirect to /modules/stock/transfers?detail_transfer=123
+        if ($action === 'stock.transfers.store' && isset($query['detail_transfer'])) {
+            $transferId = (int) $query['detail_transfer'];
+            if ($transferId > 0) {
+                return ['type' => \App\Models\StockTransfer::class, 'id' => $transferId];
+            }
+        }
+
+        // For finance.expenses.store: redirect to /modules/finance/expenses?detail_expense=123
+        if ($action === 'finance.expenses.store' && isset($query['detail_expense'])) {
+            $expenseId = (int) $query['detail_expense'];
+            if ($expenseId > 0) {
+                return ['type' => \App\Models\Expense::class, 'id' => $expenseId];
+            }
+        }
+
+        // For finance.advances.store: redirect to /modules/finance/advances?detail_advance=123
+        if ($action === 'finance.advances.store' && isset($query['detail_advance'])) {
+            $advanceId = (int) $query['detail_advance'];
+            if ($advanceId > 0) {
+                return ['type' => \App\Models\CustomerAdvance::class, 'id' => $advanceId];
+            }
+        }
+
+        // For finance.coupons.store: redirect to /modules/finance/coupons?detail_coupon=123
+        if ($action === 'finance.coupons.store' && isset($query['detail_coupon'])) {
+            $couponId = (int) $query['detail_coupon'];
+            if ($couponId > 0) {
+                return ['type' => \App\Models\Coupon::class, 'id' => $couponId];
+            }
+        }
+
+        // For sales.returns.store: redirect to /modules/sales/returns?detail_return=123
+        if ($action === 'sales.returns.store' && isset($query['detail_return'])) {
+            $returnId = (int) $query['detail_return'];
+            if ($returnId > 0) {
+                return ['type' => \App\Models\SaleReturn::class, 'id' => $returnId];
+            }
+        }
+
+        // For purchases.returns.store: redirect to /modules/purchases/returns?detail_purchase_return=123
+        if ($action === 'purchases.returns.store' && isset($query['detail_purchase_return'])) {
+            $returnId = (int) $query['detail_purchase_return'];
+            if ($returnId > 0) {
+                return ['type' => \App\Models\PurchaseReturn::class, 'id' => $returnId];
+            }
+        }
+
+        // For sales.delivery.store: redirect to /modules/sales/delivery?detail_delivery=123
+        if ($action === 'sales.delivery.store' && isset($query['detail_delivery'])) {
+            $deliveryId = (int) $query['detail_delivery'];
+            if ($deliveryId > 0) {
+                return ['type' => \App\Models\DeliveryNote::class, 'id' => $deliveryId];
+            }
+        }
+
+        // For sales.quotes.store: redirect to /modules/sales/quotes?detail_quote=123
+        if ($action === 'sales.quotes.store' && isset($query['detail_quote'])) {
+            $quoteId = (int) $query['detail_quote'];
+            if ($quoteId > 0) {
+                return ['type' => \App\Models\Quotation::class, 'id' => $quoteId];
+            }
+        }
+
+        // For sales.invoices.store: redirect to /modules/sales/invoices?detail_invoice=123
+        if ($action === 'sales.invoices.store' && isset($query['detail_invoice'])) {
+            $invoiceId = (int) $query['detail_invoice'];
+            if ($invoiceId > 0) {
+                return ['type' => \App\Models\SaleInvoice::class, 'id' => $invoiceId];
+            }
+        }
+
+        // For settings.warehouses.store: redirect to /modules/settings/warehouses?detail_warehouse=123
+        if ($action === 'settings.warehouses.store' && isset($query['detail_warehouse'])) {
+            $warehouseId = (int) $query['detail_warehouse'];
+            if ($warehouseId > 0) {
+                return ['type' => \App\Models\Warehouse::class, 'id' => $warehouseId];
+            }
+        }
+
+        // For settings.roles.store: redirect to /modules/settings/roles?detail_role=123
+        if ($action === 'settings.roles.store' && isset($query['detail_role'])) {
+            $roleId = (int) $query['detail_role'];
+            if ($roleId > 0) {
+                return ['type' => \App\Models\Role::class, 'id' => $roleId];
+            }
+        }
+
+        // For settings.users.store: redirect to /modules/settings/users?detail_user=123
+        if ($action === 'settings.users.store' && isset($query['detail_user'])) {
+            $userId = (int) $query['detail_user'];
+            if ($userId > 0) {
+                return ['type' => \App\Models\User::class, 'id' => $userId];
+            }
+        }
+
+        // For finance.accounts.store: redirect to /modules/finance/accounts?detail_account=123
+        if ($action === 'finance.accounts.store' && isset($query['detail_account'])) {
+            $accountId = (int) $query['detail_account'];
+            if ($accountId > 0) {
+                return ['type' => \App\Models\FinancialAccount::class, 'id' => $accountId];
+            }
+        }
+
+        // For finance.transfers.store: redirect to /modules/finance/transfers?detail_transfer=123
+        if ($action === 'finance.transfers.store' && isset($query['detail_transfer'])) {
+            $transferId = (int) $query['detail_transfer'];
+            if ($transferId > 0) {
+                return ['type' => \App\Models\Transfer::class, 'id' => $transferId];
+            }
+        }
+
+        // For finance.deposits.store: redirect to /modules/finance/deposits?detail_deposit=123
+        if ($action === 'finance.deposits.store' && isset($query['detail_deposit'])) {
+            $depositId = (int) $query['detail_deposit'];
+            if ($depositId > 0) {
+                return ['type' => \App\Models\Deposit::class, 'id' => $depositId];
+            }
+        }
+
+        return null;
+    }
+
     private function subjectSnapshots(array $subject): array
     {
         $default = ['name' => null, 'reference' => null];
@@ -353,6 +570,14 @@ class RecordUserActivity
 
             if (! $type || ! $id || ! class_exists($type)) {
                 return $default;
+            }
+
+            // If name and reference were already extracted from response
+            if (isset($subject['name']) || isset($subject['reference'])) {
+                return [
+                    'name' => $subject['name'] ?? null,
+                    'reference' => $subject['reference'] ?? null,
+                ];
             }
 
             $model = $type::query()->find($id);

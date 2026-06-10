@@ -23,7 +23,7 @@ class CouponTest extends TestCase
             ->assertSee('Créer un coupon')
             ->assertSee('Code coupon');
 
-        $this->post(route('coupons.store'), [
+        $response = $this->post(route('coupons.store'), [
             'code' => 'demo15',
             'name' => 'Demo coupon',
             'type' => 'percent',
@@ -32,7 +32,9 @@ class CouponTest extends TestCase
             'max_uses' => 20,
             'expires_at' => now()->addMonth()->toDateString(),
             'is_active' => 1,
-        ])->assertRedirect(route('module', ['module' => 'finance', 'section' => 'coupons']));
+        ]);
+        $coupon = Coupon::where('code', 'DEMO15')->firstOrFail();
+        $response->assertRedirect(route('module', ['module' => 'finance', 'section' => 'coupons', 'detail_coupon' => $coupon->id]));
 
         $this->assertDatabaseHas('coupons', [
             'code' => 'DEMO15',
