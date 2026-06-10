@@ -2458,7 +2458,7 @@
                                         <p class="text-xs text-slate-500">Utilisée pour l'installation PWA (192×192 et 512×512 px). Formats : PNG, JPG, WEBP.</p>
                                     </div>
                                     @if (!empty($companyProfile['app_icon']))
-                                        <img src="/icons/icon-192x192.png" alt="App icon" class="size-12 rounded-xl object-cover">
+                                            <img src="{{ route('app.icon', 192) }}" alt="App icon" class="size-12 rounded-xl object-cover">
                                     @else
                                         <span class="grid size-12 place-items-center rounded-xl bg-slate-100 text-lg text-slate-400 dark:bg-slate-800">🖼</span>
                                     @endif

@@ -54,9 +54,8 @@
             ->latest('opened_at')
             ->first()
         : null;
-    $appIcon = !empty($tenant->settings['company_profile']['app_icon']);
-    $appIcon192 = $appIcon ? '/icons/icon-192x192.png' : '/icons/icon-192x192.png';
-    $appIcon512 = $appIcon ? '/icons/icon-512x512.png' : '/icons/icon-512x512.png';
+    $appIcon192 = route('app.icon', 192);
+    $appIcon512 = route('app.icon', 512);
 @endphp
 <!DOCTYPE html>
 <html lang="{{ $locale }}" dir="{{ $direction }}" data-locale="{{ $locale }}" style="--brand-primary: {{ $theme['primary'] }}; --brand-accent: {{ $theme['accent'] }}; --brand-success: {{ $theme['success'] }}; --brand-warning: {{ $theme['warning'] ?? '#D97706' }}; --brand-danger: {{ $theme['danger'] ?? '#E11D48' }}; --brand-info: {{ $theme['info'] ?? '#0284C7' }}; --app-bg: {{ $theme['background'] }}; --surface: {{ $theme['surface_color'] }}; --surface-muted: {{ $theme['surface_muted'] }}; --text-main: {{ $theme['text'] }}; --text-muted: {{ $theme['muted'] }}; --border-soft: {{ $theme['border'] }}; --font-scale: {{ $theme['font_scale'] }}; --brand-radius: {{ $theme['radius'] }}px;">
@@ -71,8 +70,9 @@
         </script>
         <style>
             html.app-loading * { transition: none !important; animation: none !important; }
-            .app-fullscreen-mode .app-sidebar{transform:translateX(-100%)!important;opacity:0!important;pointer-events:none!important;}
-            html[dir="rtl"].app-fullscreen-mode .app-sidebar{transform:translateX(100%)!important;}
+            .app-fullscreen-mode .app-sidebar:not(.is-visible){transform:translateX(-100%)!important;opacity:0!important;pointer-events:none!important;}
+            html[dir="rtl"].app-fullscreen-mode .app-sidebar:not(.is-visible){transform:translateX(100%)!important;}
+            .app-fullscreen-mode .app-sidebar.is-visible{transform:translateX(0)!important;opacity:1!important;pointer-events:auto!important;}
             .app-fullscreen-mode .app-main-shell{width:100%!important;}
             .app-fullscreen-mode .app-topbar{padding-block:10px!important;padding-inline:16px!important;}
             .app-fullscreen-mode .app-page-content{padding:16px!important;}
@@ -485,10 +485,6 @@
                                         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
                                         <span class="fullscreen-label">{{ $tr('Plein écran') }}</span>
                                     </button>
-                                    <button class="app-theme-toggle w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="button">
-                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-                                        {{ $tr('Thème') }}
-                                    </button>
                                     <form action="{{ route('session.lock') }}" method="POST">
                                         @csrf
                                         <button class="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="submit">
@@ -536,7 +532,6 @@
                                 <span class="app-fullscreen-enter" aria-hidden="true">⛶</span>
                                 <span class="app-fullscreen-exit hidden" aria-hidden="true">×</span>
                             </button>
-                            <button class="app-theme-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Basculer le thème') }}">◐</button>
                             <form action="{{ route('session.lock') }}" method="POST">
                                 @csrf
                                 <button class="grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-amber-400/50 hover:bg-amber-50 hover:text-amber-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:border-amber-400/30 dark:hover:bg-amber-500/10" type="submit" aria-label="Verrouiller la session" title="Verrouiller la session">
@@ -600,6 +595,10 @@
                                     </div>
                                     <a href="{{ route('profile') }}" class="mt-2 block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Mon profil') }}</a>
                                     <a href="{{ route('module', ['module' => 'settings', 'section' => 'users']) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Utilisateurs & rôles') }}</a>
+                                    <button class="app-theme-toggle w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="button">
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                                        {{ $tr('Thème') }}
+                                    </button>
                                     <form action="{{ route('locale.switch', \App\Support\Locale::opposite($locale)) }}" method="POST">
                                         @csrf
                                         <button class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="submit">

@@ -4098,245 +4098,430 @@
         display: grid;
         min-height: 100dvh;
         place-items: center;
+        position: relative;
+        overflow: hidden;
         background:
-            radial-gradient(circle at top left, rgb(49 87 213 / 26%), transparent 34rem),
-            linear-gradient(145deg, #020617, #0f172a);
+            radial-gradient(ellipse at 20% 0%, rgb(49 87 213 / 22%), transparent 50%),
+            radial-gradient(ellipse at 80% 100%, rgb(15 159 138 / 18%), transparent 50%),
+            linear-gradient(160deg, #020617 0%, #0f172a 50%, #0b1221 100%);
         padding: 24px;
     }
 
+    /* Animated background orbs */
+    .lock-orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(80px);
+        opacity: 0.35;
+        pointer-events: none;
+        animation: lock-orb-float 12s ease-in-out infinite;
+    }
+
+    .lock-orb-1 {
+        width: 400px;
+        height: 400px;
+        background: rgb(49 87 213 / 45%);
+        top: -10%;
+        left: -10%;
+        animation-delay: 0s;
+    }
+
+    .lock-orb-2 {
+        width: 320px;
+        height: 320px;
+        background: rgb(15 159 138 / 35%);
+        bottom: -10%;
+        right: -5%;
+        animation-delay: -4s;
+        animation-duration: 14s;
+    }
+
+    .lock-orb-3 {
+        width: 260px;
+        height: 260px;
+        background: rgb(99 102 241 / 30%);
+        top: 40%;
+        left: 60%;
+        animation-delay: -8s;
+        animation-duration: 16s;
+    }
+
+    @keyframes lock-orb-float {
+        0%, 100% { transform: translate(0, 0) scale(1); }
+        33% { transform: translate(30px, -30px) scale(1.05); }
+        66% { transform: translate(-20px, 20px) scale(0.95); }
+    }
+
     .lock-card {
-        width: min(480px, 100%);
-        border: 1px solid rgb(255 255 255 / 10%);
-        border-radius: 28px;
-        background: rgb(15 23 42 / 82%);
-        padding: 28px;
-        box-shadow: 0 32px 80px rgb(0 0 0 / 36%);
-    }
-
-    .lock-brand,
-    .lock-user {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-    }
-
-    .lock-brand > span {
-        display: grid;
-        width: 54px;
-        height: 54px;
-        place-items: center;
-        border-radius: 18px;
-        background: var(--brand-primary, #3157d5);
-        font-weight: 950;
-        color: white;
-    }
-
-    .lock-brand p,
-    .lock-user span {
-        color: #94a3b8;
-        font-size: 13px;
-        font-weight: 700;
-    }
-
-    .lock-brand h1 {
-        margin-top: 3px;
-        color: white;
-        font-size: 26px;
-        font-weight: 850;
-        letter-spacing: -0.01em;
-    }
-
-    .lock-user {
-        margin-top: 26px;
-        border: 1px solid rgb(255 255 255 / 10%);
-        border-radius: 18px;
-        background: rgb(255 255 255 / 5%);
-        padding: 12px;
-    }
-
-    .lock-user strong {
-        display: block;
-        color: white;
-        font-size: 16px;
-        font-weight: 850;
-    }
-
-    .lock-form {
-        margin-top: 22px;
-    }
-
-    .lock-form label span {
-        display: block;
-        margin-bottom: 8px;
-        color: #cbd5e1;
-        font-size: 12px;
-        font-weight: 900;
-        letter-spacing: .04em;
-        text-transform: uppercase;
-    }
-
-    .lock-form input,
-    .lock-forgot input {
-        width: 100%;
+        position: relative;
+        z-index: 10;
+        width: min(440px, 100%);
         border: 1px solid rgb(255 255 255 / 12%);
-        border-radius: 18px;
-        background: rgb(2 6 23 / 72%);
-        color: white;
-        outline: none;
+        border-radius: 32px;
+        background: rgb(15 23 42 / 72%);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        padding: 36px 32px;
+        box-shadow:
+            0 32px 80px rgb(0 0 0 / 40%),
+            0 0 0 1px rgb(255 255 255 / 6%) inset;
+        animation: lock-card-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
 
-    .lock-form input {
-        height: 64px;
-        padding: 0 18px;
+    @keyframes lock-card-in {
+        from { opacity: 0; transform: translateY(20px) scale(0.98); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .lock-header {
         text-align: center;
-        font-size: 30px;
-        font-weight: 900;
-        letter-spacing: .28em;
-    }
-
-    .lock-forgot input {
-        height: 48px;
-        margin-top: 12px;
-        padding: 0 14px;
-        font-size: 14px;
-    }
-
-    .lock-form input:focus,
-    .lock-forgot input:focus {
-        border-color: rgb(147 197 253 / 70%);
-        box-shadow: 0 0 0 4px rgb(49 87 213 / 24%);
-    }
-
-    .lock-form button,
-    .lock-forgot button {
-        width: 100%;
-        border-radius: 16px;
-        background: var(--brand-primary, #3157d5);
-        color: white;
-        font-size: 15px;
-        font-weight: 850;
-    }
-
-    .lock-form button {
-        height: 54px;
-        margin-top: 14px;
-    }
-
-    .lock-forgot button {
-        min-height: 46px;
-        margin-top: 12px;
-    }
-
-    .lock-error,
-    .lock-warning {
-        margin-top: 10px;
-        border-radius: 12px;
-        padding: 10px 12px;
-        font-size: 13px;
-        font-weight: 750;
-    }
-
-    .lock-error {
-        background: rgb(244 63 94 / 14%);
-        color: #fecdd3;
-    }
-
-    .lock-warning {
-        background: rgb(245 158 11 / 14%);
-        color: #fde68a;
-    }
-
-    .lock-forgot {
-        margin-top: 16px;
-        border: 1px solid rgb(255 255 255 / 10%);
-        border-radius: 16px;
-        padding: 12px 14px;
-    }
-
-    .lock-forgot summary {
-        cursor: pointer;
-        color: #cbd5e1;
-        font-size: 13px;
-        font-weight: 850;
-    }
-
-    .lock-forgot p {
-        margin-top: 10px;
-        color: #94a3b8;
-        font-size: 13px;
-        line-height: 1.5;
+        margin-bottom: 28px;
     }
 
     .lock-icon-wrap {
         display: grid;
         place-items: center;
-        width: 64px;
-        height: 64px;
-        margin: 0 auto 6px;
-        border-radius: 50%;
-        background: rgb(255 255 255 / 6%);
-        border: 1px solid rgb(255 255 255 / 10%);
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 16px;
+        border-radius: 24px;
+        background: linear-gradient(135deg, rgb(255 255 255 / 10%), rgb(255 255 255 / 4%));
+        border: 1px solid rgb(255 255 255 / 14%);
+        box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .lock-icon-wrap:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 32px rgb(0 0 0 / 30%);
     }
 
     .lock-icon {
-        width: 30px;
-        height: 30px;
-        color: #cbd5e1;
+        width: 32px;
+        height: 32px;
+        color: rgb(203 213 225 / 90%);
+    }
+
+    .lock-title {
+        color: white;
+        font-size: 24px;
+        font-weight: 850;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+    }
+
+    .lock-subtitle {
+        margin-top: 4px;
+        color: rgb(148 163 184 / 80%);
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
+
+    .lock-user {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 24px;
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 20px;
+        background: linear-gradient(135deg, rgb(255 255 255 / 7%), rgb(255 255 255 / 3%));
+        padding: 14px;
+        transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .lock-user:hover {
+        border-color: rgb(255 255 255 / 16%);
+        background: linear-gradient(135deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 4%));
+    }
+
+    .lock-user-info {
+        min-width: 0;
+    }
+
+    .lock-user-info strong {
+        display: block;
+        color: white;
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+    }
+
+    .lock-user-info span {
+        display: block;
+        color: rgb(148 163 184 / 90%);
+        font-size: 13px;
+        font-weight: 600;
+        margin-top: 2px;
+    }
+
+    .lock-form {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .lock-field {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .lock-field span {
+        display: block;
+        color: rgb(203 213 225 / 90%);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .lock-input {
+        width: 100%;
+        border: 1px solid rgb(255 255 255 / 12%);
+        border-radius: 18px;
+        background: rgb(2 6 23 / 60%);
+        color: white;
+        outline: none;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    .lock-input::placeholder {
+        color: rgb(148 163 184 / 40%);
+    }
+
+    .lock-input:focus {
+        border-color: rgb(147 197 253 / 50%);
+        box-shadow: 0 0 0 4px rgb(49 87 213 / 18%), 0 0 20px rgb(49 87 213 / 10%);
+        background: rgb(2 6 23 / 80%);
+    }
+
+    .lock-form .lock-input {
+        height: 64px;
+        padding: 0 18px;
+        text-align: center;
+        font-size: 28px;
+        font-weight: 900;
+        letter-spacing: 0.25em;
+    }
+
+    .lock-input-sm {
+        height: 48px;
+        padding: 0 16px;
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: 0;
+        text-align: start;
+    }
+
+    .lock-btn-primary {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        height: 52px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, var(--brand-primary, #3157d5), rgb(49 87 213 / 90%));
+        color: white;
+        font-size: 15px;
+        font-weight: 850;
+        border: none;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        box-shadow: 0 4px 16px rgb(49 87 213 / 25%);
+    }
+
+    .lock-btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 24px rgb(49 87 213 / 35%);
+        background: linear-gradient(135deg, rgb(55 95 225), rgb(49 87 213));
+    }
+
+    .lock-btn-primary:active {
+        transform: translateY(0);
+    }
+
+    .lock-btn-secondary {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 44px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, rgb(15 159 138 / 90%), rgb(15 159 138 / 70%));
+        color: white;
+        font-size: 14px;
+        font-weight: 800;
+        border: none;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        box-shadow: 0 4px 12px rgb(15 159 138 / 20%);
+    }
+
+    .lock-btn-secondary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgb(15 159 138 / 30%);
+    }
+
+    .lock-btn-ghost {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 44px;
+        border-radius: 14px;
+        border: 1px solid rgb(255 255 255 / 14%);
+        background: transparent;
+        color: rgb(203 213 225 / 90%);
+        font-size: 14px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+
+    .lock-btn-ghost:hover {
+        background: rgb(255 255 255 / 8%);
+        border-color: rgb(255 255 255 / 22%);
+        color: white;
+    }
+
+    .lock-error,
+    .lock-warning,
+    .lock-success {
+        border-radius: 14px;
+        padding: 12px 14px;
+        font-size: 13px;
+        font-weight: 750;
+        line-height: 1.4;
+        animation: lock-message-in 0.3s ease forwards;
+    }
+
+    @keyframes lock-message-in {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .lock-error {
+        background: rgb(244 63 94 / 12%);
+        border: 1px solid rgb(244 63 94 / 18%);
+        color: #fecdd3;
+    }
+
+    .lock-warning {
+        background: rgb(245 158 11 / 12%);
+        border: 1px solid rgb(245 158 11 / 18%);
+        color: #fde68a;
+    }
+
+    .lock-success {
+        background: rgb(34 197 94 / 12%);
+        border: 1px solid rgb(34 197 94 / 18%);
+        color: #bbf7d0;
+    }
+
+    .lock-forgot {
+        margin-top: 18px;
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 20px;
+        background: rgb(255 255 255 / 3%);
+        overflow: hidden;
+        transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .lock-forgot:hover {
+        border-color: rgb(255 255 255 / 14%);
+    }
+
+    .lock-forgot-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        padding: 14px 16px;
+        color: rgb(203 213 225 / 90%);
+        font-size: 14px;
+        font-weight: 800;
+        list-style: none;
+        transition: color 0.2s ease;
+        user-select: none;
+    }
+
+    .lock-forgot-summary:hover {
+        color: white;
+    }
+
+    .lock-forgot-summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .lock-forgot-chevron {
+        width: 16px;
+        height: 16px;
+        transition: transform 0.3s ease;
+        color: rgb(148 163 184 / 70%);
+    }
+
+    .lock-forgot[open] .lock-forgot-chevron {
+        transform: rotate(180deg);
     }
 
     .lock-forgot-body {
-        margin-top: 10px;
+        padding: 0 16px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        animation: lock-forgot-body-in 0.3s ease forwards;
+    }
+
+    @keyframes lock-forgot-body-in {
+        from { opacity: 0; transform: translateY(-6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .lock-forgot-text {
+        color: rgb(148 163 184 / 85%);
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.6;
+    }
+
+    .lock-forgot-form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
     }
 
     .lock-forgot-divider {
-        margin: 14px 0;
+        margin: 4px 0;
         border: none;
         border-top: 1px solid rgb(255 255 255 / 8%);
     }
 
-    .lock-forgot-email-btn {
-        width: 100%;
-        min-height: 46px;
-        margin-top: 10px;
-        border-radius: 16px;
-        border: 1px solid rgb(255 255 255 / 12%);
-        background: transparent;
-        color: #cbd5e1;
-        font-size: 13px;
-        font-weight: 800;
-        cursor: pointer;
-        transition: background .15s, border-color .15s;
-    }
-
-    .lock-forgot-email-btn:hover {
-        background: rgb(255 255 255 / 6%);
-        border-color: rgb(255 255 255 / 20%);
-    }
-
-    .lock-success {
-        margin-top: 10px;
-        border-radius: 12px;
-        background: rgb(34 197 94 / 14%);
-        color: #bbf7d0;
-        padding: 10px 12px;
-        font-size: 13px;
-        font-weight: 750;
-    }
-
     .lock-logout {
-        margin-top: 14px;
-        text-align: center;
+        margin-top: 18px;
+        display: flex;
+        justify-content: center;
     }
 
-    .lock-logout button {
-        color: #94a3b8;
+    .lock-logout-btn {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: rgb(148 163 184 / 80%);
         font-size: 13px;
-        font-weight: 800;
-        transition: color .15s;
+        font-weight: 700;
+        transition: color 0.2s ease;
+        cursor: pointer;
+        padding: 8px 12px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
     }
 
-    .lock-logout button:hover {
-        color: #e2e8f0;
+    .lock-logout-btn:hover {
+        color: rgb(226 232 240 / 90%);
+        background: rgb(255 255 255 / 5%);
     }
 
     .app-main-shell {
@@ -4981,6 +5166,7 @@
         display: none;
     }
 
+    .app-sidebar-peek-zone.is-active,
     .app-fullscreen-mode .app-sidebar-peek-zone {
         display: block;
         position: fixed;

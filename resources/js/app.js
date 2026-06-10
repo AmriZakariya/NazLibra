@@ -94,7 +94,9 @@ const setAppFullscreen = (enabled) => {
     document.documentElement.classList.toggle('app-fullscreen-mode', enabled);
     if (!enabled) {
         sidebarEl?.classList.remove('is-visible');
+        peekActive = false;
         updateNavToggle();
+        updatePeekZone();
     }
     fullscreenButtons.forEach((button) => {
         button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
@@ -569,6 +571,7 @@ document.querySelectorAll('[data-sidebar]').forEach((sidebar) => {
 const sidebarPeek = document.querySelector('[data-sidebar-peek]');
 const sidebarEl = document.querySelector('[data-sidebar]');
 let peekTimeout;
+let peekActive = false; // true when sidebar was shown by peek
 
 // Peek setting
 const peekStorageKey = 'librairepro-sidebar-peek';
@@ -580,36 +583,63 @@ const updateNavToggle = () => {
     });
 };
 
+const updatePeekZone = () => {
+    if (!sidebarPeek) return;
+    const sidebarHidden = !sidebarEl?.classList.contains('is-visible');
+    const shouldShow = sidebarHidden && peekEnabled();
+    sidebarPeek.classList.toggle('is-active', shouldShow);
+};
+
 // Show sidebar by default in normal mode
 if (sidebarEl && !document.documentElement.classList.contains('app-fullscreen-mode')) {
     sidebarEl.classList.add('is-visible');
     updateNavToggle();
 }
-
-const isFullscreenMode = () => document.documentElement.classList.contains('app-fullscreen-mode');
+updatePeekZone();
 
 const showSidebarPeek = () => {
-    if (!peekEnabled() || !isFullscreenMode()) return;
+    if (!peekEnabled()) return;
     clearTimeout(peekTimeout);
+    // Only show if sidebar is currently hidden
+    if (sidebarEl?.classList.contains('is-visible')) return;
     sidebarEl?.classList.add('is-visible');
+    peekActive = true;
     updateNavToggle();
+    updatePeekZone();
 };
 
 const hideSidebarPeek = () => {
-    if (!peekEnabled() || !isFullscreenMode()) return;
+    if (!peekEnabled()) return;
     peekTimeout = setTimeout(() => {
         if (!sidebarEl?.matches(':hover') && !sidebarPeek?.matches(':hover')) {
-            sidebarEl?.classList.remove('is-visible');
-            updateNavToggle();
+            // Only hide if peek was the one that showed it
+            if (peekActive) {
+                sidebarEl?.classList.remove('is-visible');
+                peekActive = false;
+                updateNavToggle();
+                updatePeekZone();
+            }
         }
     }, 250);
 };
 
-if (peekEnabled()) {
+const attachPeekListeners = () => {
     sidebarPeek?.addEventListener('mouseenter', showSidebarPeek);
     sidebarEl?.addEventListener('mouseenter', showSidebarPeek);
     sidebarPeek?.addEventListener('mouseleave', hideSidebarPeek);
     sidebarEl?.addEventListener('mouseleave', hideSidebarPeek);
+};
+
+const detachPeekListeners = () => {
+    sidebarPeek?.removeEventListener('mouseenter', showSidebarPeek);
+    sidebarEl?.removeEventListener('mouseenter', showSidebarPeek);
+    sidebarPeek?.removeEventListener('mouseleave', hideSidebarPeek);
+    sidebarEl?.removeEventListener('mouseleave', hideSidebarPeek);
+    clearTimeout(peekTimeout);
+};
+
+if (peekEnabled()) {
+    attachPeekListeners();
 }
 
 // Toggle sidebar visibility (show/hide) — same behavior in all modes
@@ -617,7 +647,9 @@ document.querySelectorAll('[data-sidebar-nav-toggle]').forEach((btn) => {
     btn.addEventListener('click', () => {
         const willShow = !sidebarEl?.classList.contains('is-visible');
         sidebarEl?.classList.toggle('is-visible', willShow);
+        peekActive = false; // Manual toggle, not peek
         updateNavToggle();
+        updatePeekZone();
         const label = willShow ? 'Masquer le menu' : 'Afficher le menu';
         btn.setAttribute('aria-label', label);
         btn.title = label;
@@ -642,17 +674,11 @@ document.querySelectorAll('[data-sidebar-peek-toggle]').forEach((btn) => {
         updatePeekButton();
 
         if (next) {
-            sidebarPeek?.addEventListener('mouseenter', showSidebarPeek);
-            sidebarEl?.addEventListener('mouseenter', showSidebarPeek);
-            sidebarPeek?.addEventListener('mouseleave', hideSidebarPeek);
-            sidebarEl?.addEventListener('mouseleave', hideSidebarPeek);
+            attachPeekListeners();
         } else {
-            sidebarPeek?.removeEventListener('mouseenter', showSidebarPeek);
-            sidebarEl?.removeEventListener('mouseenter', showSidebarPeek);
-            sidebarPeek?.removeEventListener('mouseleave', hideSidebarPeek);
-            sidebarEl?.removeEventListener('mouseleave', hideSidebarPeek);
-            clearTimeout(peekTimeout);
+            detachPeekListeners();
         }
+        updatePeekZone();
     });
 });
 

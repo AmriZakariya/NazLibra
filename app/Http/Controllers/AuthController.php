@@ -214,12 +214,125 @@ class AuthController extends Controller
                 'today' => AuditLog::where('tenant_id', $tenant->id)->whereDate('created_at', now()->toDateString())->count(),
                 'users' => AuditLog::where('tenant_id', $tenant->id)->whereNotNull('user_id')->distinct('user_id')->count('user_id'),
             ],
+            'actionLabels' => $this->actionLabels(),
         ]);
+    }
+
+    /**
+     * Map technical action names to user-friendly labels.
+     */
+    private function actionLabels(): array
+    {
+        return [
+            'catalog.categories.store' => 'Création catégorie',
+            'catalog.categories.update' => 'Modification catégorie',
+            'catalog.categories.destroy' => 'Suppression catégorie',
+            'catalog.items.store' => 'Création article',
+            'catalog.items.update' => 'Modification article',
+            'catalog.items.destroy' => 'Suppression article',
+            'catalog.labels.print' => 'Impression étiquette',
+            'catalog.import' => 'Importation',
+            'pos.store' => 'Encaissement',
+            'pos.refund' => 'Remboursement',
+            'sales.store' => 'Création vente',
+            'sales.update' => 'Modification vente',
+            'sales.destroy' => 'Suppression vente',
+            'contacts.customers.store' => 'Création client',
+            'contacts.customers.update' => 'Modification client',
+            'contacts.customers.destroy' => 'Suppression client',
+            'contacts.suppliers.store' => 'Création fournisseur',
+            'contacts.suppliers.update' => 'Modification fournisseur',
+            'contacts.suppliers.destroy' => 'Suppression fournisseur',
+            'finance.expenses.store' => 'Création dépense',
+            'finance.expenses.update' => 'Modification dépense',
+            'finance.expenses.destroy' => 'Suppression dépense',
+            'finance.expense-categories.store' => 'Création catégorie dépense',
+            'finance.expense-categories.update' => 'Modification catégorie dépense',
+            'finance.expense-categories.destroy' => 'Suppression catégorie dépense',
+            'finance.advances.store' => 'Création avance',
+            'finance.advances.update' => 'Modification avance',
+            'finance.advances.destroy' => 'Suppression avance',
+            'finance.coupons.store' => 'Création coupon',
+            'finance.coupons.update' => 'Modification coupon',
+            'finance.coupons.destroy' => 'Suppression coupon',
+            'finance.accounts.store' => 'Création compte',
+            'finance.accounts.update' => 'Modification compte',
+            'finance.accounts.destroy' => 'Suppression compte',
+            'finance.transfers.store' => 'Création transfert',
+            'finance.transfers.update' => 'Modification transfert',
+            'finance.transfers.destroy' => 'Suppression transfert',
+            'finance.deposits.store' => 'Création dépôt',
+            'finance.deposits.update' => 'Modification dépôt',
+            'finance.deposits.destroy' => 'Suppression dépôt',
+            'purchases.store' => 'Création achat',
+            'purchases.update' => 'Modification achat',
+            'purchases.destroy' => 'Suppression achat',
+            'stock.adjustments.store' => 'Ajustement stock',
+            'stock.adjustments.update' => 'Modification ajustement',
+            'stock.adjustments.destroy' => 'Suppression ajustement',
+            'stock.transfers.store' => 'Transfert stock',
+            'stock.transfers.update' => 'Modification transfert',
+            'stock.transfers.destroy' => 'Suppression transfert',
+            'sales.quotes.store' => 'Création devis',
+            'sales.quotes.update' => 'Modification devis',
+            'sales.quotes.destroy' => 'Suppression devis',
+            'sales.quotes.convert' => 'Conversion devis',
+            'sales.delivery.store' => 'Création livraison',
+            'sales.delivery.update' => 'Modification livraison',
+            'sales.delivery.destroy' => 'Suppression livraison',
+            'sales.returns.store' => 'Création retour',
+            'sales.returns.update' => 'Modification retour',
+            'sales.returns.destroy' => 'Suppression retour',
+            'settings.users.store' => 'Création utilisateur',
+            'settings.users.update' => 'Modification utilisateur',
+            'settings.users.destroy' => 'Suppression utilisateur',
+            'settings.roles.store' => 'Création rôle',
+            'settings.roles.update' => 'Modification rôle',
+            'settings.roles.destroy' => 'Suppression rôle',
+            'settings.taxes.store' => 'Création taxe',
+            'settings.taxes.update' => 'Modification taxe',
+            'settings.taxes.destroy' => 'Suppression taxe',
+            'settings.units.store' => 'Création unité',
+            'settings.units.update' => 'Modification unité',
+            'settings.units.destroy' => 'Suppression unité',
+            'settings.payment-types.store' => 'Création type paiement',
+            'settings.payment-types.update' => 'Modification type paiement',
+            'settings.payment-types.destroy' => 'Suppression type paiement',
+            'settings.countries.store' => 'Création pays',
+            'settings.countries.update' => 'Modification pays',
+            'settings.countries.destroy' => 'Suppression pays',
+            'settings.states.store' => 'Création état',
+            'settings.states.update' => 'Modification état',
+            'settings.states.destroy' => 'Suppression état',
+            'settings.warehouses.store' => 'Création magasin',
+            'settings.warehouses.update' => 'Modification magasin',
+            'settings.warehouses.destroy' => 'Suppression magasin',
+            'cash-register.store' => 'Ouverture tiroir caisse',
+            'cash-register.update' => 'Clôture tiroir caisse',
+            'cash-register.deposits.store' => 'Dépôt caisse',
+            'cash-register.withdrawals.store' => 'Retrait caisse',
+            'profile.update' => 'Mise à jour profil',
+            'settings.company.update' => 'Mise à jour société',
+            'settings.store.update' => 'Mise à jour magasin',
+            'settings.pos.update' => 'Mise à jour paramètres caisse',
+            'settings.theme.update' => 'Mise à jour thème',
+            'settings.sms.update' => 'Mise à jour SMS',
+            'settings.hardware.update' => 'Mise à jour matériel',
+            'session.lock' => 'Verrouillage session',
+            'session.unlock' => 'Déverrouillage session',
+            'logout' => 'Déconnexion',
+            'login' => 'Connexion',
+            'messaging.store' => 'Envoi message',
+            'messaging.templates.store' => 'Création modèle',
+            'messaging.templates.update' => 'Modification modèle',
+            'messaging.templates.destroy' => 'Suppression modèle',
+        ];
     }
 
     public function updateProfile(Request $request): RedirectResponse
     {
         $user = $request->user();
+        $tenant = $user?->currentTenant ?: Tenant::query()->firstOrFail();
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:160'],
@@ -230,6 +343,8 @@ class AuthController extends Controller
             'remove_profile_photo' => ['nullable', 'boolean'],
             'current_password' => ['nullable', 'required_with:password', 'string'],
             'password' => ['nullable', 'confirmed', 'min:8', 'max:120'],
+            'pin' => ['nullable', 'digits_between:4,8'],
+            'clear_pin' => ['nullable', 'boolean'],
         ]);
 
         if (! empty($data['password']) && ! Hash::check((string) $data['current_password'], $user->password)) {
@@ -258,6 +373,19 @@ class AuthController extends Controller
         } elseif ($request->boolean('remove_profile_photo') && $user->profile_photo_path) {
             Storage::disk('public')->delete($user->profile_photo_path);
             $user->profile_photo_path = null;
+        }
+
+        // PIN: only owner can set or clear
+        if (! empty($data['pin']) || $request->boolean('clear_pin')) {
+            if (! $this->isOwner($tenant, $user)) {
+                abort(403, 'Seul le propriétaire peut définir ou réinitialiser un PIN.');
+            }
+
+            if ($request->boolean('clear_pin')) {
+                $user->pin_hash = null;
+            } elseif (! empty($data['pin'])) {
+                $user->pin_hash = Hash::make($data['pin']);
+            }
         }
 
         $user->save();

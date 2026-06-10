@@ -2095,8 +2095,12 @@ class LibraireProController extends Controller
         } elseif ($request->hasFile('store_logo_file')) {
             $file = $request->file('store_logo_file');
             $filename = 'logo-'.time().'.'.$file->getClientOriginalExtension();
-            $path = $file->storeAs('public/logos', $filename);
-            $data['store_logo'] = 'storage/logos/'.$filename;
+            $logosDir = public_path('logos');
+            if (!is_dir($logosDir)) {
+                mkdir($logosDir, 0755, true);
+            }
+            $file->move($logosDir, $filename);
+            $data['store_logo'] = 'logos/'.$filename;
         } else {
             $data['store_logo'] = $tenant->settings['company_profile']['store_logo'] ?? '';
         }
@@ -2148,17 +2152,17 @@ class LibraireProController extends Controller
             'scope' => '/',
             'icons' => [
                 [
-                    'src' => '/icons/icon-192x192.png',
+                    'src' => route('app.icon', 192),
                     'sizes' => '192x192',
                     'type' => 'image/png',
                 ],
                 [
-                    'src' => '/icons/icon-512x512.png',
+                    'src' => route('app.icon', 512),
                     'sizes' => '512x512',
                     'type' => 'image/png',
                 ],
                 [
-                    'src' => '/icons/icon-192x192.png',
+                    'src' => route('app.icon', 192),
                     'sizes' => '192x192',
                     'type' => 'image/png',
                     'purpose' => 'maskable',
@@ -2174,11 +2178,105 @@ class LibraireProController extends Controller
     {
         $path = public_path("icons/icon-{$size}x{$size}.png");
 
+        if (!file_exists($path)) {
+            $this->ensureDefaultAppIconGenerated($size);
+        }
+
         if (file_exists($path)) {
             return response()->file($path, ['Content-Type' => 'image/png']);
         }
 
         return response('', 404);
+    }
+
+    private function ensureDefaultAppIconGenerated(int $size): void
+    {
+        $iconsDir = public_path('icons');
+        if (!is_dir($iconsDir)) {
+            mkdir($iconsDir, 0755, true);
+        }
+
+        $tenant = Tenant::query()->first();
+        $primary = data_get($tenant?->settings, 'theme.primary', '#3157D5');
+        $name = $tenant?->name ?? 'LP';
+        $initials = $this->tenantInitials($name);
+
+        $this->generateAppIconPng($iconsDir."/icon-{$size}x{$size}.png", $size, $primary, $initials);
+    }
+
+    private function tenantInitials(string $name): string
+    {
+        $words = preg_split('/\s+/', trim($name));
+        $initials = '';
+        foreach (array_slice($words, 0, 2) as $word) {
+            $initials .= mb_strtoupper(mb_substr($word, 0, 1));
+        }
+        return $initials ?: 'LP';
+    }
+
+    private function generateAppIconPng(string $destination, int $size, string $color, string $text): void
+    {
+        $image = imagecreatetruecolor($size, $size);
+        imagealphablending($image, false);
+        imagesavealpha($image, true);
+
+        // Parse color
+        $rgb = sscanf(ltrim($color, '#'), '%2x%2x%2x');
+        $r = (int) ($rgb[0] ?? 49);
+        $g = (int) ($rgb[1] ?? 87);
+        $b = (int) ($rgb[2] ?? 213);
+
+        // Transparent background
+        $transparent = imagecolorallocatealpha($image, 0, 0, 0, 127);
+        imagefill($image, 0, 0, $transparent);
+
+        // Rounded rectangle background
+        $bgColor = imagecolorallocate($image, $r, $g, $b);
+        $radius = (int) ($size * 0.22);
+        $this->imageRoundedRectangle($image, 0, 0, $size - 1, $size - 1, $radius, $bgColor);
+
+        // Text color (white)
+        $textColor = imagecolorallocate($image, 255, 255, 255);
+
+        // Font size proportional to icon size
+        $fontSize = (int) ($size * 0.35);
+        $text = mb_strtoupper($text);
+        $fontPath = public_path('fonts/Inter-Bold.ttf');
+        if (!file_exists($fontPath)) {
+            $fontPath = '/System/Library/Fonts/Helvetica.ttc';
+            if (!file_exists($fontPath)) {
+                $fontPath = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
+            }
+        }
+        $bbox = file_exists($fontPath) ? imagettfbbox($fontSize, 0, $fontPath, $text) : false;
+        if ($bbox === false) {
+            // Fallback to built-in font if TTF not available
+            $fontSize = max(1, (int) ($size * 0.15));
+            $textWidth = imagefontwidth($fontSize) * strlen($text);
+            $textHeight = imagefontheight($fontSize);
+            $x = (int) (($size - $textWidth) / 2);
+            $y = (int) (($size - $textHeight) / 2 + $textHeight * 0.8);
+            imagestring($image, $fontSize, $x, $y, $text, $textColor);
+        } else {
+            $textWidth = $bbox[2] - $bbox[0];
+            $textHeight = $bbox[1] - $bbox[7];
+            $x = (int) (($size - $textWidth) / 2);
+            $y = (int) (($size + $textHeight) / 2 - $bbox[1]);
+            imagettftext($image, $fontSize, 0, $x, $y, $textColor, $fontPath, $text);
+        }
+
+        imagepng($image, $destination, 9);
+        imagedestroy($image);
+    }
+
+    private function imageRoundedRectangle(\GdImage $image, int $x1, int $y1, int $x2, int $y2, int $radius, int $color): void
+    {
+        imagefilledrectangle($image, $x1 + $radius, $y1, $x2 - $radius, $y2, $color);
+        imagefilledrectangle($image, $x1, $y1 + $radius, $x2, $y2 - $radius, $color);
+        imagefilledellipse($image, $x1 + $radius, $y1 + $radius, $radius * 2, $radius * 2, $color);
+        imagefilledellipse($image, $x2 - $radius, $y1 + $radius, $radius * 2, $radius * 2, $color);
+        imagefilledellipse($image, $x1 + $radius, $y2 - $radius, $radius * 2, $radius * 2, $color);
+        imagefilledellipse($image, $x2 - $radius, $y2 - $radius, $radius * 2, $radius * 2, $color);
     }
 
     public function updatePosSettings(Request $request): RedirectResponse
@@ -6244,18 +6342,13 @@ class LibraireProController extends Controller
 
     private function deleteAppIconFiles(): void
     {
-        $defaultDir = resource_path('icons/default');
         $iconsDir = public_path('icons');
+        if (!is_dir($iconsDir)) {
+            mkdir($iconsDir, 0755, true);
+        }
 
-        foreach (['icon-192x192.png', 'icon-512x512.png'] as $filename) {
-            $default = $defaultDir.'/'.$filename;
-            $target = $iconsDir.'/'.$filename;
-
-            if (file_exists($default)) {
-                copy($default, $target);
-            } elseif (file_exists($target)) {
-                unlink($target);
-            }
+        foreach ([192, 512] as $size) {
+            $this->ensureDefaultAppIconGenerated($size);
         }
     }
 
