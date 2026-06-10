@@ -168,7 +168,7 @@
 
                 <div class="grid content-start gap-3">
                     <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
-                        <p class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Santé stock') }}</p>
+                        <p class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">{{ $tr('Santé stock') }}</p>
                         <div class="mt-3 flex items-end justify-between gap-3">
                             <strong class="text-3xl font-semibold">{{ $stockSummary['health'] }}%</strong>
                             <span class="text-sm text-slate-500">{{ $money($stockSummary['value']) }}</span>
@@ -176,15 +176,15 @@
                         <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
                             <div class="h-full rounded-full bg-brand" style="width: {{ $stockSummary['health'] }}%"></div>
                         </div>
-                        <p class="mt-3 text-xs text-slate-500">{{ $stockSummary['low'] }} {{ $tr('alerte(s)') }}, {{ $stockSummary['out'] }} {{ $tr('rupture(s)') }}</p>
+                        <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">{{ $stockSummary['low'] }} {{ $tr('alerte(s)') }}, {{ $stockSummary['out'] }} {{ $tr('rupture(s)') }}</p>
                     </div>
 
                     <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
-                        <p class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Caisse espèces') }}</p>
+                        <p class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">{{ $tr('Caisse espèces') }}</p>
                         <div class="mt-3 grid gap-2 text-sm">
-                            <div class="flex justify-between gap-3"><span class="text-slate-500">{{ $tr('Reçu') }}</span><strong>{{ $money($cashSummary['received']) }}</strong></div>
-                            <div class="flex justify-between gap-3"><span class="text-slate-500">{{ $tr('Monnaie') }}</span><strong>{{ $money($cashSummary['change']) }}</strong></div>
-                            <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">{{ $tr('Entrée tiroir') }}</span><strong>{{ $money($cashSummary['drawer_in']) }}</strong></div>
+                            <div class="flex justify-between gap-3"><span class="text-slate-500 dark:text-slate-400">{{ $tr('Reçu') }}</span><strong>{{ $money($cashSummary['received']) }}</strong></div>
+                            <div class="flex justify-between gap-3"><span class="text-slate-500 dark:text-slate-400">{{ $tr('Monnaie') }}</span><strong>{{ $money($cashSummary['change']) }}</strong></div>
+                            <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500 dark:text-slate-400">{{ $tr('Entrée tiroir') }}</span><strong>{{ $money($cashSummary['drawer_in']) }}</strong></div>
                         </div>
                     </div>
 

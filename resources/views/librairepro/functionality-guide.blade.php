@@ -2,7 +2,7 @@
     $statusMeta = [
         'visible' => ['label' => 'Visible', 'classes' => 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20'],
         'code' => ['label' => 'Code existe', 'classes' => 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/20'],
-        'review' => ['label' => 'A revoir', 'classes' => 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20'],
+        'review' => ['label' => 'A revoir', 'classes' => 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-black-300 dark:ring-amber-500/20'],
     ];
 @endphp
 
@@ -14,7 +14,7 @@
             <p class="mt-2 max-w-4xl text-sm text-slate-600 dark:text-slate-300">Résumé scannable des modules, écrans et actions disponibles dans l application, avec les éléments présents en code et les points à revoir.</p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a href="#missing-review" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">Missing / To Review</a>
+            <a href="#missing-review" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 dark:border-amber-500/20 dark:bg-black-500/10 dark:text-black-200">Missing / To Review</a>
             <a href="{{ route('dashboard') }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm">Tableau de bord</a>
         </div>
     </section>
@@ -38,7 +38,7 @@
         </article>
         <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
             <span class="text-xs font-semibold uppercase text-slate-500">A revoir</span>
-            <strong class="mt-2 block text-2xl text-amber-600">{{ $summary['review'] }}</strong>
+            <strong class="mt-2 block text-2xl text-black">{{ $summary['review'] }}</strong>
         </article>
     </section>
 

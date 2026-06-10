@@ -281,7 +281,7 @@
                             render: function(data, type, row) {
                                 var btns = "";
                                 if (data) {
-                                    btns += '<a href="' + data + '" class="inline-flex items-center gap-1 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-[12px] font-semibold text-brand transition hover:bg-brand/10 mr-2"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>';
+                                    btns += '<a href="' + data + '" target="_blank" class="inline-flex items-center gap-1 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-[12px] font-semibold text-brand transition hover:bg-brand/10 mr-2"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>';
                                 }
                                 btns += '<button type="button" onclick="auditOpenDetail(' + row.id + ')" class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-600 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-transparent dark:text-slate-300"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>';
                                 return btns;
@@ -299,8 +299,10 @@
                         row.setAttribute("data-row-id", data.id || "");
                         row.setAttribute("data-row-data", JSON.stringify(data));
                         row.style.cursor = "pointer";
-                        row.addEventListener("dblclick", function() {
-                            auditOpenDetail(data.id);
+                        row.addEventListener("dblclick", function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            auditOpenDetail(data);
                         });
                     },
                     drawCallback: function() {
@@ -315,22 +317,26 @@
             }
         });
 
-        function auditOpenDetail(id) {
-            if (!window.activityTable) {
-                console.error("Activity table not initialized");
-                return;
-            }
+        function auditOpenDetail(rowOrId) {
             var row = null;
-            try {
-                row = window.activityTable.row(function(idx, data) {
-                    return data.id == id;
-                }).data();
-            } catch (e) {
-                console.error("Error finding row:", e);
-            }
-            if (!row) {
-                console.error("Row not found for id:", id);
-                return;
+            if (typeof rowOrId === 'object' && rowOrId !== null) {
+                row = rowOrId;
+            } else {
+                if (!window.activityTable) {
+                    console.error("Activity table not initialized");
+                    return;
+                }
+                try {
+                    row = window.activityTable.row(function(idx, data) {
+                        return data.id == rowOrId;
+                    }).data();
+                } catch (e) {
+                    console.error("Error finding row:", e);
+                }
+                if (!row) {
+                    console.error("Row not found for id:", rowOrId);
+                    return;
+                }
             }
 
             var props = row.properties_json ? JSON.parse(row.properties_json) : {};
