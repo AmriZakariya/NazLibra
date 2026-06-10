@@ -103,7 +103,7 @@
                             <svg class="size-5 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                             <h2 class="font-semibold">{{ $tr('Sécurité caisse') }}</h2>
                         </div>
-                        <p class="mt-1 text-sm text-slate-500">{{ $tr('Définir ou modifier le code PIN de sécurité pour le verrouillage session.') }}</p>
+                        <p class="mt-1 text-sm text-slate-500">{{ $tr('Chaque PIN identifie un utilisateur. Sur l\'écran verrouillé, entrer un PIN bascule la session vers cet utilisateur.') }}</p>
                         <div class="mt-4 grid gap-4 lg:grid-cols-2">
                             <label class="space-y-1.5">
                                 <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Code PIN (4-8 chiffres)') }}</span>

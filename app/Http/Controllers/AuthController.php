@@ -70,11 +70,15 @@ class AuthController extends Controller
         $user = $request->user();
         $tenant = $user?->currentTenant ?: Tenant::query()->first();
 
+        $anyUserHasPin = $tenant
+            ? $tenant->users()->whereNotNull('users.pin_hash')->exists()
+            : false;
+
         return view('auth.locked', [
             'tenant' => $tenant,
             'user' => $user,
             'lockedAt' => $request->session()->get('pos_session_locked_at'),
-            'hasPin' => filled($user?->pin_hash),
+            'hasPin' => $anyUserHasPin,
         ]);
     }
 
@@ -84,12 +88,25 @@ class AuthController extends Controller
             'pin' => ['required', 'digits_between:4,8'],
         ]);
 
-        $user = $request->user();
+        $currentUser = $request->user();
+        $tenant = $currentUser?->currentTenant ?: Tenant::query()->firstOrFail();
 
-        if (! $user?->pin_hash || ! Hash::check($data['pin'], $user->pin_hash)) {
+        // Search all tenant users for a matching PIN
+        $matchedUser = $tenant->users()
+            ->whereNotNull('users.pin_hash')
+            ->get()
+            ->first(fn (User $u) => Hash::check($data['pin'], $u->pin_hash));
+
+        if (! $matchedUser) {
             throw ValidationException::withMessages([
                 'pin' => 'PIN incorrect.',
             ]);
+        }
+
+        // If PIN matches a different user, switch to that user
+        if ($matchedUser->id !== ($currentUser?->id ?? null)) {
+            Auth::login($matchedUser);
+            $request->session()->regenerate();
         }
 
         $request->session()->forget(['pos_session_locked', 'pos_session_locked_at']);
@@ -343,7 +360,7 @@ class AuthController extends Controller
             'remove_profile_photo' => ['nullable', 'boolean'],
             'current_password' => ['nullable', 'required_with:password', 'string'],
             'password' => ['nullable', 'confirmed', 'min:8', 'max:120'],
-            'pin' => ['nullable', 'digits_between:4,8'],
+            'pin' => ['nullable', 'digits_between:4,8', 'confirmed'],
             'clear_pin' => ['nullable', 'boolean'],
         ]);
 
@@ -384,6 +401,7 @@ class AuthController extends Controller
             if ($request->boolean('clear_pin')) {
                 $user->pin_hash = null;
             } elseif (! empty($data['pin'])) {
+                $this->ensurePinUnique($tenant, $data['pin'], $user);
                 $user->pin_hash = Hash::make($data['pin']);
             }
         }
@@ -537,5 +555,21 @@ class AuthController extends Controller
         $tenantUser = $tenant->users()->whereKey($user->id)->first();
 
         return (string) ($tenantUser?->pivot?->role ?? '') === 'owner';
+    }
+
+    private function ensurePinUnique(Tenant $tenant, string $pin, mixed $excludeUser): void
+    {
+        $otherUsers = $tenant->users()
+            ->where('users.id', '!=', $excludeUser?->id)
+            ->whereNotNull('users.pin_hash')
+            ->get();
+
+        foreach ($otherUsers as $other) {
+            if (Hash::check($pin, $other->pin_hash)) {
+                throw ValidationException::withMessages([
+                    'pin' => 'Ce PIN est déjà utilisé par un autre utilisateur.',
+                ]);
+            }
+        }
     }
 }

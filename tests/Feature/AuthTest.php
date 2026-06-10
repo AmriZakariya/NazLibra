@@ -221,7 +221,7 @@ class AuthTest extends TestCase
         $this->get(route('session.locked'))
             ->assertOk()
             ->assertSee('Session verrouillée')
-            ->assertSee('PIN caisse');
+            ->assertSee('Entrez votre PIN pour déverrouiller');
 
         $this->post(route('session.unlock'), ['pin' => '9999'])
             ->assertSessionHasErrors('pin');

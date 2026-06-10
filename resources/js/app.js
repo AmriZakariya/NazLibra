@@ -87,49 +87,126 @@ if (localStorage.getItem('librairepro-theme') === 'dark') {
     document.documentElement.classList.add('dark');
 }
 
+/**
+ * Sidebar globals must be declared BEFORE fullscreen logic,
+ * because setAppFullscreen() uses them.
+ */
+const sidebarPeek = document.querySelector('[data-sidebar-peek]');
+const sidebarEl = document.querySelector('[data-sidebar]');
+let peekTimeout;
+let peekActive = false;
+
+const peekStorageKey = 'librairepro-sidebar-peek';
+const peekEnabled = () => localStorage.getItem(peekStorageKey) !== 'false';
+
+const updateNavToggle = () => {
+    document.querySelectorAll('[data-sidebar-nav-toggle]').forEach((button) => {
+        button.classList.toggle('is-active', sidebarEl?.classList.contains('is-visible'));
+    });
+};
+
+const updatePeekZone = () => {
+    if (!sidebarPeek) return;
+
+    const sidebarHidden = !sidebarEl?.classList.contains('is-visible');
+    const shouldShow = sidebarHidden && peekEnabled();
+
+    sidebarPeek.classList.toggle('is-active', shouldShow);
+};
+
+/**
+ * Fullscreen
+ */
 const fullscreenButtons = [...document.querySelectorAll('[data-fullscreen-toggle]')];
 const fullscreenStorageKey = 'librairepro-app-fullscreen';
 const fullscreenEnabled = () => localStorage.getItem(fullscreenStorageKey) === '1';
+
 const setAppFullscreen = (enabled) => {
     document.documentElement.classList.toggle('app-fullscreen-mode', enabled);
-    if (!enabled) {
+
+    if (enabled) {
+        // In app fullscreen layout, sidebar starts hidden.
         sidebarEl?.classList.remove('is-visible');
         peekActive = false;
         updateNavToggle();
         updatePeekZone();
+    } else {
+        // In normal layout, sidebar is visible by default.
+        sidebarEl?.classList.add('is-visible');
+        peekActive = false;
+        updateNavToggle();
+        updatePeekZone();
     }
+
     fullscreenButtons.forEach((button) => {
+        const labelText = enabled ? translate('Quitter le plein écran') : translate('Mode plein écran');
+
         button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-        button.title = enabled ? translate('Quitter le plein écran') : translate('Mode plein écran');
-        button.setAttribute('aria-label', button.title);
+        button.title = labelText;
+        button.setAttribute('aria-label', labelText);
+
         button.querySelector('.app-fullscreen-enter')?.classList.toggle('hidden', enabled);
         button.querySelector('.app-fullscreen-exit')?.classList.toggle('hidden', !enabled);
+
         const label = button.querySelector('.fullscreen-label');
-        if (label) label.textContent = enabled ? translate('Quitter le plein écran') : translate('Mode plein écran');
+        if (label) label.textContent = labelText;
     });
 };
 
-if (fullscreenEnabled()) {
-    setAppFullscreen(true);
-}
-
 const ensureNativeFullscreen = async () => {
-    if (!fullscreenEnabled() || document.fullscreenElement || !document.documentElement.requestFullscreen) {
-        return;
-    }
+    if (!fullscreenEnabled()) return;
+    if (document.fullscreenElement) return;
+    if (!document.documentElement.requestFullscreen) return;
 
     try {
         await document.documentElement.requestFullscreen();
-    } catch (error) {
-        // Native fullscreen requires a trusted user gesture; the app layout mode still persists.
+    } catch {
+        // Browser blocks native fullscreen unless called from a real user gesture.
+        // The CSS fullscreen layout still remains active.
     }
 };
+
+const fullscreenInteractionEvents = ['click', 'keydown', 'touchstart'];
+let fullscreenRestoreController = null;
+
+const detachFullscreenRestoreListener = () => {
+    fullscreenRestoreController?.abort();
+    fullscreenRestoreController = null;
+};
+
+const attachFullscreenRestoreListener = () => {
+    if (fullscreenRestoreController) return;
+    if (!fullscreenEnabled()) return;
+    if (document.fullscreenElement) return;
+
+    fullscreenRestoreController = new AbortController();
+
+    const restoreOnce = async () => {
+        await ensureNativeFullscreen();
+        detachFullscreenRestoreListener();
+    };
+
+    fullscreenInteractionEvents.forEach((eventName) => {
+        document.addEventListener(eventName, restoreOnce, {
+            once: true,
+            passive: true,
+            signal: fullscreenRestoreController.signal,
+        });
+    });
+};
+
+// Apply saved fullscreen layout immediately on page load.
+if (fullscreenEnabled()) {
+    setAppFullscreen(true);
+    attachFullscreenRestoreListener();
+}
 
 fullscreenButtons.forEach((button) => {
     button.addEventListener('click', async () => {
         const nextState = !document.documentElement.classList.contains('app-fullscreen-mode');
-        setAppFullscreen(nextState);
+
         localStorage.setItem(fullscreenStorageKey, nextState ? '1' : '0');
+        setAppFullscreen(nextState);
 
         try {
             if (nextState && !document.fullscreenElement && document.documentElement.requestFullscreen) {
@@ -137,8 +214,14 @@ fullscreenButtons.forEach((button) => {
             } else if (!nextState && document.fullscreenElement && document.exitFullscreen) {
                 await document.exitFullscreen();
             }
-        } catch (error) {
-            // Browsers may block fullscreen outside a trusted click; the app layout mode still applies.
+        } catch {
+            // CSS fullscreen layout still applies even if browser blocks native fullscreen.
+        }
+
+        if (nextState && !document.fullscreenElement) {
+            attachFullscreenRestoreListener();
+        } else {
+            detachFullscreenRestoreListener();
         }
     });
 });
@@ -146,11 +229,29 @@ fullscreenButtons.forEach((button) => {
 document.addEventListener('fullscreenchange', () => {
     if (fullscreenEnabled()) {
         setAppFullscreen(true);
+
+        if (!document.fullscreenElement) {
+            attachFullscreenRestoreListener();
+        }
+    } else {
+        setAppFullscreen(false);
+        detachFullscreenRestoreListener();
     }
 
     fullscreenButtons.forEach((button) => {
         button.dataset.nativeFullscreen = document.fullscreenElement ? '1' : '0';
     });
+});
+
+// When navigating back/forward from bfcache.
+window.addEventListener('pageshow', () => {
+    if (fullscreenEnabled()) {
+        setAppFullscreen(true);
+
+        if (!document.fullscreenElement) {
+            attachFullscreenRestoreListener();
+        }
+    }
 });
 
 document.querySelectorAll('[data-pos-close-success]').forEach((link) => {
@@ -159,10 +260,13 @@ document.querySelectorAll('[data-pos-close-success]').forEach((link) => {
         if (!modal || !fullscreenEnabled()) return;
 
         event.preventDefault();
+
         modal.remove();
         window.history.replaceState({}, '', link.getAttribute('href') || window.location.pathname);
+
         setAppFullscreen(true);
         await ensureNativeFullscreen();
+
         document.querySelector('.pos-search')?.focus();
     });
 });
@@ -568,27 +672,6 @@ document.querySelectorAll('[data-sidebar]').forEach((sidebar) => {
     });
 });
 
-const sidebarPeek = document.querySelector('[data-sidebar-peek]');
-const sidebarEl = document.querySelector('[data-sidebar]');
-let peekTimeout;
-let peekActive = false; // true when sidebar was shown by peek
-
-// Peek setting
-const peekStorageKey = 'librairepro-sidebar-peek';
-const peekEnabled = () => localStorage.getItem(peekStorageKey) !== 'false';
-
-const updateNavToggle = () => {
-    document.querySelectorAll('[data-sidebar-nav-toggle]').forEach((b) => {
-        b.classList.toggle('is-active', sidebarEl?.classList.contains('is-visible'));
-    });
-};
-
-const updatePeekZone = () => {
-    if (!sidebarPeek) return;
-    const sidebarHidden = !sidebarEl?.classList.contains('is-visible');
-    const shouldShow = sidebarHidden && peekEnabled();
-    sidebarPeek.classList.toggle('is-active', shouldShow);
-};
 
 // Show sidebar by default in normal mode
 if (sidebarEl && !document.documentElement.classList.contains('app-fullscreen-mode')) {

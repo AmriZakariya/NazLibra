@@ -39,7 +39,7 @@
                     <x-user-avatar :user="$user" size="lg" rounded="rounded-2xl" />
                     <div class="lock-user-info">
                         <strong>{{ $user?->name }}</strong>
-                        <span>{{ $user?->email }}</span>
+                        <span>{{ $tr('Session verrouillée par cet utilisateur') }}</span>
                     </div>
                 </div>
 
@@ -47,7 +47,7 @@
                 <form action="{{ route('session.unlock') }}" method="POST" class="lock-form">
                     @csrf
                     <label class="lock-field">
-                        <span>{{ $tr('PIN caisse') }}</span>
+                        <span>{{ $tr('Entrez votre PIN pour déverrouiller') }}</span>
                         <input
                             name="pin"
                             type="password"
@@ -66,7 +66,7 @@
                         <p class="lock-error">{{ $message }}</p>
                     @enderror
                     @unless ($hasPin)
-                        <p class="lock-warning">{{ $tr('Aucun PIN n\'est configuré pour ce compte. Utilisez le mot de passe ou demandez au propriétaire de définir un PIN.') }}</p>
+                        <p class="lock-warning">{{ $tr('Aucun PIN n\'est configuré. Utilisez le mot de passe pour déverrouiller ou demandez au propriétaire de définir un PIN.') }}</p>
                     @endunless
                     <button type="submit" class="lock-btn-primary">
                         <span>{{ $tr('Déverrouiller') }}</span>

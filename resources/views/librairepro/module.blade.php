@@ -2642,6 +2642,9 @@
                                 <div>
                                     <h3 class="text-base font-semibold text-slate-950 dark:text-white">Liste des utilisateurs</h3>
                                     <p class="mt-1 text-sm text-slate-500">Recherchez, modifiez les rôles, les accès magasin et les permissions directes.</p>
+                                    @error('pin')
+                                        <p class="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">{{ $message }}</p>
+                                    @enderror
                                 </div>
                                 <div class="grid gap-2 sm:grid-cols-[minmax(260px,420px)_auto]">
                                     <input data-table-filter="settings-users-table" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Rechercher nom, email, rôle, magasin...">
@@ -2681,7 +2684,7 @@
                                                     </div>
                                                 </td>
                                                 <td class="px-4 py-4">
-                                                    <x-status-pill tone="info">{{ $userRole?->name ?? $user->pivot->role }}</x-status-pill>
+                                                    <a href="{{ route('module', ['module' => 'settings', 'section' => 'roles', 'edit_role' => $user->pivot->role]) }}" class="inline-block transition hover:brightness-110"><x-status-pill tone="info">{{ $userRole?->name ?? $user->pivot->role }}</x-status-pill></a>
                                                     <p class="mt-1 text-xs text-slate-500">Clé: {{ $user->pivot->role }}</p>
                                                 </td>
                                                 <td class="px-4 py-4">
@@ -2694,7 +2697,13 @@
                                                     <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-white/10 dark:text-slate-200">{{ count($userPermissions) }} permission(s)</span>
                                                 </td>
                                                 <td class="px-4 py-4">
-                                                    <x-status-pill :tone="$user->pin_hash ? 'success' : 'warning'">{{ $user->pin_hash ? 'Configuré' : 'À définir' }}</x-status-pill>
+                                                    @if ($canManageUserPins)
+                                                        <button type="button" onclick="document.getElementById('user-pin-{{ $user->id }}').showModal()" class="inline-block transition hover:brightness-110">
+                                                            <x-status-pill :tone="$user->pin_hash ? 'success' : 'warning'">{{ $user->pin_hash ? 'Configuré' : 'À définir' }}</x-status-pill>
+                                                        </button>
+                                                    @else
+                                                        <x-status-pill :tone="$user->pin_hash ? 'success' : 'warning'">{{ $user->pin_hash ? 'Configuré' : 'À définir' }}</x-status-pill>
+                                                    @endif
                                                 </td>
                                                 <td class="px-4 py-4">
                                                     <x-status-pill :tone="$user->is_active ? 'success' : 'danger'">{{ $user->is_active ? 'Actif' : 'Désactivé' }}</x-status-pill>
@@ -2780,6 +2789,68 @@
                                                     <button class="text-sm font-semibold text-rose-600">Retirer accès</button>
                                                 </form>
                                             </dialog>
+                                            @if ($canManageUserPins)
+                                            <dialog id="user-pin-{{ $user->id }}" class="app-dialog w-full max-w-[420px] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                                <form action="{{ route('settings.users.pin', $user) }}" method="POST">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <div class="flex items-center gap-4 border-b border-slate-200 px-6 py-5 dark:border-white/10">
+                                                        <x-user-avatar :user="$user" size="lg" rounded="rounded-xl" />
+                                                        <div class="min-w-0 flex-1">
+                                                            <h3 class="text-lg font-semibold leading-tight">{{ $user->name }}</h3>
+                                                            <p class="mt-0.5 text-sm text-slate-500">{{ $tr('PIN caisse') }}</p>
+                                                        </div>
+                                                        <button class="dialog-close grid size-9 shrink-0 place-items-center rounded-xl border border-slate-200 text-lg font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 dark:border-white/10 dark:hover:bg-white/5 dark:hover:text-white" type="button">×</button>
+                                                    </div>
+                                                    <div class="px-6 py-5">
+                                                        <div class="mb-5 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                                                            <div class="grid size-10 shrink-0 place-items-center rounded-xl {{ $user->pin_hash ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400' }}">
+                                                                <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                                                    @if ($user->pin_hash)
+                                                                    <path d="M12 14.5L10 17l-2-1"/>
+                                                                    @endif
+                                                                </svg>
+                                                            </div>
+                                                            <div class="min-w-0">
+                                                                <strong class="block text-sm">{{ $user->pin_hash ? $tr('PIN configuré') : $tr('Aucun PIN') }}</strong>
+                                                                <span class="block text-xs text-slate-500">{{ $user->pin_hash ? $tr('Modifier ou supprimer le PIN existant.') : $tr('Définir un code PIN pour cet utilisateur.') }}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="space-y-4">
+                                                            <label class="block space-y-2">
+                                                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $tr('Code PIN (4-8 chiffres)') }}</span>
+                                                                <div class="relative">
+                                                                    <svg class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                                                    <input name="pin" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" autocomplete="off" class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-center text-lg font-bold tracking-[0.3em] outline-none transition placeholder:font-normal placeholder:tracking-normal focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="••••">
+                                                                </div>
+                                                            </label>
+                                                            <label class="block space-y-2">
+                                                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $tr('Confirmer le PIN') }}</span>
+                                                                <div class="relative">
+                                                                    <svg class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><path d="m9 16 2 2 4-4"/></svg>
+                                                                    <input name="pin_confirmation" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" autocomplete="off" class="h-12 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-center text-lg font-bold tracking-[0.3em] outline-none transition placeholder:font-normal placeholder:tracking-normal focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="••••">
+                                                                </div>
+                                                            </label>
+                                                            @if ($user->pin_hash)
+                                                            <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 transition hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:hover:bg-rose-500/20">
+                                                                <input name="clear_pin" value="1" type="checkbox" class="size-4 accent-rose-500">
+                                                                <span class="text-sm font-semibold text-rose-700 dark:text-rose-300">{{ $tr('Supprimer le PIN') }}</span>
+                                                            </label>
+                                                            @endif
+                                                        </div>
+                                                        @error('pin')
+                                                            <p class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">{{ $message }}</p>
+                                                        @enderror
+                                                    </div>
+                                                    <div class="flex justify-end gap-3 border-t border-slate-200 px-6 py-4 dark:border-white/10">
+                                                        <button type="button" class="dialog-close rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-300 dark:hover:bg-white/5">{{ $tr('Annuler') }}</button>
+                                                        <button class="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20 transition hover:brightness-110">{{ $tr('Enregistrer') }}</button>
+                                                    </div>
+                                                </form>
+                                            </dialog>
+                                            @endif
                                         @empty
                                             <tr><td colspan="7" class="px-4 py-12 text-center text-slate-500">Aucun utilisateur configuré.</td></tr>
                                         @endforelse
@@ -2856,7 +2927,7 @@
                     <form action="{{ route('settings.roles.store') }}" method="POST" class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">@csrf<div class="grid gap-3 lg:grid-cols-[1fr_1fr_auto]"><input name="name" required class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom du rôle"><input name="key" required class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="clé: manager_stock"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Créer rôle</button></div><div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">@foreach ($permissionCatalog as $key => $label)<label class="flex items-center gap-2 text-sm"><input name="permissions[]" value="{{ $key }}" type="checkbox" class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>@endforeach</div></form>
                     <div class="mt-5 grid gap-3">
                         @foreach ($settingsRoles as $role)
-                            <details class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40"><summary class="flex cursor-pointer list-none items-center justify-between"><span><strong>{{ $role->name }}</strong><small class="mt-1 block text-slate-500">{{ $role->key }} · {{ count($role->permissions ?? []) }} permission(s)</small></span><span class="text-xs font-semibold text-brand">Modifier</span></summary><form action="{{ route('settings.roles.update', $role) }}" method="POST" class="mt-4 border-t border-slate-200 pt-4 dark:border-white/10">@csrf @method('PUT')<div class="grid gap-3 lg:grid-cols-2"><input name="name" required value="{{ $role->name }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="key" required value="{{ $role->key }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></div><div class="mt-3 grid max-h-48 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">@foreach ($permissionCatalog as $key => $label)<label class="flex items-center gap-2 text-sm"><input name="permissions[]" value="{{ $key }}" type="checkbox" @checked(in_array($key, $role->permissions ?? [], true)) class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>@endforeach</div><div class="mt-3 flex justify-end gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer rôle</button></div></form><form action="{{ route('settings.roles.destroy', $role) }}" method="POST" class="mt-2 flex justify-end" onsubmit="return confirm('Supprimer ce rôle ?')">@csrf @method('DELETE')<button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 dark:border-rose-500/30">Supprimer</button></form></details>
+                            <details id="role-detail-{{ $role->key }}" class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40"><summary class="flex cursor-pointer list-none items-center justify-between"><span><strong>{{ $role->name }}</strong><small class="mt-1 block text-slate-500">{{ $role->key }} · {{ count($role->permissions ?? []) }} permission(s)</small></span><span class="text-xs font-semibold text-brand">Modifier</span></summary><form action="{{ route('settings.roles.update', $role) }}" method="POST" class="mt-4 border-t border-slate-200 pt-4 dark:border-white/10">@csrf @method('PUT')<div class="grid gap-3 lg:grid-cols-2"><input name="name" required value="{{ $role->name }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="key" required value="{{ $role->key }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></div><div class="mt-3 grid max-h-48 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">@foreach ($permissionCatalog as $key => $label)<label class="flex items-center gap-2 text-sm"><input name="permissions[]" value="{{ $key }}" type="checkbox" @checked(in_array($key, $role->permissions ?? [], true)) class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>@endforeach</div><div class="mt-3 flex justify-end gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer rôle</button></div></form><form action="{{ route('settings.roles.destroy', $role) }}" method="POST" class="mt-2 flex justify-end" onsubmit="return confirm('Supprimer ce rôle ?')">@csrf @method('DELETE')<button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 dark:border-rose-500/30">Supprimer</button></form></details>
                         @endforeach
                     </div>
                 </article>
@@ -3176,6 +3247,17 @@
     @if ($autoOpenDialogId)
         <script>
             window.addEventListener('DOMContentLoaded', () => document.getElementById(@json($autoOpenDialogId))?.showModal());
+        </script>
+    @endif
+    @if (($settingsSection ?? null) === 'roles' && request('edit_role'))
+        <script>
+            window.addEventListener('DOMContentLoaded', () => {
+                const roleDetail = document.getElementById('role-detail-' + @json(request('edit_role')));
+                if (roleDetail) {
+                    roleDetail.open = true;
+                    roleDetail.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
         </script>
     @endif
 </x-layouts.app>

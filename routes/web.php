@@ -217,6 +217,7 @@ Route::delete('/parametres/groupes-fiscaux/{key}', [LibraireProController::class
 Route::put('/parametres/mot-de-passe', [LibraireProController::class, 'updateAccountPassword'])->middleware('auth')->name('settings.password.update');
 Route::post('/parametres/utilisateurs', [LibraireProController::class, 'storeUser'])->name('settings.users.store');
 Route::put('/parametres/utilisateurs/{user}', [LibraireProController::class, 'updateUser'])->name('settings.users.update');
+Route::put('/parametres/utilisateurs/{user}/pin', [LibraireProController::class, 'updateUserPin'])->name('settings.users.pin');
 Route::delete('/parametres/utilisateurs/{user}', [LibraireProController::class, 'destroyUser'])->name('settings.users.destroy');
 Route::post('/parametres/roles', [LibraireProController::class, 'storeRole'])->name('settings.roles.store');
 Route::put('/parametres/roles/{role}', [LibraireProController::class, 'updateRole'])->name('settings.roles.update');

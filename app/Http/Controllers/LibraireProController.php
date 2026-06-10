@@ -49,6 +49,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 use Yajra\DataTables\Facades\DataTables;
 use ZipArchive;
@@ -2682,6 +2683,10 @@ class LibraireProController extends Controller
         $tenant = $this->tenant();
         $data = $this->validateUserAccess($request, $tenant);
 
+        if (! empty($data['pin'])) {
+            $this->ensurePinUnique($tenant, $data['pin']);
+        }
+
         $user = \App\Models\User::create([
             'current_tenant_id' => $tenant->id,
             'name' => $data['name'],
@@ -2724,6 +2729,7 @@ class LibraireProController extends Controller
         }
 
         if (! empty($data['pin'])) {
+            $this->ensurePinUnique($tenant, $data['pin'], $user);
             $payload['pin_hash'] = Hash::make($data['pin']);
         } elseif ($request->boolean('clear_pin')) {
             $payload['pin_hash'] = null;
@@ -2746,6 +2752,35 @@ class LibraireProController extends Controller
         return redirect()
             ->route('module', ['module' => 'settings', 'section' => 'users'])
             ->with('status', 'Utilisateur '.$user->name.' mis à jour.');
+    }
+
+    public function updateUserPin(Request $request, \App\Models\User $user): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless($tenant->users()->whereKey($user->id)->exists(), 403);
+        abort_unless($this->currentUserIsOwner($tenant), 403, 'Seul le propriétaire peut définir ou réinitialiser un PIN.');
+
+        $data = $request->validate([
+            'pin' => ['nullable', 'digits_between:4,8', 'confirmed'],
+            'clear_pin' => ['nullable', 'boolean'],
+        ]);
+
+        if ($request->boolean('clear_pin')) {
+            $user->update(['pin_hash' => null]);
+            return redirect()
+                ->route('module', ['module' => 'settings', 'section' => 'users'])
+                ->with('status', 'PIN de '.$user->name.' supprimé.');
+        }
+
+        if (! empty($data['pin'])) {
+            $this->ensurePinUnique($tenant, $data['pin'], $user);
+            $user->update(['pin_hash' => Hash::make($data['pin'])]);
+            return redirect()
+                ->route('module', ['module' => 'settings', 'section' => 'users'])
+                ->with('status', 'PIN de '.$user->name.' mis à jour.');
+        }
+
+        return back()->with('status', 'Aucun changement.');
     }
 
     public function destroyUser(\App\Models\User $user): RedirectResponse
@@ -6535,6 +6570,25 @@ class LibraireProController extends Controller
         $tenantUser = $tenant->users()->whereKey($user->id)->first();
 
         return (string) ($tenantUser?->pivot?->role ?? '') === 'owner';
+    }
+
+    private function ensurePinUnique(Tenant $tenant, string $pin, mixed $excludeUser = null): void
+    {
+        $query = $tenant->users()->whereNotNull('users.pin_hash');
+
+        if ($excludeUser) {
+            $query->where('users.id', '!=', $excludeUser->id);
+        }
+
+        $otherUsers = $query->get();
+
+        foreach ($otherUsers as $other) {
+            if (Hash::check($pin, $other->pin_hash)) {
+                throw ValidationException::withMessages([
+                    'pin' => 'Ce PIN est déjà utilisé par un autre utilisateur.',
+                ]);
+            }
+        }
     }
 
     private function tenantUserPayload(array $data): array
