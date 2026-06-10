@@ -164,7 +164,7 @@
     {{-- DataTable --}}
     <section class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
         <div class="p-0">
-            <table id="activity-table" class="display nowrap w-full text-left text-sm" style="width:100%">
+            <table id="activity-table" class="dataTable display nowrap w-full text-left text-sm" style="width:100%">
                 <thead>
                     <tr class="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
                         <th class="px-5 py-3.5">{{ $tr('Date') }}</th>
@@ -175,6 +175,7 @@
                         <th class="px-5 py-3.5 text-right">{{ $tr('Detail') }}</th>
                     </tr>
                 </thead>
+                <tbody></tbody>
             </table>
         </div>
     </section>
@@ -185,7 +186,8 @@
     </dialog>
 
     <style>
-        #activity-table_wrapper { padding: 0; }
+        /* DataTables v2 wrapper */
+        .dt-container { padding: 0 !important; }
         #activity-table thead th { border-bottom: 1px solid #e2e8f0; }
         .dark #activity-table thead th { border-bottom-color: rgba(255,255,255,0.1); }
         #activity-table tbody tr { border-bottom: 1px solid #f1f5f9; transition: background-color 150ms; }
@@ -194,78 +196,102 @@
         .dark #activity-table tbody tr:hover { background-color: rgba(255,255,255,0.03); }
         #activity-table tbody tr:last-child { border-bottom: none; }
         #activity-table td { padding: 0.75rem 1.25rem; vertical-align: middle; }
-        .dataTables_paginate { padding: 1rem 1.25rem; border-top: 1px solid #e2e8f0; }
-        .dark .dataTables_paginate { border-top-color: rgba(255,255,255,0.1); }
-        .dataTables_info { padding: 1rem 1.25rem; }
-        .dataTables_processing { border-radius: 0.75rem; background: rgba(255,255,255,0.9); border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-size: 0.875rem; font-weight: 600; color: #475569; }
-        .dark .dataTables_processing { background: rgba(15,23,42,0.9); border-color: rgba(255,255,255,0.1); color: #94a3b8; }
-        .paginate_button { border-radius: 0.5rem !important; padding: 0.375rem 0.75rem !important; margin: 0 0.125rem !important; font-size: 0.875rem !important; border: none !important; background: transparent !important; color: #475569 !important; }
-        .dark .paginate_button { color: #94a3b8 !important; }
-        .paginate_button:hover { background: #f1f5f9 !important; color: #0f172a !important; }
-        .dark .paginate_button:hover { background: rgba(255,255,255,0.1) !important; color: #fff !important; }
-        .paginate_button.current { background: #4f46e5 !important; color: #fff !important; font-weight: 600; }
-        .dark .paginate_button.current { background: #6366f1 !important; }
-        .paginate_button.disabled { opacity: 0.4; cursor: not-allowed; }
-        .dataTables_empty { padding: 3rem 1.25rem !important; text-align: center; color: #94a3b8; }
-        .dark .dataTables_empty { color: #64748b; }
+
+        /* Pagination */
+        .dt-paging { padding: 1rem 1.25rem; border-top: 1px solid #e2e8f0; }
+        .dark .dt-paging { border-top-color: rgba(255,255,255,0.1); }
+        .dt-info { padding: 1rem 1.25rem; }
+        .dt-processing { border-radius: 0.75rem; background: rgba(255,255,255,0.9); border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-size: 0.875rem; font-weight: 600; color: #475569; }
+        .dark .dt-processing { background: rgba(15,23,42,0.9); border-color: rgba(255,255,255,0.1); color: #94a3b8; }
+        .dt-paging-button { border-radius: 0.5rem !important; padding: 0.375rem 0.75rem !important; margin: 0 0.125rem !important; font-size: 0.875rem !important; border: none !important; background: transparent !important; color: #475569 !important; }
+        .dark .dt-paging-button { color: #94a3b8 !important; }
+        .dt-paging-button:hover { background: #f1f5f9 !important; color: #0f172a !important; }
+        .dark .dt-paging-button:hover { background: rgba(255,255,255,0.1) !important; color: #fff !important; }
+        .dt-paging-button.current { background: #4f46e5 !important; color: #fff !important; font-weight: 600; }
+        .dark .dt-paging-button.current { background: #6366f1 !important; }
+        .dt-paging-button.disabled { opacity: 0.4; cursor: not-allowed; }
+        .dt-empty { padding: 3rem 1.25rem !important; text-align: center; color: #94a3b8; }
+        .dark .dt-empty { color: #64748b; }
+
+        /* Hide default DataTables filter (we use our custom filter bar) */
+        .dt-search { display: none !important; }
+        .dt-length { display: none !important; }
     </style>
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             var ajaxUrl = "{{ route('profile.activity.data', request()->query()) }}";
+            var tableEl = document.getElementById("activity-table");
+            if (!tableEl) {
+                console.error("Activity table element not found");
+                return;
+            }
 
-            window.activityTable = new DataTable("#activity-table", {
-                ajax: ajaxUrl,
-                processing: true,
-                serverSide: true,
-                autoWidth: false,
-                pageLength: 25,
-                order: [[0, "desc"]],
-                language: dataTableLanguage(),
-                columns: [
-                    { data: "created_at", name: "created_at" },
-                    { data: "user_name", name: "user_id", orderable: false,
-                        render: function(data, type, row) {
-                            return '<div class="flex items-center gap-3 whitespace-nowrap">' + row.user_avatar +
-                                '<div class="min-w-0"><p class="truncate text-[13px] font-semibold text-slate-900 dark:text-white">' + (data || "") + '</p>' +
-                                '<p class="truncate text-[11px] text-slate-400">' + (row.user_email || "") + '</p></div></div>';
-                        }
-                    },
-                    { data: "action", name: "friendly_action", orderable: false },
-                    { data: "reference", name: "subject_reference_snapshot", orderable: false,
-                        render: function(data) { return data || '<span class="text-xs text-slate-400">—</span>'; }
-                    },
-                    { data: "device", name: "device_name_snapshot", orderable: false,
-                        render: function(data) { return data || '<span class="text-xs text-slate-400">—</span>'; }
-                    },
-                    { data: "nav_url", name: "id", orderable: false, className: "text-right",
-                        render: function(data, type, row) {
-                            var btns = "";
-                            if (data) {
-                                btns += '<a href="' + data + '" class="inline-flex items-center gap-1 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-[12px] font-semibold text-brand transition hover:bg-brand/10 mr-2"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>';
+            try {
+                window.activityTable = new DataTable(tableEl, {
+                    ajax: {
+                        url: ajaxUrl,
+                        dataSrc: function(json) {
+                            if (json.error) {
+                                console.error("DataTable server error:", json.error);
                             }
-                            btns += '<button type="button" onclick="auditOpenDetail(' + row.id + ')" class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-600 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-transparent dark:text-slate-300"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>';
-                            return btns;
+                            return json.data || [];
+                        },
+                        error: function(xhr, error, thrown) {
+                            console.error("DataTable AJAX error:", error, thrown);
                         }
+                    },
+                    processing: true,
+                    serverSide: true,
+                    autoWidth: false,
+                    pageLength: 25,
+                    order: [[0, "desc"]],
+                    language: dataTableLanguage(),
+                    columns: [
+                        { data: "created_at", name: "created_at", searchable: false },
+                        { data: "user_name", name: "user_id", orderable: false, searchable: false,
+                            render: function(data, type, row) {
+                                return '<div class="flex items-center gap-3 whitespace-nowrap">' + (row.user_avatar || '') +
+                                    '<div class="min-w-0"><p class="truncate text-[13px] font-semibold text-slate-900 dark:text-white">' + (data || "") + '</p>' +
+                                    '<p class="truncate text-[11px] text-slate-400">' + (row.user_email || "") + '</p></div></div>';
+                            }
+                        },
+                        { data: "action", name: "friendly_action", orderable: false, searchable: true },
+                        { data: "reference", name: "subject_reference_snapshot", orderable: false, searchable: true,
+                            render: function(data) { return data || '<span class="text-xs text-slate-400">—</span>'; }
+                        },
+                        { data: "device", name: "device_name_snapshot", orderable: false, searchable: true,
+                            render: function(data) { return data || '<span class="text-xs text-slate-400">—</span>'; }
+                        },
+                        { data: "nav_url", name: "id", orderable: false, searchable: false, className: "text-right",
+                            render: function(data, type, row) {
+                                var btns = "";
+                                if (data) {
+                                    btns += '<a href="' + data + '" class="inline-flex items-center gap-1 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2 text-[12px] font-semibold text-brand transition hover:bg-brand/10 mr-2"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>';
+                                }
+                                btns += '<button type="button" onclick="auditOpenDetail(' + row.id + ')" class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-600 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-transparent dark:text-slate-300"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>';
+                                return btns;
+                            }
+                        }
+                    ],
+                    columnDefs: [
+                        { targets: [0], className: "whitespace-nowrap" },
+                        { targets: "_all", defaultContent: "" }
+                    ],
+                    createdRow: function(row, data) {
+                        row.setAttribute("data-row-id", data.id || "");
+                        row.setAttribute("data-row-data", JSON.stringify(data));
+                    },
+                    drawCallback: function() {
+                        var info = this.api().page.info();
+                        var chip = document.querySelector(".audit-result-count");
+                        if (chip) chip.textContent = info.recordsTotal + " {{ $tr('résultat(s)') }}";
                     }
-                ],
-                columnDefs: [
-                    { targets: [0], className: "whitespace-nowrap" },
-                    { targets: "_all", defaultContent: "" }
-                ],
-                createdRow: function(row, data) {
-                    row.setAttribute("data-row-id", data.id || "");
-                    row.setAttribute("data-row-data", JSON.stringify(data));
-                },
-                drawCallback: function() {
-                    var info = this.api().page.info();
-                    var chip = document.querySelector(".audit-result-count");
-                    if (chip) chip.textContent = info.recordsTotal + " {{ $tr('résultat(s)') }}";
-                },
-                initComplete: function() {
-                    document.querySelector("#activity-table_wrapper .dataTables_filter").style.display = "none";
-                }
-            });
+                });
+                console.log("Activity DataTable initialized successfully");
+            } catch (e) {
+                console.error("DataTable initialization error:", e);
+            }
         });
 
         function auditOpenDetail(id) {

@@ -2,6 +2,9 @@ import DataTable from 'datatables.net-dt';
 import 'datatables.net-dt/css/dataTables.dataTables.css';
 import './hardware.js';
 
+// Make DataTable available globally for inline scripts in blade files
+window.DataTable = DataTable;
+
 const money = new Intl.NumberFormat('fr-MA', {
     style: 'currency',
     currency: 'MAD',
