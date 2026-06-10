@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant.access' => \App\Http\Middleware\EnsureTenantAccess::class,
             'session.unlocked' => \App\Http\Middleware\EnsureSessionUnlocked::class,
+            'device.selected' => \App\Http\Middleware\EnsureVirtualDeviceSelected::class,
         ]);
 
         $middleware->web(append: [

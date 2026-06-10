@@ -81,6 +81,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="color-scheme" content="light dark">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        <meta name="device-heartbeat" content="{{ route('device.heartbeat') }}">
         <title>{{ $title ?? 'LibrairePro' }}</title>
         <link rel="manifest" href="/manifest.json">
         <meta name="theme-color" content="{{ $theme['primary'] }}">
@@ -247,6 +248,7 @@
                     ['label' => 'Liste des pays', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'countries'])],
                     ['label' => 'Liste des états', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'states'])],
                     ['label' => 'Changer le mot de passe', 'icon' => '⌐', 'href' => route('module', ['module' => 'settings', 'section' => 'password'])],
+                    ['label' => 'Appareils virtuels', 'icon' => '🖥', 'href' => route('devices.index')],
                     ['label' => 'Matériel', 'icon' => '🖨', 'href' => route('module', ['module' => 'settings', 'section' => 'hardware'])],
                 ]],
             ];
@@ -590,10 +592,61 @@
                                         <span class="min-w-0">
                                             <strong class="block truncate text-sm">{{ $accountUser->name }}</strong>
                                             <small class="block truncate text-xs text-slate-500">{{ $accountUser->email }}</small>
-                                            <span class="mt-1 inline-flex max-w-full items-center rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">{{ $accountRoleName }}</span>
+                                    <span class="mt-1 inline-flex max-w-full items-center rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">{{ $accountRoleName }}</span>
+                                </span>
+                            </div>
+                            @php
+                                $deviceSessionId = session('virtual_device_session_id');
+                                $currentDevice = null;
+                                if ($deviceSessionId) {
+                                    $currentDevice = \App\Models\VirtualDeviceSession::where('id', $deviceSessionId)
+                                        ->whereNull('disconnected_at')
+                                        ->with('virtualDevice')
+                                        ->first();
+                                }
+                                $isConnected = $currentDevice?->virtualDevice !== null;
+                                $deviceType = $currentDevice?->virtualDevice?->type ?? 'computer';
+                                $typeIcon = match($deviceType) {
+                                    'mobile' => '📱', 'tablet' => '📋',
+                                    default => '💻'
+                                };
+                            @endphp
+                            <div class="border-b border-slate-100 px-1 pb-3 pt-2 dark:border-white/10">
+                                <a href="{{ route('device.select') }}" class="group flex items-center gap-3 rounded-xl px-2 py-2.5 transition hover:bg-slate-50 dark:hover:bg-white/5">
+                                    <span class="relative grid size-10 shrink-0 place-items-center rounded-xl text-lg transition group-hover:scale-105 {{ $isConnected ? 'bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-sm shadow-emerald-500/25' : 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-sm shadow-amber-500/25' }}">
+                                        {{ $typeIcon }}
+                                        @if ($isConnected)
+                                            <span class="absolute -right-0.5 -top-0.5 size-3 rounded-full border-2 border-white bg-emerald-400 dark:border-slate-950">
+                                                <span class="absolute inset-0 animate-ping rounded-full bg-emerald-400"></span>
+                                            </span>
+                                        @endif
+                                    </span>
+                                    <span class="min-w-0 flex-1">
+                                        <strong class="block truncate text-[13px] font-semibold leading-tight text-slate-900 dark:text-white">
+                                            {{ $isConnected ? $currentDevice->virtualDevice->name : $tr('Aucun appareil') }}
+                                        </strong>
+                                        <span class="mt-0.5 flex items-center gap-1.5">
+                                            @if ($isConnected)
+                                                <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
+                                                    {{ $tr('Connecté') }}
+                                                </span>
+                                                @if ($currentDevice->platform || $currentDevice->browser)
+                                                    <span class="text-[11px] text-slate-400">· {{ $currentDevice->platform }} {{ $currentDevice->browser }}</span>
+                                                @endif
+                                            @else
+                                                <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                                                    <span class="size-1.5 rounded-full bg-amber-500"></span>
+                                                    {{ $tr('Non connecté') }}
+                                                </span>
+                                                <span class="text-[11px] text-slate-400">· {{ $tr('Sélectionner') }}</span>
+                                            @endif
                                         </span>
-                                    </div>
-                                    <a href="{{ route('profile') }}" class="mt-2 block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Mon profil') }}</a>
+                                    </span>
+                                    <svg class="size-4 shrink-0 -translate-x-1 text-slate-300 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                </a>
+                            </div>
+                            <a href="{{ route('profile') }}" class="mt-2 block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Mon profil') }}</a>
                                     <a href="{{ route('module', ['module' => 'settings', 'section' => 'users']) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Utilisateurs & rôles') }}</a>
                                     <button class="app-theme-toggle w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="button">
                                         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>

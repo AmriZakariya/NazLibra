@@ -3886,3 +3886,61 @@ document.querySelectorAll('.barcode-scan-btn').forEach((button) => {
         }
     });
 });
+
+// Virtual device heartbeat
+(function () {
+    const heartbeatIntervalMs = 30000; // 30 seconds
+    const heartbeatUrl = document.querySelector('meta[name="device-heartbeat"]')?.content;
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
+    if (!heartbeatUrl || !csrfToken) return;
+
+    let heartbeatTimer = null;
+    let failures = 0;
+
+    const sendHeartbeat = () => {
+        fetch(heartbeatUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json',
+            },
+        }).then((response) => {
+            if (response.status === 410) {
+                // Device deactivated — redirect to selection
+                window.location.href = '/appareil/selectionner';
+                return;
+            }
+            if (!response.ok) {
+                failures++;
+                if (failures >= 3) {
+                    // Too many failures — redirect to selection
+                    window.location.href = '/appareil/selectionner';
+                }
+                return;
+            }
+            failures = 0;
+            response.json().then((data) => {
+                if (data.deactivated) {
+                    window.location.href = '/appareil/selectionner';
+                }
+            });
+        }).catch(() => {
+            failures++;
+            if (failures >= 3) {
+                window.location.href = '/appareil/selectionner';
+            }
+        });
+    };
+
+    heartbeatTimer = setInterval(sendHeartbeat, heartbeatIntervalMs);
+    sendHeartbeat(); // Initial heartbeat
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            failures = 0;
+            sendHeartbeat();
+        }
+    });
+})();

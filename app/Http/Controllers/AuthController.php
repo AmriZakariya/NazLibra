@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Notifications\ResetPasswordNotification;
 use App\Notifications\ResetPinNotification;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Yajra\DataTables\Facades\DataTables;
 
 class AuthController extends Controller
 {
@@ -135,6 +137,16 @@ class AuthController extends Controller
 
     public function logout(Request $request): RedirectResponse
     {
+        $deviceSessionId = $request->session()->get('virtual_device_session_id');
+        if ($deviceSessionId) {
+            \App\Models\VirtualDeviceSession::where('id', $deviceSessionId)
+                ->whereNull('disconnected_at')
+                ->update([
+                    'disconnected_at' => now(),
+                    'disconnect_reason' => 'logout',
+                ]);
+        }
+
         Auth::logout();
 
         $request->session()->invalidate();
@@ -178,6 +190,7 @@ class AuthController extends Controller
             'to' => ['nullable', 'date'],
             'method' => ['nullable', 'in:POST,PUT,PATCH,DELETE'],
             'q' => ['nullable', 'string', 'max:120'],
+            'device_id' => ['nullable', 'integer'],
         ]);
 
         $query = AuditLog::query()
@@ -187,6 +200,10 @@ class AuthController extends Controller
 
         if (! empty($filters['user_id'])) {
             $query->where('user_id', (int) $filters['user_id']);
+        }
+
+        if (! empty($filters['device_id'])) {
+            $query->where('virtual_device_id', (int) $filters['device_id']);
         }
 
         if (! empty($filters['from'])) {
@@ -205,9 +222,17 @@ class AuthController extends Controller
             $search = trim((string) $filters['q']);
             $query->where(function ($builder) use ($search): void {
                 $builder->where('action', 'like', '%'.$search.'%')
+                    ->orWhere('friendly_action', 'like', '%'.$search.'%')
                     ->orWhere('subject_type', 'like', '%'.$search.'%')
+                    ->orWhere('subject_reference_snapshot', 'like', '%'.$search.'%')
+                    ->orWhere('subject_name_snapshot', 'like', '%'.$search.'%')
                     ->orWhere('properties->path', 'like', '%'.$search.'%')
-                    ->orWhere('properties->url', 'like', '%'.$search.'%');
+                    ->orWhere('properties->url', 'like', '%'.$search.'%')
+                    ->orWhere('device_name_snapshot', 'like', '%'.$search.'%')
+                    ->orWhere('device_code_snapshot', 'like', '%'.$search.'%')
+                    ->orWhere('real_device_platform', 'like', '%'.$search.'%')
+                    ->orWhere('real_device_browser', 'like', '%'.$search.'%')
+                    ->orWhere('real_device_ip', 'like', '%'.$search.'%');
             });
         }
 
@@ -219,12 +244,14 @@ class AuthController extends Controller
             'user' => $user,
             'logs' => $logs,
             'users' => $tenant->users()->orderBy('name')->get(),
+            'devices' => \App\Models\VirtualDevice::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'filters' => [
                 'user_id' => $filters['user_id'] ?? '',
                 'from' => $filters['from'] ?? '',
                 'to' => $filters['to'] ?? '',
                 'method' => $filters['method'] ?? '',
                 'q' => $filters['q'] ?? '',
+                'device_id' => $filters['device_id'] ?? '',
             ],
             'totals' => [
                 'all' => AuditLog::where('tenant_id', $tenant->id)->count(),
@@ -233,6 +260,134 @@ class AuthController extends Controller
             ],
             'actionLabels' => $this->actionLabels(),
         ]);
+    }
+
+    public function activityData(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $tenant = $user?->currentTenant ?: Tenant::query()->firstOrFail();
+
+        if (! $this->isOwner($tenant, $user)) {
+            abort(403);
+        }
+
+        $filters = $request->validate([
+            'user_id' => ['nullable', 'integer'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+            'method' => ['nullable', 'in:POST,PUT,PATCH,DELETE'],
+            'q' => ['nullable', 'string', 'max:120'],
+            'device_id' => ['nullable', 'integer'],
+        ]);
+
+        $query = AuditLog::query()->where('tenant_id', $tenant->id)->with('user')->latest();
+
+        if (! empty($filters['user_id'])) {
+            $query->where('user_id', (int) $filters['user_id']);
+        }
+        if (! empty($filters['device_id'])) {
+            $query->where('virtual_device_id', (int) $filters['device_id']);
+        }
+        if (! empty($filters['from'])) {
+            $query->where('created_at', '>=', \Carbon\Carbon::parse($filters['from'])->startOfDay());
+        }
+        if (! empty($filters['to'])) {
+            $query->where('created_at', '<=', \Carbon\Carbon::parse($filters['to'])->endOfDay());
+        }
+        if (! empty($filters['method'])) {
+            $query->where('properties->method', $filters['method']);
+        }
+        if (! empty($filters['q'])) {
+            $search = trim((string) $filters['q']);
+            $query->where(function ($builder) use ($search): void {
+                $builder->where('action', 'like', '%'.$search.'%')
+                    ->orWhere('friendly_action', 'like', '%'.$search.'%')
+                    ->orWhere('subject_reference_snapshot', 'like', '%'.$search.'%')
+                    ->orWhere('subject_name_snapshot', 'like', '%'.$search.'%')
+                    ->orWhere('properties->path', 'like', '%'.$search.'%')
+                    ->orWhere('device_name_snapshot', 'like', '%'.$search.'%')
+                    ->orWhere('real_device_platform', 'like', '%'.$search.'%')
+                    ->orWhere('real_device_browser', 'like', '%'.$search.'%')
+                    ->orWhere('real_device_ip', 'like', '%'.$search.'%');
+            });
+        }
+
+        $actionLabels = $this->actionLabels();
+
+        $subjectNavUrl = function ($log) {
+            $type = $log->subject_type;
+            $id = $log->subject_id;
+            if (! $type || ! $id) {
+                return null;
+            }
+            $map = [
+                'App\Models\Sale' => ['module' => 'sales', 'section' => 'list', 'param' => 'detail_sale'],
+                'App\Models\SaleReturn' => ['module' => 'sales', 'section' => 'returns', 'param' => 'detail_return'],
+                'App\Models\Purchase' => ['module' => 'purchases', 'section' => 'list', 'param' => 'detail_purchase'],
+                'App\Models\PurchaseReturn' => ['module' => 'purchases', 'section' => 'returns', 'param' => 'detail_purchase_return'],
+                'App\Models\Item' => ['route' => 'catalog', 'query' => ['panel' => 'articles']],
+                'App\Models\Contact' => ['module' => 'contacts', 'section' => 'customers'],
+            ];
+            if (isset($map[$type])) {
+                $m = $map[$type];
+                if (isset($m['route'])) {
+                    return route($m['route'], $m['query'] ?? []);
+                }
+                return route('module', array_merge(['module' => $m['module'], 'section' => $m['section']], [$m['param'] => $id]));
+            }
+            return null;
+        };
+
+        return DataTables::eloquent($query)
+            ->editColumn('created_at', fn (AuditLog $log) => $log->created_at?->format('d/m/Y H:i'))
+            ->editColumn('action', function (AuditLog $log) use ($actionLabels) {
+                $friendly = $log->friendly_action ?: ($actionLabels[$log->action] ?? null);
+                return view('partials.activity-action-cell', [
+                    'log' => $log,
+                    'friendlyLabel' => $friendly,
+                ])->render();
+            })
+            ->addColumn('reference', function (AuditLog $log) {
+                $ref = $log->subject_reference_snapshot;
+                $name = $log->subject_name_snapshot;
+                if (! $ref && ! $name) return '';
+                return view('partials.activity-reference-cell', [
+                    'reference' => $ref,
+                    'name' => $name,
+                ])->render();
+            })
+            ->addColumn('device', function (AuditLog $log) {
+                if (! $log->device_name_snapshot) return '';
+                return view('partials.activity-device-cell', [
+                    'log' => $log,
+                ])->render();
+            })
+            ->addColumn('user_avatar', fn (AuditLog $log) => '<span class="grid size-8 shrink-0 place-items-center rounded-lg bg-brand/10 text-[11px] font-bold text-brand">'.e(Str::upper(Str::substr($log->user?->name ?? 'S', 0, 2))).'</span>')
+            ->addColumn('user_name', fn (AuditLog $log) => e($log->user?->name ?? 'Système'))
+            ->addColumn('user_email', fn (AuditLog $log) => e($log->user?->email ?? ''))
+            ->addColumn('nav_url', function (AuditLog $log) use ($subjectNavUrl) {
+                return $subjectNavUrl($log);
+            })
+            ->addColumn('action_raw', fn (AuditLog $log) => e($log->action))
+            ->addColumn('properties_json', function (AuditLog $log) {
+                $props = $log->properties ?? [];
+                $payload = $props['payload'] ?? [];
+                $routeParams = $props['route_parameters'] ?? [];
+                $method = (string) ($props['method'] ?? '—');
+                return json_encode([
+                    'method' => $method,
+                    'status_code' => $props['status_code'] ?? '—',
+                    'ip' => $props['ip'] ?? '—',
+                    'route' => $props['route'] ?? '—',
+                    'path' => $props['path'] ?? '—',
+                    'url' => $props['url'] ?? '—',
+                    'user_agent' => $props['user_agent'] ?? '—',
+                    'payload_json' => json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'route_json' => json_encode($routeParams, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                ], JSON_UNESCAPED_UNICODE);
+            })
+            ->rawColumns(['action', 'reference', 'device', 'user_avatar'])
+            ->toJson();
     }
 
     /**
@@ -343,6 +498,12 @@ class AuthController extends Controller
             'messaging.templates.store' => 'Création modèle',
             'messaging.templates.update' => 'Modification modèle',
             'messaging.templates.destroy' => 'Suppression modèle',
+            'devices.store' => 'Création appareil',
+            'devices.update' => 'Modification appareil',
+            'devices.destroy' => 'Suppression appareil',
+            'devices.toggle' => 'Activation/désactivation appareil',
+            'device.connect' => 'Connexion appareil',
+            'device.disconnect' => 'Déconnexion appareil',
         ];
     }
 

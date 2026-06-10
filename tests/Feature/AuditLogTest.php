@@ -76,10 +76,19 @@ class AuditLogTest extends TestCase
                 'q' => 'pos',
             ]))
             ->assertOk()
-            ->assertSee('Journal d’activité')
-            ->assertSee('Youssef Benali')
-            ->assertSee('pos.store')
-            ->assertDontSee('catalog.items.store');
+            ->assertSee('Journal d', false)
+            ->assertSee('Filtrer');
+
+        $response = $this->actingAs($owner)
+            ->getJson(route('profile.activity.data', [
+                'user_id' => $cashier->id,
+                'from' => now()->toDateString(),
+                'to' => now()->toDateString(),
+                'method' => 'POST',
+                'q' => 'pos',
+            ]))
+            ->assertOk()
+            ->assertJsonPath('recordsTotal', 1);
     }
 
     public function test_only_owner_can_view_activity_log(): void

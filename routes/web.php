@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LibraireProController;
+use App\Http\Controllers\VirtualDeviceController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/manifest.json', [LibraireProController::class, 'manifest'])->name('manifest');
@@ -12,6 +13,7 @@ Route::post('/deconnexion', [AuthController::class, 'logout'])->middleware('auth
 Route::get('/profil', [AuthController::class, 'profile'])->middleware(['auth', 'session.unlocked'])->name('profile');
 Route::put('/profil', [AuthController::class, 'updateProfile'])->middleware(['auth', 'session.unlocked'])->name('profile.update');
 Route::get('/profil/activite', [AuthController::class, 'activity'])->middleware(['auth', 'tenant.access', 'session.unlocked'])->name('profile.activity');
+Route::get('/profil/activite/data', [AuthController::class, 'activityData'])->middleware(['auth', 'tenant.access', 'session.unlocked'])->name('profile.activity.data');
 Route::get('/session/verrouillee', [AuthController::class, 'lockedScreen'])->middleware(['auth', 'tenant.access'])->name('session.locked');
 Route::post('/session/verrouiller', [AuthController::class, 'lockSession'])->middleware(['auth', 'tenant.access'])->name('session.lock');
 Route::post('/session/deverrouiller', [AuthController::class, 'unlockSession'])->middleware(['auth', 'tenant.access'])->name('session.unlock');
@@ -25,7 +27,7 @@ Route::post('/reinitialiser-mot-de-passe', [AuthController::class, 'updatePasswo
 Route::get('/reinitialiser-pin', [AuthController::class, 'showResetPin'])->name('pin.reset');
 Route::post('/reinitialiser-pin', [AuthController::class, 'updatePin'])->name('pin.reset.update');
 
-Route::middleware(['auth', 'tenant.access', 'session.unlocked'])->group(function (): void {
+Route::middleware(['auth', 'tenant.access', 'session.unlocked', 'device.selected'])->group(function (): void {
 Route::post('/langue/{locale}', [LibraireProController::class, 'switchLocale'])->name('locale.switch');
 Route::get('/', [LibraireProController::class, 'dashboard'])->name('dashboard');
 Route::get('/guide-fonctionnalites', [LibraireProController::class, 'functionalityGuide'])->name('functionality-guide');
@@ -223,4 +225,17 @@ Route::post('/parametres/roles', [LibraireProController::class, 'storeRole'])->n
 Route::put('/parametres/roles/{role}', [LibraireProController::class, 'updateRole'])->name('settings.roles.update');
 Route::delete('/parametres/roles/{role}', [LibraireProController::class, 'destroyRole'])->name('settings.roles.destroy');
 Route::get('/modules/{module}', [LibraireProController::class, 'module'])->name('module');
+
+// Virtual devices: selection & heartbeat (no device.selected middleware)
+Route::get('/appareil/selectionner', [VirtualDeviceController::class, 'selectDevice'])->name('device.select');
+Route::post('/appareil/connecter', [VirtualDeviceController::class, 'connectDevice'])->name('device.connect');
+Route::post('/appareil/deconnecter', [VirtualDeviceController::class, 'disconnectDevice'])->name('device.disconnect');
+Route::post('/appareil/heartbeat', [VirtualDeviceController::class, 'heartbeat'])->name('device.heartbeat');
+
+// Virtual devices: management (owner only)
+Route::get('/appareils', [VirtualDeviceController::class, 'index'])->name('devices.index');
+Route::post('/appareils', [VirtualDeviceController::class, 'store'])->name('devices.store');
+Route::put('/appareils/{device}', [VirtualDeviceController::class, 'update'])->name('devices.update');
+Route::put('/appareils/{device}/statut', [VirtualDeviceController::class, 'toggleStatus'])->name('devices.toggle');
+Route::delete('/appareils/{device}', [VirtualDeviceController::class, 'destroy'])->name('devices.destroy');
 });
