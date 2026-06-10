@@ -586,15 +586,17 @@ if (sidebarEl && !document.documentElement.classList.contains('app-fullscreen-mo
     updateNavToggle();
 }
 
+const isFullscreenMode = () => document.documentElement.classList.contains('app-fullscreen-mode');
+
 const showSidebarPeek = () => {
-    if (!peekEnabled()) return;
+    if (!peekEnabled() || !isFullscreenMode()) return;
     clearTimeout(peekTimeout);
     sidebarEl?.classList.add('is-visible');
     updateNavToggle();
 };
 
 const hideSidebarPeek = () => {
-    if (!peekEnabled()) return;
+    if (!peekEnabled() || !isFullscreenMode()) return;
     peekTimeout = setTimeout(() => {
         if (!sidebarEl?.matches(':hover') && !sidebarPeek?.matches(':hover')) {
             sidebarEl?.classList.remove('is-visible');
