@@ -391,9 +391,16 @@
                         <small>{{ $releaseLabel }} · {{ now()->format('d/m/Y') }}</small>
                     </span>
                 </div>
-                <button class="sidebar-peek-toggle mx-3 mb-3 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300" type="button" data-sidebar-peek-toggle title="Afficher automatiquement le menu au survol">
-                    <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                    <span class="sidebar-peek-label">Au survol</span>
+                <button class="sidebar-peek-toggle mx-3 mb-3" type="button" data-sidebar-peek-toggle aria-pressed="true" title="Afficher automatiquement le menu au survol">
+                    <span class="sidebar-peek-icon" aria-hidden="true">
+                        <svg class="sidebar-peek-eye size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <svg class="sidebar-peek-hand hidden size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11V7a2 2 0 1 1 4 0v4"/><path d="M12 10V6a2 2 0 1 1 4 0v6"/><path d="M16 11V8a2 2 0 1 1 4 0v7a6 6 0 0 1-6 6h-2.2a6 6 0 0 1-5.1-2.8L4 14a1.9 1.9 0 0 1 3.1-2.2L9 14"/></svg>
+                    </span>
+                    <span class="sidebar-peek-copy">
+                        <span class="sidebar-peek-kicker">{{ $tr('Affichage menu') }}</span>
+                        <span class="sidebar-peek-label">Au survol</span>
+                    </span>
+                    <span class="sidebar-peek-badge">Auto</span>
                 </button>
 
             </aside>

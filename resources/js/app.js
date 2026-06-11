@@ -922,10 +922,17 @@ document.querySelectorAll('[data-sidebar-nav-toggle]').forEach((btn) => {
 // Sidebar peek toggle
 document.querySelectorAll('[data-sidebar-peek-toggle]').forEach((btn) => {
     const label = btn.querySelector('.sidebar-peek-label');
+    const badge = btn.querySelector('.sidebar-peek-badge');
+    const eyeIcon = btn.querySelector('.sidebar-peek-eye');
+    const handIcon = btn.querySelector('.sidebar-peek-hand');
     const updatePeekButton = () => {
         const enabled = peekEnabled();
         btn.classList.toggle('is-active', enabled);
-        if (label) label.textContent = enabled ? 'Au survol' : 'Manuel';
+        btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        if (label) label.textContent = enabled ? 'Au survol' : 'Ouverture manuelle';
+        if (badge) badge.textContent = enabled ? 'Auto' : 'Manuel';
+        eyeIcon?.classList.toggle('hidden', !enabled);
+        handIcon?.classList.toggle('hidden', enabled);
         btn.title = enabled ? 'Le menu s\'affiche automatiquement au survol' : 'Le menu reste caché, utilisez le bouton pour l\'afficher';
     };
 
