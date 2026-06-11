@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -47,5 +48,19 @@ class Sale extends Model
     public function deliveryOrders(): HasMany
     {
         return $this->hasMany(DeliveryOrder::class);
+    }
+
+    public function coupons(): BelongsToMany
+    {
+        return $this->belongsToMany(Coupon::class, 'coupon_sale')
+            ->withPivot('amount_applied')
+            ->withTimestamps();
+    }
+
+    public function discountRules(): BelongsToMany
+    {
+        return $this->belongsToMany(DiscountRule::class, 'discount_rule_sale')
+            ->withPivot('amount_applied')
+            ->withTimestamps();
     }
 }

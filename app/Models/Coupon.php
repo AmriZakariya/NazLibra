@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 #[Fillable(['tenant_id', 'contact_id', 'name', 'code', 'type', 'value', 'minimum_amount', 'max_uses', 'used_amount', 'expires_at', 'is_active', 'notes', 'metadata'])]
 class Coupon extends Model
@@ -29,5 +30,12 @@ class Coupon extends Model
     public function contact(): BelongsTo
     {
         return $this->belongsTo(Contact::class);
+    }
+
+    public function sales(): BelongsToMany
+    {
+        return $this->belongsToMany(Sale::class, 'coupon_sale')
+            ->withPivot('amount_applied')
+            ->withTimestamps();
     }
 }

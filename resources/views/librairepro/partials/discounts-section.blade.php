@@ -91,7 +91,7 @@
         <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
             <div class="overflow-x-auto">
                 <table class="w-full min-w-[1120px] text-left text-sm">
-                    <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">Remise</th><th class="px-3 py-3">Portée</th><th class="px-3 py-3 text-right">Valeur</th><th class="px-3 py-3 text-right">Minimum</th><th class="px-3 py-3">Paiement</th><th class="px-3 py-3">Articles</th><th class="px-3 py-3">Période</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3 text-right">Action</th></tr></thead>
+                    <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">Remise</th><th class="px-3 py-3">Portée</th><th class="px-3 py-3 text-right">Valeur</th><th class="px-3 py-3 text-right">Minimum</th><th class="px-3 py-3">Paiement</th><th class="px-3 py-3">Articles</th><th class="px-3 py-3">Période</th><th class="px-3 py-3">Instances</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3 text-right">Action</th></tr></thead>
                     <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                         @forelse ($discountRules as $rule)
                             @php
@@ -99,6 +99,7 @@
                                 $includedIds = collect($rule->included_item_ids ?? [])->map(fn ($id) => (int) $id)->all();
                                 $excludedIds = collect($rule->excluded_item_ids ?? [])->map(fn ($id) => (int) $id)->all();
                                 $paymentMethods = collect($rule->payment_methods ?? [])->all();
+                                $assignment = $discountAssignments[$rule->id] ?? null;
                             @endphp
                             <tr>
                                 <td class="px-3 py-3"><p class="font-black">{{ $rule->name }}</p><p class="text-xs text-slate-500">{{ $rule->code ?: 'Sans code' }}</p></td>
@@ -108,6 +109,7 @@
                                 <td class="px-3 py-3">{{ empty($paymentMethods) ? 'Tous' : collect($paymentMethods)->map(fn ($method) => $paymentMethodLabels[$method] ?? $method)->join(', ') }}</td>
                                 <td class="px-3 py-3"><span class="font-semibold">{{ count($includedIds) ?: 'Tous' }}</span> inclus<p class="text-xs text-slate-500">{{ count($excludedIds) }} exclu(s)</p></td>
                                 <td class="px-3 py-3">{{ $rule->starts_at?->format('d/m/Y') ?? 'Maintenant' }} → {{ $rule->ends_at?->format('d/m/Y') ?? 'Illimité' }}</td>
+                                <td class="px-3 py-3">@if($assignment && $assignment['count'] > 0)<details class="inline-block"><summary class="cursor-pointer rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{{ number_format($assignment['count'], 0, ',', ' ') }}</summary><div class="mt-2 rounded-lg border border-slate-100 bg-white p-2 text-xs dark:border-white/10">@foreach($assignment['list'] as $a)<div class="py-1"><a href="{{ route('module', ['module' => 'sales', 'detail_sale' => $a['id']]) }}" class="font-medium">{{ $a['number'] }}</a><span class="ml-2 text-slate-500">· {{ $money($a['total']) }}</span></div>@endforeach</div></details>@else<span class="text-xs text-slate-500">—</span>@endif</td>
                                 <td class="px-3 py-3"><x-status-pill :tone="! $rule->is_active ? 'danger' : ($expired ? 'warning' : 'success')">{{ ! $rule->is_active ? 'Inactive' : ($expired ? 'Expirée' : 'Active') }}</x-status-pill></td>
                                 <td class="px-3 py-3 text-right"><button type="button" onclick="document.getElementById('discount-edit-{{ $rule->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Modifier</button></td>
                             </tr>

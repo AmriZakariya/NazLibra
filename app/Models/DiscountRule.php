@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 #[Fillable(['tenant_id', 'name', 'code', 'type', 'value', 'scope', 'minimum_amount', 'included_item_ids', 'excluded_item_ids', 'payment_methods', 'starts_at', 'ends_at', 'is_active', 'notes', 'metadata'])]
 class DiscountRule extends Model
@@ -39,5 +40,12 @@ class DiscountRule extends Model
             ->where(function (Builder $builder): void {
                 $builder->whereNull('ends_at')->orWhereDate('ends_at', '>=', now()->toDateString());
             });
+    }
+
+    public function sales(): BelongsToMany
+    {
+        return $this->belongsToMany(Sale::class, 'discount_rule_sale')
+            ->withPivot('amount_applied')
+            ->withTimestamps();
     }
 }

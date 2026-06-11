@@ -3372,6 +3372,19 @@ class LibraireProController extends Controller
                         'used_amount' => DB::raw('used_amount + '.(float) $couponDetail['amount']),
                         'updated_at' => now(),
                     ]);
+                    // Create pivot record for coupon assignment tracking
+                    $sale->coupons()->attach($couponDetail['coupon_id'], [
+                        'tenant_id' => $tenant->id,
+                        'amount_applied' => (float) $couponDetail['amount'],
+                    ]);
+                }
+
+                // Create pivot record for discount rule assignment tracking
+                if ($ruleDetail['valid'] && $ruleDetail['rule_id']) {
+                    $sale->discountRules()->attach($ruleDetail['rule_id'], [
+                        'tenant_id' => $tenant->id,
+                        'amount_applied' => (float) $ruleDetail['amount'],
+                    ]);
                 }
 
                 if (! empty($data['ticket_id'])) {
@@ -5150,6 +5163,53 @@ class LibraireProController extends Controller
                 'customer' => Coupon::where('tenant_id', $tenant->id)->whereNotNull('contact_id')->count(),
                 'page' => $coupons->sum('used_amount'),
             ],
+            // Build quick assignment lists for coupons and discount rules so the UI can
+            // show which tickets / sales used them and allow navigation to the source.
+            'couponAssignments' => collect($coupons->getCollection())->mapWithKeys(function ($coupon) use ($tenant) {
+                // First, try to get from pivot table (new fast approach)
+                $pivotSales = Sale::where('tenant_id', $tenant->id)
+                    ->whereHas('coupons', fn ($q) => $q->where('coupon_id', $coupon->id))
+                    ->latest('sold_at')
+                    ->take(6)
+                    ->get(['id', 'number', 'total_amount']);
+
+                // Also check PosTickets for legacy compatibility
+                $ticketsQuery = PosTicket::where('tenant_id', $tenant->id)->where('coupon_code', $coupon->code);
+                $tickets = $ticketsQuery->latest('held_at')->take(6)->get(['id', 'number', 'total_amount', 'converted_sale_id']);
+
+                $list = [];
+                foreach ($pivotSales as $s) {
+                    $list[] = ['type' => 'sale', 'id' => $s->id, 'number' => $s->number, 'total' => $s->total_amount];
+                }
+                foreach ($tickets as $t) {
+                    if (! empty($t->converted_sale_id)) {
+                        $list[] = ['type' => 'sale', 'id' => $t->converted_sale_id, 'number' => $t->number, 'total' => $t->total_amount];
+                    } else {
+                        $list[] = ['type' => 'ticket', 'id' => $t->id, 'number' => $t->number, 'total' => $t->total_amount];
+                    }
+                }
+
+                $count = $pivotSales->count() + $ticketsQuery->count();
+
+                return [$coupon->id => ['count' => $count, 'list' => $list]];
+            })->all(),
+
+            'discountAssignments' => collect($discountRules->getCollection())->mapWithKeys(function ($rule) use ($tenant) {
+                // Use pivot table for fast assignment tracking
+                $sales = Sale::where('tenant_id', $tenant->id)
+                    ->whereHas('discountRules', fn ($q) => $q->where('discount_rule_id', $rule->id))
+                    ->latest('sold_at')
+                    ->take(6)
+                    ->get(['id', 'number', 'total_amount']);
+
+                $list = [];
+                foreach ($sales as $s) {
+                    $list[] = ['type' => 'sale', 'id' => $s->id, 'number' => $s->number, 'total' => $s->total_amount];
+                }
+                $count = $sales->count();
+
+                return [$rule->id => ['count' => $count, 'list' => $list]];
+            })->all(),
             'advanceStats' => [
                 'balance' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->sum('advance_balance'),
                 'month' => CustomerAdvance::where('tenant_id', $tenant->id)->where('status', 'active')->whereDate('paid_at', '>=', now()->startOfMonth())->sum('amount'),
