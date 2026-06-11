@@ -220,6 +220,7 @@ class DatabaseSeeder extends Seeder
 
             ItemVariant::create([
                 'item_id' => $items[1]->id,
+                'tenant_id' => $tenant->id,
                 'name' => 'Couverture bleue',
                 'attributes' => ['couleur' => 'Bleu', 'format' => 'A4'],
                 'barcode' => 'PAP-C96-GC-BLU',

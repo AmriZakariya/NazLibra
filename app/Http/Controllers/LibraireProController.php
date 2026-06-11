@@ -1714,6 +1714,7 @@ class LibraireProController extends Controller
 
         ItemVariant::create([
             'item_id' => $data['item_id'],
+            'tenant_id' => $tenant->id,
             'name' => $data['name'],
             'attributes' => array_filter([
                 'format' => $data['format'] ?? null,
@@ -2969,7 +2970,12 @@ class LibraireProController extends Controller
                     ->orWhere('description', 'like', "%{$query}%")
                     ->orWhereHas('category', fn (Builder $categoryQuery) => $categoryQuery->where('name', 'like', "%{$query}%"))
                     ->orWhereHas('brand', fn (Builder $brandQuery) => $brandQuery->where('name', 'like', "%{$query}%"))
-                    ->orWhereHas('unit', fn (Builder $unitQuery) => $unitQuery->where('name', 'like', "%{$query}%"));
+                    ->orWhereHas('unit', fn (Builder $unitQuery) => $unitQuery->where('name', 'like', "%{$query}%"))
+                    ->orWhereHas('variants', function (Builder $variantQuery) use ($query): void {
+                        $variantQuery->where('barcode', $query)
+                            ->orWhere('sku', $query)
+                            ->orWhere('isbn', $query);
+                    });
             }))
             ->when(in_array($type, ['book', 'supply', 'service'], true), fn (Builder $builder) => $builder->where('type', $type))
             ->when($category !== 'all', fn (Builder $builder) => $builder->where('category_id', $category))
