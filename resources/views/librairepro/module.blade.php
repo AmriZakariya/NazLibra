@@ -1692,6 +1692,8 @@
                 'coupons' => ['label' => 'Liste coupons', 'href' => route('module', ['module' => 'finance', 'section' => 'coupons'])],
                 'customer-coupon-add' => ['label' => 'Créer coupon client', 'href' => route('module', ['module' => 'finance', 'section' => 'customer-coupon-add'])],
                 'customer-coupons' => ['label' => 'Coupons client', 'href' => route('module', ['module' => 'finance', 'section' => 'customer-coupons'])],
+                'discount-add' => ['label' => 'Créer remise', 'href' => route('module', ['module' => 'finance', 'section' => 'discount-add'])],
+                'discounts' => ['label' => 'Liste remises', 'href' => route('module', ['module' => 'finance', 'section' => 'discounts'])],
                 'expenses' => ['label' => 'Liste des dépenses', 'href' => route('module', ['module' => 'finance', 'section' => 'expenses'])],
                 'expense-add' => ['label' => 'Ajouter dépense', 'href' => route('module', ['module' => 'finance', 'section' => 'expense-add'])],
                 'expense-categories' => ['label' => 'Catégories', 'href' => route('module', ['module' => 'finance', 'section' => 'expense-categories'])],
@@ -1705,7 +1707,7 @@
             </summary>
             <nav class="app-tab-nav">
                 @foreach ($financeTabs as $key => $tab)
-                    <a href="{{ $tab['href'] }}" class="app-tab-link {{ $financeSection === $key || ($key === 'expenses' && ! in_array($financeSection, ['advance-add', 'advances', 'account-add', 'accounts', 'transfers', 'deposits', 'cash', 'coupon-add', 'coupons', 'customer-coupon-add', 'customer-coupons', 'expense-add', 'expense-categories'], true)) ? 'is-active' : '' }}">{{ $tab['label'] }}</a>
+                    <a href="{{ $tab['href'] }}" class="app-tab-link {{ $financeSection === $key || ($key === 'expenses' && ! in_array($financeSection, ['advance-add', 'advances', 'account-add', 'accounts', 'transfers', 'deposits', 'cash', 'coupon-add', 'coupons', 'customer-coupon-add', 'customer-coupons', 'discount-add', 'discounts', 'expense-add', 'expense-categories'], true)) ? 'is-active' : '' }}">{{ $tab['label'] }}</a>
                 @endforeach
             </nav>
         </details>
@@ -1828,6 +1830,8 @@
             </section>
         @elseif (in_array($financeSection, ['coupon-add', 'coupons', 'customer-coupon-add', 'customer-coupons'], true))
             @include('librairepro.partials.coupons-section')
+        @elseif (in_array($financeSection, ['discount-add', 'discounts'], true))
+            @include('librairepro.partials.discounts-section')
         @elseif ($financeSection === 'expense-add')
             <section class="mt-6 grid gap-6 xl:grid-cols-[1fr_340px]">
                 <form action="{{ route('expenses.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">

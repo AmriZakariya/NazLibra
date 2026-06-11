@@ -2451,6 +2451,140 @@
         white-space: nowrap;
     }
 
+    .variant-picker {
+        position: relative;
+    }
+
+    .variant-picker-input {
+        height: 44px;
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 0 14px;
+        color: #0f172a;
+        font-size: 14px;
+        outline: none;
+        transition: border-color .16s ease, box-shadow .16s ease;
+    }
+
+    .variant-picker-input:focus {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 4px rgb(79 70 229 / 10%);
+    }
+
+    .variant-picker-results {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(100% + 8px);
+        z-index: 60;
+        max-height: 320px;
+        overflow-y: auto;
+        border: 1px solid #d7dee9;
+        border-radius: 16px;
+        background: #ffffff;
+        padding: 6px;
+        box-shadow: 0 20px 45px rgb(15 23 42 / 14%);
+    }
+
+    .variant-picker-option,
+    .variant-picker-selected {
+        display: flex;
+        width: 100%;
+        align-items: center;
+        gap: 12px;
+        border-radius: 12px;
+        padding: 10px;
+        text-align: left;
+    }
+
+    .variant-picker-option {
+        color: #0f172a;
+        transition: background-color .16s ease;
+    }
+
+    .variant-picker-option:hover,
+    .variant-picker-option.is-active {
+        background: #f1f5f9;
+    }
+
+    .variant-picker-selected {
+        margin-top: 10px;
+        border: 1px solid #d7dee9;
+        background: #f8fafc;
+    }
+
+    .variant-picker-avatar {
+        display: grid;
+        width: 40px;
+        height: 40px;
+        flex: 0 0 auto;
+        place-items: center;
+        border-radius: 12px;
+        background: #eef2ff;
+        color: var(--color-primary);
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    .variant-picker-option strong,
+    .variant-picker-selected strong {
+        display: block;
+        overflow: hidden;
+        color: #0f172a;
+        font-size: 14px;
+        font-weight: 800;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .variant-picker-option small,
+    .variant-picker-selected small {
+        display: block;
+        overflow: hidden;
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 600;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .variant-picker-option-side,
+    .variant-picker-selected-side {
+        display: none;
+        flex: 0 0 auto;
+        text-align: right;
+    }
+
+    .variant-picker-option-side b,
+    .variant-picker-selected-side b {
+        display: block;
+        color: #0f172a;
+        font-size: 13px;
+        font-weight: 900;
+    }
+
+    .variant-picker-empty {
+        padding: 18px;
+        text-align: center;
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 650;
+    }
+
+    .variant-dialog-body {
+        max-height: min(72vh, 760px);
+        overflow-y: auto;
+    }
+
+    @media (min-width: 640px) {
+        .variant-picker-option-side,
+        .variant-picker-selected-side {
+            display: block;
+        }
+    }
+
     .dark .catalog-form-card {
         border-color: #cbd5e1;
         background: #ffffff;
@@ -2522,6 +2656,40 @@
 
     .dark .catalog-form-card .catalog-file-name {
         color: #64748b;
+    }
+
+    .dark .variant-picker-input,
+    .dark .variant-picker-results {
+        border-color: #334155;
+        background: #0f172a;
+        color: #f8fafc;
+    }
+
+    .dark .variant-picker-option {
+        color: #f8fafc;
+    }
+
+    .dark .variant-picker-option:hover,
+    .dark .variant-picker-option.is-active {
+        background: rgb(255 255 255 / 8%);
+    }
+
+    .dark .variant-picker-selected {
+        border-color: #334155;
+        background: rgb(255 255 255 / 5%);
+    }
+
+    .dark .variant-picker-option strong,
+    .dark .variant-picker-selected strong,
+    .dark .variant-picker-option-side b,
+    .dark .variant-picker-selected-side b {
+        color: #f8fafc;
+    }
+
+    .dark .variant-picker-option small,
+    .dark .variant-picker-selected small,
+    .dark .variant-picker-empty {
+        color: #94a3b8;
     }
 
     .dark .catalog-form-card .rounded-lg.bg-slate-100,

@@ -4,12 +4,13 @@
     $productTypes = ['all' => 'Tous', 'book' => 'Livres', 'supply' => 'Papeterie', 'service' => 'Services'];
     $resumeDiscountType = old('discount_type', $resumeTicket?->discount_type ?: 'fixed');
     $resumeDiscountValue = old('discount_value', $resumeTicket?->discount_value ?? $resumeTicket?->discount_amount ?? 0);
+    $resumeDiscountRuleId = (int) old('discount_rule_id', 0);
     $resumeCouponCode = old('coupon_code', $resumeTicket?->coupon_code ?? '');
     $resumeNote = old('note', $resumeTicket?->note ?? '');
 @endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · Caisse">
-    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? [])' data-pos-search-url="{{ route('pos.search') }}" data-coupon-preview-url="{{ route('pos.coupons.preview') }}" data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}" data-show-out-of-stock="{{ $showOutOfStock ? '1' : '0' }}">
+    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? [])' data-discount-rules='@json($posDiscountRules)' data-pos-search-url="{{ route('pos.search') }}" data-coupon-preview-url="{{ route('pos.coupons.preview') }}" data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}" data-show-out-of-stock="{{ $showOutOfStock ? '1' : '0' }}">
         <div class="min-w-0 space-y-5">
             @if ($lastSale)
                 @php
@@ -493,6 +494,16 @@
                                     <div><p class="text-sm font-black">{{ $tr('Remise') }}</p><p class="text-xs text-slate-500">{{ $tr('Montant fixe ou pourcentage.') }}</p></div>
                                     <button class="pos-panel-close grid size-8 place-items-center rounded-lg border border-slate-200 text-sm font-black dark:border-white/10" data-pos-panel-close type="button">×</button>
                                 </div>
+                                <label class="mb-2 block">
+                                    <span class="text-[11px] font-bold uppercase text-slate-500">{{ $tr('Remise enregistrée') }}</span>
+                                    <select class="pos-discount-rule mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
+                                        <option value="">{{ $tr('Remise manuelle') }}</option>
+                                        @foreach ($posDiscountRules as $rule)
+                                            <option value="{{ $rule['id'] }}" @selected($resumeDiscountRuleId === (int) $rule['id'])>{{ $rule['name'] }} · {{ $rule['type'] === 'percentage' ? number_format($rule['value'], 2, ',', ' ').'%' : $money($rule['value']) }}</option>
+                                        @endforeach
+                                    </select>
+                                    <input name="discount_rule_id" value="{{ $resumeDiscountRuleId ?: '' }}" type="hidden" class="pos-discount-rule-value">
+                                </label>
                                 <div class="grid grid-cols-[86px_minmax(0,1fr)] gap-2">
                                     <select class="pos-discount-type-draft h-11 rounded-lg border border-slate-200 bg-white px-2 text-sm font-bold text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
                                         <option value="fixed" @selected($resumeDiscountType === 'fixed')>DH</option>
@@ -504,6 +515,7 @@
                                     <input name="discount_amount" value="0" type="hidden" class="pos-discount-amount">
                                 </div>
                                 <span class="pos-discount-helper mt-2 block text-xs font-semibold text-slate-500">{{ $tr('Fixe en DH') }}</span>
+                                <span class="pos-discount-rule-helper mt-1 block text-xs font-semibold text-slate-500"></span>
                                 <div class="mt-3 grid grid-cols-[1fr_1.35fr] gap-2">
                                     <button class="pos-discount-reset rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold dark:border-white/10" type="button">{{ $tr('Réinitialiser') }}</button>
                                     <button class="pos-discount-confirm rounded-lg bg-brand px-3 py-2 text-xs font-bold text-white" type="button">{{ $tr('Confirmer remise') }}</button>

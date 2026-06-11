@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\LibraireProController;
+use App\Http\Controllers\VariantController;
 use App\Http\Controllers\VirtualDeviceController;
 use Illuminate\Support\Facades\Route;
 
@@ -193,6 +194,9 @@ Route::post('/depenses/categories', [LibraireProController::class, 'storeExpense
 Route::post('/coupons', [LibraireProController::class, 'storeCoupon'])->name('coupons.store');
 Route::put('/coupons/{coupon}', [LibraireProController::class, 'updateCoupon'])->name('coupons.update');
 Route::delete('/coupons/{coupon}', [LibraireProController::class, 'destroyCoupon'])->name('coupons.destroy');
+Route::post('/remises', [LibraireProController::class, 'storeDiscountRule'])->name('discounts.store');
+Route::put('/remises/{discountRule}', [LibraireProController::class, 'updateDiscountRule'])->name('discounts.update');
+Route::delete('/remises/{discountRule}', [LibraireProController::class, 'destroyDiscountRule'])->name('discounts.destroy');
 Route::post('/comptes', [LibraireProController::class, 'storeFinancialAccount'])->name('accounts.store');
 Route::put('/comptes/{account}', [LibraireProController::class, 'updateFinancialAccount'])->name('accounts.update');
 Route::delete('/comptes/{account}', [LibraireProController::class, 'destroyFinancialAccount'])->name('accounts.destroy');

@@ -66,8 +66,10 @@ class VariantController extends Controller
 
         $products = $tenant->items()
             ->where('type', '!=', 'service')
-            ->where('item_group', 'Variants')
-            ->orWhereHas('variants')
+            ->where(function ($query): void {
+                $query->where('item_group', 'Variants')
+                    ->orWhereHas('variants');
+            })
             ->orderBy('title')
             ->get();
 

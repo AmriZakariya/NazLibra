@@ -589,6 +589,179 @@ document.querySelectorAll('[data-product-search]').forEach((search) => {
     });
 });
 
+document.querySelectorAll('[data-async-item-picker]').forEach((picker) => {
+    const endpoint = picker.dataset.endpoint;
+    const context = picker.dataset.context || 'default';
+    const input = picker.querySelector('[data-async-item-input]');
+    const hidden = picker.querySelector('[data-async-item-value]');
+    const results = picker.querySelector('[data-async-item-results]');
+    const selected = picker.querySelector('[data-async-item-selected]');
+    const form = picker.closest('form');
+    const emptyText = picker.dataset.emptyText || translate('Aucun article trouvé.');
+    let abortController = null;
+    let matches = [];
+    let activeIndex = 0;
+
+    if (!endpoint || !input || !hidden || !results) return;
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+    const stockLabel = (item) => item.stock === null || item.stock === undefined
+        ? translate('Sans stock')
+        : `${translate('Stock')} ${item.stock}`;
+
+    const renderSelected = (item) => {
+        if (!selected) return;
+
+        if (!item) {
+            selected.classList.add('hidden');
+            selected.innerHTML = '';
+            return;
+        }
+
+        const meta = [item.type_label, item.category, item.brand, item.code].filter(Boolean).join(' · ');
+        selected.classList.remove('hidden');
+        selected.innerHTML = `
+            <span class="variant-picker-avatar">${escapeHtml(String(item.type_label || 'AR').slice(0, 2).toUpperCase())}</span>
+            <span class="min-w-0 flex-1">
+                <strong>${escapeHtml(item.title)}</strong>
+                <small>${escapeHtml(meta || translate('Sans référence'))}</small>
+            </span>
+            <span class="variant-picker-selected-side">
+                <b>${escapeHtml(item.price || '')}</b>
+                <small>${escapeHtml(stockLabel(item))}</small>
+            </span>
+        `;
+    };
+
+    const hide = () => {
+        results.classList.add('hidden');
+        results.innerHTML = '';
+    };
+
+    const setActive = (nextIndex) => {
+        const nodes = [...results.querySelectorAll('[data-async-item-option]')];
+        if (nodes.length === 0) return;
+        activeIndex = ((nextIndex % nodes.length) + nodes.length) % nodes.length;
+        nodes.forEach((node) => node.classList.remove('is-active'));
+        nodes[activeIndex].classList.add('is-active');
+        nodes[activeIndex].scrollIntoView({ block: 'nearest' });
+    };
+
+    const selectItem = (item) => {
+        if (!item) return;
+        hidden.value = item.id;
+        input.value = item.title;
+        picker.dataset.selectedLabel = item.title;
+        renderSelected(item);
+        hide();
+        hidden.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    const renderResults = (items) => {
+        matches = items;
+        activeIndex = 0;
+        results.classList.remove('hidden');
+
+        if (items.length === 0) {
+            results.innerHTML = `<div class="variant-picker-empty">${escapeHtml(emptyText)}</div>`;
+            return;
+        }
+
+        results.innerHTML = items.map((item, index) => {
+            const meta = [item.type_label, item.category, item.brand, item.code].filter(Boolean).join(' · ');
+
+            return `
+                <button type="button" class="variant-picker-option ${index === 0 ? 'is-active' : ''}" data-async-item-option data-value="${escapeHtml(item.id)}">
+                    <span class="variant-picker-avatar">${escapeHtml(String(item.type_label || 'AR').slice(0, 2).toUpperCase())}</span>
+                    <span class="min-w-0 flex-1">
+                        <strong>${escapeHtml(item.title)}</strong>
+                        <small>${escapeHtml(meta || translate('Sans référence'))}</small>
+                    </span>
+                    <span class="variant-picker-option-side">
+                        <b>${escapeHtml(item.price || '')}</b>
+                        <small>${escapeHtml(stockLabel(item))}</small>
+                    </span>
+                </button>
+            `;
+        }).join('');
+    };
+
+    const searchItems = async () => {
+        const query = input.value.trim();
+
+        if (query.length < 2 && hidden.value && query === picker.dataset.selectedLabel) {
+            hide();
+            return;
+        }
+
+        abortController?.abort();
+        abortController = new AbortController();
+
+        const url = new URL(endpoint, window.location.origin);
+        url.searchParams.set('q', query);
+        url.searchParams.set('context', context);
+
+        try {
+            const response = await fetch(url.toString(), {
+                headers: { Accept: 'application/json' },
+                signal: abortController.signal,
+            });
+            const data = await response.json();
+            renderResults(data.items || []);
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                renderResults([]);
+            }
+        }
+    };
+
+    input.addEventListener('input', () => {
+        hidden.value = '';
+        input.setCustomValidity('');
+        renderSelected(null);
+        searchItems();
+    });
+
+    input.addEventListener('focus', searchItems);
+
+    input.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setActive(activeIndex + 1);
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            setActive(activeIndex - 1);
+        } else if (event.key === 'Enter' && !results.classList.contains('hidden')) {
+            event.preventDefault();
+            selectItem(matches[activeIndex]);
+        } else if (event.key === 'Escape') {
+            hide();
+        }
+    });
+
+    results.addEventListener('mousedown', (event) => {
+        event.preventDefault();
+        const option = event.target.closest('[data-async-item-option]');
+        if (!option) return;
+        const item = matches.find((match) => String(match.id) === String(option.dataset.value));
+        selectItem(item);
+    });
+
+    form?.addEventListener('submit', () => {
+        input.setCustomValidity(hidden.value ? '' : translate('Sélectionnez un article dans la liste.'));
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!picker.contains(event.target)) hide();
+    });
+});
+
 const showToast = (message, actionLabel = null, action = null) => {
     let container = document.querySelector('.app-toast-stack');
     if (!container) {
@@ -1214,6 +1387,9 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const discountAmountInput = screen.querySelector('.pos-discount-amount');
     const discountHelper = screen.querySelector('.pos-discount-helper');
     const discountSummaryValue = screen.querySelector('.pos-discount-summary-value');
+    const discountRuleSelect = screen.querySelector('.pos-discount-rule');
+    const discountRuleValueInput = screen.querySelector('.pos-discount-rule-value');
+    const discountRuleHelper = screen.querySelector('.pos-discount-rule-helper');
     const adjustmentToggles = [...screen.querySelectorAll('[data-pos-panel-toggle]')];
     const adjustmentPanels = [...screen.querySelectorAll('[data-pos-panel]')];
     const couponInput = screen.querySelector('.pos-coupon-code');
@@ -1257,6 +1433,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const showOutOfStock = screen.dataset.showOutOfStock === '1';
     const searchUrl = screen.dataset.posSearchUrl;
     const couponPreviewUrl = screen.dataset.couponPreviewUrl;
+    const discountRules = JSON.parse(screen.dataset.discountRules || '[]');
     const searchState = screen.querySelector('.pos-search-state');
     const submitButtons = [...screen.querySelectorAll('button[type="submit"]')];
     let activeSubmitter = null;
@@ -1379,6 +1556,72 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         if (columnsInput) columnsInput.value = String(columns);
     };
 
+    const selectedPaymentMethods = () => paymentInputs
+        .filter((input) => Number(input.value || 0) > 0.001)
+        .map((input) => input.name.replace('_amount', ''));
+
+    const selectedDiscountRule = () => {
+        const id = Number(discountRuleSelect?.value || 0);
+        return discountRules.find((rule) => Number(rule.id) === id) || null;
+    };
+
+    const discountAmountFor = (subtotal, type, value) => {
+        const normalizedType = type === 'percentage' || type === 'percent' ? 'percentage' : 'fixed';
+        const requested = Math.max(0, Number(value || 0));
+        const maxValue = normalizedType === 'percentage' ? 100 : subtotal;
+        const effective = Math.min(requested, maxValue);
+        const amount = normalizedType === 'percentage'
+            ? Math.min(subtotal, subtotal * effective / 100)
+            : Math.min(effective, subtotal);
+
+        return { amount, effective, capped: requested > maxValue, type: normalizedType, requested };
+    };
+
+    const discountRulePreview = (subtotalAfterCoupon) => {
+        const rule = selectedDiscountRule();
+        if (!rule) {
+            return { valid: false, amount: 0, type: null, value: 0, name: '', message: '' };
+        }
+
+        const allowedMethods = Array.isArray(rule.payment_methods) ? rule.payment_methods : [];
+        const paidMethods = selectedPaymentMethods();
+        const needsPaymentMethod = allowedMethods.length > 0 && !allowedMethods.some((method) => paidMethods.includes(method));
+
+        const included = new Set((rule.included_item_ids || []).map(Number));
+        const excluded = new Set((rule.excluded_item_ids || []).map(Number));
+        const eligibleSubtotal = cart.reduce((sum, item) => {
+            if (included.size && !included.has(Number(item.id))) return sum;
+            if (excluded.has(Number(item.id))) return sum;
+            return sum + item.price * item.quantity;
+        }, 0);
+
+        if (eligibleSubtotal <= 0) {
+            return { valid: false, amount: 0, type: rule.type, value: rule.value, name: rule.name, message: translate('Aucun article éligible à cette remise.') };
+        }
+
+        if (needsPaymentMethod) {
+            return { valid: false, amount: 0, type: rule.type, value: rule.value, name: rule.name, message: translate('Choisissez un moyen de paiement compatible pour appliquer cette remise.') };
+        }
+
+        const minimum = Number(rule.minimum_amount || 0);
+        if (minimum > eligibleSubtotal) {
+            return { valid: false, amount: 0, type: rule.type, value: rule.value, name: rule.name, message: translate('Minimum requis') + ': ' + money.format(minimum) };
+        }
+
+        const discount = discountAmountFor(Math.min(eligibleSubtotal, subtotalAfterCoupon), rule.type, rule.value);
+
+        return {
+            valid: true,
+            amount: Math.min(discount.amount, subtotalAfterCoupon),
+            type: discount.type,
+            value: discount.effective,
+            name: rule.name,
+            message: `${rule.name}: ${money.format(Math.min(discount.amount, subtotalAfterCoupon))}`,
+            eligibleSubtotal,
+            capped: discount.capped,
+        };
+    };
+
     const totals = () => {
         const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
         const couponCode = String(couponInput?.value || '').trim().toUpperCase();
@@ -1386,13 +1629,12 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             ? Math.min(Number(appliedCoupon.amount || 0), subtotal)
             : 0;
         const subtotalAfterCoupon = Math.max(0, subtotal - couponAmount);
-        const discountType = discountTypeInput?.value === 'percentage' ? 'percentage' : 'fixed';
-        const requestedDiscount = Math.max(0, Number(discountInput?.value || 0));
-        const maxValue = discountType === 'percentage' ? 100 : subtotalAfterCoupon;
-        const effectiveValue = Math.min(requestedDiscount, maxValue);
-        const discount = discountType === 'percentage'
-            ? Math.min(subtotalAfterCoupon, subtotalAfterCoupon * effectiveValue / 100)
-            : Math.min(effectiveValue, subtotalAfterCoupon);
+        const rulePreview = discountRulePreview(subtotalAfterCoupon);
+        const manualPreview = discountAmountFor(subtotalAfterCoupon, discountTypeInput?.value, discountInput?.value);
+        const discount = rulePreview.valid ? rulePreview.amount : manualPreview.amount;
+        const effectiveValue = rulePreview.valid ? rulePreview.value : manualPreview.effective;
+        const requestedDiscount = rulePreview.valid ? rulePreview.value : manualPreview.requested;
+        const discountType = rulePreview.valid ? rulePreview.type : manualPreview.type;
         const total = Math.max(0, subtotal - couponAmount - discount);
         const paid = paymentInputs.reduce((sum, input) => sum + Number(input.value || 0), 0);
         return {
@@ -1402,7 +1644,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             discountType,
             discountValue: effectiveValue,
             discountRequested: requestedDiscount,
-            discountCapped: requestedDiscount > maxValue,
+            discountCapped: rulePreview.valid ? rulePreview.capped : manualPreview.capped,
+            discountRule: rulePreview,
             total,
             paid,
             tax: total * 0.2 / 1.2,
@@ -1526,9 +1769,11 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const syncDiscountSummary = (total) => {
         const discountEmpty = screen.querySelector('.pos-discount-empty');
         if (!discountSummaryValue) return;
-        discountSummaryValue.textContent = total.discountType === 'percentage' && total.discount > 0
-            ? `${Number(total.discountValue).toFixed(0)}%`
-            : money.format(total.discount);
+        discountSummaryValue.textContent = total.discountRule?.valid
+            ? total.discountRule.name
+            : (total.discountType === 'percentage' && total.discount > 0
+                ? `${Number(total.discountValue).toFixed(0)}%`
+                : money.format(total.discount));
         discountSummaryValue.classList.toggle('hidden', total.discount <= 0);
         discountEmpty?.classList.toggle('hidden', total.discount > 0);
     };
@@ -1545,6 +1790,21 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
     const updateDiscountDraftHelper = () => {
         if (!discountHelper) return;
+        const rule = selectedDiscountRule();
+        if (rule) {
+            const preview = discountRulePreview(totals().subtotal - totals().couponAmount);
+            discountHelper.textContent = preview.message || translate('Remise enregistrée sélectionnée.');
+            discountHelper.classList.toggle('text-amber-600', !preview.valid);
+            discountHelper.classList.toggle('text-emerald-600', preview.valid);
+            discountHelper.classList.remove('text-slate-500');
+            if (discountRuleHelper) {
+                const methods = (rule.payment_methods || []).length ? rule.payment_methods.join(', ') : translate('Tous paiements');
+                discountRuleHelper.textContent = `${translate('Portée')}: ${rule.scope === 'item' ? translate('Article') : translate('Panier')} · ${methods}`;
+            }
+            return;
+        }
+
+        if (discountRuleHelper) discountRuleHelper.textContent = '';
         const preview = draftDiscountPreview();
         const baseText = preview.type === 'percentage'
             ? translate('Aperçu') + ' ' + money.format(preview.amount) + ' · ' + translate('limite 100%')
@@ -1560,6 +1820,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         if (discountDraftInput && discountInput) discountDraftInput.value = discountInput.value || '0';
         if (discountDraftTypeInput && discountTypeInput) discountDraftTypeInput.value = discountTypeInput.value || 'fixed';
         discountDraftDirty = false;
+        syncDiscountRuleMode();
         updateDiscountDraftHelper();
     }
 
@@ -1569,6 +1830,13 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     }
 
     const applyDiscountDraft = () => {
+        if (selectedDiscountRule()) {
+            discountDraftDirty = false;
+            renderCart();
+            closeAdjustmentPanels();
+            showToast(translate('Remise enregistrée sélectionnée.'));
+            return;
+        }
         if (!discountInput || !discountTypeInput || !discountDraftInput || !discountDraftTypeInput) return;
         const preview = draftDiscountPreview();
         discountTypeInput.value = preview.type;
@@ -1581,11 +1849,27 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     };
 
     const resetDiscountDraft = () => {
+        if (discountRuleSelect) discountRuleSelect.value = '';
+        if (discountRuleValueInput) discountRuleValueInput.value = '';
         if (discountDraftInput) discountDraftInput.value = '0';
         if (discountDraftTypeInput) discountDraftTypeInput.value = 'fixed';
         discountDraftDirty = true;
+        syncDiscountRuleMode();
         updateDiscountDraftHelper();
     };
+
+    function syncDiscountRuleMode() {
+        const hasRule = Boolean(selectedDiscountRule());
+        if (discountRuleValueInput) discountRuleValueInput.value = discountRuleSelect?.value || '';
+        [discountDraftInput, discountDraftTypeInput].forEach((input) => {
+            if (!input) return;
+            input.disabled = hasRule;
+            input.classList.toggle('opacity-60', hasRule);
+        });
+        if (discountConfirmButton) {
+            discountConfirmButton.textContent = hasRule ? translate('Confirmer remise') : translate('Confirmer remise');
+        }
+    }
 
     const applyNoteDraft = () => {
         if (!noteInput || !noteDraftInput) return;
@@ -1721,7 +2005,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
 
         const total = totals();
-        if (discountInput) {
+        if (discountInput && !selectedDiscountRule()) {
             const maxValue = total.discountType === 'percentage' ? 100 : Math.max(0, total.subtotal - total.couponAmount);
             discountInput.max = String(Math.max(0, maxValue));
             if (total.discountCapped) {
@@ -1739,9 +2023,12 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             const appliedText = total.discountType === 'percentage'
                 ? translate('Pourcentage, montant appliqué') + ' ' + money.format(total.discount)
                 : translate('Fixe en DH, maximum') + ' ' + money.format(Math.max(0, total.subtotal - total.couponAmount));
-            if (!discountDraftDirty) {
+            if (selectedDiscountRule()) {
+                updateDiscountDraftHelper();
+            } else if (!discountDraftDirty) {
                 discountHelper.textContent = appliedText;
                 discountHelper.classList.remove('text-amber-600');
+                discountHelper.classList.remove('text-emerald-600');
                 discountHelper.classList.add('text-slate-500');
             }
         }
@@ -2154,6 +2441,12 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     });
     discountConfirmButton?.addEventListener('click', applyDiscountDraft);
     discountResetButton?.addEventListener('click', resetDiscountDraft);
+    discountRuleSelect?.addEventListener('change', () => {
+        discountDraftDirty = false;
+        syncDiscountRuleMode();
+        updateDiscountDraftHelper();
+        renderCart();
+    });
     noteConfirmButton?.addEventListener('click', applyNoteDraft);
     noteResetButton?.addEventListener('click', resetNoteDraft);
     couponButton?.addEventListener('click', applyCoupon);
@@ -2189,6 +2482,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         appliedCoupon = { code: '', amount: 0, message: '', valid: false };
         if (checkout?.querySelector('input[name="ticket_id"]')) checkout.querySelector('input[name="ticket_id"]').value = '';
         if (couponInput) couponInput.value = '';
+        if (discountRuleSelect) discountRuleSelect.value = '';
+        if (discountRuleValueInput) discountRuleValueInput.value = '';
         if (discountInput) discountInput.value = '0';
         if (discountTypeInput) discountTypeInput.value = 'fixed';
         syncDiscountDraftFromApplied();
@@ -2395,6 +2690,14 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
 
         const total = totals();
+        if (selectedDiscountRule() && !total.discountRule.valid) {
+            event.preventDefault();
+            showToast(total.discountRule.message || 'Cette remise ne peut pas être appliquée.');
+            openAdjustmentPanel('discount');
+            discountRuleSelect?.focus();
+            return;
+        }
+
         const couponCode = String(couponInput?.value || '').trim().toUpperCase();
         if (couponCode && (!appliedCoupon.valid || appliedCoupon.code !== couponCode)) {
             event.preventDefault();

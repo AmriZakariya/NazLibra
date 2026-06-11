@@ -11,6 +11,7 @@ use App\Models\Contact;
 use App\Models\Coupon;
 use App\Models\CustomerAdvance;
 use App\Models\DeliveryOrder;
+use App\Models\DiscountRule;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\AccountTransaction;
@@ -987,9 +988,11 @@ class LibraireProController extends Controller
     {
         $tenant = $this->tenant();
         $query = trim((string) $request->query('q'));
+        $context = (string) $request->query('context', 'default');
 
         $items = $tenant->items()
             ->with(['category', 'brand'])
+            ->when($context === 'variants', fn (Builder $builder) => $builder->where('type', '!=', 'service'))
             ->when($query !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($query): void {
                 $builder->where('title', 'like', "%{$query}%")
                     ->orWhere('item_code', 'like', "%{$query}%")
@@ -1708,6 +1711,7 @@ class LibraireProController extends Controller
             'purchase_price' => ['required', 'numeric', 'min:0'],
             'sale_price' => ['required', 'numeric', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
+            'min_stock_threshold' => ['nullable', 'integer', 'min:0'],
         ]);
 
         abort_unless(Item::where('tenant_id', $tenant->id)->where('id', $data['item_id'])->exists(), 403);
@@ -1725,6 +1729,7 @@ class LibraireProController extends Controller
             'purchase_price' => $data['purchase_price'],
             'sale_price' => $data['sale_price'],
             'stock_quantity' => $data['stock_quantity'],
+            'min_stock_threshold' => (int) ($data['min_stock_threshold'] ?? 0),
         ]);
 
         return back()->with('status', 'Variante ajoutée.');
@@ -2926,6 +2931,12 @@ class LibraireProController extends Controller
             'priceEditable' => (bool) data_get($tenant->settings, 'pos.editable_price', true),
             'allowOversell' => $allowOversell,
             'showOutOfStock' => $showOutOfStock,
+            'posDiscountRules' => DiscountRule::where('tenant_id', $tenant->id)
+                ->active()
+                ->orderBy('name')
+                ->get()
+                ->map(fn (DiscountRule $rule) => $this->discountRulePayload($rule))
+                ->values(),
         ]);
     }
 
@@ -3068,6 +3079,45 @@ class LibraireProController extends Controller
         return back()->with('status', 'Coupon supprimé.');
     }
 
+    public function storeDiscountRule(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $this->discountRuleValidation($tenant, $request)->validate();
+        $data = $this->preparedDiscountRuleData($tenant, $data, $request);
+        $data['tenant_id'] = $tenant->id;
+        $data['metadata'] = [
+            'created_from' => 'finance',
+            'created_by' => auth()->id(),
+        ];
+
+        $rule = DiscountRule::create($data);
+
+        return redirect()
+            ->route('module', ['module' => 'finance', 'section' => 'discounts', 'detail_discount' => $rule->id])
+            ->with('status', 'Remise '.$rule->name.' créée.');
+    }
+
+    public function updateDiscountRule(Request $request, DiscountRule $discountRule): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless($discountRule->tenant_id === $tenant->id, 404);
+
+        $data = $this->discountRuleValidation($tenant, $request, $discountRule)->validate();
+        $discountRule->update($this->preparedDiscountRuleData($tenant, $data, $request));
+
+        return back()->with('status', 'Remise '.$discountRule->name.' mise à jour.');
+    }
+
+    public function destroyDiscountRule(DiscountRule $discountRule): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless($discountRule->tenant_id === $tenant->id, 404);
+
+        $discountRule->delete();
+
+        return back()->with('status', 'Remise supprimée.');
+    }
+
     public function storePosSale(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();
@@ -3079,6 +3129,7 @@ class LibraireProController extends Controller
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'discount_type' => ['nullable', 'in:fixed,percentage,Fixed,Percentage,percent'],
             'discount_value' => ['nullable', 'numeric', 'min:0'],
+            'discount_rule_id' => ['nullable', 'integer', Rule::exists('discount_rules', 'id')->where('tenant_id', $tenant->id)],
             'coupon_code' => ['nullable', 'string', 'max:80'],
             'cash_amount' => ['nullable', 'numeric', 'min:0'],
             'card_amount' => ['nullable', 'numeric', 'min:0'],
@@ -3121,9 +3172,14 @@ class LibraireProController extends Controller
             'transfer' => round((float) ($data['transfer_amount'] ?? 0), 2),
             'advance' => round((float) ($data['advance_amount'] ?? 0), 2),
         ];
+        $selectedPaymentMethods = collect($payments)
+            ->filter(fn ($amount) => $amount > 0.001)
+            ->keys()
+            ->values()
+            ->all();
 
         try {
-            $sale = DB::transaction(function () use ($tenant, $data, $lineItems, $discountInput, $payments, $priceEditable, $allowOversell) {
+            $sale = DB::transaction(function () use ($tenant, $data, $lineItems, $discountInput, $payments, $selectedPaymentMethods, $priceEditable, $allowOversell) {
                 $contact = null;
                 if (! empty($data['contact_id'])) {
                     $contact = Contact::where('tenant_id', $tenant->id)->whereKey($data['contact_id'])->lockForUpdate()->firstOrFail();
@@ -3172,8 +3228,12 @@ class LibraireProController extends Controller
                 }
 
                 $couponDetail = $this->couponDiscountForSubtotal($tenant, $data['coupon_code'] ?? null, $subtotal, $contact);
-                $manualDiscountDetail = $this->discountForSubtotal(max(0, $subtotal - $couponDetail['amount']), $discountInput['type'], $discountInput['value']);
-                $discount = min($subtotal, round($couponDetail['amount'] + $manualDiscountDetail['amount'], 2));
+                $afterCoupon = max(0, $subtotal - $couponDetail['amount']);
+                $ruleDetail = $this->discountRuleDiscountForCart($tenant, (int) ($data['discount_rule_id'] ?? 0), $lineItems, $items->all(), $selectedPaymentMethods, $afterCoupon);
+                $manualDiscountDetail = $ruleDetail['valid']
+                    ? $this->discountForSubtotal($afterCoupon, 'fixed', 0)
+                    : $this->discountForSubtotal($afterCoupon, $discountInput['type'], $discountInput['value']);
+                $discount = min($subtotal, round($couponDetail['amount'] + $ruleDetail['amount'] + $manualDiscountDetail['amount'], 2));
                 $total = max(0, round($subtotal - $discount, 2));
                 $paid = round(array_sum($payments), 2);
                 if ($paid + 0.001 < $total) {
@@ -3234,6 +3294,7 @@ class LibraireProController extends Controller
                         'discount' => [
                             'amount' => $discount,
                             'manual' => $manualDiscountDetail,
+                            'rule' => $ruleDetail,
                             'coupon' => $couponDetail,
                         ],
                         'receipt_channel' => $data['receipt_channel'] ?? 'print',
@@ -4999,6 +5060,13 @@ class LibraireProController extends Controller
         $expenseCategories = $this->expenseCategoriesQuery($tenant, $request)->get();
         $customerAdvances = $this->customerAdvancesQuery($tenant, $request)->paginate(25, ['*'], 'advances_page')->withQueryString();
         $coupons = $this->couponsQuery($tenant, $request)->paginate(25, ['*'], 'coupons_page')->withQueryString();
+        $discountRules = $this->discountRulesQuery($tenant, $request)->paginate(25, ['*'], 'discounts_page')->withQueryString();
+        $discountItems = Item::where('tenant_id', $tenant->id)
+            ->where('status', 'active')
+            ->where('is_enabled', true)
+            ->orderBy('title')
+            ->take(1200)
+            ->get(['id', 'title', 'item_code', 'barcode', 'isbn', 'sale_price', 'type']);
         $financialAccounts = FinancialAccount::where('tenant_id', $tenant->id)->orderByDesc('is_active')->orderBy('name')->get();
         $accountTransactions = $this->accountTransactionsQuery($tenant, $request)->paginate(25, ['*'], 'account_transactions_page')->withQueryString();
         $cashRegisterContext = $this->cashRegisterContext($tenant, $request);
@@ -5066,6 +5134,14 @@ class LibraireProController extends Controller
             'financeClients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
             'customerAdvances' => $customerAdvances,
             'coupons' => $coupons,
+            'discountRules' => $discountRules,
+            'discountItems' => $discountItems,
+            'discountStats' => [
+                'active' => DiscountRule::where('tenant_id', $tenant->id)->active()->count(),
+                'cart' => DiscountRule::where('tenant_id', $tenant->id)->where('scope', 'cart')->count(),
+                'item' => DiscountRule::where('tenant_id', $tenant->id)->where('scope', 'item')->count(),
+                'payment_limited' => DiscountRule::where('tenant_id', $tenant->id)->whereNotNull('payment_methods')->count(),
+            ],
             'couponStats' => [
                 'active' => Coupon::where('tenant_id', $tenant->id)->where('is_active', true)->where(function (Builder $builder): void {
                     $builder->whereNull('expires_at')->orWhereDate('expires_at', '>=', now()->toDateString());
@@ -5358,7 +5434,167 @@ class LibraireProController extends Controller
             ->latest();
     }
 
-    private function cartTotals(Tenant $tenant, \Illuminate\Support\Collection $lineItems, float|array $discount = 0, ?string $couponCode = null, ?Contact $contact = null): array
+    private function discountRuleValidation(Tenant $tenant, Request $request, ?DiscountRule $discountRule = null): \Illuminate\Validation\Validator
+    {
+        return validator($request->all(), [
+            'name' => ['required', 'string', 'max:160'],
+            'code' => ['nullable', 'string', 'max:80', Rule::unique('discount_rules', 'code')->where('tenant_id', $tenant->id)->ignore($discountRule?->id)],
+            'type' => ['required', 'in:percentage,fixed,percent'],
+            'value' => ['required', 'numeric', 'min:0.01', 'max:999999'],
+            'scope' => ['required', 'in:cart,item'],
+            'minimum_amount' => ['nullable', 'numeric', 'min:0', 'max:999999'],
+            'included_item_ids' => ['nullable', 'array'],
+            'included_item_ids.*' => ['integer', Rule::exists('items', 'id')->where('tenant_id', $tenant->id)],
+            'excluded_item_ids' => ['nullable', 'array'],
+            'excluded_item_ids.*' => ['integer', Rule::exists('items', 'id')->where('tenant_id', $tenant->id)],
+            'payment_methods' => ['nullable', 'array'],
+            'payment_methods.*' => ['string', 'in:cash,card,transfer,advance,cheque,other'],
+            'starts_at' => ['nullable', 'date'],
+            'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
+            'is_active' => ['nullable', 'boolean'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+    }
+
+    private function preparedDiscountRuleData(Tenant $tenant, array $data, Request $request): array
+    {
+        $included = collect($data['included_item_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+        $excluded = collect($data['excluded_item_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->diff($included)
+            ->values();
+
+        $data['name'] = trim($data['name']);
+        $data['code'] = filled($data['code'] ?? null) ? Str::upper(trim((string) $data['code'])) : null;
+        $data['type'] = ($data['type'] ?? 'fixed') === 'percent' ? 'percentage' : $data['type'];
+        $data['value'] = round((float) $data['value'], 2);
+        $data['minimum_amount'] = round((float) ($data['minimum_amount'] ?? 0), 2);
+        $data['included_item_ids'] = $included->isEmpty() ? null : $included->all();
+        $data['excluded_item_ids'] = $excluded->isEmpty() ? null : $excluded->all();
+        $data['payment_methods'] = collect($data['payment_methods'] ?? [])->filter()->unique()->values()->all() ?: null;
+        $data['is_active'] = $request->boolean('is_active');
+        $data['notes'] = filled($data['notes'] ?? null) ? trim((string) $data['notes']) : null;
+
+        return $data;
+    }
+
+    private function discountRulesQuery(Tenant $tenant, Request $request): Builder
+    {
+        $q = trim((string) $request->query('q'));
+        $status = (string) $request->query('discount_status', 'all');
+        $scope = (string) $request->query('discount_scope', 'all');
+
+        return DiscountRule::query()
+            ->where('tenant_id', $tenant->id)
+            ->when($q !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($q): void {
+                $builder->where('name', 'like', "%{$q}%")
+                    ->orWhere('code', 'like', "%{$q}%")
+                    ->orWhere('notes', 'like', "%{$q}%");
+            }))
+            ->when($status === 'active', fn (Builder $builder) => $builder->active())
+            ->when($status === 'inactive', fn (Builder $builder) => $builder->where('is_active', false))
+            ->when($status === 'expired', fn (Builder $builder) => $builder->whereDate('ends_at', '<', now()->toDateString()))
+            ->when(in_array($scope, ['cart', 'item'], true), fn (Builder $builder) => $builder->where('scope', $scope))
+            ->latest();
+    }
+
+    private function discountRulePayload(DiscountRule $rule): array
+    {
+        return [
+            'id' => $rule->id,
+            'name' => $rule->name,
+            'code' => $rule->code,
+            'type' => $rule->type === 'percent' ? 'percentage' : $rule->type,
+            'value' => (float) $rule->value,
+            'scope' => $rule->scope,
+            'minimum_amount' => (float) $rule->minimum_amount,
+            'included_item_ids' => collect($rule->included_item_ids ?? [])->map(fn ($id) => (int) $id)->values()->all(),
+            'excluded_item_ids' => collect($rule->excluded_item_ids ?? [])->map(fn ($id) => (int) $id)->values()->all(),
+            'payment_methods' => collect($rule->payment_methods ?? [])->filter()->values()->all(),
+        ];
+    }
+
+    private function discountRuleDiscountForCart(Tenant $tenant, ?int $ruleId, \Illuminate\Support\Collection $lineItems, array $items, array $paymentMethods, float $maxSubtotal): array
+    {
+        $empty = [
+            'valid' => false,
+            'rule_id' => null,
+            'name' => null,
+            'type' => null,
+            'value' => 0.0,
+            'scope' => null,
+            'amount' => 0.0,
+            'eligible_subtotal' => 0.0,
+            'message' => null,
+            'capped' => false,
+        ];
+
+        if (! $ruleId) {
+            return $empty;
+        }
+
+        $rule = DiscountRule::where('tenant_id', $tenant->id)->whereKey($ruleId)->active()->first();
+        if (! $rule) {
+            throw new \RuntimeException('Cette remise est indisponible ou expirée.');
+        }
+
+        $allowedMethods = collect($rule->payment_methods ?? [])->filter()->values();
+        if ($allowedMethods->isNotEmpty() && $allowedMethods->intersect($paymentMethods)->isEmpty()) {
+            throw new \RuntimeException('Cette remise n’est pas valable pour le mode de paiement sélectionné.');
+        }
+
+        $included = collect($rule->included_item_ids ?? [])->map(fn ($id) => (int) $id)->filter()->values();
+        $excluded = collect($rule->excluded_item_ids ?? [])->map(fn ($id) => (int) $id)->filter()->values();
+
+        $eligibleSubtotal = 0.0;
+        foreach ($lineItems as $line) {
+            $itemId = (int) $line['item_id'];
+            if ($included->isNotEmpty() && ! $included->contains($itemId)) {
+                continue;
+            }
+            if ($excluded->contains($itemId)) {
+                continue;
+            }
+
+            $item = $items[$itemId] ?? null;
+            $unitPrice = $line['unit_price'] ?? (float) ($item?->sale_price ?? 0);
+            $eligibleSubtotal += round($unitPrice * (int) $line['quantity'], 2);
+        }
+
+        $eligibleSubtotal = round($eligibleSubtotal, 2);
+        if ($eligibleSubtotal <= 0.0) {
+            throw new \RuntimeException('Aucun article du panier n’est éligible à cette remise.');
+        }
+
+        if ((float) $rule->minimum_amount > $eligibleSubtotal) {
+            throw new \RuntimeException('Montant minimum requis pour cette remise: '.$this->money($rule->minimum_amount).'.');
+        }
+
+        $detail = $this->discountForSubtotal($eligibleSubtotal, $rule->type, (float) $rule->value);
+        $amount = min((float) $detail['amount'], max(0, $maxSubtotal));
+
+        return [
+            'valid' => true,
+            'rule_id' => $rule->id,
+            'name' => $rule->name,
+            'code' => $rule->code,
+            'type' => $detail['type'],
+            'value' => $detail['value'],
+            'scope' => $rule->scope,
+            'amount' => round($amount, 2),
+            'eligible_subtotal' => $eligibleSubtotal,
+            'message' => 'Remise '.$rule->name.' appliquée: '.$this->money($amount).'.',
+            'capped' => $detail['capped'] || $amount < (float) $detail['amount'],
+        ];
+    }
+
+    private function cartTotals(Tenant $tenant, \Illuminate\Support\Collection $lineItems, float|array $discount = 0, ?string $couponCode = null, ?Contact $contact = null, ?int $discountRuleId = null, array $paymentMethods = []): array
     {
         $items = Item::query()
             ->where('tenant_id', $tenant->id)
@@ -5379,17 +5615,22 @@ class LibraireProController extends Controller
 
         $discountInput = is_array($discount) ? $discount : ['type' => 'fixed', 'value' => (float) $discount];
         $couponDetail = $this->couponDiscountForSubtotal($tenant, $couponCode, $subtotal, $contact);
-        $manualDiscountDetail = $this->discountForSubtotal(max(0, $subtotal - $couponDetail['amount']), $discountInput['type'] ?? 'fixed', (float) ($discountInput['value'] ?? 0));
-        $totalDiscount = min($subtotal, round($couponDetail['amount'] + $manualDiscountDetail['amount'], 2));
+        $afterCoupon = max(0, $subtotal - $couponDetail['amount']);
+        $ruleDetail = $this->discountRuleDiscountForCart($tenant, $discountRuleId, $lineItems, $items->all(), $paymentMethods, $afterCoupon);
+        $manualDiscountDetail = $ruleDetail['valid']
+            ? $this->discountForSubtotal($afterCoupon, 'fixed', 0)
+            : $this->discountForSubtotal($afterCoupon, $discountInput['type'] ?? 'fixed', (float) ($discountInput['value'] ?? 0));
+        $totalDiscount = min($subtotal, round($couponDetail['amount'] + $ruleDetail['amount'] + $manualDiscountDetail['amount'], 2));
         $total = max(0, round($subtotal - $totalDiscount, 2));
 
         return [
             'subtotal' => round($subtotal, 2),
             'discount' => $totalDiscount,
-            'discount_type' => $manualDiscountDetail['type'],
-            'discount_value' => $manualDiscountDetail['value'],
-            'discount_capped' => $manualDiscountDetail['capped'] || $couponDetail['capped'],
+            'discount_type' => $ruleDetail['valid'] ? $ruleDetail['type'] : $manualDiscountDetail['type'],
+            'discount_value' => $ruleDetail['valid'] ? $ruleDetail['value'] : $manualDiscountDetail['value'],
+            'discount_capped' => $manualDiscountDetail['capped'] || $couponDetail['capped'] || $ruleDetail['capped'],
             'manual_discount' => $manualDiscountDetail,
+            'rule_discount' => $ruleDetail,
             'coupon' => $couponDetail,
             'tax' => round($total * 0.2 / 1.2, 2),
             'total' => $total,

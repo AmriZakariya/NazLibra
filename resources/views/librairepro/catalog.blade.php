@@ -1216,7 +1216,106 @@
 
     @if ($panel === 'variantes')
         <section class="mt-6">
-            <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h2 class="text-base font-semibold">Gestion des variantes</h2><form action="{{ route('catalog.variants.store') }}" method="POST" class="mt-5 grid gap-4 lg:grid-cols-8">@csrf <select name="item_id" required data-searchable-select data-placeholder="Rechercher un article..." class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-2">@foreach ($variantItems as $item)<option value="{{ $item->id }}">{{ $item->title }}</option>@endforeach</select><input name="name" required class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom"><input name="format" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Format"><input name="size" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Taille"><input name="color" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Couleur"><input name="sale_price" required type="number" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Prix"><button class="h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white">Ajouter</button><input name="barcode" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-2" placeholder="Code-barres"><input name="purchase_price" required type="number" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Coût"><input name="stock_quantity" required type="number" value="0" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Stock"></form></article>
+            <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-brand">{{ $tr('Catalogue · Variantes') }}</p>
+                        <h2 class="mt-1 text-lg font-semibold text-slate-950 dark:text-white">{{ $tr('Gestion des variantes') }}</h2>
+                        <p class="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">{{ $tr('Ajoutez une déclinaison avec son propre prix, stock et code-barres sans quitter la liste.') }}</p>
+                    </div>
+                    <button type="button" onclick="document.getElementById('variant-create-dialog')?.showModal()" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-brand/20 transition hover:brightness-110">
+                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                        {{ $tr('Nouvelle variante') }}
+                    </button>
+                </div>
+            </article>
+
+            <dialog id="variant-create-dialog" class="app-dialog w-[min(920px,calc(100vw-1.5rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                <form action="{{ route('catalog.variants.store') }}" method="POST" data-smart-validation data-error-fields='@json($errors->keys())'>
+                    @csrf
+                    <div class="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-white/10">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-brand">{{ $tr('Catalogue · Variantes') }}</p>
+                            <h3 class="mt-1 text-xl font-semibold">{{ $tr('Nouvelle variante') }}</h3>
+                            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $tr('Cherchez l’article parent, puis renseignez les attributs utiles à la caisse et au stock.') }}</p>
+                        </div>
+                        <button class="dialog-close grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 text-xl font-semibold text-slate-500 transition hover:border-brand hover:text-brand dark:border-white/10" type="button">×</button>
+                    </div>
+
+                    <div class="variant-dialog-body grid gap-5 p-5 lg:grid-cols-2">
+                        <div data-validation-summary class="{{ $errors->any() ? '' : 'hidden' }} app-validation-summary lg:col-span-2">
+                            <strong class="block">{{ $tr('Le formulaire contient des informations à corriger.') }}</strong>
+                            <p class="mt-1">{{ $tr('Les champs concernés sont surlignés ci-dessous.') }}</p>
+                            <ul class="mt-2 list-disc space-y-1 pl-5">
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+
+                        <div class="lg:col-span-2">
+                            <label class="space-y-2">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $tr('Article parent') }} <span class="text-rose-500">*</span></span>
+                                <span class="variant-picker" data-async-item-picker data-endpoint="{{ route('catalog.quick-search') }}" data-context="variants" data-empty-text="{{ $tr('Aucun article trouvé.') }}">
+                                    <input type="hidden" name="item_id" required value="{{ old('item_id') }}" data-async-item-value>
+                                    <input type="search" value="" autocomplete="off" class="variant-picker-input" data-async-item-input placeholder="{{ $tr('Rechercher par titre, code-barres, ISBN, SKU...') }}">
+                                    <span class="variant-picker-results hidden" data-async-item-results></span>
+                                    <span class="variant-picker-selected hidden" data-async-item-selected></span>
+                                </span>
+                            </label>
+                        </div>
+
+                        <label class="space-y-2">
+                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $tr('Nom de la variante') }} <span class="text-rose-500">*</span></span>
+                            <input name="name" required value="{{ old('name') }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Ex: Poche, Relié, Arabe...') }}">
+                        </label>
+                        <label class="space-y-2">
+                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $tr('Code-barres') }}</span>
+                            <input name="barcode" value="{{ old('barcode') }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Code scanner optionnel') }}">
+                        </label>
+
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5 lg:col-span-2">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $tr('Attributs') }}</p>
+                            <div class="mt-3 grid gap-3 sm:grid-cols-3">
+                                <input name="format" value="{{ old('format') }}" class="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Format') }}">
+                                <input name="size" value="{{ old('size') }}" class="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Taille') }}">
+                                <input name="color" value="{{ old('color') }}" class="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Couleur') }}">
+                            </div>
+                        </div>
+
+                        <label class="space-y-2">
+                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $tr('Prix de vente') }} <span class="text-rose-500">*</span></span>
+                            <input name="sale_price" required min="0" type="number" step="0.01" value="{{ old('sale_price') }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="0,00">
+                        </label>
+                        <label class="space-y-2">
+                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $tr('Coût d’achat') }} <span class="text-rose-500">*</span></span>
+                            <input name="purchase_price" required min="0" type="number" step="0.01" value="{{ old('purchase_price') }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="0,00">
+                        </label>
+                        <label class="space-y-2">
+                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $tr('Stock') }} <span class="text-rose-500">*</span></span>
+                            <input name="stock_quantity" required min="0" type="number" step="1" value="{{ old('stock_quantity', 0) }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900">
+                        </label>
+                        <label class="space-y-2">
+                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $tr('Quantité d’alerte') }}</span>
+                            <input name="min_stock_threshold" min="0" type="number" step="1" value="{{ old('min_stock_threshold', 0) }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900">
+                        </label>
+                    </div>
+
+                    <div class="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
+                        <p class="text-sm font-medium text-slate-500">{{ $requiredNoticeHtml }}</p>
+                        <div class="flex justify-end gap-2">
+                            <button type="button" class="dialog-close rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">{{ $tr('Annuler') }}</button>
+                            <button class="rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20">{{ $tr('Créer la variante') }}</button>
+                        </div>
+                    </div>
+                </form>
+            </dialog>
+
+            @if ($errors->any())
+                <script>
+                    window.addEventListener('DOMContentLoaded', () => document.getElementById('variant-create-dialog')?.showModal());
+                </script>
+            @endif
             <article class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
