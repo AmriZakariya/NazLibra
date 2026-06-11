@@ -3372,19 +3372,17 @@ class LibraireProController extends Controller
                         'used_amount' => DB::raw('used_amount + '.(float) $couponDetail['amount']),
                         'updated_at' => now(),
                     ]);
-                    // Create pivot record for coupon assignment tracking
-                    $sale->coupons()->attach($couponDetail['coupon_id'], [
+                    $sale->coupons()->syncWithoutDetaching([$couponDetail['coupon_id'] => [
                         'tenant_id' => $tenant->id,
                         'amount_applied' => (float) $couponDetail['amount'],
-                    ]);
+                    ]]);
                 }
 
-                // Create pivot record for discount rule assignment tracking
                 if ($ruleDetail['valid'] && $ruleDetail['rule_id']) {
-                    $sale->discountRules()->attach($ruleDetail['rule_id'], [
+                    $sale->discountRules()->syncWithoutDetaching([$ruleDetail['rule_id'] => [
                         'tenant_id' => $tenant->id,
                         'amount_applied' => (float) $ruleDetail['amount'],
-                    ]);
+                    ]]);
                 }
 
                 if (! empty($data['ticket_id'])) {
@@ -5163,53 +5161,8 @@ class LibraireProController extends Controller
                 'customer' => Coupon::where('tenant_id', $tenant->id)->whereNotNull('contact_id')->count(),
                 'page' => $coupons->sum('used_amount'),
             ],
-            // Build quick assignment lists for coupons and discount rules so the UI can
-            // show which tickets / sales used them and allow navigation to the source.
-            'couponAssignments' => collect($coupons->getCollection())->mapWithKeys(function ($coupon) use ($tenant) {
-                // First, try to get from pivot table (new fast approach)
-                $pivotSales = Sale::where('tenant_id', $tenant->id)
-                    ->whereHas('coupons', fn ($q) => $q->where('coupon_id', $coupon->id))
-                    ->latest('sold_at')
-                    ->take(6)
-                    ->get(['id', 'number', 'total_amount']);
-
-                // Also check PosTickets for legacy compatibility
-                $ticketsQuery = PosTicket::where('tenant_id', $tenant->id)->where('coupon_code', $coupon->code);
-                $tickets = $ticketsQuery->latest('held_at')->take(6)->get(['id', 'number', 'total_amount', 'converted_sale_id']);
-
-                $list = [];
-                foreach ($pivotSales as $s) {
-                    $list[] = ['type' => 'sale', 'id' => $s->id, 'number' => $s->number, 'total' => $s->total_amount];
-                }
-                foreach ($tickets as $t) {
-                    if (! empty($t->converted_sale_id)) {
-                        $list[] = ['type' => 'sale', 'id' => $t->converted_sale_id, 'number' => $t->number, 'total' => $t->total_amount];
-                    } else {
-                        $list[] = ['type' => 'ticket', 'id' => $t->id, 'number' => $t->number, 'total' => $t->total_amount];
-                    }
-                }
-
-                $count = $pivotSales->count() + $ticketsQuery->count();
-
-                return [$coupon->id => ['count' => $count, 'list' => $list]];
-            })->all(),
-
-            'discountAssignments' => collect($discountRules->getCollection())->mapWithKeys(function ($rule) use ($tenant) {
-                // Use pivot table for fast assignment tracking
-                $sales = Sale::where('tenant_id', $tenant->id)
-                    ->whereHas('discountRules', fn ($q) => $q->where('discount_rule_id', $rule->id))
-                    ->latest('sold_at')
-                    ->take(6)
-                    ->get(['id', 'number', 'total_amount']);
-
-                $list = [];
-                foreach ($sales as $s) {
-                    $list[] = ['type' => 'sale', 'id' => $s->id, 'number' => $s->number, 'total' => $s->total_amount];
-                }
-                $count = $sales->count();
-
-                return [$rule->id => ['count' => $count, 'list' => $list]];
-            })->all(),
+            'couponAssignments' => $this->couponAssignments($tenant, $coupons->getCollection()),
+            'discountAssignments' => $this->discountAssignments($tenant, $discountRules->getCollection()),
             'advanceStats' => [
                 'balance' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->sum('advance_balance'),
                 'month' => CustomerAdvance::where('tenant_id', $tenant->id)->where('status', 'active')->whereDate('paid_at', '>=', now()->startOfMonth())->sum('amount'),
@@ -5562,6 +5515,165 @@ class LibraireProController extends Controller
             ->when($status === 'expired', fn (Builder $builder) => $builder->whereDate('ends_at', '<', now()->toDateString()))
             ->when(in_array($scope, ['cart', 'item'], true), fn (Builder $builder) => $builder->where('scope', $scope))
             ->latest();
+    }
+
+    private function couponAssignments(Tenant $tenant, \Illuminate\Support\Collection $coupons): array
+    {
+        if ($coupons->isEmpty()) {
+            return [];
+        }
+
+        $couponIds = $coupons->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $couponCodesById = $coupons->mapWithKeys(fn (Coupon $coupon) => [
+            $coupon->id => Str::upper((string) $coupon->code),
+        ])->all();
+        $couponCodes = array_values(array_filter($couponCodesById));
+
+        $pivotRows = DB::table('coupon_sale')
+            ->join('sales', 'coupon_sale.sale_id', '=', 'sales.id')
+            ->where('coupon_sale.tenant_id', $tenant->id)
+            ->whereIn('coupon_sale.coupon_id', $couponIds)
+            ->select('coupon_sale.coupon_id', 'coupon_sale.amount_applied', 'sales.id', 'sales.number', 'sales.total_amount', 'sales.sold_at')
+            ->orderByDesc('sales.sold_at')
+            ->get()
+            ->groupBy('coupon_id');
+
+        $metadataSales = Sale::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('discount_amount', '>', 0)
+            ->latest('sold_at')
+            ->take(1000)
+            ->get(['id', 'number', 'total_amount', 'sold_at', 'metadata']);
+
+        $ticketRows = empty($couponCodes)
+            ? collect()
+            : PosTicket::query()
+                ->where('tenant_id', $tenant->id)
+                ->whereIn(DB::raw('upper(coupon_code)'), $couponCodes)
+                ->latest('held_at')
+                ->take(400)
+                ->get(['id', 'number', 'total_amount', 'coupon_code', 'coupon_amount', 'converted_sale_id', 'held_at'])
+                ->groupBy(fn (PosTicket $ticket) => Str::upper((string) $ticket->coupon_code));
+
+        return $coupons->mapWithKeys(function (Coupon $coupon) use ($pivotRows, $metadataSales, $ticketRows): array {
+            $rows = collect();
+            $couponCode = Str::upper((string) $coupon->code);
+
+            foreach (($pivotRows[$coupon->id] ?? collect()) as $row) {
+                $rows->push([
+                    'type' => 'sale',
+                    'id' => (int) $row->id,
+                    'number' => $row->number,
+                    'total' => (float) $row->total_amount,
+                    'amount' => (float) $row->amount_applied,
+                    'date' => $row->sold_at,
+                ]);
+            }
+
+            foreach ($metadataSales as $sale) {
+                $metadataCouponId = (int) data_get($sale->metadata, 'discount.coupon.coupon_id');
+                $metadataCouponCode = Str::upper((string) data_get($sale->metadata, 'discount.coupon.code'));
+
+                if ($metadataCouponId !== (int) $coupon->id && $metadataCouponCode !== $couponCode) {
+                    continue;
+                }
+
+                $rows->push([
+                    'type' => 'sale',
+                    'id' => (int) $sale->id,
+                    'number' => $sale->number,
+                    'total' => (float) $sale->total_amount,
+                    'amount' => (float) data_get($sale->metadata, 'discount.coupon.amount', 0),
+                    'date' => $sale->sold_at,
+                ]);
+            }
+
+            foreach (($ticketRows[$couponCode] ?? collect()) as $ticket) {
+                $rows->push([
+                    'type' => $ticket->converted_sale_id ? 'sale' : 'ticket',
+                    'id' => (int) ($ticket->converted_sale_id ?: $ticket->id),
+                    'number' => $ticket->number,
+                    'total' => (float) $ticket->total_amount,
+                    'amount' => (float) $ticket->coupon_amount,
+                    'date' => $ticket->held_at,
+                ]);
+            }
+
+            $deduped = $rows
+                ->unique(fn (array $row) => $row['type'].'-'.$row['id'])
+                ->sortByDesc('date')
+                ->values();
+
+            return [$coupon->id => [
+                'count' => $deduped->count(),
+                'list' => $deduped->take(8)->values()->all(),
+            ]];
+        })->all();
+    }
+
+    private function discountAssignments(Tenant $tenant, \Illuminate\Support\Collection $discountRules): array
+    {
+        if ($discountRules->isEmpty()) {
+            return [];
+        }
+
+        $ruleIds = $discountRules->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        $pivotRows = DB::table('discount_rule_sale')
+            ->join('sales', 'discount_rule_sale.sale_id', '=', 'sales.id')
+            ->where('discount_rule_sale.tenant_id', $tenant->id)
+            ->whereIn('discount_rule_sale.discount_rule_id', $ruleIds)
+            ->select('discount_rule_sale.discount_rule_id', 'discount_rule_sale.amount_applied', 'sales.id', 'sales.number', 'sales.total_amount', 'sales.sold_at')
+            ->orderByDesc('sales.sold_at')
+            ->get()
+            ->groupBy('discount_rule_id');
+
+        $metadataSales = Sale::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('discount_amount', '>', 0)
+            ->latest('sold_at')
+            ->take(1000)
+            ->get(['id', 'number', 'total_amount', 'sold_at', 'metadata']);
+
+        return $discountRules->mapWithKeys(function (DiscountRule $rule) use ($pivotRows, $metadataSales): array {
+            $rows = collect();
+
+            foreach (($pivotRows[$rule->id] ?? collect()) as $row) {
+                $rows->push([
+                    'type' => 'sale',
+                    'id' => (int) $row->id,
+                    'number' => $row->number,
+                    'total' => (float) $row->total_amount,
+                    'amount' => (float) $row->amount_applied,
+                    'date' => $row->sold_at,
+                ]);
+            }
+
+            foreach ($metadataSales as $sale) {
+                if ((int) data_get($sale->metadata, 'discount.rule.rule_id') !== (int) $rule->id) {
+                    continue;
+                }
+
+                $rows->push([
+                    'type' => 'sale',
+                    'id' => (int) $sale->id,
+                    'number' => $sale->number,
+                    'total' => (float) $sale->total_amount,
+                    'amount' => (float) data_get($sale->metadata, 'discount.rule.amount', 0),
+                    'date' => $sale->sold_at,
+                ]);
+            }
+
+            $deduped = $rows
+                ->unique(fn (array $row) => $row['type'].'-'.$row['id'])
+                ->sortByDesc('date')
+                ->values();
+
+            return [$rule->id => [
+                'count' => $deduped->count(),
+                'list' => $deduped->take(8)->values()->all(),
+            ]];
+        })->all();
     }
 
     private function discountRulePayload(DiscountRule $rule): array

@@ -109,7 +109,29 @@
                                 <td class="px-3 py-3">{{ empty($paymentMethods) ? 'Tous' : collect($paymentMethods)->map(fn ($method) => $paymentMethodLabels[$method] ?? $method)->join(', ') }}</td>
                                 <td class="px-3 py-3"><span class="font-semibold">{{ count($includedIds) ?: 'Tous' }}</span> inclus<p class="text-xs text-slate-500">{{ count($excludedIds) }} exclu(s)</p></td>
                                 <td class="px-3 py-3">{{ $rule->starts_at?->format('d/m/Y') ?? 'Maintenant' }} → {{ $rule->ends_at?->format('d/m/Y') ?? 'Illimité' }}</td>
-                                <td class="px-3 py-3">@if($assignment && $assignment['count'] > 0)<details class="inline-block"><summary class="cursor-pointer rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{{ number_format($assignment['count'], 0, ',', ' ') }}</summary><div class="mt-2 rounded-lg border border-slate-100 bg-white p-2 text-xs dark:border-white/10">@foreach($assignment['list'] as $a)<div class="py-1"><a href="{{ route('module', ['module' => 'sales', 'detail_sale' => $a['id']]) }}" class="font-medium">{{ $a['number'] }}</a><span class="ml-2 text-slate-500">· {{ $money($a['total']) }}</span></div>@endforeach</div></details>@else<span class="text-xs text-slate-500">—</span>@endif</td>
+                                <td class="px-3 py-3">
+                                    @if($assignment && $assignment['count'] > 0)
+                                        <details class="group relative inline-block">
+                                            <summary class="flex cursor-pointer list-none items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">
+                                                <span>{{ number_format($assignment['count'], 0, ',', ' ') }}</span>
+                                                <span class="text-[10px] uppercase text-slate-400">ticket(s)</span>
+                                            </summary>
+                                            <div class="absolute z-30 mt-2 w-72 rounded-xl border border-slate-200 bg-white p-2 text-xs shadow-xl dark:border-white/10 dark:bg-slate-950">
+                                                @foreach($assignment['list'] as $a)
+                                                    <a href="{{ route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $a['id']]) }}" class="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-slate-700 transition hover:bg-slate-50 hover:text-brand dark:text-slate-200 dark:hover:bg-white/5">
+                                                        <span>
+                                                            <span class="block font-bold">{{ $a['number'] }}</span>
+                                                            <span class="text-slate-500">Remise {{ $money($a['amount'] ?? 0) }}</span>
+                                                        </span>
+                                                        <span class="font-semibold">{{ $money($a['total']) }}</span>
+                                                    </a>
+                                                @endforeach
+                                            </div>
+                                        </details>
+                                    @else
+                                        <span class="text-xs text-slate-500">—</span>
+                                    @endif
+                                </td>
                                 <td class="px-3 py-3"><x-status-pill :tone="! $rule->is_active ? 'danger' : ($expired ? 'warning' : 'success')">{{ ! $rule->is_active ? 'Inactive' : ($expired ? 'Expirée' : 'Active') }}</x-status-pill></td>
                                 <td class="px-3 py-3 text-right"><button type="button" onclick="document.getElementById('discount-edit-{{ $rule->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Modifier</button></td>
                             </tr>
@@ -137,7 +159,7 @@
                                 <form id="discount-delete-{{ $rule->id }}" action="{{ route('discounts.destroy', $rule) }}" method="POST" onsubmit="return confirm('Supprimer cette remise ?')">@csrf @method('DELETE')</form>
                             </dialog>
                         @empty
-                            <tr><td colspan="9" class="px-4 py-12 text-center text-sm text-slate-500">Aucune remise trouvée.</td></tr>
+                            <tr><td colspan="10" class="px-4 py-12 text-center text-sm text-slate-500">Aucune remise trouvée.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
