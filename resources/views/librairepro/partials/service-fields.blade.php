@@ -1,4 +1,5 @@
 @php
+    $tr = fn (string $text): string => \App\Support\Locale::t($text);
     $input = 'mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900';
     $readonlyInput = $input.' bg-slate-50 text-slate-500';
     $select = 'mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900';
@@ -8,9 +9,9 @@
     $serviceUnit = $units->firstWhere('name', 'Service') ?? $units->first();
     $typeValue = old('type', $item?->type ?? 'service');
     $typeOptions = [
-        'service' => ['label' => 'Service', 'hint' => 'Sans stock'],
-        'supply' => ['label' => 'Produit', 'hint' => 'Stock physique'],
-        'book' => ['label' => 'Livre', 'hint' => 'ISBN possible'],
+        'service' => ['label' => $tr('Service'), 'hint' => $tr('Sans stock')],
+        'supply' => ['label' => $tr('Produit'), 'hint' => $tr('Stock physique')],
+        'book' => ['label' => $tr('Livre'), 'hint' => $tr('ISBN possible')],
     ];
     $storeOptions = collect($stores ?? [])->filter(fn ($store) => data_get($store, 'is_active', true));
     $defaultStoreName = data_get($currentStore ?? [], 'name', 'Magasin principal');
@@ -43,7 +44,7 @@
     </div>
 </div>
 <label class="block lg:col-span-2">
-    <span class="text-xs font-semibold uppercase text-slate-500">Nom du service {!! $required !!}</span>
+    <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Nom du service') }} {!! $required !!}</span>
     <input name="title" required value="{{ old('title', $item?->title) }}" class="{{ $input }}" placeholder="Impression A4, adhésion, pénalité">
 </label>
 <div class="block">
@@ -70,7 +71,7 @@
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Code à barre</span>
     <div class="mt-1 flex gap-2">
-        <input name="barcode" value="{{ old('barcode', $item?->barcode) }}" class="barcode-input h-11 min-w-0 flex-1 rounded-lg border border-slate-200 px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Code scanner optionnel">
+        <input name="barcode" value="{{ old('barcode', $item?->barcode) }}" class="barcode-input h-11 min-w-0 flex-1 rounded-lg border border-slate-200 px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Code scanner optionnel') }}">
         <button class="barcode-scan-btn h-11 shrink-0 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-900 dark:text-slate-200" type="button">Scanner</button>
     </div>
 </label>
@@ -101,7 +102,7 @@
 </label>
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Prix HT {!! $required !!}</span>
-    <input name="price" required type="number" step="0.01" min="0" inputmode="decimal" value="{{ $moneyValue('price', $item?->price ?? 0) }}" class="{{ $input }}" placeholder="Prix hors taxe">
+    <input name="price" required type="number" step="0.01" min="0" inputmode="decimal" value="{{ $moneyValue('price', $item?->price ?? 0) }}" class="{{ $input }}" placeholder="{{ $tr('Prix hors taxe') }}">
 </label>
 <div class="block">
     <div class="flex items-center justify-between gap-2">
@@ -154,22 +155,26 @@
     </select>
 </label>
 <div class="block lg:col-span-2">
-    <span class="text-xs font-semibold uppercase text-slate-500">Image service</span>
+    <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Image service') }}</span>
     <div class="mt-1 grid gap-3 rounded-lg border border-dashed border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900 md:grid-cols-[88px_minmax(0,1fr)]">
         <div class="grid size-20 place-items-center overflow-hidden rounded-lg bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-white/10">
             @if ($currentImage)
-                <img src="{{ asset('storage/'.$currentImage) }}" alt="{{ $item?->title ? 'Image '.$item->title : 'Image service' }}" class="h-full w-full object-cover">
+                <img src="{{ asset('storage/'.$currentImage) }}" alt="{{ $item?->title ? $tr('Image').' '.$item->title : $tr('Image service') }}" class="h-full w-full object-cover">
             @else
-                Aucune image
+                {{ $tr('Aucune image') }}
             @endif
         </div>
         <div class="min-w-0">
-            <input name="item_image" type="file" accept="image/*" class="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950">
-            <span class="mt-1 block text-xs text-slate-500">Une nouvelle image devient l’image principale.</span>
+            <label class="catalog-file-control" data-file-upload>
+                <input name="item_image" type="file" accept="image/*" class="sr-only" data-file-input>
+                <span class="catalog-file-button">{{ $tr('Choisir une image') }}</span>
+                <span class="catalog-file-name" data-file-name data-empty-label="{{ $tr('Aucun fichier choisi') }}">{{ $tr('Aucun fichier choisi') }}</span>
+            </label>
+            <span class="mt-1 block text-xs text-slate-500">{{ $tr('Une nouvelle image devient l’image principale.') }}</span>
             @if ($currentImage)
                 <label class="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
                     <input type="checkbox" name="remove_item_image" value="1" class="rounded border-slate-300 text-brand focus:ring-brand">
-                    Supprimer l'image actuelle
+                    {{ $tr("Supprimer l'image actuelle") }}
                 </label>
             @endif
         </div>

@@ -491,7 +491,7 @@ document.querySelectorAll('[data-product-search]').forEach((search) => {
         empty?.classList.toggle('hidden', items.length !== 0);
 
         results.innerHTML = items.map((item) => {
-            const stock = item.stock === null || item.stock === undefined ? 'Sans stock' : `Stock ${item.stock}`;
+            const stock = item.stock === null || item.stock === undefined ? translate('Sans stock') : `${translate('Stock')} ${item.stock}`;
             const visibility = [
                 item.is_enabled ? 'Activé' : 'Désactivé',
                 item.checkout_visible ? 'Caisse' : 'Hors caisse',
@@ -3892,6 +3892,23 @@ document.querySelectorAll('.barcode-scan-btn').forEach((button) => {
             dialog.showModal();
         }
     });
+});
+
+document.addEventListener('change', (event) => {
+    const input = event.target.closest?.('[data-file-input]');
+
+    if (!input) {
+        return;
+    }
+
+    const control = input.closest('[data-file-upload]');
+    const label = control?.querySelector('[data-file-name]');
+
+    if (!label) {
+        return;
+    }
+
+    label.textContent = input.files?.[0]?.name || label.dataset.emptyLabel || 'Aucun fichier choisi';
 });
 
 // Virtual device heartbeat

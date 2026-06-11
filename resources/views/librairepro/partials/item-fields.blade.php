@@ -1,4 +1,5 @@
 @php
+    $tr = fn (string $text): string => \App\Support\Locale::t($text);
     $input = 'mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900';
     $readonlyInput = $input.' bg-slate-50 text-slate-500';
     $select = 'mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900';
@@ -6,9 +7,9 @@
     $required = '<span class="ms-1 text-rose-500">*</span>';
     $typeValue = old('type', $item?->type ?? 'book');
     $typeOptions = [
-        'book' => ['label' => 'Livre', 'hint' => 'ISBN, auteur, édition'],
-        'supply' => ['label' => 'Produit', 'hint' => 'Stock physique'],
-        'service' => ['label' => 'Service', 'hint' => 'Sans stock'],
+        'book' => ['label' => $tr('Livre'), 'hint' => $tr('ISBN, auteur, édition')],
+        'supply' => ['label' => $tr('Produit'), 'hint' => $tr('Stock physique')],
+        'service' => ['label' => $tr('Service'), 'hint' => $tr('Sans stock')],
     ];
     $storeOptions = collect($stores ?? [])->filter(fn ($store) => data_get($store, 'is_active', true));
     $defaultStoreName = data_get($currentStore ?? [], 'name', 'Magasin principal');
@@ -42,7 +43,7 @@
 </div>
 <label class="block lg:col-span-2">
     <span class="text-xs font-semibold uppercase text-slate-500">Nom de l'article {!! $required !!}</span>
-    <input name="title" required value="{{ old('title', $item?->title) }}" class="{{ $input }}" placeholder="Titre ou nom produit">
+    <input name="title" required value="{{ old('title', $item?->title) }}" class="{{ $input }}" placeholder="{{ $tr('Titre ou nom produit') }}">
 </label>
 <div class="block">
     <div class="flex items-center justify-between gap-2">
@@ -296,22 +297,26 @@
     </span>
 </label>
 <div class="block lg:col-span-3">
-    <span class="text-xs font-semibold uppercase text-slate-500">Image article</span>
+    <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Image article') }}</span>
     <div class="mt-1 grid gap-3 rounded-lg border border-dashed border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900 md:grid-cols-[96px_minmax(0,1fr)]">
         <div class="grid size-24 place-items-center overflow-hidden rounded-lg bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-white/10">
             @if ($currentImage)
-                <img src="{{ asset('storage/'.$currentImage) }}" alt="{{ $item?->title ? 'Image '.$item->title : 'Image article' }}" class="h-full w-full object-cover">
+                <img src="{{ asset('storage/'.$currentImage) }}" alt="{{ $item?->title ? $tr('Image').' '.$item->title : $tr('Image article') }}" class="h-full w-full object-cover">
             @else
-                Aucune image
+                {{ $tr('Aucune image') }}
             @endif
         </div>
         <div class="min-w-0">
-            <input name="item_image" type="file" accept="image/*" class="block w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950">
-            <span class="mt-1 block text-xs text-slate-500">Max 1 Mo. Une nouvelle image devient l’image principale de la fiche.</span>
+            <label class="catalog-file-control" data-file-upload>
+                <input name="item_image" type="file" accept="image/*" class="sr-only" data-file-input>
+                <span class="catalog-file-button">{{ $tr('Choisir une image') }}</span>
+                <span class="catalog-file-name" data-file-name data-empty-label="{{ $tr('Aucun fichier choisi') }}">{{ $tr('Aucun fichier choisi') }}</span>
+            </label>
+            <span class="mt-1 block text-xs text-slate-500">{{ $tr('Max 1 Mo. Une nouvelle image devient l’image principale de la fiche.') }}</span>
             @if ($currentImage)
                 <label class="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
                     <input type="checkbox" name="remove_item_image" value="1" class="rounded border-slate-300 text-brand focus:ring-brand">
-                    Supprimer l'image actuelle
+                    {{ $tr("Supprimer l'image actuelle") }}
                 </label>
             @endif
         </div>
