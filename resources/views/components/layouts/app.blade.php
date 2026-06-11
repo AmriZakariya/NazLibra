@@ -215,6 +215,10 @@
                     ['label' => 'Créer un coupon', 'icon' => '+', 'href' => route('module', ['module' => 'finance', 'section' => 'coupon-add'])],
                     ['label' => 'Maître des coupons', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'coupons'])],
                 ]],
+                ['key' => 'finance', 'label' => 'Remises', 'icon' => '%', 'href' => route('module', ['module' => 'finance', 'section' => 'discounts']), 'children' => [
+                    ['label' => 'Créer une remise', 'icon' => '+', 'href' => route('module', ['module' => 'finance', 'section' => 'discount-add'])],
+                    ['label' => 'Liste des remises', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'discounts'])],
+                ]],
                 ['key' => 'finance', 'label' => 'Comptes', 'icon' => '▦', 'href' => route('module', ['module' => 'finance', 'section' => 'accounts']), 'children' => [
                     ['label' => 'Ajouter un compte', 'icon' => '+', 'href' => route('module', ['module' => 'finance', 'section' => 'account-add'])],
                     ['label' => 'Liste des comptes', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'accounts'])],
@@ -324,6 +328,9 @@
                 'Changer le mot de passe' => 'password sécurité compte profil',
                 'Paramètres' => 'settings configuration thème langue caisse stock',
                 'Matériel' => 'imprimante thermique tiroir caisse lecteur code-barres barcode scanner printer usb serial pos hardware device',
+                'Créer une remise' => 'remise rabais réduction promo code panier cible article',
+                'Liste des remises' => 'remises discount rabais réduction gestions liste',
+                'Remises' => 'remises discounts rabais réduction promo',
             ];
         @endphp
 
