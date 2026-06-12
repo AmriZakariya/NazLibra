@@ -3204,6 +3204,12 @@ document.addEventListener('dblclick', (event) => {
 
 markOpenableRows();
 
+if (window.location.hash === '#edit-item') {
+    window.requestAnimationFrame(() => {
+        document.getElementById('edit-item')?.scrollIntoView({ block: 'start' });
+    });
+}
+
 document.addEventListener('click', (event) => {
     const trigger = event.target.closest('[data-advance-detail]');
     if (!trigger) return;

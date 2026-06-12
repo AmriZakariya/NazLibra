@@ -257,6 +257,8 @@
                 ['key' => 'stores', 'label' => 'Magasin', 'icon' => '▣', 'href' => route('module', ['module' => 'settings', 'section' => 'warehouses'])],
                 ['key' => 'settings', 'label' => 'Paramètres', 'icon' => '⚙', 'href' => route('module', 'settings'), 'children' => [
                     ['label' => 'Société', 'icon' => '▣', 'href' => route('module', ['module' => 'settings', 'section' => 'company'])],
+                    ['label' => 'Mode d’activité', 'icon' => '⌁', 'href' => route('module', ['module' => 'settings', 'section' => 'company']).'#business-mode'],
+                    ['label' => 'Modules', 'icon' => '☷', 'href' => route('module', ['module' => 'settings', 'section' => 'modules'])],
                     ['label' => 'API SMS/WhatsApp', 'icon' => '▦', 'href' => route('module', ['module' => 'settings', 'section' => 'sms-api'])],
                     ['label' => 'Liste des taxes', 'icon' => '%', 'href' => route('module', ['module' => 'settings', 'section' => 'taxes'])],
                     ['label' => 'Liste des unités', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'units'])],
@@ -345,6 +347,8 @@
                 'Liste des rôles' => 'role permission accès droit',
                 'Magasin' => 'store warehouse depot current magasin courant',
                 'Société' => 'profil magasin store profile logo ice adresse facture ticket',
+                'Mode d’activité' => 'mode activité app business librairie pharmacie retail droguerie commerce type',
+                'Modules' => 'modules activer désactiver enable disable ordre menu sidebar fonctionnalité',
                 'Types de paiement' => 'paiement cash carte virement avance',
                 'Changer le mot de passe' => 'password sécurité compte profil',
                 'Paramètres' => 'settings configuration thème langue caisse stock',

@@ -1411,7 +1411,8 @@ class LibraireProController extends Controller
                     ->orWhereHas('unit', fn (Builder $unitQuery) => $unitQuery->where('name', 'like', "%{$quickSearch}%"));
             }))
             ->when($status !== 'all', fn (Builder $builder) => $builder->where('status', $status))
-            ->when($category !== 'all', fn (Builder $builder) => $builder->where('category_id', $category))
+            ->when($category === 'uncategorized', fn (Builder $builder) => $builder->whereNull('category_id'))
+            ->when($category !== 'all' && $category !== 'uncategorized', fn (Builder $builder) => $builder->where('category_id', $category))
             ->when($brand !== 'all', fn (Builder $builder) => $builder->where('brand_id', $brand))
             ->when($unit !== 'all', fn (Builder $builder) => $builder->where('unit_id', $unit))
             ->when($tax !== 'all', fn (Builder $builder) => $builder->where('tax_id', $tax))
@@ -7555,7 +7556,7 @@ class LibraireProController extends Controller
             'delivery_note' => ['nullable', 'string', 'max:255'],
             'invoice_reference' => ['nullable', 'string', 'max:255'],
             'seller_points' => ['nullable', 'numeric', 'min:0', 'max:999999'],
-            'category_id' => ['required', 'exists:categories,id'],
+            'category_id' => ['nullable', 'exists:categories,id'],
             'brand_id' => ['nullable', 'exists:brands,id'],
             'unit_id' => ['required', 'exists:units,id'],
             'tax_id' => ['required', 'exists:taxes,id'],

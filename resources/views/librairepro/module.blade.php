@@ -2487,7 +2487,7 @@
                             <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Code magasin</span><input name="store_code" value="{{ old('store_code', $companyProfile['store_code']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                 <label class="space-y-1.5 xl:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Nom société / magasin *</span><input name="store_name" required value="{{ old('store_name', $companyProfile['store_name']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                                <label class="space-y-1.5">
+                                <label id="business-mode" class="scroll-mt-24 space-y-1.5">
                                     <span class="text-xs font-semibold uppercase text-slate-500">Mode d’activité *</span>
                                     <select name="business_mode" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                                         @foreach ($businessModes as $modeKey => $mode)

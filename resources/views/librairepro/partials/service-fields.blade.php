@@ -49,14 +49,15 @@
 </label>
 <div class="block">
     <div class="flex items-center justify-between gap-2">
-        <span class="text-xs font-semibold uppercase text-slate-500">Catégorie {!! $required !!}</span>
+        <span class="text-xs font-semibold uppercase text-slate-500">Catégorie</span>
         @unless ($item)
             <button class="inline-create-open text-xs font-semibold text-brand hover:underline" type="button" data-dialog="service-category-dialog">+ Ajouter</button>
         @endunless
     </div>
-    <select name="category_id" required data-searchable-select data-placeholder="Rechercher une catégorie..." class="{{ $select }}">
+    <select name="category_id" data-searchable-select data-placeholder="Rechercher une catégorie..." class="{{ $select }}">
+        <option value="">Sans catégorie</option>
         @foreach ($categories as $category)
-            <option value="{{ $category->id }}" @selected(old('category_id', $item?->category_id) ? (string) old('category_id', $item?->category_id) === (string) $category->id : $category->name === 'Services')>{{ $category->name }}</option>
+            <option value="{{ $category->id }}" @selected((string) old('category_id', $item?->category_id) === (string) $category->id)>{{ $category->name }}</option>
         @endforeach
     </select>
 </div>

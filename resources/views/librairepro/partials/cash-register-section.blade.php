@@ -112,7 +112,7 @@
                         @csrf
                         <input name="counted_cash_amount" required type="number" step="0.01" min="0" class="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Cash compté">
                         <textarea name="closing_note" class="min-h-24 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note de clôture"></textarea>
-                        <button class="w-full rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">Clôturer la session</button>
+                        <button class="w-full rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-black-200">Clôturer la session</button>
                     </form>
                 </article>
             @else
@@ -138,26 +138,52 @@
 
         <div class="space-y-5">
             <article class="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                <div class="grid gap-4 border-b border-slate-200 p-5 dark:border-white/10 xl:grid-cols-[1fr_auto] xl:items-end">
-                    <div>
-                        <h3 class="text-lg font-semibold text-slate-950 dark:text-white">Historique du tiroir</h3>
-                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Chaque ligne est horodatée, reliée à une vente quand elle vient du POS, et conserve le solde après mouvement.</p>
+                <div class="border-b border-slate-200 p-4 dark:border-white/10 sm:p-5">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div class="min-w-0">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h3 class="text-lg font-semibold text-slate-950 dark:text-white">Historique du tiroir</h3>
+                                <span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-300">{{ $cashRegister['movements']->total() }} ligne(s)</span>
+                            </div>
+                            <p class="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">Mouvements horodatés, ventes POS liées et solde après opération.</p>
+                        </div>
                     </div>
-                    <form class="grid gap-2 sm:grid-cols-2 xl:grid-cols-[220px_150px_150px_150px_auto]" method="GET" action="{{ route('module', 'cash-register') }}">
-                        <input name="q" value="{{ request('q') }}" class="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Session, vente, note...">
-                        <select name="movement_type" class="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                            <option value="">Tous types</option>
-                            @foreach ($movementLabels as $key => $label)
-                                <option value="{{ $key }}" @selected(request('movement_type') === $key)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                        <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                        <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                        <div class="flex gap-2"><button class="rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', 'cash-register') }}" class="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+
+                    <form class="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-slate-950/45" method="GET" action="{{ route('module', 'cash-register') }}">
+                        <div class="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-8">
+                            <label class="min-w-0 space-y-1.5 xl:col-span-3">
+                                <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recherche</span>
+                                <input name="q" value="{{ request('q') }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-900 dark:text-white" placeholder="Session, vente, note...">
+                            </label>
+                            <label class="min-w-0 space-y-1.5 xl:col-span-2">
+                                <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Type</span>
+                                <select name="movement_type" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-900 dark:text-white">
+                                    <option value="">Tous types</option>
+                                    @foreach ($movementLabels as $key => $label)
+                                        <option value="{{ $key }}" @selected(request('movement_type') === $key)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="min-w-0 space-y-1.5 xl:col-span-2">
+                                <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Du</span>
+                                <input name="from" value="{{ request('from') }}" type="date" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-900 dark:text-white">
+                            </label>
+                            <label class="min-w-0 space-y-1.5 xl:col-span-2">
+                                <span class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Au</span>
+                                <input name="to" value="{{ request('to') }}" type="date" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-900 dark:text-white">
+                            </label>
+                        </div>
+                        <div class="mt-3 flex flex-col-reverse gap-2 border-t border-slate-200 pt-3 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Affinez par session, vente, type ou période.</p>
+                            <div class="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+                                <a href="{{ route('module', 'cash-register') }}" class="inline-flex h-10 min-w-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">Effacer</a>
+                                <button class="inline-flex h-10 min-w-0 items-center justify-center rounded-xl bg-brand px-5 text-sm font-semibold text-white shadow-sm transition hover:brightness-110">Filtrer</button>
+                            </div>
+                        </div>
                     </form>
                 </div>
 
-                <div class="max-h-[620px] overflow-auto p-4">
+                <div class="max-h-[620px] overflow-auto p-2 sm:p-3">
                     <table class="w-full min-w-[980px] text-left text-sm">
                         <thead class="sticky top-0 z-10 bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-900 dark:text-slate-400">
                             <tr><th class="px-3 py-3">Date</th><th class="px-3 py-3">Mouvement</th><th class="px-3 py-3">Session</th><th class="px-3 py-3">Référence</th><th class="px-3 py-3 text-right">Montant</th><th class="px-3 py-3 text-right">Solde après</th><th class="px-3 py-3">Utilisateur</th><th class="px-3 py-3 text-right">Action</th></tr>
