@@ -813,6 +813,10 @@ document.querySelectorAll('[data-sidebar]').forEach((sidebar) => {
     const scrollArea = sidebar.querySelector('[data-sidebar-scroll]');
     const groups = [...sidebar.querySelectorAll('[data-sidebar-group]')];
     const openGroups = JSON.parse(localStorage.getItem('librairepro-sidebar-groups') || '[]');
+    const persistOpenGroups = () => {
+        const next = groups.filter((item) => item.open).map((item) => item.dataset.sidebarGroup);
+        localStorage.setItem('librairepro-sidebar-groups', JSON.stringify(next));
+    };
     const setCollapsed = (collapsed) => {
         document.documentElement.classList.toggle('sidebar-collapsed', collapsed);
         localStorage.setItem('librairepro-sidebar', collapsed ? 'collapsed' : 'expanded');
@@ -833,8 +837,19 @@ document.querySelectorAll('[data-sidebar]').forEach((sidebar) => {
         }
 
         group.addEventListener('toggle', () => {
-            const next = groups.filter((item) => item.open).map((item) => item.dataset.sidebarGroup);
-            localStorage.setItem('librairepro-sidebar-groups', JSON.stringify(next));
+            persistOpenGroups();
+        });
+
+        group.querySelector('summary')?.addEventListener('click', (event) => {
+            if (!document.documentElement.classList.contains('sidebar-collapsed')) return;
+
+            event.preventDefault();
+            setCollapsed(false);
+            sidebar.classList.add('is-visible');
+            group.open = true;
+            persistOpenGroups();
+            updateNavToggle();
+            updatePeekZone();
         });
     });
 
@@ -4219,6 +4234,49 @@ document.addEventListener('change', (event) => {
     }
 
     label.textContent = input.files?.[0]?.name || label.dataset.emptyLabel || 'Aucun fichier choisi';
+});
+
+document.querySelectorAll('[data-module-sortable]').forEach((list) => {
+    const form = list.closest('[data-module-settings-form]');
+    const orderInput = form?.querySelector('[data-module-order-input]');
+    let draggedRow = null;
+
+    const rows = () => [...list.querySelectorAll('[data-module-key]')];
+    const syncOrder = () => {
+        if (!orderInput) return;
+
+        orderInput.value = rows().map((row) => row.dataset.moduleKey).filter(Boolean).join(',');
+    };
+
+    rows().forEach((row) => {
+        row.addEventListener('dragover', (event) => {
+            if (!draggedRow || draggedRow === row) return;
+
+            event.preventDefault();
+            const box = row.getBoundingClientRect();
+            const insertAfter = event.clientY - box.top > box.height / 2;
+            list.insertBefore(draggedRow, insertAfter ? row.nextSibling : row);
+            syncOrder();
+        });
+
+        if (row.getAttribute('draggable') !== 'true') return;
+
+        row.addEventListener('dragstart', (event) => {
+            draggedRow = row;
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', row.dataset.moduleKey || '');
+            row.classList.add('opacity-50', 'ring-2', 'ring-brand/10');
+        });
+
+        row.addEventListener('dragend', () => {
+            row.classList.remove('opacity-50', 'ring-2', 'ring-brand/10');
+            draggedRow = null;
+            syncOrder();
+        });
+    });
+
+    form?.addEventListener('submit', syncOrder);
+    syncOrder();
 });
 
 // Virtual device heartbeat

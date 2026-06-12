@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Role;
 use App\Models\Tenant;
+use App\Support\AppModules;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -17,6 +18,11 @@ class EnsureTenantAccess
 
         if (! $user || ! $tenant || ! $user->tenants()->whereKey($tenant->id)->exists()) {
             return $this->deny($request, $tenant);
+        }
+
+        $module = $this->moduleForRoute($request);
+        if ($module !== null && ! AppModules::enabled($tenant, $module)) {
+            abort(404);
         }
 
         $permissions = $this->permissionsFor($tenant, $user);
@@ -49,6 +55,15 @@ class EnsureTenantAccess
             is_array($rolePermissions) ? $rolePermissions : [],
             $pivotPermissions,
         )));
+    }
+
+    private function moduleForRoute(Request $request): ?string
+    {
+        return AppModules::keyForRouteName(
+            (string) $request->route()?->getName(),
+            $request->route('module') ? (string) $request->route('module') : null,
+            (string) $request->query('section', 'list'),
+        );
     }
 
     private function allows(array $permissions, string $required): bool
@@ -144,6 +159,7 @@ class EnsureTenantAccess
             'accounts.transfers.store' => 'finance.manage',
             'settings.theme.update' => 'settings.theme',
             'settings.company.update' => 'settings.theme',
+            'settings.modules.update' => 'settings.users',
             'settings.pos.update' => 'settings.theme',
             'settings.documents.update' => 'settings.theme',
             'settings.messaging.update' => 'settings.theme',
@@ -194,7 +210,7 @@ class EnsureTenantAccess
     private function settingsPermission(string $section): string
     {
         return match ($section) {
-            'users', 'warehouses' => 'settings.users',
+            'users', 'warehouses', 'modules' => 'settings.users',
             'roles' => 'settings.roles',
             'theme', 'taxes', 'units', 'payment-types', 'countries', 'states', 'password' => 'settings.theme',
             default => 'settings.theme',

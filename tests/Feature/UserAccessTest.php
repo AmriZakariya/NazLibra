@@ -119,6 +119,52 @@ class UserAccessTest extends TestCase
         $this->assertSame($store['key'], $tenant->settings['current_store']);
     }
 
+    public function test_modules_can_be_enabled_disabled_and_ordered(): void
+    {
+        $this->seed();
+        $tenant = Tenant::firstOrFail();
+
+        $this->post(route('settings.modules.update'), [
+            'enabled' => ['dashboard', 'catalog', 'settings'],
+            'order' => 'settings,dashboard,catalog',
+        ])->assertRedirect(route('module', ['module' => 'settings', 'section' => 'modules']));
+
+        $tenant->refresh();
+
+        $this->assertSame(['dashboard', 'catalog'], array_slice($tenant->settings['modules']['order'], 0, 2));
+        $this->assertSame('settings', collect($tenant->settings['modules']['order'])->last());
+        $this->assertTrue($tenant->settings['modules']['enabled']['dashboard']);
+        $this->assertTrue($tenant->settings['modules']['enabled']['settings']);
+        $this->assertTrue($tenant->settings['modules']['enabled']['catalog']);
+        $this->assertFalse($tenant->settings['modules']['enabled']['sales']);
+
+        $this->get(route('module', ['module' => 'sales']))
+            ->assertNotFound();
+
+        $this->get(route('pos'))
+            ->assertNotFound();
+    }
+
+    public function test_invoice_module_can_be_disabled_without_disabling_pos_sales(): void
+    {
+        $this->seed();
+        $tenant = Tenant::firstOrFail();
+
+        $this->post(route('settings.modules.update'), [
+            'enabled' => ['dashboard', 'catalog', 'sales', 'settings'],
+            'order' => 'dashboard,sales,invoices,catalog,settings',
+        ])->assertRedirect(route('module', ['module' => 'settings', 'section' => 'modules']));
+
+        $tenant->refresh();
+
+        $this->assertTrue($tenant->settings['modules']['enabled']['sales']);
+        $this->assertFalse($tenant->settings['modules']['enabled']['invoices']);
+
+        $this->get(route('pos'))->assertOk();
+        $this->get(route('module', ['module' => 'sales', 'section' => 'invoices']))
+            ->assertNotFound();
+    }
+
     public function test_company_profile_settings_can_be_updated(): void
     {
         $this->seed();

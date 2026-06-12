@@ -1,6 +1,7 @@
 @php
     $money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' DH';
     $tr = fn ($text) => \App\Support\Locale::t($text);
+    $businessMode = \App\Support\BusinessMode::current($tenant);
     $productTypes = ['all' => 'Tous', 'book' => 'Livres', 'supply' => 'Papeterie', 'service' => 'Services'];
     $resumeDiscountType = old('discount_type', $resumeTicket?->discount_type ?: 'fixed');
     $resumeDiscountValue = old('discount_value', $resumeTicket?->discount_value ?? $resumeTicket?->discount_amount ?? 0);
@@ -132,7 +133,7 @@
                     <span class="flex min-w-0 items-center gap-3">
                         <span class="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand text-xl font-black text-white shadow-sm shadow-brand/20">⌕</span>
                         <span class="min-w-0">
-                            <span class="block text-sm font-semibold text-brand">{{ $tr('Caisse librairie') }}</span>
+                            <span class="block text-sm font-semibold text-brand">Caisse {{ $businessMode['short_label'] }}</span>
                             <span class="mt-1 block truncate text-xl font-semibold">{{ $tr('Scanner, trouver, encaisser') }}</span>
                             <span class="mt-1 block truncate text-xs text-slate-500">{{ $tr('Recherche rapide, filtres utiles et création d’article sans quitter la caisse.') }}</span>
                         </span>
@@ -167,7 +168,7 @@
                             <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $tr('Recherche rapide') }}</span>
                             <span class="relative mt-2 block group">
                                 <span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg text-slate-400">🔍</span>
-                                <input class="pos-search barcode-input h-[52px] w-full rounded-xl border border-slate-200 bg-white px-12 pe-32 text-base font-semibold outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 group-hover:border-slate-300 dark:border-white/10 dark:bg-slate-950 dark:group-hover:border-white/20" value="{{ $query }}" placeholder="Code-barres, ISBN, titre, SKU...">
+                                <input class="pos-search barcode-input h-[52px] w-full rounded-xl border border-slate-200 bg-white px-12 pe-32 text-base font-semibold outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 group-hover:border-slate-300 dark:border-white/10 dark:bg-slate-950 dark:group-hover:border-white/20" value="{{ $query }}" placeholder="{{ $businessMode['search_placeholder'] }}">
                                 <button class="barcode-scan-btn absolute right-2 top-1/2 h-9 -translate-y-1/2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-600 shadow-sm transition hover:border-brand hover:text-brand hover:bg-brand/5 active:scale-95 dark:border-white/10 dark:bg-slate-900 dark:hover:bg-brand/10" type="button" title="{{ $tr('Scanner avec caméra') }}">📷</button>
                             </span>
                         </label>

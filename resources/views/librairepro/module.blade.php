@@ -2073,6 +2073,7 @@
             $posUpdateCostOnPurchase = (bool) data_get($tenant->settings, 'pos.update_cost_on_purchase', true);
             $posLowStockDashboard = (bool) data_get($tenant->settings, 'pos.low_stock_dashboard', true);
             $posAutoReorderDraft = (bool) data_get($tenant->settings, 'pos.auto_reorder_draft', false);
+            $virtualDevicesEnabled = (bool) data_get($tenant->settings, 'features.virtual_devices', false);
             $posInventoryCycleDays = (int) data_get($tenant->settings, 'pos.inventory_cycle_days', 30);
             $posDefaultMinStock = (int) data_get($tenant->settings, 'pos.default_min_stock_threshold', 3);
             $themePresets = [
@@ -2080,10 +2081,14 @@
                 'classic' => ['name' => 'Indigo classic', 'hint' => 'Plus proche du thème initial', 'colors' => ['#4F46E5', '#0EA5E9', '#FFFFFF', '#F8FAFC']],
                 'graphite' => ['name' => 'Graphite', 'hint' => 'Compact et sobre', 'colors' => ['#334155', '#0F766E', '#FFFFFF', '#F7F7F5']],
             ];
+            $businessModes = \App\Support\BusinessMode::all();
+            $currentBusinessMode = \App\Support\BusinessMode::current($tenant);
+            $appModuleSettings = \App\Support\AppModules::settings($tenant);
             $storeTypeLabels = ['store' => 'Magasin', 'warehouse' => 'Dépôt', 'area' => 'Rayon', 'branch' => 'Succursale'];
             $settingsSection = request('section', 'warehouses');
             $settingsTabs = [
                 'company' => 'Société',
+                'modules' => 'Modules',
                 'warehouses' => 'Magasins',
                 'store' => 'Caisse & stock',
                 'documents' => 'PDF',
@@ -2105,6 +2110,7 @@
             $companyProfile = array_merge([
                 'store_code' => $tenant->slug,
                 'store_name' => $tenant->name,
+                'business_mode' => \App\Support\BusinessMode::defaultKey(),
                 'mobile' => '',
                 'email' => $tenant->email,
                 'phone' => $tenant->phone,
@@ -2164,6 +2170,7 @@
                 'expense_payment_init' => 'EP',
                 'cust_advance_init' => 'ADV',
             ], $tenant->settings['company_profile'] ?? []);
+            $companyProfile['business_mode'] = \App\Support\BusinessMode::get($companyProfile['business_mode'] ?? null)['key'];
         @endphp
         <details class="app-collapsible-menu mt-6" data-collapsible-menu data-menu-key="module-settings-menu">
             <summary class="app-collapsible-menu-summary">
@@ -2379,6 +2386,82 @@
                     </div>
                 </article>
 
+                @elseif ($settingsSection === 'modules')
+                    <article class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950/40">
+                        <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div class="flex items-start gap-4">
+                                    <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-lg font-semibold text-white">☷</span>
+                                    <div>
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-brand">Paramètres · modules</p>
+                                        <h2 class="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-100">Modules & ordre du menu</h2>
+                                        <p class="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">Activez uniquement les espaces utiles à votre activité et réorganisez le menu latéral pour placer les actions les plus utilisées en premier.</p>
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <x-status-pill tone="primary">{{ collect($appModuleSettings['enabled'])->filter()->count() }} actif(s)</x-status-pill>
+                                    <x-status-pill tone="neutral">{{ count($appModuleSettings['definitions']) }} module(s)</x-status-pill>
+                                </div>
+                            </div>
+                        </div>
+
+                        <form action="{{ route('settings.modules.update') }}" method="POST" class="space-y-5 p-5" data-module-settings-form>
+                            @csrf
+                            <input type="hidden" name="order" value="{{ implode(',', $appModuleSettings['order']) }}" data-module-order-input>
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                                <div class="mb-3 flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <h3 class="text-sm font-semibold text-slate-950 dark:text-slate-100">Menu de l’application</h3>
+                                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Glissez une ligne pour changer son ordre. Les modules verrouillés restent toujours actifs.</p>
+                                    </div>
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Activation / ordre</span>
+                                </div>
+                                <div class="space-y-3" data-module-sortable>
+                                    @foreach ($appModuleSettings['order'] as $moduleKey)
+                                        @php
+                                            $moduleConfig = $appModuleSettings['definitions'][$moduleKey] ?? null;
+                                        @endphp
+                                        @continue(! $moduleConfig)
+                                        @php
+                                            $locked = (bool) ($moduleConfig['locked'] ?? false) || $moduleKey === 'settings';
+                                            $enabled = (bool) ($appModuleSettings['enabled'][$moduleKey] ?? false);
+                                        @endphp
+                                        <div class="module-order-row group grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-brand/40 hover:shadow-md dark:border-white/10 dark:bg-slate-950/60 sm:grid-cols-[44px_minmax(0,1fr)_auto] sm:items-center" data-module-key="{{ $moduleKey }}" draggable="{{ $locked ? 'false' : 'true' }}">
+                                            <button type="button" class="module-drag-handle grid size-10 place-items-center rounded-lg border border-slate-200 bg-slate-50 text-lg font-semibold text-slate-500 transition group-hover:border-brand/40 group-hover:text-brand disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:bg-white/5" aria-label="Déplacer {{ $moduleConfig['label'] }}" @disabled($locked)>☰</button>
+                                            <div class="min-w-0">
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <h4 class="font-semibold text-slate-950 dark:text-slate-100">{{ $moduleConfig['label'] }}</h4>
+                                                    <x-status-pill :tone="$locked ? 'primary' : ($enabled ? 'success' : 'neutral')">{{ $locked ? 'Toujours actif' : ($enabled ? 'Activé' : 'Désactivé') }}</x-status-pill>
+                                                </div>
+                                                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $moduleConfig['description'] }}</p>
+                                            </div>
+                                            <div class="flex items-center justify-between gap-3 sm:justify-end">
+                                                <span class="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase text-slate-500 dark:bg-white/5 dark:text-slate-400">{{ $moduleKey }}</span>
+                                                @if ($locked)
+                                                    <input type="hidden" name="enabled[]" value="{{ $moduleKey }}">
+                                                    <span class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 dark:border-white/10 dark:text-slate-400">Verrouillé</span>
+                                                @else
+                                                    <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">
+                                                        <input name="enabled[]" value="{{ $moduleKey }}" type="checkbox" @checked($enabled) class="size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                                        <span>{{ $enabled ? 'Activé' : 'Activer' }}</span>
+                                                    </label>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-950 dark:text-slate-100">Application modulaire</p>
+                                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Le menu latéral, les raccourcis et les écrans principaux suivent cette configuration.</p>
+                                </div>
+                                <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-110" type="submit">Enregistrer les modules</button>
+                            </div>
+                        </form>
+                    </article>
+
                 @elseif ($settingsSection === 'documents')
                     @include('librairepro.partials.document-settings')
                 @elseif (in_array($settingsSection, ['messaging', 'message-templates', 'sms-api'], true))
@@ -2391,7 +2474,10 @@
                             <h2 class="font-semibold">Profil société / magasin principal</h2>
                             <p class="mt-1 text-sm text-slate-500">Informations légales, formats, documents et préfixes repris de l’ancien écran Société.</p>
                         </div>
-                        <x-status-pill tone="primary">{{ strtoupper($companyProfile['currency']) }}</x-status-pill>
+                        <div class="flex flex-wrap gap-2">
+                            <x-status-pill tone="primary">{{ $currentBusinessMode['short_label'] }}</x-status-pill>
+                            <x-status-pill tone="info">{{ strtoupper($companyProfile['currency']) }}</x-status-pill>
+                        </div>
                     </div>
 
                     <form action="{{ route('settings.company.update') }}" method="POST" enctype="multipart/form-data" class="mt-5 space-y-5">
@@ -2401,6 +2487,15 @@
                             <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Code magasin</span><input name="store_code" value="{{ old('store_code', $companyProfile['store_code']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                 <label class="space-y-1.5 xl:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Nom société / magasin *</span><input name="store_name" required value="{{ old('store_name', $companyProfile['store_name']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5">
+                                    <span class="text-xs font-semibold uppercase text-slate-500">Mode d’activité *</span>
+                                    <select name="business_mode" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                        @foreach ($businessModes as $modeKey => $mode)
+                                            <option value="{{ $modeKey }}" @selected(old('business_mode', $companyProfile['business_mode']) === $modeKey)>{{ $mode['label'] }}</option>
+                                        @endforeach
+                                    </select>
+                                    <span class="block text-xs text-slate-500">Adapte progressivement les libellés, raccourcis, rapports et comportements métier.</span>
+                                </label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Site web</span><input name="store_website" value="{{ old('store_website', $companyProfile['store_website']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="https://..."></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Mobile</span><input name="mobile" value="{{ old('mobile', $companyProfile['mobile']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" value="{{ old('phone', $companyProfile['phone']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
@@ -3051,6 +3146,35 @@
 
                     <div class="mt-6 grid gap-5 xl:grid-cols-[1fr_320px]">
                         <div class="space-y-5">
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                    <div class="flex items-start gap-3">
+                                        <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-900 text-lg text-white dark:bg-white dark:text-slate-950">🖥</span>
+                                        <div>
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <h3 class="font-semibold">{{ $tr('Appareils virtuels') }}</h3>
+                                                <x-status-pill :tone="$virtualDevicesEnabled ? 'success' : 'neutral'">{{ $virtualDevicesEnabled ? $tr('Activé') : $tr('Désactivé') }}</x-status-pill>
+                                            </div>
+                                            <p class="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
+                                                {{ $tr('Associez chaque session à une caisse, tablette ou poste précis. Utile pour tracer les actions par terminal, mais optionnel pour les petites équipes.') }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        @if ($virtualDevicesEnabled)
+                                            <a href="{{ route('devices.index') }}" class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">{{ $tr('Gérer') }}</a>
+                                        @endif
+                                        <form action="{{ route('settings.virtual-devices.update') }}" method="POST">
+                                            @csrf
+                                            <input type="hidden" name="virtual_devices_enabled" value="{{ $virtualDevicesEnabled ? '0' : '1' }}">
+                                            <button class="inline-flex items-center justify-center rounded-lg {{ $virtualDevicesEnabled ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300' : 'bg-brand text-white shadow-sm shadow-indigo-500/20 hover:brightness-110' }} px-4 py-2.5 text-sm font-semibold transition" type="submit">
+                                                {{ $virtualDevicesEnabled ? $tr('Désactiver le module') : $tr('Activer le module') }}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
                             {{-- Printer --}}
                             <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
                                 <div class="flex items-center gap-3">

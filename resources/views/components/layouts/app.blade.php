@@ -17,6 +17,10 @@
         'density' => 'comfortable',
     ];
     $theme = array_merge($themeDefaults, $tenant->settings['theme'] ?? []);
+    $layoutBusinessMode = \App\Support\BusinessMode::current($tenant);
+    $moduleSettings = \App\Support\AppModules::settings($tenant);
+    $enabledModules = $moduleSettings['enabled'];
+    $moduleOrder = $moduleSettings['order'];
     $locale = \App\Support\Locale::current($tenant);
     $direction = \App\Support\Locale::dir($locale);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
@@ -45,7 +49,8 @@
     }
     $layoutCurrentStore = $layoutStores->firstWhere('key', $tenant->settings['current_store'] ?? null) ?? $layoutStores->first();
     $layoutMoney = fn ($amount): string => number_format((float) $amount, 2, ',', ' ').' DH';
-    $showCashDrawerNavbar = (bool) data_get($tenant->settings, 'pos.show_cash_drawer_navbar', true);
+    $virtualDevicesEnabled = (bool) data_get($tenant->settings, 'features.virtual_devices', false);
+    $showCashDrawerNavbar = (bool) data_get($tenant->settings, 'pos.show_cash_drawer_navbar', true) && ($enabledModules['cash_register'] ?? true);
     $layoutCashRegisterSession = $showCashDrawerNavbar
         ? \App\Models\CashRegisterSession::query()
             ->where('tenant_id', $tenant->id)
@@ -81,7 +86,9 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="color-scheme" content="light dark">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-        <meta name="device-heartbeat" content="{{ route('device.heartbeat') }}">
+        @if ($virtualDevicesEnabled)
+            <meta name="device-heartbeat" content="{{ route('device.heartbeat') }}">
+        @endif
         <title>{{ $title ?? 'LibrairePro' }}</title>
         <link rel="manifest" href="/manifest.json">
         <meta name="theme-color" content="{{ $theme['primary'] }}">
@@ -160,14 +167,18 @@
                 ['label' => "Services d'importation", 'icon' => '↤', 'href' => route('catalog', ['panel' => 'import', 'kind' => 'items'])],
             ];
             $quickAdds = [
-                ['label' => 'Ventes', 'href' => route('module', ['module' => 'sales', 'section' => 'add'])],
-                ['label' => 'Devis', 'href' => route('module', ['module' => 'sales', 'section' => 'quote-add'])],
-                ['label' => 'Achat', 'href' => route('module', ['module' => 'purchases', 'section' => 'add'])],
-                ['label' => 'Client', 'href' => route('module', ['module' => 'contacts', 'section' => 'customer-add'])],
-                ['label' => 'Fournisseur', 'href' => route('module', ['module' => 'contacts', 'section' => 'supplier-add'])],
-                ['label' => 'Article', 'href' => route('catalog', ['panel' => 'ajouter'])],
-                ['label' => 'Frais', 'href' => route('module', ['module' => 'finance', 'section' => 'expense-add'])],
+                ['module_key' => 'sales', 'label' => 'Ventes', 'href' => route('module', ['module' => 'sales', 'section' => 'add'])],
+                ['module_key' => 'quotations', 'label' => 'Devis', 'href' => route('module', ['module' => 'sales', 'section' => 'quote-add'])],
+                ['module_key' => 'purchases', 'label' => 'Achat', 'href' => route('module', ['module' => 'purchases', 'section' => 'add'])],
+                ['module_key' => 'customers', 'label' => 'Client', 'href' => route('module', ['module' => 'contacts', 'section' => 'customer-add'])],
+                ['module_key' => 'suppliers', 'label' => 'Fournisseur', 'href' => route('module', ['module' => 'contacts', 'section' => 'supplier-add'])],
+                ['module_key' => 'catalog', 'label' => 'Article', 'href' => route('catalog', ['panel' => 'ajouter'])],
+                ['module_key' => 'expenses', 'label' => 'Frais', 'href' => route('module', ['module' => 'finance', 'section' => 'expense-add'])],
             ];
+            $quickAdds = collect($quickAdds)
+                ->filter(fn (array $item) => $enabledModules[$item['module_key']] ?? true)
+                ->values()
+                ->all();
             $nav = [
                 ['key' => 'dashboard', 'label' => 'Tableau de bord', 'icon' => '⌂', 'href' => route('dashboard')],
                 ['key' => 'guide', 'label' => 'Guide fonctionnalités', 'icon' => '□', 'href' => route('functionality-guide')],
@@ -178,71 +189,72 @@
                     ['label' => 'Liste des ventes', 'icon' => '≡', 'href' => route('module', 'sales')],
                     ['label' => 'Paiements des ventes', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'payments'])],
                     ['label' => 'Liste des retours de vente', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'returns'])],
-                    ['label' => 'Liste de livraison', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'delivery'])],
                 ]],
-                ['key' => 'sales', 'label' => 'Facture', 'icon' => '▤', 'href' => route('module', ['module' => 'sales', 'section' => 'invoices'])],
+                ['key' => 'invoices', 'label' => 'Factures', 'icon' => '▤', 'href' => route('module', ['module' => 'sales', 'section' => 'invoices'])],
+                ['key' => 'deliveries', 'label' => 'Livraisons', 'icon' => '⇢', 'href' => route('module', ['module' => 'sales', 'section' => 'delivery'])],
                 ['key' => 'purchases', 'label' => 'Achat', 'icon' => '↧', 'href' => route('module', 'purchases'), 'children' => [
                     ['label' => 'Nouvel achat', 'icon' => '+', 'href' => route('module', ['module' => 'purchases', 'section' => 'add'])],
                     ['label' => "Liste d'achat", 'icon' => '≡', 'href' => route('module', ['module' => 'purchases', 'section' => 'list'])],
                     ['label' => "Liste des retours d'achat", 'icon' => '≡', 'href' => route('module', ['module' => 'purchases', 'section' => 'returns'])],
                 ]],
-                ['key' => 'finance', 'label' => 'Dépenses', 'icon' => '−', 'href' => route('module', ['module' => 'finance', 'section' => 'expenses']), 'children' => [
+                ['key' => 'loans', 'label' => 'Emprunts', 'icon' => '▤', 'href' => route('module', 'loans')],
+                ['key' => 'expenses', 'label' => 'Dépenses', 'icon' => '−', 'href' => route('module', ['module' => 'finance', 'section' => 'expenses']), 'children' => [
                     ['label' => 'Ajouter une dépense', 'icon' => '+', 'href' => route('module', ['module' => 'finance', 'section' => 'expense-add'])],
                     ['label' => 'Liste des dépenses', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'expenses'])],
                     ['label' => 'Liste des catégories', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'expense-categories'])],
                 ]],
-                ['key' => 'sales', 'label' => 'Devis', 'icon' => '□', 'href' => route('module', ['module' => 'sales', 'section' => 'quotes']), 'children' => [
+                ['key' => 'quotations', 'label' => 'Devis', 'icon' => '□', 'href' => route('module', ['module' => 'sales', 'section' => 'quotes']), 'children' => [
                     ['label' => 'Nouveau devis', 'icon' => '+', 'href' => route('module', ['module' => 'sales', 'section' => 'quote-add'])],
                     ['label' => 'Liste de devis', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'quotes'])],
                 ]],
-                ['key' => 'contacts', 'label' => 'Les clients', 'icon' => '◌', 'href' => route('module', ['module' => 'contacts', 'section' => 'customers']), 'children' => [
+                ['key' => 'customers', 'label' => 'Les clients', 'icon' => '◌', 'href' => route('module', ['module' => 'contacts', 'section' => 'customers']), 'children' => [
                     ['label' => 'Ajouter un client', 'icon' => '+', 'href' => route('module', ['module' => 'contacts', 'section' => 'customer-add'])],
                     ['label' => 'Liste des clients', 'icon' => '≡', 'href' => route('module', ['module' => 'contacts', 'section' => 'customers'])],
                     ['label' => 'Importer des clients', 'icon' => '↤', 'href' => route('module', ['module' => 'contacts', 'section' => 'import-customers'])],
                 ]],
-                ['key' => 'contacts', 'label' => 'Les fournisseurs', 'icon' => '▱', 'href' => route('module', ['module' => 'contacts', 'section' => 'suppliers']), 'children' => [
+                ['key' => 'suppliers', 'label' => 'Les fournisseurs', 'icon' => '▱', 'href' => route('module', ['module' => 'contacts', 'section' => 'suppliers']), 'children' => [
                     ['label' => 'Ajouter un fournisseur', 'icon' => '+', 'href' => route('module', ['module' => 'contacts', 'section' => 'supplier-add'])],
                     ['label' => 'Liste des fournisseurs', 'icon' => '≡', 'href' => route('module', ['module' => 'contacts', 'section' => 'suppliers'])],
                     ['label' => 'Importer des fournisseurs', 'icon' => '↤', 'href' => route('module', ['module' => 'contacts', 'section' => 'import-suppliers'])],
                 ]],
-                ['key' => 'finance', 'label' => 'Avance', 'icon' => '$', 'href' => route('module', ['module' => 'finance', 'section' => 'advances']), 'children' => [
+                ['key' => 'advances', 'label' => 'Avance', 'icon' => '$', 'href' => route('module', ['module' => 'finance', 'section' => 'advances']), 'children' => [
                     ['label' => 'Ajouter une avance', 'icon' => '+', 'href' => route('module', ['module' => 'finance', 'section' => 'advance-add'])],
                     ['label' => 'Liste des avances', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'advances'])],
                 ]],
-                ['key' => 'finance', 'label' => 'Coupons', 'icon' => '◇', 'href' => route('module', ['module' => 'finance', 'section' => 'coupons']), 'children' => [
+                ['key' => 'coupons', 'label' => 'Coupons', 'icon' => '◇', 'href' => route('module', ['module' => 'finance', 'section' => 'coupons']), 'children' => [
                     ['label' => 'Créer un coupon client', 'icon' => '+', 'href' => route('module', ['module' => 'finance', 'section' => 'customer-coupon-add'])],
                     ['label' => 'Liste des coupons client', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'customer-coupons'])],
                     ['label' => 'Créer un coupon', 'icon' => '+', 'href' => route('module', ['module' => 'finance', 'section' => 'coupon-add'])],
                     ['label' => 'Maître des coupons', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'coupons'])],
                 ]],
-                ['key' => 'finance', 'label' => 'Remises', 'icon' => '%', 'href' => route('module', ['module' => 'finance', 'section' => 'discounts']), 'children' => [
+                ['key' => 'discounts', 'label' => 'Remises', 'icon' => '%', 'href' => route('module', ['module' => 'finance', 'section' => 'discounts']), 'children' => [
                     ['label' => 'Créer une remise', 'icon' => '+', 'href' => route('module', ['module' => 'finance', 'section' => 'discount-add'])],
                     ['label' => 'Liste des remises', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'discounts'])],
                 ]],
-                ['key' => 'finance', 'label' => 'Comptes', 'icon' => '▦', 'href' => route('module', ['module' => 'finance', 'section' => 'accounts']), 'children' => [
+                ['key' => 'accounts', 'label' => 'Comptes', 'icon' => '▦', 'href' => route('module', ['module' => 'finance', 'section' => 'accounts']), 'children' => [
                     ['label' => 'Ajouter un compte', 'icon' => '+', 'href' => route('module', ['module' => 'finance', 'section' => 'account-add'])],
                     ['label' => 'Liste des comptes', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'accounts'])],
                     ['label' => "Liste des transferts d'argent", 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'transfers'])],
                     ['label' => 'Liste de dépôt', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'deposits'])],
-                    ['label' => 'Tiroir caisse', 'icon' => '▣', 'href' => route('module', 'cash-register'), 'keywords' => 'cash register tiroir caisse ouverture cloture balance drawer'],
                     ['label' => 'Transactions en espèces', 'icon' => '⇄', 'href' => route('module', ['module' => 'finance', 'section' => 'cash'])],
                 ]],
+                ['key' => 'cash_register', 'label' => 'Tiroir caisse', 'icon' => '▣', 'href' => route('module', 'cash-register')],
                 ['key' => 'stock', 'label' => 'Stock', 'icon' => '⌛', 'href' => route('stock'), 'children' => [
                     ['label' => "Ajouter ajustement", 'icon' => '+', 'href' => route('stock', ['panel' => 'stock-adjustment-add'])],
                     ['label' => "Liste d'ajustement", 'icon' => '≡', 'href' => route('stock', ['panel' => 'stock-adjustments'])],
                     ['label' => 'Ajouter transfert', 'icon' => '+', 'href' => route('stock', ['panel' => 'stock-transfer-add'])],
                     ['label' => 'Liste de transfert', 'icon' => '≡', 'href' => route('stock', ['panel' => 'stock-transfers'])],
                 ]],
-                ['key' => 'settings', 'label' => 'Utilisateurs', 'icon' => '♙', 'href' => route('module', ['module' => 'settings', 'section' => 'users']), 'children' => [
+                ['key' => 'users', 'label' => 'Utilisateurs', 'icon' => '♙', 'href' => route('module', ['module' => 'settings', 'section' => 'users']), 'children' => [
                     ['label' => 'Liste des utilisateurs', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'users'])],
                     ['label' => 'Liste des rôles', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'roles'])],
                 ]],
-                ['key' => 'settings', 'label' => 'Messagerie', 'icon' => '✉', 'href' => route('module', ['module' => 'settings', 'section' => 'messaging']), 'children' => [
+                ['key' => 'messaging', 'label' => 'Messagerie', 'icon' => '✉', 'href' => route('module', ['module' => 'settings', 'section' => 'messaging']), 'children' => [
                     ['label' => 'Envoyer le message', 'icon' => '✉', 'href' => route('module', ['module' => 'settings', 'section' => 'messaging'])],
                     ['label' => 'Modèles de messagerie', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'message-templates'])],
                 ]],
                 ['key' => 'reports', 'label' => 'Rapports', 'icon' => '▥', 'href' => route('module', 'reports')],
-                ['key' => 'settings', 'label' => 'Magasin', 'icon' => '▣', 'href' => route('module', ['module' => 'settings', 'section' => 'warehouses'])],
+                ['key' => 'stores', 'label' => 'Magasin', 'icon' => '▣', 'href' => route('module', ['module' => 'settings', 'section' => 'warehouses'])],
                 ['key' => 'settings', 'label' => 'Paramètres', 'icon' => '⚙', 'href' => route('module', 'settings'), 'children' => [
                     ['label' => 'Société', 'icon' => '▣', 'href' => route('module', ['module' => 'settings', 'section' => 'company'])],
                     ['label' => 'API SMS/WhatsApp', 'icon' => '▦', 'href' => route('module', ['module' => 'settings', 'section' => 'sms-api'])],
@@ -252,10 +264,19 @@
                     ['label' => 'Liste des pays', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'countries'])],
                     ['label' => 'Liste des états', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'states'])],
                     ['label' => 'Changer le mot de passe', 'icon' => '⌐', 'href' => route('module', ['module' => 'settings', 'section' => 'password'])],
-                    ['label' => 'Appareils virtuels', 'icon' => '🖥', 'href' => route('devices.index')],
+                    ...($virtualDevicesEnabled ? [['label' => 'Appareils virtuels', 'icon' => '🖥', 'href' => route('devices.index')]] : []),
                     ['label' => 'Matériel', 'icon' => '🖨', 'href' => route('module', ['module' => 'settings', 'section' => 'hardware'])],
                 ]],
             ];
+            $nav = collect($nav)
+                ->filter(fn (array $item) => $enabledModules[$item['key']] ?? true)
+                ->sortBy(function (array $item, int $index) use ($moduleOrder): int {
+                    $position = array_search($item['key'], $moduleOrder, true);
+
+                    return ($position === false ? 999000 : $position * 1000) + $index;
+                })
+                ->values()
+                ->all();
             $commandLinks = collect($nav)
                 ->flatMap(function (array $item) use ($tr) {
                     $links = [[
@@ -342,7 +363,7 @@
                         <span class="sidebar-logo grid size-10 shrink-0 place-items-center bg-brand text-sm font-bold text-white shadow-sm">LP</span>
                         <span class="sidebar-label min-w-0">
                             <span class="block truncate text-sm font-semibold">{{ $tenant->name }}</span>
-                            <span class="block truncate text-xs text-slate-500 dark:text-slate-400">{{ $tr('SaaS librairie') }} · {{ strtoupper($tenant->currency) }}</span>
+                            <span class="block truncate text-xs text-slate-500 dark:text-slate-400">SaaS {{ $layoutBusinessMode['short_label'] }} · {{ strtoupper($tenant->currency) }}</span>
                         </span>
                     </a>
                     <button class="sidebar-toggle grid size-9 shrink-0 place-items-center" type="button" aria-label="Réduire le menu" aria-pressed="false" data-sidebar-toggle>
@@ -457,23 +478,25 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="app-product-search relative hidden md:block" data-product-search data-product-search-url="{{ route('catalog.quick-search') }}">
-                            <label class="app-product-search-input">
-                                <span class="app-product-search-icon">▦</span>
-                                <input type="search" data-product-search-input autocomplete="off" placeholder="{{ $tr('Produit...') }}">
-                            </label>
-                            <div class="app-product-search-panel hidden" data-product-search-panel>
-                                <div class="app-product-search-head">
-                                    <span>{{ $tr('Articles & services') }}</span>
-                                    <small><strong data-product-search-count>0</strong> {{ $tr('résultat(s)') }}</small>
-                                </div>
-                                <div class="app-product-search-results" data-product-search-results></div>
-                                <div class="app-product-search-empty hidden" data-product-search-empty>
-                                    <strong>{{ $tr('Aucun produit trouvé') }}</strong>
-                                    <span>{{ $tr('Essayez un nom, ISBN, SKU, code article ou code-barres.') }}</span>
+                        @if ($enabledModules['catalog'] ?? true)
+                            <div class="app-product-search relative hidden md:block" data-product-search data-product-search-url="{{ route('catalog.quick-search') }}">
+                                <label class="app-product-search-input">
+                                    <span class="app-product-search-icon">▦</span>
+                                    <input type="search" data-product-search-input autocomplete="off" placeholder="{{ $tr('Produit...') }}">
+                                </label>
+                                <div class="app-product-search-panel hidden" data-product-search-panel>
+                                    <div class="app-product-search-head">
+                                        <span>{{ $tr('Articles & services') }}</span>
+                                        <small><strong data-product-search-count>0</strong> {{ $tr('résultat(s)') }}</small>
+                                    </div>
+                                    <div class="app-product-search-results" data-product-search-results></div>
+                                    <div class="app-product-search-empty hidden" data-product-search-empty>
+                                        <strong>{{ $tr('Aucun produit trouvé') }}</strong>
+                                        <span>{{ $tr('Essayez un nom, ISBN, SKU, code article ou code-barres.') }}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        @endif
                         @if ($showCashDrawerNavbar)
                             <a href="{{ route('module', 'cash-register') }}" class="topbar-cashdrawer {{ $layoutCashRegisterSession ? 'is-open' : 'is-closed' }}" title="{{ $layoutCashRegisterSession ? $tr('Tiroir ouvert') : $tr('Tiroir fermé') }}">
                                 <span class="topbar-cashdrawer-icon">TC</span>
@@ -609,57 +632,59 @@
                                     <span class="mt-1 inline-flex max-w-full items-center rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">{{ $accountRoleName }}</span>
                                 </span>
                             </div>
-                            @php
-                                $deviceSessionId = session('virtual_device_session_id');
-                                $currentDevice = null;
-                                if ($deviceSessionId) {
-                                    $currentDevice = \App\Models\VirtualDeviceSession::where('id', $deviceSessionId)
-                                        ->whereNull('disconnected_at')
-                                        ->with('virtualDevice')
-                                        ->first();
-                                }
-                                $isConnected = $currentDevice?->virtualDevice !== null;
-                                $deviceType = $currentDevice?->virtualDevice?->type ?? 'computer';
-                                $typeIcon = match($deviceType) {
-                                    'mobile' => '📱', 'tablet' => '📋',
-                                    default => '💻'
-                                };
-                            @endphp
-                            <div class="border-b border-slate-100 px-1 pb-3 pt-2 dark:border-white/10">
-                                <a href="{{ route('device.select') }}" class="group flex items-center gap-3 rounded-xl px-2 py-2.5 transition hover:bg-slate-50 dark:hover:bg-white/5">
-                                    <span class="relative grid size-10 shrink-0 place-items-center rounded-xl text-lg transition group-hover:scale-105 {{ $isConnected ? 'bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-sm shadow-emerald-500/25' : 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-sm shadow-amber-500/25' }}">
-                                        {{ $typeIcon }}
-                                        @if ($isConnected)
-                                            <span class="absolute -right-0.5 -top-0.5 size-3 rounded-full border-2 border-white bg-emerald-400 dark:border-slate-950">
-                                                <span class="absolute inset-0 animate-ping rounded-full bg-emerald-400"></span>
-                                            </span>
-                                        @endif
-                                    </span>
-                                    <span class="min-w-0 flex-1">
-                                        <strong class="block truncate text-[13px] font-semibold leading-tight text-slate-900 dark:text-white">
-                                            {{ $isConnected ? $currentDevice->virtualDevice->name : $tr('Aucun appareil') }}
-                                        </strong>
-                                        <span class="mt-0.5 flex items-center gap-1.5">
+                            @if ($virtualDevicesEnabled)
+                                @php
+                                    $deviceSessionId = session('virtual_device_session_id');
+                                    $currentDevice = null;
+                                    if ($deviceSessionId) {
+                                        $currentDevice = \App\Models\VirtualDeviceSession::where('id', $deviceSessionId)
+                                            ->whereNull('disconnected_at')
+                                            ->with('virtualDevice')
+                                            ->first();
+                                    }
+                                    $isConnected = $currentDevice?->virtualDevice !== null;
+                                    $deviceType = $currentDevice?->virtualDevice?->type ?? 'computer';
+                                    $typeIcon = match($deviceType) {
+                                        'mobile' => '📱', 'tablet' => '📋',
+                                        default => '💻'
+                                    };
+                                @endphp
+                                <div class="border-b border-slate-100 px-1 pb-3 pt-2 dark:border-white/10">
+                                    <a href="{{ route('device.select') }}" class="group flex items-center gap-3 rounded-xl px-2 py-2.5 transition hover:bg-slate-50 dark:hover:bg-white/5">
+                                        <span class="relative grid size-10 shrink-0 place-items-center rounded-xl text-lg transition group-hover:scale-105 {{ $isConnected ? 'bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-sm shadow-emerald-500/25' : 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-sm shadow-amber-500/25' }}">
+                                            {{ $typeIcon }}
                                             @if ($isConnected)
-                                                <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                                                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
-                                                    {{ $tr('Connecté') }}
+                                                <span class="absolute -right-0.5 -top-0.5 size-3 rounded-full border-2 border-white bg-emerald-400 dark:border-slate-950">
+                                                    <span class="absolute inset-0 animate-ping rounded-full bg-emerald-400"></span>
                                                 </span>
-                                                @if ($currentDevice->platform || $currentDevice->browser)
-                                                    <span class="text-[11px] text-slate-400">· {{ $currentDevice->platform }} {{ $currentDevice->browser }}</span>
-                                                @endif
-                                            @else
-                                                <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-                                                    <span class="size-1.5 rounded-full bg-amber-500"></span>
-                                                    {{ $tr('Non connecté') }}
-                                                </span>
-                                                <span class="text-[11px] text-slate-400">· {{ $tr('Sélectionner') }}</span>
                                             @endif
                                         </span>
-                                    </span>
-                                    <svg class="size-4 shrink-0 -translate-x-1 text-slate-300 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                                </a>
-                            </div>
+                                        <span class="min-w-0 flex-1">
+                                            <strong class="block truncate text-[13px] font-semibold leading-tight text-slate-900 dark:text-white">
+                                                {{ $isConnected ? $currentDevice->virtualDevice->name : $tr('Aucun appareil') }}
+                                            </strong>
+                                            <span class="mt-0.5 flex items-center gap-1.5">
+                                                @if ($isConnected)
+                                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                                        <span class="size-1.5 rounded-full bg-emerald-500"></span>
+                                                        {{ $tr('Connecté') }}
+                                                    </span>
+                                                    @if ($currentDevice->platform || $currentDevice->browser)
+                                                        <span class="text-[11px] text-slate-400">· {{ $currentDevice->platform }} {{ $currentDevice->browser }}</span>
+                                                    @endif
+                                                @else
+                                                    <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                                                        <span class="size-1.5 rounded-full bg-amber-500"></span>
+                                                        {{ $tr('Non connecté') }}
+                                                    </span>
+                                                    <span class="text-[11px] text-slate-400">· {{ $tr('Sélectionner') }}</span>
+                                                @endif
+                                            </span>
+                                        </span>
+                                        <svg class="size-4 shrink-0 -translate-x-1 text-slate-300 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                    </a>
+                                </div>
+                            @endif
                             <a href="{{ route('profile') }}" class="mt-2 block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Mon profil') }}</a>
                                     <a href="{{ route('module', ['module' => 'settings', 'section' => 'users']) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Utilisateurs & rôles') }}</a>
                                     <button class="app-theme-toggle w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="button">

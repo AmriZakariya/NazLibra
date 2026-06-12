@@ -32,6 +32,12 @@ class EnsureVirtualDeviceSelected
             return $next($request);
         }
 
+        if (! (bool) data_get($tenant->settings, 'features.virtual_devices', false)) {
+            $request->session()->forget('virtual_device_session_id');
+
+            return $next($request);
+        }
+
         if (! VirtualDevice::where('tenant_id', $tenant->id)->where('is_active', true)->exists()) {
             return $next($request);
         }

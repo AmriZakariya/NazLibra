@@ -37,6 +37,18 @@ class VirtualDeviceController extends Controller
         return (string) ($tenantUser?->pivot?->role ?? '') === 'owner';
     }
 
+    private function isModuleEnabled(?Tenant $tenant = null): bool
+    {
+        $tenant ??= $this->tenant();
+
+        return (bool) data_get($tenant->settings, 'features.virtual_devices', false);
+    }
+
+    private function ensureModuleEnabled(?Tenant $tenant = null): void
+    {
+        abort_unless($this->isModuleEnabled($tenant), 404);
+    }
+
     // ─── Management (owner only) ─────────────────────────────────────
 
     public function index(): View
@@ -44,6 +56,7 @@ class VirtualDeviceController extends Controller
         abort_unless($this->isOwner(), 403);
 
         $tenant = $this->tenant();
+        $this->ensureModuleEnabled($tenant);
         $this->cleanStaleConnections($tenant);
 
         $devices = VirtualDevice::where('tenant_id', $tenant->id)
@@ -63,6 +76,7 @@ class VirtualDeviceController extends Controller
         abort_unless($this->isOwner(), 403);
 
         $tenant = $this->tenant();
+        $this->ensureModuleEnabled($tenant);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
@@ -93,7 +107,9 @@ class VirtualDeviceController extends Controller
     public function update(Request $request, VirtualDevice $device): RedirectResponse
     {
         abort_unless($this->isOwner(), 403);
-        abort_unless($device->tenant_id === $this->tenant()->id, 404);
+        $tenant = $this->tenant();
+        $this->ensureModuleEnabled($tenant);
+        abort_unless($device->tenant_id === $tenant->id, 404);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:120'],
@@ -109,7 +125,9 @@ class VirtualDeviceController extends Controller
     public function toggleStatus(VirtualDevice $device): RedirectResponse
     {
         abort_unless($this->isOwner(), 403);
-        abort_unless($device->tenant_id === $this->tenant()->id, 404);
+        $tenant = $this->tenant();
+        $this->ensureModuleEnabled($tenant);
+        abort_unless($device->tenant_id === $tenant->id, 404);
 
         $device->update(['is_active' => ! $device->is_active]);
 
@@ -123,7 +141,9 @@ class VirtualDeviceController extends Controller
     public function destroy(VirtualDevice $device): RedirectResponse
     {
         abort_unless($this->isOwner(), 403);
-        abort_unless($device->tenant_id === $this->tenant()->id, 404);
+        $tenant = $this->tenant();
+        $this->ensureModuleEnabled($tenant);
+        abort_unless($device->tenant_id === $tenant->id, 404);
 
         $this->disconnectAllSessions($device, 'device_deleted');
 
@@ -138,6 +158,13 @@ class VirtualDeviceController extends Controller
     {
         $tenant = $this->tenant();
         $user = auth()->user();
+
+        if (! $this->isModuleEnabled($tenant)) {
+            $request->session()->forget('virtual_device_session_id');
+
+            return redirect()->intended(route('dashboard'))->with('status', 'Le module appareils virtuels est désactivé.');
+        }
+
         $this->cleanStaleConnections($tenant);
 
         $currentSession = $this->currentDeviceSession($tenant, $user);
@@ -172,6 +199,7 @@ class VirtualDeviceController extends Controller
     {
         $tenant = $this->tenant();
         $user = auth()->user();
+        $this->ensureModuleEnabled($tenant);
 
         $data = $request->validate([
             'virtual_device_id' => ['required', 'integer', Rule::exists('virtual_devices', 'id')->where('tenant_id', $tenant->id)],
@@ -243,13 +271,21 @@ class VirtualDeviceController extends Controller
             $request->session()->forget('virtual_device_session_id');
         }
 
-        return redirect()->route('device.select')->with('status', 'Déconnecté.');
+        return $this->isModuleEnabled($tenant)
+            ? redirect()->route('device.select')->with('status', 'Déconnecté.')
+            : redirect()->route('dashboard')->with('status', 'Déconnecté.');
     }
 
     public function heartbeat(Request $request): JsonResponse
     {
         $tenant = $this->tenant();
         $user = auth()->user();
+
+        if (! $this->isModuleEnabled($tenant)) {
+            $request->session()->forget('virtual_device_session_id');
+
+            return response()->json(['ok' => true, 'disabled' => true]);
+        }
 
         $session = $this->currentDeviceSession($tenant, $user);
 

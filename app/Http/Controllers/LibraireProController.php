@@ -36,6 +36,9 @@ use App\Models\Tax;
 use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\VariantOption;
+use App\Models\VirtualDeviceSession;
+use App\Support\AppModules;
+use App\Support\BusinessMode;
 use App\Support\Locale;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
@@ -330,6 +333,7 @@ class LibraireProController extends Controller
     public function functionalityGuide(): View
     {
         $tenant = $this->tenant();
+        abort_unless(AppModules::enabled($tenant, 'guide'), 404);
         $groups = $this->functionalityGuideGroups();
         $features = collect($groups)->flatMap(fn (array $group) => $group['features']);
         $visibleCount = $features->where('status', 'visible')->count();
@@ -532,6 +536,7 @@ class LibraireProController extends Controller
     public function catalog(Request $request): View
     {
         $tenant = $this->tenant();
+        abort_unless(AppModules::enabled($tenant, 'catalog'), 404);
         $panel = $request->query('panel', 'articles');
         $query = trim((string) ($request->query('q') ?: data_get($request->input('search', []), 'value', '')));
         $status = $request->query('status', 'all');
@@ -760,6 +765,8 @@ class LibraireProController extends Controller
 
     public function stock(Request $request): View
     {
+        abort_unless(AppModules::enabled($this->tenant(), 'stock'), 404);
+
         if (! $request->query('panel')) {
             $request->query->set('panel', 'stock-adjustments');
         }
@@ -770,6 +777,7 @@ class LibraireProController extends Controller
     public function catalogData(Request $request): \Illuminate\Http\JsonResponse
     {
         $tenant = $this->tenant();
+        abort_unless(AppModules::enabled($tenant, 'catalog'), 404);
         $panel = $request->query('panel', 'articles');
 
         return DataTables::eloquent($this->catalogItemsQuery($tenant, $request))
@@ -2014,6 +2022,7 @@ class LibraireProController extends Controller
         $data = $request->validate([
             'store_code' => ['nullable', 'string', 'max:60'],
             'store_name' => ['required', 'string', 'max:160'],
+            'business_mode' => ['nullable', Rule::in(array_keys(BusinessMode::all()))],
             'mobile' => ['nullable', 'string', 'max:60'],
             'email' => ['nullable', 'email', 'max:190'],
             'phone' => ['nullable', 'string', 'max:60'],
@@ -2082,6 +2091,8 @@ class LibraireProController extends Controller
             $data[$boolean] = $request->boolean($boolean);
         }
 
+        $data['business_mode'] = BusinessMode::get($data['business_mode'] ?? data_get($tenant->settings, 'company_profile.business_mode'))['key'];
+
         if ($request->boolean('remove_app_icon')) {
             $this->deleteAppIconFiles();
             $data['app_icon'] = null;
@@ -2144,13 +2155,14 @@ class LibraireProController extends Controller
     {
         $tenant = Tenant::query()->first();
         $theme = data_get($tenant?->settings, 'theme.primary', '#3157D5');
+        $businessMode = BusinessMode::current($tenant);
         $locale = $tenant?->locale ?? 'fr';
         $dir = str_starts_with($locale, 'ar') ? 'rtl' : 'ltr';
 
         return response()->json([
             'name' => $tenant?->name ?? 'LibrairePro',
             'short_name' => $tenant?->name ?? 'LibrairePro',
-            'description' => 'Caisse, stock, ventes et achats pour librairie',
+            'description' => 'Caisse, stock, ventes et achats pour '.$businessMode['short_label'],
             'start_url' => '/',
             'display' => 'standalone',
             'background_color' => '#F4F7FB',
@@ -2310,6 +2322,71 @@ class LibraireProController extends Controller
         $tenant->update(['settings' => $settings]);
 
         return back()->with('status', 'Paramètres caisse & stock mis à jour.');
+    }
+
+    public function updateModuleSettings(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $definitions = AppModules::all();
+        $validKeys = array_keys($definitions);
+
+        $data = $request->validate([
+            'enabled' => ['nullable', 'array'],
+            'enabled.*' => ['string', Rule::in($validKeys)],
+            'order' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $order = collect(explode(',', (string) ($data['order'] ?? '')))
+            ->map(fn ($key) => trim($key))
+            ->filter(fn ($key) => in_array($key, $validKeys, true))
+            ->unique()
+            ->values();
+        $order = AppModules::normalizeOrder($order->merge(collect($validKeys)->diff($order))->values()->all());
+
+        $selected = collect($data['enabled'] ?? [])->filter(fn ($key) => in_array($key, $validKeys, true))->values();
+        $enabled = collect($definitions)->mapWithKeys(function (array $module, string $key) use ($selected): array {
+            return [$key => (bool) ($module['locked'] ?? false) || $selected->contains($key)];
+        })->all();
+
+        $settings = $tenant->settings ?? [];
+        $settings['modules'] = [
+            'enabled' => $enabled,
+            'order' => $order,
+        ];
+
+        $tenant->update(['settings' => $settings]);
+
+        return redirect()
+            ->route('module', ['module' => 'settings', 'section' => 'modules'])
+            ->with('status', 'Modules et ordre du menu mis à jour.');
+    }
+
+    public function updateVirtualDeviceSettings(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $enabled = $request->boolean('virtual_devices_enabled');
+        $settings = $tenant->settings ?? [];
+        $settings['features'] = array_merge($settings['features'] ?? [], [
+            'virtual_devices' => $enabled,
+        ]);
+
+        $tenant->update(['settings' => $settings]);
+
+        if (! $enabled) {
+            VirtualDeviceSession::where('tenant_id', $tenant->id)
+                ->whereNull('disconnected_at')
+                ->update([
+                    'disconnected_at' => now(),
+                    'disconnect_reason' => 'module_disabled',
+                    'updated_at' => now(),
+                ]);
+
+            session()->forget('virtual_device_session_id');
+        }
+
+        return redirect()
+            ->route('module', ['module' => 'settings', 'section' => 'hardware'])
+            ->with('status', $enabled ? 'Module appareils virtuels activé.' : 'Module appareils virtuels désactivé.');
     }
 
     public function updateDocumentSettings(Request $request): RedirectResponse
@@ -2837,6 +2914,7 @@ class LibraireProController extends Controller
     public function pos(Request $request): View
     {
         $tenant = $this->tenant();
+        abort_unless(AppModules::enabled($tenant, 'sales'), 404);
         $query = trim((string) $request->query('q'));
         $type = $request->query('type', 'all');
         $stock = $request->query('stock', 'available');
@@ -5024,6 +5102,7 @@ class LibraireProController extends Controller
     public function module(Request $request, string $module): View
     {
         $tenant = $this->tenant();
+        $businessMode = BusinessMode::current($tenant);
 
         $modules = [
             'sales' => ['title' => 'Ventes', 'subtitle' => 'Historique, devis, retours, livraisons et crédits client.', 'active' => 'sales'],
@@ -5033,12 +5112,13 @@ class LibraireProController extends Controller
             'finance' => ['title' => 'Finances', 'subtitle' => 'Avances, coupons, dépenses, balances et clôture de caisse.', 'active' => 'finance'],
             'cash-register' => ['title' => 'Tiroir caisse', 'subtitle' => 'Ouverture, clôture, solde attendu et historique du tiroir.', 'active' => 'finance'],
             'reports' => ['title' => 'Rapports', 'subtitle' => 'Analytique ventes, inventaire, finances et bibliothèque.', 'active' => 'reports'],
-            'settings' => ['title' => 'Paramètres', 'subtitle' => 'Profil librairie, utilisateurs, rôles, intégrations et sécurité.', 'active' => 'settings'],
+            'settings' => ['title' => 'Paramètres', 'subtitle' => 'Profil '.$businessMode['short_label'].', utilisateurs, rôles, intégrations et sécurité.', 'active' => 'settings'],
         ];
 
         abort_unless(isset($modules[$module]), 404);
 
         $section = $request->query('section', 'list');
+        abort_unless(AppModules::enabled($tenant, AppModules::keyForModulePage($module, $section) ?? $module), 404);
         $sales = $this->salesListQuery($tenant, $request)->paginate(25)->withQueryString();
         $saleInvoices = SaleInvoice::query()
             ->with(['sale.contact', 'contact'])

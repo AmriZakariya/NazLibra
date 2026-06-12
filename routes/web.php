@@ -207,7 +207,9 @@ Route::post('/caisse/registre/mouvements', [LibraireProController::class, 'store
 Route::post('/caisse/registre/{session}/fermer', [LibraireProController::class, 'closeCashRegister'])->name('cash-register.close');
 Route::post('/parametres/theme', [LibraireProController::class, 'updateTheme'])->name('settings.theme.update');
 Route::post('/parametres/societe', [LibraireProController::class, 'updateCompanyProfile'])->name('settings.company.update');
+Route::post('/parametres/modules', [LibraireProController::class, 'updateModuleSettings'])->name('settings.modules.update');
 Route::post('/parametres/caisse', [LibraireProController::class, 'updatePosSettings'])->name('settings.pos.update');
+Route::post('/parametres/appareils-virtuels', [LibraireProController::class, 'updateVirtualDeviceSettings'])->name('settings.virtual-devices.update');
 Route::post('/parametres/documents-pdf', [LibraireProController::class, 'updateDocumentSettings'])->name('settings.documents.update');
 Route::post('/parametres/messagerie', [LibraireProController::class, 'updateMessagingSettings'])->name('settings.messaging.update');
 Route::post('/parametres/messagerie/envoyer', [LibraireProController::class, 'sendManualMessage'])->name('settings.messaging.send');
