@@ -19,7 +19,7 @@
     $locale = \App\Support\Locale::current($tenant);
     $direction = \App\Support\Locale::dir($locale);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
-    $appVersion = config('app.version', '1.0.0-beta.2');
+    $appVersion = config('app.version', '1.0.0-beta.3');
     $releaseLabel = app()->environment('production') ? $tr('Production') : \Illuminate\Support\Str::headline(app()->environment());
 @endphp
 <!DOCTYPE html>
