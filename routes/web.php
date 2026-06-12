@@ -7,7 +7,7 @@ use App\Http\Controllers\VirtualDeviceController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/manifest.json', [LibraireProController::class, 'manifest'])->name('manifest');
-Route::get('/app-icon/{size}', [LibraireProController::class, 'appIcon'])->where('size', '192|512')->name('app.icon');
+Route::get('/app-icon/{size}', [LibraireProController::class, 'appIcon'])->where('size', '32|192|512')->name('app.icon');
 Route::get('/connexion', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/connexion', [AuthController::class, 'login'])->name('login.store');
 Route::post('/deconnexion', [AuthController::class, 'logout'])->middleware('auth')->name('logout');

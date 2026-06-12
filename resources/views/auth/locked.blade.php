@@ -10,6 +10,8 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title>{{ $tr('Session verrouillée') }} · LibrairePro</title>
+        <link rel="icon" type="image/png" sizes="32x32" href="{{ route('app.icon', 32) }}">
+        <link rel="shortcut icon" href="{{ route('app.icon', 32) }}" type="image/x-icon">
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-slate-950 text-white antialiased">

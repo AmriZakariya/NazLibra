@@ -6866,7 +6866,7 @@ class LibraireProController extends Controller
     private function processAppIconUpload(\Illuminate\Http\UploadedFile $file): void
     {
         $source = $file->getRealPath();
-        $sizes = [192 => 'icon-192x192.png', 512 => 'icon-512x512.png'];
+        $sizes = [32 => 'icon-32x32.png', 192 => 'icon-192x192.png', 512 => 'icon-512x512.png'];
         $iconsDir = public_path('icons');
 
         if (! is_dir($iconsDir)) {
@@ -6885,7 +6885,7 @@ class LibraireProController extends Controller
             mkdir($iconsDir, 0755, true);
         }
 
-        foreach ([192, 512] as $size) {
+        foreach ([32, 192, 512] as $size) {
             $this->ensureDefaultAppIconGenerated($size);
         }
     }

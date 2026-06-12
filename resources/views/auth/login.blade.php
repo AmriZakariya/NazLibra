@@ -34,6 +34,8 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>{{ $tr('Connexion') }} · LibrairePro</title>
+        <link rel="icon" type="image/png" sizes="32x32" href="{{ route('app.icon', 32) }}">
+        <link rel="shortcut icon" href="{{ route('app.icon', 32) }}" type="image/x-icon">
         <script>
             window.libraireProLocale = @json($locale);
             window.libraireProTranslations = @json($locale === 'ar' ? \App\Support\Locale::arabic() : []);

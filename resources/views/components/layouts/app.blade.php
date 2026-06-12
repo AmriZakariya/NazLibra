@@ -59,6 +59,7 @@
             ->latest('opened_at')
             ->first()
         : null;
+    $appIcon32 = route('app.icon', 32);
     $appIcon192 = route('app.icon', 192);
     $appIcon512 = route('app.icon', 512);
 @endphp
@@ -98,6 +99,8 @@
         <link rel="apple-touch-icon" href="{{ $appIcon192 }}">
         <link rel="icon" type="image/png" sizes="192x192" href="{{ $appIcon192 }}">
         <link rel="icon" type="image/png" sizes="512x512" href="{{ $appIcon512 }}">
+        <link rel="icon" type="image/png" sizes="32x32" href="{{ $appIcon32 }}">
+        <link rel="shortcut icon" href="{{ $appIcon32 }}" type="image/x-icon">
         <script>
             const libraireProForceCollapsedSidebar = @json(request()->routeIs('pos'));
             if (libraireProForceCollapsedSidebar) {
