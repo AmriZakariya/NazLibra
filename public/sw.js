@@ -1,6 +1,5 @@
-const CACHE_NAME = 'librairepro-v2';
+const CACHE_NAME = 'librairepro-v3';
 const STATIC_ASSETS = [
-    '/',
     '/manifest.json',
     '/icons/icon-32x32.png',
     '/icons/icon-192x192.png',
@@ -29,32 +28,49 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
     if (event.request.method !== 'GET') return;
-    if (event.request.url.includes('/api/')) return;
-    if (event.request.url.includes('/livewire/')) return;
-    if (event.request.url.includes('/broadcasting/')) return;
+    const url = new URL(event.request.url);
+    const acceptsJson = event.request.headers.get('accept')?.includes('application/json');
+    const isDynamicAppData = acceptsJson
+        || url.pathname.startsWith('/caisse')
+        || url.pathname.startsWith('/catalogue')
+        || url.pathname.startsWith('/modules')
+        || url.pathname.startsWith('/stock')
+        || url.pathname.startsWith('/parametres')
+        || url.pathname.startsWith('/api/')
+        || url.pathname.startsWith('/livewire/')
+        || url.pathname.startsWith('/broadcasting/');
 
-    // Navigation requests (HTML pages) — always network-first to show fresh content
-    if (event.request.mode === 'navigate') {
-        event.respondWith(
-            fetch(event.request).then((response) => {
-                if (response && response.status === 200 && response.type === 'basic') {
-                    const responseToCache = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(event.request, responseToCache);
-                    });
-                }
-                return response;
-            }).catch(() => {
-                return caches.match(event.request).then((cached) => {
-                    if (cached) return cached;
-                    return caches.match('/');
-                });
-            })
-        );
+    if (isDynamicAppData) {
+        event.respondWith(fetch(event.request));
         return;
     }
 
-    // Non-navigation requests (assets, images, scripts, styles) — cache-first
+    // Navigation requests must stay fresh in a POS/back-office app.
+    if (event.request.mode === 'navigate') {
+        event.respondWith(fetch(event.request));
+        return;
+    }
+
+    const isStaticAsset = url.origin === self.location.origin && (
+        url.pathname.startsWith('/build/')
+        || url.pathname.startsWith('/icons/')
+        || url.pathname.endsWith('.css')
+        || url.pathname.endsWith('.js')
+        || url.pathname.endsWith('.woff')
+        || url.pathname.endsWith('.woff2')
+        || url.pathname.endsWith('.png')
+        || url.pathname.endsWith('.jpg')
+        || url.pathname.endsWith('.jpeg')
+        || url.pathname.endsWith('.webp')
+        || url.pathname.endsWith('.svg')
+    );
+
+    if (!isStaticAsset) {
+        event.respondWith(fetch(event.request));
+        return;
+    }
+
+    // Static assets only — cache-first.
     event.respondWith(
         caches.match(event.request).then((cached) => {
             if (cached) return cached;

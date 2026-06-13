@@ -208,6 +208,7 @@
                                 <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">📂 {{ $tr('Catégorie') }}</span>
                                 <select class="pos-category-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par catégorie">
                                     <option value="all">{{ $tr('Toutes les catégories') }}</option>
+                                    <option value="uncategorized">{{ $tr('Sans catégorie') }}</option>
                                     @foreach ($categories as $category)
                                         <option value="{{ $category->id }}">{{ $category->name }}</option>
                                     @endforeach

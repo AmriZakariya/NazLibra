@@ -60,6 +60,15 @@ use ZipArchive;
 
 class LibraireProController extends Controller
 {
+    private function noStoreJson(array $payload): JsonResponse
+    {
+        return response()
+            ->json($payload)
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
+    }
+
     public function switchLocale(Request $request, string $locale): RedirectResponse
     {
         abort_unless(in_array($locale, Locale::SUPPORTED, true), 404);
@@ -986,7 +995,7 @@ class LibraireProController extends Controller
             ->get()
             ->map(fn (Item $item): array => $this->stockItemOptionPayload($item));
 
-        return response()->json([
+        return $this->noStoreJson([
             'items' => $items,
             'count' => $items->count(),
         ]);
@@ -1041,7 +1050,7 @@ class LibraireProController extends Controller
                 ]).'#edit-item',
             ]);
 
-        return response()->json([
+        return $this->noStoreJson([
             'items' => $items,
             'count' => $items->count(),
         ]);
@@ -2912,7 +2921,7 @@ class LibraireProController extends Controller
         return back()->with('status', 'Rôle supprimé.');
     }
 
-    public function pos(Request $request): View
+    public function pos(Request $request): Response
     {
         $tenant = $this->tenant();
         abort_unless(AppModules::enabled($tenant, 'sales'), 404);
@@ -2988,7 +2997,7 @@ class LibraireProController extends Controller
             ->get()
             ->keyBy('id');
 
-        return view('librairepro.pos', [
+        return response()->view('librairepro.pos', [
             'tenant' => $tenant,
             'active' => 'sales',
             'items' => $items,
@@ -3016,7 +3025,10 @@ class LibraireProController extends Controller
                 ->get()
                 ->map(fn (DiscountRule $rule) => $this->discountRulePayload($rule))
                 ->values(),
-        ]);
+        ])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
     }
 
     public function posSearch(Request $request): JsonResponse
@@ -3068,7 +3080,8 @@ class LibraireProController extends Controller
                     });
             }))
             ->when(in_array($type, ['book', 'supply', 'service'], true), fn (Builder $builder) => $builder->where('type', $type))
-            ->when($category !== 'all', fn (Builder $builder) => $builder->where('category_id', $category))
+            ->when($category === 'uncategorized', fn (Builder $builder) => $builder->whereNull('category_id'))
+            ->when($category !== 'all' && $category !== 'uncategorized', fn (Builder $builder) => $builder->where('category_id', $category))
             ->when($brand !== 'all', fn (Builder $builder) => $builder->where('brand_id', $brand))
             ->when($unit !== 'all', fn (Builder $builder) => $builder->where('unit_id', $unit))
             ->when($stock === 'available' && ! $allowOversell && ! $showOutOfStock, fn (Builder $builder) => $builder->where(function (Builder $builder): void {
@@ -3083,7 +3096,7 @@ class LibraireProController extends Controller
             ->values()
             ->map(fn (Item $item): array => $this->posItemPayload($item, $topSold, $allowOversell));
 
-        return response()->json([
+        return $this->noStoreJson([
             'items' => $items,
             'count' => $items->count(),
         ]);

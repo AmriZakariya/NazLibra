@@ -49,6 +49,22 @@ const dataTableLanguage = (overrides = {}) => ({
 window.translate = translate;
 window.dataTableLanguage = dataTableLanguage;
 
+const freshJsonFetch = (input, options = {}) => {
+    const url = new URL(input, window.location.origin);
+    url.searchParams.set('_fresh', String(Date.now()));
+
+    return fetch(url.toString(), {
+        ...options,
+        cache: 'no-store',
+        headers: {
+            Accept: 'application/json',
+            'Cache-Control': 'no-cache',
+            Pragma: 'no-cache',
+            ...(options.headers || {}),
+        },
+    });
+};
+
 const translateStaticPage = () => {
     if (appLocale !== 'ar') return;
 
@@ -529,7 +545,7 @@ document.querySelectorAll('[data-product-search]').forEach((search) => {
         try {
             const url = new URL(endpoint, window.location.origin);
             url.searchParams.set('q', query);
-            const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+            const response = await freshJsonFetch(url);
             const payload = await response.json();
             if (currentRequest !== requestId) return;
             render(payload.items || []);
@@ -708,8 +724,7 @@ document.querySelectorAll('[data-async-item-picker]').forEach((picker) => {
         url.searchParams.set('context', context);
 
         try {
-            const response = await fetch(url.toString(), {
-                headers: { Accept: 'application/json' },
+            const response = await freshJsonFetch(url, {
                 signal: abortController.signal,
             });
             const data = await response.json();
@@ -1309,7 +1324,7 @@ document.querySelectorAll('[data-purchase-item-builder]').forEach((builder) => {
             try {
                 const url = new URL(searchUrl, window.location.origin);
                 if (cleanQuery) url.searchParams.set('q', cleanQuery);
-                const response = await fetch(url, { headers: { Accept: 'application/json' } });
+                const response = await freshJsonFetch(url);
                 if (!response.ok || currentSequence !== sequence) return;
                 const payload = await response.json();
                 mergeServerOptions(payload.items || []);
@@ -1964,7 +1979,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         if (couponButton) couponButton.disabled = true;
         setCouponMessage(translate('Vérification du coupon...'));
         try {
-            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            const response = await freshJsonFetch(url);
             const payload = await response.json();
             if (!response.ok || !payload.valid) {
                 appliedCoupon = { code: '', amount: 0, message: payload.message || translate('Coupon invalide.'), valid: false };
@@ -2207,7 +2222,9 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             const barcode = normalizeText(product.dataset.barcode || '');
             const matchesQuery = !query || barcode === query || queryTokens.every((token) => searchable.includes(token) || barcode.includes(token));
             const matchesType = type === 'all' || product.dataset.type === type;
-            const matchesCategory = category === 'all' || product.dataset.categoryId === category;
+            const matchesCategory = category === 'all'
+                || (category === 'uncategorized' && !product.dataset.categoryId)
+                || product.dataset.categoryId === category;
             const matchesBrand = brand === 'all' || product.dataset.brandId === brand;
             const matchesUnit = unit === 'all' || product.dataset.unitId === unit;
             const productStock = Number(product.dataset.stock || 0);
@@ -2324,16 +2341,6 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         const query = search.value.trim();
         const sequence = ++searchSequence;
 
-        if (query === '') {
-            if (productsGrid && initialProductsHtml) {
-                productsGrid.innerHTML = initialProductsHtml;
-                hydrateProducts();
-            }
-            setSearchState('Favoris et plus vendus.');
-            filterProducts();
-            return;
-        }
-
         const url = new URL(searchUrl, window.location.origin);
         url.searchParams.set('q', query);
         url.searchParams.set('type', typeFilter?.value || 'all');
@@ -2344,15 +2351,19 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
         setSearchState('Recherche en cours...');
         try {
-            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            const response = await freshJsonFetch(url);
             if (!response.ok) throw new Error('Search failed');
             const payload = await response.json();
             if (sequence !== searchSequence) return;
             productsGrid.innerHTML = (payload.items || []).map(productCardHtml).join('');
-            setSearchState(`${payload.count || 0} résultat(s) serveur.`);
+            setSearchState(query === '' ? 'Données caisse actualisées.' : `${payload.count || 0} résultat(s) serveur.`);
             hydrateProducts();
         } catch {
             if (sequence !== searchSequence) return;
+            if (query === '' && productsGrid && initialProductsHtml) {
+                productsGrid.innerHTML = initialProductsHtml;
+                hydrateProducts();
+            }
             setSearchState('Recherche locale uniquement.');
             filterProducts();
         }
@@ -2386,6 +2397,20 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     categoryFilter?.addEventListener('change', refilterProducts);
     brandFilter?.addEventListener('change', refilterProducts);
     unitFilter?.addEventListener('change', refilterProducts);
+
+    let lastLiveRefresh = 0;
+    const refreshLiveProducts = () => {
+        const now = Date.now();
+        if (now - lastLiveRefresh < 2500) return;
+        lastLiveRefresh = now;
+        window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(fetchServerProducts, 80);
+    };
+
+    window.addEventListener('pageshow', (event) => {
+        if (event.persisted) refreshLiveProducts();
+    });
+    window.addEventListener('focus', refreshLiveProducts);
 
     screen.addEventListener('click', (event) => {
         const favorite = event.target.closest('.pos-favorite-star');
@@ -3518,7 +3543,7 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
         try {
             const url = new URL(stockSearchUrl, window.location.origin);
             if (cleanQuery) url.searchParams.set('q', cleanQuery);
-            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            const response = await freshJsonFetch(url);
             if (!response.ok) throw new Error('Stock search failed');
             const payload = await response.json();
             if (sequence !== stockSearchSequence) return matchingOptions(query);
@@ -3799,7 +3824,7 @@ document.querySelectorAll('[data-inventory-item-picker]').forEach((form) => {
         url.searchParams.set('q', query);
 
         try {
-            const response = await fetch(url, { headers: { Accept: 'application/json' } });
+            const response = await freshJsonFetch(url);
             if (!response.ok) throw new Error('Inventory item search failed');
             const payload = await response.json();
             if (current !== sequence) return;

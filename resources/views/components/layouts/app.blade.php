@@ -269,6 +269,7 @@
                     ['label' => 'Liste des pays', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'countries'])],
                     ['label' => 'Liste des états', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'states'])],
                     ['label' => 'Changer le mot de passe', 'icon' => '⌐', 'href' => route('module', ['module' => 'settings', 'section' => 'password'])],
+                    ['label' => "Journal d'activité", 'icon' => '▥', 'href' => route('profile.activity')],
                     ...($virtualDevicesEnabled ? [['label' => 'Appareils virtuels', 'icon' => '🖥', 'href' => route('devices.index')]] : []),
                     ['label' => 'Matériel', 'icon' => '🖨', 'href' => route('module', ['module' => 'settings', 'section' => 'hardware'])],
                 ]],
@@ -693,6 +694,7 @@
                                 </div>
                             @endif
                             <a href="{{ route('profile') }}" class="mt-2 block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Mon profil') }}</a>
+                            <a href="{{ route('profile.activity') }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr("Journal d'activité") }}</a>
                                     <a href="{{ route('module', ['module' => 'settings', 'section' => 'users']) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Utilisateurs & rôles') }}</a>
                                     <button class="app-theme-toggle w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="button">
                                         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
