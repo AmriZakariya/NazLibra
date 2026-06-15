@@ -24,6 +24,8 @@
     $locale = \App\Support\Locale::current($tenant);
     $direction = \App\Support\Locale::dir($locale);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
+    $timezoneLabel = \App\Support\TenantClock::label($tenant);
+    $timezoneOffset = \App\Support\TenantClock::offset($tenant);
     $appVersion = config('app.version', '1.0.0-beta.3');
     $releaseLabel = app()->environment('production') ? $tr('Production') : \Illuminate\Support\Str::headline(app()->environment());
     $layoutStores = collect($tenant->settings['stores'] ?? [])
@@ -291,6 +293,7 @@
                         'section' => 'Module',
                         'translated_section' => $tr('Module'),
                         'kind' => 'Module',
+                        'key' => $item['key'],
                         'icon' => $item['icon'],
                         'href' => $item['href'],
                     ]];
@@ -302,6 +305,7 @@
                             'section' => $item['label'],
                             'translated_section' => $tr($item['label']),
                             'kind' => 'Sous-module',
+                            'key' => $item['key'],
                             'icon' => $child['icon'],
                             'href' => $child['href'],
                         ];
@@ -311,55 +315,80 @@
                 })
                 ->unique(fn (array $link) => $link['href'].'|'.$link['label'])
                 ->values();
+            $commandModuleAliases = [
+                'dashboard' => 'dashboard tableau board home accueil الرئيسية لوحة القيادة kpi analytics stats statistiques اليوم today',
+                'catalog' => 'catalog catalogue articles items produits books livres خدمات services isbn barcode code barre categories catégories marques publishers éditeurs variants variantes labels etiquettes étiquettes import excel inventory مخزون منتجات كتب خدمات تصنيفات',
+                'sales' => 'sales ventes pos caisse checkout payment paiement ticket receipt reçu facture refund retour encaissement barcode scanner مبيعات صندوق تذكرة دفع',
+                'invoices' => 'invoice invoices facture factures billing due échéance pdf print طباعة فاتورة فواتير',
+                'deliveries' => 'delivery deliveries livraison livraisons bl dispatch shipping expédition توصيل شحن',
+                'purchases' => 'purchase purchases achat achats supplier fournisseur commande réception po order مشتريات موردين طلبات',
+                'loans' => 'library loans emprunts prêt livre membre pénalité retard reservation مكتبة إعارة استعارة أعضاء',
+                'expenses' => 'expense expenses depense dépense frais charges cost paiement مصاريف تكاليف',
+                'quotations' => 'quote quotation devis proforma estimation عرض سعر تقدير',
+                'customers' => 'customer customers client clients contact crm téléphone phone cin زبون عميل عملاء',
+                'suppliers' => 'supplier suppliers fournisseur fournisseurs vendor ice rc مورد موردين',
+                'advances' => 'advance advances avance acompte crédit credit solde balance دفعة مسبقة رصيد',
+                'coupons' => 'coupon coupons promo promotion code réduction discount قسيمة كوبون تخفيض',
+                'discounts' => 'discount discounts remise remises rabais réduction promo percentage percent fixed value تخفيض خصم',
+                'accounts' => 'account accounts compte comptes banque bank cash treasury trésorerie transfer deposit dépôt تحويل إيداع بنك',
+                'cash_register' => 'cash register tiroir caisse drawer ouverture close clôture cloture balance fond espèces z report نقد صندوق درج',
+                'stock' => 'stock inventory inventaire rupture quantity quantité alert alerte adjustment ajustement transfer transfert warehouse depot valeur volume مخزون جرد كمية تحويل تعديل',
+                'users' => 'user users utilisateur utilisateurs équipe staff role roles rôles permission access accès pin profile profil photo مستخدمين صلاحيات أدوار',
+                'messaging' => 'message messaging messagerie sms whatsapp email template modèle notification campaign campagne رسائل واتساب بريد',
+                'reports' => 'reports rapport rapports analytics profit loss ventes paiements taxes stock reporting تقارير إحصائيات',
+                'stores' => 'store stores magasin magasins warehouse dépôt depot current store magasin courant فرع مخزن متجر',
+                'settings' => 'settings paramètres parametres configuration setup preferences préférences timezone time zone fuseau horaire language langue thème theme modules app mode hardware printer taxes units payment types إعدادات منطقة زمنية لغة ثيم طابعة',
+            ];
             $commandAliases = [
-                'Point de vente' => 'pos caisse encaisser barcode scan ticket paiement cash carte comptoir',
-                'Ajouter une vente' => 'vente manuelle facture client paiement',
-                'Liste des ventes' => 'ticket facture historique remboursement retour paiement',
-                'Paiements des ventes' => 'encaissement cash carte virement avance reçu',
-                'Liste de livraison' => 'delivery bl bon livraison expédition',
-                'Ajouter un article' => 'item produit livre isbn barcode stock prix catalogue',
-                'Liste d\'articles' => 'items produits livres services catalogue recherche filtre export',
-                'Ajouter un service' => 'prestation service sans stock frais abonnement',
-                'Services d\'importation' => 'import excel csv migration mylibrairie upload',
-                'Imprimer des étiquettes' => 'labels barcode etiquette zpl prix impression',
-                'Liste des catégories' => 'categorie famille structure rayon',
-                'Ajouter une dépense' => 'depense frais charge loyer transport achat fournisseur cash caisse add create nouveau',
-                'Liste des dépenses' => 'depense historique search filtre periode categorie paiement reference',
-                'Liste des catégories dépenses' => 'categorie depense classification groupe color icone',
-                'Liste des marques' => 'marque éditeur publisher brand',
-                'Liste des variantes' => 'variant attribut format taille couleur',
-                'Liste des unités' => 'unite mesure piece pack boite',
-                'Liste des impôts' => 'taxe tva fiscal impôt',
-                'Ajouter ajustement' => 'stock correction inventaire quantité rupture',
-                'Liste d\'ajustement' => 'historique stock inventaire correction',
-                'Ajouter transfert' => 'stock magasin depot déplacement',
-                'Liste de transfert' => 'transfert stock suivi depot magasin',
-                'Stock' => 'stock inventaire rupture alerte quantité ajustement transfert magasin depot valorisation',
-                'Ajouter un client' => 'customer contact crm téléphone cin',
-                'Liste des clients' => 'contacts clients crm solde avance crédit',
-                'Ajouter un fournisseur' => 'supplier fournisseur achat ice rc',
-                'Liste des fournisseurs' => 'suppliers fournisseurs achats solde',
-                'Ajouter une avance' => 'client avance crédit acompte solde',
-                'Liste des avances' => 'avances paiements client crédit',
-                'Ajouter un compte' => 'banque caisse compte rib',
-                'Liste des comptes' => 'banque comptes cash trésorerie',
-                'Tiroir caisse' => 'cash register tiroir caisse drawer ouverture clôture cloture balance fond espèces z report',
-                'Transactions en espèces' => 'cash mouvements caisse monnaie',
-                'Guide fonctionnalités' => 'guide documentation summary fonctionnalites user guide modules routes missing review',
-                'Rapports' => 'analytics statistiques ventes stock profit perte taxe',
-                'Liste des utilisateurs' => 'user équipe staff accès permission',
-                'Liste des rôles' => 'role permission accès droit',
-                'Magasin' => 'store warehouse depot current magasin courant',
-                'Société' => 'profil magasin store profile logo ice adresse facture ticket',
-                'Mode d’activité' => 'mode activité app business librairie pharmacie retail droguerie commerce type',
-                'Modules' => 'modules activer désactiver enable disable ordre menu sidebar fonctionnalité',
-                'Types de paiement' => 'paiement cash carte virement avance',
-                'Changer le mot de passe' => 'password sécurité compte profil',
-                'Paramètres' => 'settings configuration thème langue caisse stock',
-                'Matériel' => 'imprimante thermique tiroir caisse lecteur code-barres barcode scanner printer usb serial pos hardware device',
-                'Créer une remise' => 'remise rabais réduction promo code panier cible article',
-                'Liste des remises' => 'remises discount rabais réduction gestions liste',
-                'Remises' => 'remises discounts rabais réduction promo',
+                'Point de vente' => 'pos caisse checkout encaisser sell sale barcode scan scanner ticket paiement payment cash carte card comptoir receipt reçu بيع صندوق ماسح دفع',
+                'Ajouter une vente' => 'vente manuelle manual sale invoice facture client customer paiement payment',
+                'Liste des ventes' => 'ticket facture invoice historique history refund remboursement retour return paiement serial number numéro série',
+                'Paiements des ventes' => 'encaissement payment payments cash carte card virement advance avance reçu receipt',
+                'Liste de livraison' => 'delivery deliveries bl bon livraison dispatch expédition shipping',
+                'Ajouter un article' => 'item article product produit livre book isbn barcode code barre stock prix price catalogue create add إضافة منتج كتاب',
+                'Liste d\'articles' => 'items articles products produits books livres services catalogue search recherche filtre filter export datatable قائمة منتجات',
+                'Ajouter un service' => 'service prestation non physical sans stock frais membership abonnement create add خدمة',
+                'Services d\'importation' => 'import imports excel csv spreadsheet upload migration mylibrairie articles services bulk رفع استيراد',
+                'Imprimer des étiquettes' => 'labels label barcode etiquette étiquette zpl thermal thermique prix price impression print طباعة ملصقات باركود',
+                'Liste des catégories' => 'category categories categorie catégories famille structure rayon uncategorized non catégorisé تصنيفات',
+                'Liste des marques' => 'brand brands marque marques éditeur editeur publisher publishing house maison édition ناشر علامة',
+                'Liste des variantes' => 'variant variants variante variantes attribut attribute format taille size couleur color edition édition خيارات',
+                'Liste des unités' => 'unit units unite unité mesure measure piece pièce pack boite boîte وحدات قياس',
+                'Liste des impôts' => 'tax taxes taxe taxes tva vat fiscal impôt impot no tva sans tva ضريبة',
+                'Ajouter ajustement' => 'stock correction adjustment inventaire quantité rupture manual add تعديل مخزون',
+                'Liste d\'ajustement' => 'historique history stock inventory inventaire correction adjustment movements mouvements',
+                'Ajouter transfert' => 'stock transfer transfert warehouse magasin depot dépôt move déplacer',
+                'Liste de transfert' => 'transfert transfer stock suivi depot dépôt magasin warehouse',
+                'Stock' => 'stock inventory inventaire rupture alerte quantité quantity adjustment transfer movement mouvement history valeur value volume مخزون',
+                'Ajouter un client' => 'customer client contact crm téléphone phone cin add create زبون عميل',
+                'Liste des clients' => 'contacts clients customers crm solde balance avance crédit credit export قائمة عملاء',
+                'Ajouter un fournisseur' => 'supplier fournisseur vendor achat purchase ice rc add create مورد',
+                'Liste des fournisseurs' => 'suppliers fournisseurs vendors achats purchases solde balance export قائمة موردين',
+                'Ajouter une avance' => 'advance avance acompte crédit credit client solde balance add',
+                'Liste des avances' => 'advances avances payments paiements client credit crédit balance solde',
+                'Ajouter un compte' => 'account compte bank banque caisse rib iban add create',
+                'Liste des comptes' => 'accounts comptes bank banque cash trésorerie treasury balance',
+                'Tiroir caisse' => 'cash register tiroir caisse drawer open close ouverture clôture cloture balance fond espèces especes z report navbar',
+                'Transactions en espèces' => 'cash movements mouvements caisse espèces especes money monnaie drawer',
+                'Guide fonctionnalités' => 'guide documentation docs summary fonctionnalités fonctionnalites user guide modules routes help aide',
+                'Rapports' => 'reports rapport rapports analytics statistiques sales ventes stock profit loss pertes taxes payments paiements',
+                'Liste des utilisateurs' => 'user users utilisateur utilisateurs team équipe equipe staff access accès acces permission permissions pin role role rôle photo',
+                'Liste des rôles' => 'role roles rôle rôles permissions access accès droits droits utilisateur',
+                'Magasin' => 'store warehouse magasin depot dépôt current magasin courant branch location فرع مخزن',
+                'Société' => 'company société societe profil magasin store profile logo ice address adresse invoice facture ticket timezone time zone fuseau horaire currency devise language langue date format format date المنطقة الزمنية',
+                'Mode d’activité' => 'business mode app mode mode activité activite librairie library pharmacy pharmacie retail droguerie commerce type industry secteur',
+                'Modules' => 'modules enable disable activer désactiver desactiver ordre order menu sidebar navigation functionality fonctionnalité fonctionnalites',
+                'Types de paiement' => 'payment types types paiement cash espèces carte card transfer virement advance avance cheque chèque',
+                'Changer le mot de passe' => 'password mot de passe security sécurité securite account compte profile profil',
+                'Paramètres' => 'settings paramètres parametres configuration setup preferences préférences timezone time zone fuseau horaire language langue theme thème taxes units modules hardware إعدادات',
+                'Journal d\'activité' => 'activity log logs audit journal activité activite traçabilité tracabilite user actions device technical debug historique',
+                'API SMS/WhatsApp' => 'sms whatsapp api messaging messages provider twilio sendgrid resend canal channel',
+                'Matériel' => 'hardware matériel materiel printer imprimante thermal thermique escpos usb serial tiroir caisse drawer barcode scanner lecteur code-barres',
+                'Créer une remise' => 'discount remise rabais réduction reduction promo percentage percent fixed value panier cart item article payment method méthode paiement',
+                'Liste des remises' => 'discounts remises rabais réductions reductions promo linked tickets ventes coupons',
+                'Remises' => 'discounts remises rabais réductions reductions promo percentage percent',
+                'Créer un coupon' => 'coupon promo code réduction reduction discount client cart pos appliquer',
+                'Maître des coupons' => 'coupons coupon list liste master promo code discounts linked tickets ventes',
             ];
         @endphp
 
@@ -468,9 +497,20 @@
                                         @php
                                             $labelAliases = $commandAliases[$commandLink['label']] ?? '';
                                             $sectionAliases = $commandAliases[$commandLink['section']] ?? '';
-                                            $commandSearch = Str::lower($commandLink['label'].' '.$commandLink['translated_label'].' '.$commandLink['section'].' '.$commandLink['translated_section'].' '.$commandLink['kind'].' '.$labelAliases.' '.$sectionAliases);
+                                            $moduleAliases = $commandModuleAliases[$commandLink['key']] ?? '';
+                                            $hrefAliases = match (true) {
+                                                Str::contains($commandLink['href'], 'section=company') => 'company profile société societe magasin store profile timezone time zone fuseau horaire date format format date currency devise language langue business mode app mode المنطقة الزمنية التوقيت العملة اللغة',
+                                                Str::contains($commandLink['href'], 'section=store') => 'pos settings caisse stock oversell rupture prix editable out of stock drawer tiroir',
+                                                Str::contains($commandLink['href'], 'section=modules') => 'modules enable disable activer désactiver order ordre sidebar menu',
+                                                Str::contains($commandLink['href'], 'section=theme') => 'theme thème colors couleurs dark mode light mode appearance apparence',
+                                                Str::contains($commandLink['href'], 'section=hardware') => 'printer imprimante thermal thermique barcode scanner tiroir drawer serial usb',
+                                                Str::contains($commandLink['href'], 'section=taxes') => 'tax taxes tva vat impôt impot fiscal',
+                                                Str::contains($commandLink['href'], 'section=payment-types') => 'payment paiement cash card carte virement cheque chèque',
+                                                default => '',
+                                            };
+                                            $commandSearch = Str::lower($commandLink['label'].' '.$commandLink['translated_label'].' '.$commandLink['section'].' '.$commandLink['translated_section'].' '.$commandLink['kind'].' '.$labelAliases.' '.$sectionAliases.' '.$moduleAliases.' '.$hrefAliases);
                                         @endphp
-                                        <a href="{{ $commandLink['href'] }}" class="app-command-item" data-command-item data-command-kind="{{ $commandLink['kind'] }}" data-command-title="{{ Str::lower($commandLink['label']) }}" data-command-label="{{ Str::lower($commandLink['label'].' '.$commandLink['translated_label']) }}" data-command-module="{{ $commandLink['section'] }}" data-command-search="{{ $commandSearch }}">
+                                        <a href="{{ $commandLink['href'] }}" class="app-command-item" data-command-item data-command-kind="{{ $commandLink['kind'] }}" data-command-key="{{ $commandLink['key'] }}" data-command-title="{{ Str::lower($commandLink['label']) }}" data-command-label="{{ Str::lower($commandLink['label'].' '.$commandLink['translated_label']) }}" data-command-module="{{ $commandLink['section'] }}" data-command-search="{{ $commandSearch }}">
                                             <span class="app-command-item-icon">{{ $commandLink['icon'] }}</span>
                                             <span class="min-w-0 flex-1">
                                                 <strong>{{ $commandLink['translated_label'] }}</strong>
@@ -619,6 +659,9 @@
                             @php
                                 $accountUser = auth()->user();
                                 $accountTenant = $accountUser?->currentTenant ?? $tenant;
+                                $accountTimezoneLabel = \App\Support\TenantClock::label($accountTenant);
+                                $accountTimezoneOffset = \App\Support\TenantClock::offset($accountTenant);
+                                $accountCurrentTime = \App\Support\TenantClock::currentTimeLabel($accountTenant);
                                 $accountTenantUser = $accountTenant?->users()->whereKey($accountUser?->id)->first();
                                 $accountRoleKey = (string) ($accountTenantUser?->pivot?->role ?? '');
                                 $accountRoleName = \App\Models\Role::where('tenant_id', $accountTenant?->id)->where('key', $accountRoleKey)->value('name') ?: ucfirst($accountRoleKey ?: 'Aucun rôle');
@@ -640,6 +683,14 @@
                                     <span class="mt-1 inline-flex max-w-full items-center rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">{{ $accountRoleName }}</span>
                                 </span>
                             </div>
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'company']) }}#timezone" class="mt-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+                                    <span class="min-w-0">
+                                        <span class="block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr('Fuseau horaire') }}</span>
+                                        <strong class="mt-0.5 block truncate text-slate-900 dark:text-white">{{ $accountTimezoneLabel }}</strong>
+                                        <span class="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">{{ $tr('Heure locale') }}: {{ $accountCurrentTime }}</span>
+                                    </span>
+                                <span class="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand">{{ $accountTimezoneOffset }}</span>
+                            </a>
                             @if ($virtualDevicesEnabled)
                                 @php
                                     $deviceSessionId = session('virtual_device_session_id');

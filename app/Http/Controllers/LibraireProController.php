@@ -40,6 +40,8 @@ use App\Models\VirtualDeviceSession;
 use App\Support\AppModules;
 use App\Support\BusinessMode;
 use App\Support\Locale;
+use App\Support\TenantContext;
+use App\Support\TenantClock;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -67,6 +69,28 @@ class LibraireProController extends Controller
             ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             ->header('Pragma', 'no-cache')
             ->header('Expires', '0');
+    }
+
+    private function actorMetadata(string $prefix): array
+    {
+        $user = auth()->user();
+
+        return [
+            $prefix.'_by' => $user?->id,
+            $prefix.'_by_name' => $user?->name,
+            $prefix.'_by_at' => now()->toIso8601String(),
+        ];
+    }
+
+    private function creationActorMetadata(): array
+    {
+        $metadata = $this->actorMetadata('created');
+
+        return array_merge($metadata, [
+            'updated_by' => $metadata['created_by'],
+            'updated_by_name' => $metadata['created_by_name'],
+            'updated_by_at' => $metadata['created_by_at'],
+        ]);
     }
 
     public function switchLocale(Request $request, string $locale): RedirectResponse
@@ -2053,7 +2077,7 @@ class LibraireProController extends Controller
             'store_logo' => ['nullable', 'string', 'max:500'],
             'store_logo_file' => ['nullable', 'image', 'max:2048'],
             'remove_store_logo' => ['nullable', 'boolean'],
-            'timezone' => ['required', 'string', 'max:80'],
+            'timezone' => ['required', 'string', 'max:80', Rule::in(TenantClock::options())],
             'date_format' => ['required', 'in:dd-mm-yyyy,dd/mm/yyyy,mm-dd-yyyy,yyyy-mm-dd'],
             'time_format' => ['required', 'in:12,24'],
             'currency' => ['required', 'string', 'size:3'],
@@ -2163,7 +2187,7 @@ class LibraireProController extends Controller
 
     public function manifest(): \Illuminate\Http\JsonResponse
     {
-        $tenant = Tenant::query()->first();
+        $tenant = TenantContext::resolve(request());
         $theme = data_get($tenant?->settings, 'theme.primary', '#3157D5');
         $businessMode = BusinessMode::current($tenant);
         $locale = $tenant?->locale ?? 'fr';
@@ -2225,7 +2249,7 @@ class LibraireProController extends Controller
             mkdir($iconsDir, 0755, true);
         }
 
-        $tenant = Tenant::query()->first();
+        $tenant = TenantContext::resolve(request());
         $primary = data_get($tenant?->settings, 'theme.primary', '#3157D5');
         $name = $tenant?->name ?? 'LP';
         $initials = $this->tenantInitials($name);
@@ -3003,7 +3027,7 @@ class LibraireProController extends Controller
             'items' => $items,
             'clients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->take(80)->get(),
             'recentSales' => $tenant->sales()->with('contact')->latest('sold_at')->take(5)->get(),
-            'lastSale' => $lastSaleId ? $tenant->sales()->with(['contact', 'items'])->whereKey($lastSaleId)->first() : null,
+            'lastSale' => $lastSaleId ? $tenant->sales()->with(['contact', 'items', 'user'])->whereKey($lastSaleId)->first() : null,
             'heldTickets' => $heldTickets,
             'heldTicketItems' => $heldTicketItems,
             'resumeTicket' => $resumeTicket,
@@ -3363,6 +3387,7 @@ class LibraireProController extends Controller
                     'total_amount' => $total,
                     'sold_at' => $soldAt,
                     'metadata' => [
+                        ...$this->creationActorMetadata(),
                         'reference_number' => $saleReference,
                         'payments' => $payments,
                         'paid_amount' => $paid,
@@ -3762,6 +3787,7 @@ class LibraireProController extends Controller
                     'total_amount' => $total,
                     'sold_at' => $soldAt,
                     'metadata' => [
+                        ...$this->creationActorMetadata(),
                         'reference_number' => $data['reference_number'] ?? null,
                         'paid_amount' => $paid,
                         'due_date' => $data['due_date'] ?? null,
@@ -3866,6 +3892,8 @@ class LibraireProController extends Controller
         $metadata['note'] = $data['note'] ?? null;
         $metadata['edited_at'] = now()->toIso8601String();
         $metadata['edited_by'] = auth()->id();
+        $metadata['edited_by_name'] = auth()->user()?->name;
+        $metadata = array_merge($metadata, $this->actorMetadata('updated'));
         $metadata['paid_amount'] = $paidAmount;
 
         $sale->update([
@@ -3873,6 +3901,15 @@ class LibraireProController extends Controller
             'status' => in_array($sale->status, ['refunded', 'cancelled'], true) ? $sale->status : $expectedStatus,
             'metadata' => $metadata,
         ]);
+        $sale->refresh();
+        if ($sale->invoice) {
+            $sale->invoice->update([
+                'contact_id' => $sale->contact_id,
+                'due_date' => $data['due_date'] ?? null,
+                'status' => $this->invoiceStatusForSale($sale, $data['due_date'] ?? null),
+                'metadata' => array_merge($sale->invoice->metadata ?? [], $this->actorMetadata('updated')),
+            ]);
+        }
 
         return back()->with('status', 'Vente '.$sale->number.' mise à jour.');
     }
@@ -3897,20 +3934,29 @@ class LibraireProController extends Controller
                     'sale_id' => $sale->id,
                     'number' => $this->nextSaleInvoiceNumber($tenant),
                     'issued_at' => now(),
-                    'metadata' => ['source' => 'sales_list'],
+                    'metadata' => array_merge(['source' => 'sales_list'], $this->creationActorMetadata()),
                 ]);
             }
+
+            $invoiceMetadata = $invoice->metadata ?? [];
+            if (! isset($invoiceMetadata['created_by'])) {
+                $invoiceMetadata['created_by'] = $invoice->user_id ?: auth()->id();
+                $invoiceMetadata['created_by_name'] = $invoice->user?->name ?: auth()->user()?->name;
+                $invoiceMetadata['created_by_at'] = $invoice->created_at?->toIso8601String() ?: now()->toIso8601String();
+            }
+            $invoiceMetadata = array_merge($invoiceMetadata, $this->actorMetadata('updated'));
 
             $invoice->fill([
                 'contact_id' => $sale->contact_id,
                 'user_id' => $invoice->user_id ?: auth()->id(),
-                'status' => 'issued',
+                'status' => $this->invoiceStatusForSale($sale, $data['due_date'] ?? data_get($sale->metadata, 'due_date')),
                 'due_date' => $data['due_date'] ?? data_get($sale->metadata, 'due_date'),
                 'subtotal_amount' => $sale->subtotal_amount,
                 'discount_amount' => $sale->discount_amount,
                 'tax_amount' => $sale->tax_amount,
                 'total_amount' => $sale->total_amount,
                 'note' => $data['invoice_note'] ?? $invoice->note,
+                'metadata' => $invoiceMetadata,
             ]);
             $invoice->save();
 
@@ -3927,7 +3973,7 @@ class LibraireProController extends Controller
         $tenant = $this->tenant();
         abort_unless($sale->tenant_id === $tenant->id, 404);
 
-        $sale->loadMissing(['contact', 'items.item', 'payments', 'invoice']);
+        $sale->loadMissing(['contact', 'items.item', 'payments', 'invoice', 'user']);
         $paid = $this->salePaidAmount($sale);
         $settings = $this->documentSettings($tenant);
 
@@ -3942,6 +3988,9 @@ class LibraireProController extends Controller
             'reference' => data_get($sale->metadata, 'reference_number'),
             'status' => $sale->status,
             'payment_method' => $sale->payment_method,
+            'created_by' => data_get($sale->metadata, 'created_by_name') ?: $sale->user?->name,
+            'updated_by' => data_get($sale->metadata, 'updated_by_name') ?: data_get($sale->metadata, 'edited_by_name'),
+            'updated_at' => data_get($sale->metadata, 'updated_by_at') ?: data_get($sale->metadata, 'edited_at'),
             'lines' => $sale->items->map(fn (SaleItem $line): array => [
                 'name' => $line->name,
                 'code' => $line->item?->barcode ?? $line->item?->isbn ?? $line->item?->item_code ?? null,
@@ -3968,10 +4017,14 @@ class LibraireProController extends Controller
         $tenant = $this->tenant();
         abort_unless($invoice->tenant_id === $tenant->id, 404);
 
-        $invoice->loadMissing(['sale.items.item', 'sale.payments', 'contact']);
+        $invoice->loadMissing(['sale.items.item', 'sale.payments', 'sale.user', 'contact', 'user']);
         $sale = $invoice->sale;
         abort_unless($sale, 404);
         $paid = $this->salePaidAmount($sale);
+        $invoiceStatus = $this->invoiceStatusForSale($sale, $invoice->due_date);
+        if ($invoice->status !== $invoiceStatus) {
+            $invoice->forceFill(['status' => $invoiceStatus])->save();
+        }
         $settings = $this->documentSettings($tenant);
 
         return $this->downloadDocumentPdf($tenant, [
@@ -3984,8 +4037,11 @@ class LibraireProController extends Controller
             'partner' => $invoice->contact ?? $sale->contact,
             'reference' => data_get($sale->metadata, 'reference_number'),
             'sale_number' => $sale->number,
-            'status' => $invoice->status,
+            'status' => $invoiceStatus,
             'payment_method' => $sale->payment_method,
+            'created_by' => data_get($invoice->metadata, 'created_by_name') ?: $invoice->user?->name,
+            'updated_by' => data_get($invoice->metadata, 'updated_by_name') ?: data_get($sale->metadata, 'updated_by_name') ?: $sale->user?->name,
+            'updated_at' => data_get($invoice->metadata, 'updated_by_at') ?: data_get($sale->metadata, 'updated_by_at'),
             'lines' => $sale->items->map(fn (SaleItem $line): array => [
                 'name' => $line->name,
                 'code' => $line->item?->barcode ?? $line->item?->isbn ?? $line->item?->item_code ?? null,
@@ -4012,7 +4068,7 @@ class LibraireProController extends Controller
         $tenant = $this->tenant();
         abort_unless($purchase->tenant_id === $tenant->id, 404);
 
-        $purchase->loadMissing(['supplier', 'items.item']);
+        $purchase->loadMissing(['supplier', 'items.item', 'user']);
         $settings = $this->documentSettings($tenant);
         $ordered = (int) $purchase->items->sum('quantity_ordered');
         $received = (int) $purchase->items->sum('quantity_received');
@@ -4028,6 +4084,9 @@ class LibraireProController extends Controller
             'reference' => data_get($purchase->metadata, 'supplier_invoice') ?: data_get($purchase->metadata, 'reference'),
             'status' => $purchase->status,
             'payment_method' => null,
+            'created_by' => data_get($purchase->metadata, 'created_by_name') ?: $purchase->user?->name,
+            'updated_by' => data_get($purchase->metadata, 'updated_by_name') ?: data_get($purchase->metadata, 'received_by_name'),
+            'updated_at' => data_get($purchase->metadata, 'updated_by_at') ?: data_get($purchase->metadata, 'received_by_at'),
             'lines' => $purchase->items->map(fn (PurchaseItem $line): array => [
                 'name' => $line->item?->title ?? 'Article supprimé',
                 'code' => $line->item?->barcode ?? $line->item?->isbn ?? $line->item?->item_code ?? null,
@@ -4065,13 +4124,16 @@ class LibraireProController extends Controller
         $metadata['cancelled'] = [
             'cancelled_at' => now()->toIso8601String(),
             'cancelled_by' => auth()->id(),
+            'cancelled_by_name' => auth()->user()?->name,
             'reason' => 'Annulation depuis la liste des ventes',
         ];
+        $metadata = array_merge($metadata, $this->actorMetadata('updated'));
 
-        $sale->update([
-            'status' => 'cancelled',
-            'metadata' => $metadata,
-        ]);
+            $sale->update([
+                'status' => 'cancelled',
+                'metadata' => $metadata,
+            ]);
+            $this->syncSaleInvoiceStatus($sale->fresh('invoice'));
 
         return back()->with('status', 'Vente '.$sale->number.' annulée.');
     }
@@ -4157,12 +4219,16 @@ class LibraireProController extends Controller
                 'restock' => (bool) ($data['restock'] ?? true),
                 'amount' => (float) $sale->total_amount,
                 'refunded_at' => now()->toIso8601String(),
+                'refunded_by' => auth()->id(),
+                'refunded_by_name' => auth()->user()?->name,
             ];
+            $metadata = array_merge($metadata, $this->actorMetadata('updated'));
 
             $sale->update([
                 'status' => 'refunded',
                 'metadata' => $metadata,
             ]);
+            $this->syncSaleInvoiceStatus($sale->fresh('invoice'));
         });
 
         return back()->with('status', 'Vente '.$sale->number.' remboursée.');
@@ -4225,11 +4291,14 @@ class LibraireProController extends Controller
                 'method' => $data['method'],
                 'received_at' => now()->toIso8601String(),
                 'received_by' => auth()->id(),
+                'received_by_name' => auth()->user()?->name,
             ];
+            $metadata = array_merge($metadata, $this->actorMetadata('updated'));
             $sale->update([
                 'status' => $this->salePaymentStatus($sale, (float) $metadata['paid_amount']),
                 'metadata' => $metadata,
             ]);
+            $this->syncSaleInvoiceStatus($sale->fresh('invoice'));
         });
 
         return back()->with('status', 'Paiement ajouté.');
@@ -4948,6 +5017,7 @@ class LibraireProController extends Controller
             $purchase = Purchase::create([
                 'tenant_id' => $tenant->id,
                 'supplier_id' => $data['supplier_id'],
+                'user_id' => auth()->id(),
                 'number' => $this->nextPurchaseNumber($tenant),
                 'status' => $receiveNow ? 'received' : $data['status'],
                 'total_amount' => $total,
@@ -4955,6 +5025,7 @@ class LibraireProController extends Controller
                 'expected_at' => $data['expected_at'] ?? null,
                 'received_at' => $receiveNow ? now()->toDateString() : null,
                 'metadata' => [
+                    ...$this->creationActorMetadata(),
                     'supplier_invoice' => $data['supplier_invoice'] ?? null,
                     'reference' => $data['reference'] ?? null,
                     'warehouse' => $data['warehouse'] ?? null,
@@ -5020,9 +5091,16 @@ class LibraireProController extends Controller
                 $line->increment('quantity_received', $missing);
             }
 
+            $metadata = array_merge($purchase->metadata ?? [], $this->actorMetadata('updated'), [
+                'received_by' => auth()->id(),
+                'received_by_name' => auth()->user()?->name,
+                'received_by_at' => now()->toIso8601String(),
+            ]);
+
             $purchase->update([
                 'status' => 'received',
                 'received_at' => now()->toDateString(),
+                'metadata' => $metadata,
             ]);
         });
 
@@ -5135,7 +5213,7 @@ class LibraireProController extends Controller
         abort_unless(AppModules::enabled($tenant, AppModules::keyForModulePage($module, $section) ?? $module), 404);
         $sales = $this->salesListQuery($tenant, $request)->paginate(25)->withQueryString();
         $saleInvoices = SaleInvoice::query()
-            ->with(['sale.contact', 'contact'])
+            ->with(['sale.contact', 'contact', 'user'])
             ->where('tenant_id', $tenant->id)
             ->when(trim((string) $request->query('q')) !== '', function (Builder $builder) use ($request): void {
                 $query = trim((string) $request->query('q'));
@@ -6297,6 +6375,7 @@ class LibraireProController extends Controller
     {
         $query = trim((string) $request->query('q'));
         $detailSale = (int) $request->query('detail_sale');
+        $detailInvoice = (int) $request->query('invoice');
         $from = $request->query('from');
         $to = $request->query('to');
         $client = $request->query('client');
@@ -6306,9 +6385,10 @@ class LibraireProController extends Controller
         $maxTotal = $request->query('max_total');
 
         return Sale::query()
-            ->with(['contact', 'items', 'payments', 'deliveryOrders', 'returns', 'invoice'])
+            ->with(['contact', 'items', 'payments', 'deliveryOrders', 'returns', 'user', 'invoice.user'])
             ->where('tenant_id', $tenant->id)
             ->when($detailSale > 0, fn (Builder $builder) => $builder->whereKey($detailSale))
+            ->when($detailInvoice > 0, fn (Builder $builder) => $builder->whereHas('invoice', fn (Builder $invoice) => $invoice->whereKey($detailInvoice)))
             ->when($query !== '', function (Builder $builder) use ($query): void {
                 $builder->where(function (Builder $builder) use ($query): void {
                     $builder->where('number', 'like', "%{$query}%")
@@ -6471,7 +6551,7 @@ class LibraireProController extends Controller
         $detailPurchase = (int) $request->query('detail_purchase');
 
         return Purchase::query()
-            ->with(['supplier', 'items.item', 'returns'])
+            ->with(['supplier', 'items.item', 'returns', 'user'])
             ->where('tenant_id', $tenant->id)
             ->when($detailPurchase > 0, fn (Builder $builder) => $builder->whereKey($detailPurchase))
             ->when($query !== '', function (Builder $builder) use ($query): void {
@@ -6806,11 +6886,48 @@ class LibraireProController extends Controller
 
     private function salePaymentStatus(Sale $sale, float $paidAmount): string
     {
+        if (in_array($sale->status, ['refunded', 'cancelled'], true)) {
+            return $sale->status;
+        }
+
         if ($paidAmount + 0.001 >= (float) $sale->total_amount) {
             return 'paid';
         }
 
         return $paidAmount > 0.001 ? 'partial' : 'unpaid';
+    }
+
+    private function invoiceStatusForSale(Sale $sale, mixed $dueDate = null): string
+    {
+        if ($sale->status === 'cancelled') {
+            return 'cancelled';
+        }
+
+        if ($sale->status === 'refunded') {
+            return 'refunded';
+        }
+
+        $paid = $this->salePaidAmount($sale);
+        if ($paid + 0.001 >= (float) $sale->total_amount) {
+            return 'paid';
+        }
+
+        if ($dueDate && Carbon::parse($dueDate)->toDateString() < now()->toDateString()) {
+            return 'overdue';
+        }
+
+        return $paid > 0.001 ? 'partial' : 'unpaid';
+    }
+
+    private function syncSaleInvoiceStatus(?Sale $sale): void
+    {
+        if (! $sale?->invoice) {
+            return;
+        }
+
+        $sale->invoice->update([
+            'status' => $this->invoiceStatusForSale($sale, $sale->invoice->due_date),
+        ]);
     }
 
     private function saleSystemNote(Tenant $tenant, string $saleNumber, string $source, ?Contact $contact, int $lineCount, float $total, string $paymentMethod, string $status, Carbon $soldAt, ?string $reference = null): string
@@ -7001,6 +7118,8 @@ class LibraireProController extends Controller
             'sale_number' => $document['type'] === 'invoice' ? data_get($document, 'sale_number', '') : ($document['number'] ?? ''),
             'payment_method' => $document['payment_method'] ?: '—',
             'status' => $document['status'] ?? '',
+            'created_by' => $document['created_by'] ?? '',
+            'updated_by' => $document['updated_by'] ?? '',
             'total' => $this->money((float) data_get($document, 'totals.total', 0)),
             'today' => now()->format('d/m/Y'),
         ];
@@ -7040,7 +7159,7 @@ class LibraireProController extends Controller
 
     private function tenant(): Tenant
     {
-        return Tenant::query()->firstOrFail();
+        return TenantContext::require(request(), auth()->user());
     }
 
     private function validateUserAccess(Request $request, Tenant $tenant, ?\App\Models\User $user = null): array

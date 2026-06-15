@@ -16,6 +16,19 @@
         'correction' => 'warning',
         'closing' => 'primary',
     ];
+    $cashDrawerNavbarVisible = (bool) data_get($tenant->settings, 'pos.show_cash_drawer_navbar', true);
+    $cashRegisterPosSettings = [
+        'editable_price' => (bool) data_get($tenant->settings, 'pos.editable_price', true),
+        'allow_sale_edit' => (bool) data_get($tenant->settings, 'pos.allow_sale_edit', true),
+        'allow_oversell' => (bool) data_get($tenant->settings, 'pos.allow_oversell', false),
+        'show_out_of_stock' => (bool) data_get($tenant->settings, 'pos.show_out_of_stock', false),
+        'require_adjustment_reason' => (bool) data_get($tenant->settings, 'pos.require_adjustment_reason', true),
+        'update_cost_on_purchase' => (bool) data_get($tenant->settings, 'pos.update_cost_on_purchase', true),
+        'low_stock_dashboard' => (bool) data_get($tenant->settings, 'pos.low_stock_dashboard', true),
+        'auto_reorder_draft' => (bool) data_get($tenant->settings, 'pos.auto_reorder_draft', false),
+        'inventory_cycle_days' => (int) data_get($tenant->settings, 'pos.inventory_cycle_days', 30),
+        'default_min_stock_threshold' => (int) data_get($tenant->settings, 'pos.default_min_stock_threshold', 3),
+    ];
 @endphp
 
 <section class="mt-6 space-y-6">
@@ -71,6 +84,32 @@
 
     <div class="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
         <aside class="space-y-5">
+            <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-brand">Affichage navbar</p>
+                        <h3 class="mt-1 text-lg font-semibold text-slate-950 dark:text-white">Raccourci tiroir caisse</h3>
+                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Affiche ou masque le solde du tiroir dans la barre supérieure.</p>
+                    </div>
+                    <x-status-pill :tone="$cashDrawerNavbarVisible ? 'success' : 'neutral'">{{ $cashDrawerNavbarVisible ? 'Visible' : 'Masqué' }}</x-status-pill>
+                </div>
+                <form action="{{ route('settings.pos.update') }}" method="POST" class="mt-4">
+                    @csrf
+                    @foreach ($cashRegisterPosSettings as $settingKey => $settingValue)
+                        <input type="hidden" name="{{ $settingKey }}" value="{{ is_bool($settingValue) ? ($settingValue ? '1' : '0') : $settingValue }}">
+                    @endforeach
+                    <input type="hidden" name="show_cash_drawer_navbar" value="0">
+                    <label class="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-slate-900/60 dark:hover:bg-white/5">
+                        <span class="min-w-0">
+                            <span class="block text-sm font-semibold text-slate-900 dark:text-white">Afficher dans la navbar</span>
+                            <span class="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{{ $cashDrawerNavbarVisible ? 'Le raccourci est visible en haut de l’application.' : 'Le raccourci est masqué pour libérer de l’espace.' }}</span>
+                        </span>
+                        <input name="show_cash_drawer_navbar" value="1" type="checkbox" @checked($cashDrawerNavbarVisible) class="size-5 rounded border-slate-300 accent-[var(--brand-primary)]">
+                    </label>
+                    <button class="mt-3 w-full rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:brightness-110">Enregistrer l’affichage</button>
+                </form>
+            </article>
+
             @if ($openSession)
                 <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="flex items-start justify-between gap-3">

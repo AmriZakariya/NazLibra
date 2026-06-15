@@ -45,7 +45,7 @@ class AuditLog extends Model
 
     public function deviceLabel(): string
     {
-        return $this->device_name_snapshot ?: '';
+        return $this->device_name_snapshot ?: ($this->real_device_browser ?: 'Appareil réel');
     }
 
     public function realDeviceLabel(): string
@@ -61,7 +61,7 @@ class AuditLog extends Model
 
     public function hasDeviceInfo(): bool
     {
-        return (bool) $this->device_name_snapshot;
+        return (bool) ($this->device_name_snapshot || $this->real_device_platform || $this->real_device_browser || $this->real_device_ip);
     }
 
     public function friendlyLabel(string $fallback = ''): string

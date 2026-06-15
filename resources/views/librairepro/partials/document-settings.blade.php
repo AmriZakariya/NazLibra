@@ -15,6 +15,8 @@
         '{{sale_number}}' => 'N° vente liée',
         '{{payment_method}}' => 'Méthode paiement',
         '{{status}}' => 'Statut',
+        '{{created_by}}' => 'Créé par',
+        '{{updated_by}}' => 'Mis à jour par',
         '{{total}}' => 'Total formaté',
         '{{today}}' => 'Date du jour',
     ];

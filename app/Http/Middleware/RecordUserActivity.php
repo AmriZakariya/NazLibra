@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Tenant;
+use App\Support\TenantContext;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -79,9 +80,17 @@ class RecordUserActivity
                     'url' => $request->fullUrl(),
                     'path' => $request->path(),
                     'route' => $action,
+                    'route_action' => $request->route()?->getActionName(),
                     'status_code' => $response->getStatusCode(),
+                    'timezone' => config('app.timezone'),
                     'ip' => $request->ip(),
+                    'referer' => $request->headers->get('referer'),
+                    'content_type' => $request->headers->get('content-type'),
+                    'accept' => $request->headers->get('accept'),
+                    'is_ajax' => $request->ajax(),
                     'user_agent' => str($request->userAgent() ?? '')->limit(240)->value(),
+                    'query' => $this->sanitizedQuery($request),
+                    'headers' => $this->sanitizedHeaders($request),
                     'payload' => $this->sanitizedPayload($request),
                     'route_parameters' => $this->routeParameters($request),
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
@@ -105,7 +114,7 @@ class RecordUserActivity
             return (int) $request->user()->current_tenant_id;
         }
 
-        return Tenant::query()->value('id');
+        return TenantContext::resolve($request, $actor)?->id;
     }
 
     private function subject(Request $request): array
@@ -157,17 +166,53 @@ class RecordUserActivity
             ->all();
     }
 
+    private function sanitizedQuery(Request $request): array
+    {
+        return collect($request->query())
+            ->map(fn ($value) => is_string($value) ? str($value)->limit(500)->value() : $value)
+            ->all();
+    }
+
+    private function sanitizedHeaders(Request $request): array
+    {
+        $allowed = [
+            'host',
+            'referer',
+            'origin',
+            'user-agent',
+            'accept',
+            'accept-language',
+            'content-type',
+            'x-requested-with',
+            'x-forwarded-for',
+            'x-real-ip',
+        ];
+
+        return collect($allowed)
+            ->mapWithKeys(function (string $name) use ($request): array {
+                $value = $request->headers->get($name);
+
+                if ($value === null || $value === '') {
+                    return [];
+                }
+
+                return [$name => str($value)->limit(500)->value()];
+            })
+            ->all();
+    }
+
     private function deviceInfo(Request $request): array
     {
+        $userAgent = (string) $request->userAgent();
         $default = [
             'virtual_device_id' => null,
             'virtual_device_session_id' => null,
             'device_name_snapshot' => null,
             'device_code_snapshot' => null,
-            'real_device_platform' => null,
-            'real_device_browser' => null,
-            'real_device_ip' => null,
-            'real_device_user_agent' => null,
+            'real_device_platform' => $this->detectPlatform($userAgent),
+            'real_device_browser' => $this->detectBrowser($userAgent),
+            'real_device_ip' => $request->ip(),
+            'real_device_user_agent' => $userAgent !== '' ? mb_substr($userAgent, 0, 500) : null,
         ];
 
         try {
@@ -195,16 +240,49 @@ class RecordUserActivity
                 'virtual_device_session_id' => $deviceSession->id,
                 'device_name_snapshot' => $device?->name ?? null,
                 'device_code_snapshot' => $device?->code ?? null,
-                'real_device_platform' => $deviceSession->platform,
-                'real_device_browser' => $deviceSession->browser,
-                'real_device_ip' => $deviceSession->ip_address,
+                'real_device_platform' => $deviceSession->platform ?: $default['real_device_platform'],
+                'real_device_browser' => $deviceSession->browser ?: $default['real_device_browser'],
+                'real_device_ip' => $deviceSession->ip_address ?: $default['real_device_ip'],
                 'real_device_user_agent' => $deviceSession->user_agent
                     ? mb_substr($deviceSession->user_agent, 0, 500)
-                    : null,
+                    : $default['real_device_user_agent'],
             ];
         } catch (\Throwable) {
             return $default;
         }
+    }
+
+    private function detectPlatform(string $userAgent): ?string
+    {
+        if ($userAgent === '') {
+            return null;
+        }
+
+        return match (true) {
+            str_contains($userAgent, 'Windows') => 'Windows',
+            str_contains($userAgent, 'Macintosh'), str_contains($userAgent, 'Mac OS') => 'macOS',
+            str_contains($userAgent, 'iPhone') => 'iPhone',
+            str_contains($userAgent, 'iPad') => 'iPad',
+            str_contains($userAgent, 'Android') => 'Android',
+            str_contains($userAgent, 'Linux') => 'Linux',
+            default => 'Navigateur',
+        };
+    }
+
+    private function detectBrowser(string $userAgent): ?string
+    {
+        if ($userAgent === '') {
+            return null;
+        }
+
+        return match (true) {
+            str_contains($userAgent, 'Edg/') => 'Microsoft Edge',
+            str_contains($userAgent, 'OPR/'), str_contains($userAgent, 'Opera') => 'Opera',
+            str_contains($userAgent, 'Chrome/'), str_contains($userAgent, 'CriOS/') => 'Chrome',
+            str_contains($userAgent, 'Firefox/'), str_contains($userAgent, 'FxiOS/') => 'Firefox',
+            str_contains($userAgent, 'Safari/') => 'Safari',
+            default => 'Navigateur',
+        };
     }
 
     private function friendlyAction(string $action): string

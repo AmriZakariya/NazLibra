@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Notifications\ResetPasswordNotification;
 use App\Notifications\ResetPinNotification;
+use App\Support\TenantContext;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -30,9 +31,13 @@ class AuthController extends Controller
             return redirect()->route('dashboard');
         }
 
+        $tenant = TenantContext::resolve(request());
+
         return view('auth.login', [
-            'tenant' => Tenant::query()->first(),
-            'demoLoginEmail' => \App\Models\User::where('is_active', true)->orderBy('id')->value('email'),
+            'tenant' => $tenant,
+            'demoLoginEmail' => app()->environment('production')
+                ? null
+                : $tenant?->users()->where('users.is_active', true)->orderBy('users.id')->value('email'),
         ]);
     }
 
@@ -47,6 +52,23 @@ class AuthController extends Controller
             throw ValidationException::withMessages([
                 'email' => 'Identifiants invalides ou compte désactivé.',
             ]);
+        }
+
+        $tenant = TenantContext::resolve($request, null, false);
+        $user = $request->user();
+
+        if ($tenant && $user && ! $user->tenants()->whereKey($tenant->id)->exists()) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            throw ValidationException::withMessages([
+                'email' => 'Ce compte n’a pas accès à ce client.',
+            ]);
+        }
+
+        if ($tenant && $user && (int) $user->current_tenant_id !== (int) $tenant->id) {
+            $user->forceFill(['current_tenant_id' => $tenant->id])->save();
         }
 
         $request->session()->regenerate();
@@ -70,7 +92,7 @@ class AuthController extends Controller
         }
 
         $user = $request->user();
-        $tenant = $user?->currentTenant ?: Tenant::query()->first();
+        $tenant = TenantContext::resolve($request, $user);
 
         $anyUserHasPin = $tenant
             ? $tenant->users()->whereNotNull('users.pin_hash')->exists()
@@ -91,7 +113,7 @@ class AuthController extends Controller
         ]);
 
         $currentUser = $request->user();
-        $tenant = $currentUser?->currentTenant ?: Tenant::query()->firstOrFail();
+        $tenant = TenantContext::require($request, $currentUser);
 
         // Search all tenant users for a matching PIN
         $matchedUser = $tenant->users()
@@ -158,7 +180,7 @@ class AuthController extends Controller
     public function profile(): View
     {
         $user = Auth::user();
-        $tenant = $user?->currentTenant ?: Tenant::query()->firstOrFail();
+        $tenant = TenantContext::require(request(), $user);
         $tenantUser = $tenant->users()->whereKey($user?->id)->first();
         $roleKey = (string) ($tenantUser?->pivot?->role ?? '');
 
@@ -178,7 +200,7 @@ class AuthController extends Controller
     public function activity(Request $request): View
     {
         $user = $request->user();
-        $tenant = $user?->currentTenant ?: Tenant::query()->firstOrFail();
+        $tenant = TenantContext::require($request, $user);
 
         if (! $this->isOwner($tenant, $user)) {
             abort(403, 'Seul le propriétaire peut consulter le journal d’activité.');
@@ -265,7 +287,7 @@ class AuthController extends Controller
     public function activityData(Request $request): JsonResponse
     {
         $user = $request->user();
-        $tenant = $user?->currentTenant ?: Tenant::query()->firstOrFail();
+        $tenant = TenantContext::require($request, $user);
 
         if (! $this->isOwner($tenant, $user)) {
             abort(403);
@@ -305,7 +327,10 @@ class AuthController extends Controller
                     ->orWhere('subject_reference_snapshot', 'like', '%'.$search.'%')
                     ->orWhere('subject_name_snapshot', 'like', '%'.$search.'%')
                     ->orWhere('properties->path', 'like', '%'.$search.'%')
+                    ->orWhere('properties->url', 'like', '%'.$search.'%')
+                    ->orWhere('properties->user_agent', 'like', '%'.$search.'%')
                     ->orWhere('device_name_snapshot', 'like', '%'.$search.'%')
+                    ->orWhere('device_code_snapshot', 'like', '%'.$search.'%')
                     ->orWhere('real_device_platform', 'like', '%'.$search.'%')
                     ->orWhere('real_device_browser', 'like', '%'.$search.'%')
                     ->orWhere('real_device_ip', 'like', '%'.$search.'%');
@@ -372,7 +397,7 @@ class AuthController extends Controller
                 ])->render();
             })
             ->addColumn('device', function (AuditLog $log) {
-                if (! $log->device_name_snapshot) return '';
+                if (! $log->hasDeviceInfo()) return '';
                 return view('partials.activity-device-cell', [
                     'log' => $log,
                 ])->render();
@@ -384,21 +409,65 @@ class AuthController extends Controller
                 return $subjectNavUrl($log);
             })
             ->addColumn('action_raw', fn (AuditLog $log) => e($log->action))
+            ->addColumn('subject_type_label', fn (AuditLog $log) => $log->subject_type ? class_basename($log->subject_type) : null)
+            ->addColumn('subject_id', fn (AuditLog $log) => $log->subject_id)
+            ->addColumn('subject_name', fn (AuditLog $log) => $log->subjectName())
+            ->addColumn('subject_reference', fn (AuditLog $log) => $log->subjectReference())
+            ->addColumn('device_label', fn (AuditLog $log) => $log->deviceLabel())
+            ->addColumn('real_device_label', fn (AuditLog $log) => $log->realDeviceLabel())
+            ->addColumn('virtual_device_label', fn (AuditLog $log) => $log->device_name_snapshot)
+            ->addColumn('virtual_device_code', fn (AuditLog $log) => $log->device_code_snapshot)
+            ->addColumn('real_device_platform', fn (AuditLog $log) => $log->real_device_platform)
+            ->addColumn('real_device_browser', fn (AuditLog $log) => $log->real_device_browser)
+            ->addColumn('real_device_ip', fn (AuditLog $log) => $log->real_device_ip)
+            ->addColumn('real_device_user_agent', fn (AuditLog $log) => $log->real_device_user_agent)
             ->addColumn('properties_json', function (AuditLog $log) {
                 $props = $log->properties ?? [];
                 $payload = $props['payload'] ?? [];
                 $routeParams = $props['route_parameters'] ?? [];
+                $queryParams = $props['query'] ?? [];
+                $headers = $props['headers'] ?? [];
                 $method = (string) ($props['method'] ?? '—');
+                $encode = fn (mixed $value): string => json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}';
+                $requestSummary = [
+                    'method' => $method,
+                    'status_code' => $props['status_code'] ?? null,
+                    'route' => $props['route'] ?? null,
+                    'route_action' => $props['route_action'] ?? null,
+                    'path' => $props['path'] ?? null,
+                    'url' => $props['url'] ?? null,
+                    'timezone' => $props['timezone'] ?? config('app.timezone'),
+                    'ip' => $props['ip'] ?? $log->real_device_ip,
+                    'referer' => $props['referer'] ?? null,
+                    'content_type' => $props['content_type'] ?? null,
+                    'accept' => $props['accept'] ?? null,
+                    'is_ajax' => $props['is_ajax'] ?? null,
+                ];
+
                 return json_encode([
                     'method' => $method,
                     'status_code' => $props['status_code'] ?? '—',
                     'ip' => $props['ip'] ?? '—',
                     'route' => $props['route'] ?? '—',
+                    'route_action' => $props['route_action'] ?? '—',
+                    'timezone' => $props['timezone'] ?? config('app.timezone'),
                     'path' => $props['path'] ?? '—',
                     'url' => $props['url'] ?? '—',
+                    'referer' => $props['referer'] ?? '—',
+                    'content_type' => $props['content_type'] ?? '—',
+                    'accept' => $props['accept'] ?? '—',
+                    'is_ajax' => $props['is_ajax'] ?? false,
                     'user_agent' => $props['user_agent'] ?? '—',
-                    'payload_json' => json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                    'route_json' => json_encode($routeParams, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    'payload_json' => $encode($payload),
+                    'route_json' => $encode($routeParams),
+                    'query_json' => $encode($queryParams),
+                    'headers_json' => $encode($headers),
+                    'request_summary_json' => $encode($requestSummary),
+                    'full_json' => $encode($props),
+                    'has_payload' => ! empty($payload),
+                    'has_route_parameters' => ! empty($routeParams),
+                    'has_query' => ! empty($queryParams),
+                    'has_headers' => ! empty($headers),
                 ], JSON_UNESCAPED_UNICODE);
             })
             ->rawColumns(['action', 'reference', 'device', 'user_avatar', 'properties_json', 'action_raw'])
@@ -525,7 +594,7 @@ class AuthController extends Controller
     public function updateProfile(Request $request): RedirectResponse
     {
         $user = $request->user();
-        $tenant = $user?->currentTenant ?: Tenant::query()->firstOrFail();
+        $tenant = TenantContext::require($request, $user);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:160'],
@@ -594,7 +663,7 @@ class AuthController extends Controller
         }
 
         return view('auth.password.forgot', [
-            'tenant' => Tenant::query()->first(),
+            'tenant' => TenantContext::resolve($request),
         ]);
     }
 
@@ -624,7 +693,7 @@ class AuthController extends Controller
         }
 
         return view('auth.password.reset', [
-            'tenant' => Tenant::query()->first(),
+            'tenant' => TenantContext::resolve($request),
             'token' => $request->token,
             'email' => $request->email,
         ]);
@@ -682,7 +751,7 @@ class AuthController extends Controller
     public function showResetPin(Request $request): View|RedirectResponse
     {
         return view('auth.pin.reset', [
-            'tenant' => Tenant::query()->first(),
+            'tenant' => TenantContext::resolve($request),
             'token' => $request->token,
             'email' => $request->email,
         ]);

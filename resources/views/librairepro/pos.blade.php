@@ -29,6 +29,29 @@
                     $lastSystemNote = data_get($lastSale->metadata, 'system_note')
                         ?: 'Note système: vente '.$lastSale->number.' enregistrée le '.$lastSystemNoteDate.' pour '.($lastSale->contact?->name ?? 'Client comptoir').', '.$lastSale->items->count().' ligne(s), total '.$money($lastSale->total_amount).', paiement '.$lastSale->payment_method.'.';
                     $lastManualNote = trim((string) data_get($lastSale->metadata, 'note', ''));
+                    $lastReceiptCoupon = (float) data_get($lastCouponDiscount, 'amount', 0);
+                    $lastReceiptPayload = [
+                        'storeName' => $tenant->name,
+                        'serialNumber' => $lastSale->number,
+                        'ticketNumber' => $lastSale->number,
+                        'date' => $lastSale->sold_at?->format('d/m/Y H:i') ?? now()->format('d/m/Y H:i'),
+                        'items' => $lastSale->items->map(fn ($line) => [
+                            'name' => $line->name,
+                            'quantity' => (float) $line->quantity,
+                            'price' => (float) $line->unit_price,
+                            'total' => (float) $line->total_price,
+                        ])->values(),
+                        'subtotal' => (float) $lastSale->subtotal_amount,
+                        'discount' => max(0, (float) $lastSale->discount_amount - $lastReceiptCoupon),
+                        'coupon' => $lastReceiptCoupon,
+                        'total' => (float) $lastSale->total_amount,
+                        'paid' => $paidAmount,
+                        'change' => $changeAmount,
+                        'paymentMethod' => $lastSale->payment_method,
+                        'note' => $lastManualNote,
+                        'createdBy' => data_get($lastSale->metadata, 'created_by_name') ?: $lastSale->user?->name,
+                        'updatedBy' => data_get($lastSale->metadata, 'updated_by_name'),
+                    ];
                 @endphp
                 <div class="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
                     <article class="receipt-success flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-slate-950">
@@ -87,7 +110,7 @@
                             <div class="text-center">
                                 <strong class="block text-base">{{ $tenant->name }}</strong>
                                 <span class="text-xs text-slate-500">{{ $tenant->address }} · {{ $tenant->phone }}</span>
-                                <p class="mt-2 font-semibold">Ticket {{ $lastSale->number }}</p>
+                                <p class="mt-2 font-semibold">N° série {{ $lastSale->number }}</p>
                                 <p class="text-xs text-slate-500">{{ $lastSale->sold_at->format('d/m/Y H:i') }}</p>
                             </div>
                             <div class="mt-4 space-y-2">
@@ -119,7 +142,8 @@
                         <div class="shrink-0 border-t border-slate-200 bg-white p-4 shadow-[0_-14px_30px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950">
                             <div class="grid gap-2 sm:grid-cols-4">
                                 <a href="{{ route('pos') }}" data-pos-close-success class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-bold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{{ $tr('Nouveau') }}</a>
-                                <button class="pos-print-ticket rounded-xl bg-brand px-3 py-3 text-sm font-bold text-white shadow-sm shadow-indigo-500/20 transition hover:brightness-110" type="button">{{ $tr('Imprimer') }}</button>
+                                <script type="application/json" id="last-sale-receipt-data">@json($lastReceiptPayload)</script>
+                                <button class="pos-print-ticket rounded-xl bg-brand px-3 py-3 text-sm font-bold text-white shadow-sm shadow-indigo-500/20 transition hover:brightness-110" type="button" data-receipt-source="last-sale-receipt-data">{{ $tr('Imprimer') }}</button>
                                 <a href="{{ route('sales.pdf', $lastSale) }}" target="_blank" rel="noreferrer" class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-bold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">PDF vente</a>
                                 <a href="https://wa.me/?text={{ $shareText }}" target="_blank" rel="noreferrer" class="rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-bold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200">{{ $tr('Partager') }}</a>
                             </div>

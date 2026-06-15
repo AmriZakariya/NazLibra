@@ -2,8 +2,9 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Tenant;
 use App\Support\Locale;
+use App\Support\TenantClock;
+use App\Support\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,11 +16,10 @@ class SetLibraireProLocale
         $tenant = null;
         $user = $request->user();
 
-        if ($user) {
-            $tenant = $user->currentTenant ?: Tenant::query()->first();
-        }
+        $tenant = TenantContext::resolve($request, $user);
 
         Locale::apply($tenant);
+        TenantClock::apply($tenant);
 
         return $next($request);
     }

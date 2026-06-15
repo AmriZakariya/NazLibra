@@ -74,62 +74,125 @@ const Hardware = {
 
     // Receipt Printing
     async printReceipt(data) {
-        const { storeName, ticketNumber, date, items, subtotal, discount, coupon, total, paid, change, paymentMethod, note } = data;
+        const { storeName, serialNumber, ticketNumber, date, items, subtotal, discount, coupon, total, paid, change, paymentMethod, note, createdBy, updatedBy } = data;
+        const width = 32;
+        const separator = '-'.repeat(width);
+        const money = (value) => `${Number(value || 0).toFixed(2)} DH`;
+        const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
+        const fit = (value, length) => clean(value).slice(0, length).padEnd(length);
+        const line = (label, value) => {
+            const left = clean(label).slice(0, 15);
+            const right = clean(value).slice(0, width - 1);
+            const spaces = Math.max(1, width - left.length - right.length);
+
+            return `${left}${' '.repeat(spaces)}${right}`;
+        };
+        const wrap = (value, length = width) => {
+            const words = clean(value).split(' ').filter(Boolean);
+            const chunks = [];
+            let current = '';
+
+            words.forEach((word) => {
+                if ((current + ' ' + word).trim().length > length) {
+                    if (current) chunks.push(current);
+                    current = word;
+                } else {
+                    current = `${current} ${word}`.trim();
+                }
+            });
+
+            if (current) chunks.push(current);
+
+            return chunks.length ? chunks : [''];
+        };
+        const resolvedSerial = serialNumber || ticketNumber || '';
         const lines = [];
+
         lines.push(...this.cmdInit());
         lines.push(...this.cmdAlignCenter());
-        lines.push(...this.cmdDoubleSize(true));
-        lines.push(...this.cmdText(storeName || 'LibrairePro'));
-        lines.push(...this.cmdDoubleSize(false));
+        lines.push(...this.cmdBold(true));
+        lines.push(...this.cmdText(clean(storeName || 'LibrairePro')));
+        lines.push(...this.cmdBold(false));
         lines.push(...this.cmdFeed(1));
-        lines.push(...this.cmdText(`Ticket: ${ticketNumber || ''}`));
+        lines.push(...this.cmdText('N SERIE / TICKET'));
+        lines.push(...this.cmdFeed(1));
+        lines.push(...this.cmdDoubleSize(true));
+        lines.push(...this.cmdText(clean(resolvedSerial)));
+        lines.push(...this.cmdDoubleSize(false));
         lines.push(...this.cmdFeed(1));
         lines.push(...this.cmdText(date || new Date().toLocaleString('fr-FR')));
         lines.push(...this.cmdFeed(1));
-        lines.push(...this.cmdBold(true));
-        lines.push(...this.cmdText('------------------------------'));
-        lines.push(...this.cmdBold(false));
-        lines.push(...this.cmdFeed(1));
+        lines.push(...this.cmdText(separator));
         lines.push(...this.cmdAlignLeft());
 
         if (items && items.length) {
             for (const item of items) {
-                const name = (item.name || '').slice(0, 20).padEnd(20);
-                const qty = String(item.quantity || 1).padStart(3);
-                const price = String((item.price || 0).toFixed(2)).padStart(8);
-                lines.push(...this.cmdText(`${name} ${qty} ${price}`));
+                const quantity = Number(item.quantity || 1);
+                const unitPrice = Number(item.price || 0);
+                const lineTotal = Number(item.total || quantity * unitPrice);
+                wrap(item.name || 'Article').forEach((chunk) => {
+                    lines.push(...this.cmdText(chunk));
+                    lines.push(...this.cmdFeed(1));
+                });
+                lines.push(...this.cmdText(line(`${quantity} x ${money(unitPrice)}`, money(lineTotal))));
+                lines.push(...this.cmdFeed(1));
             }
         }
 
         lines.push(...this.cmdFeed(1));
-        lines.push(...this.cmdBold(true));
-        lines.push(...this.cmdText('------------------------------'));
-        lines.push(...this.cmdBold(false));
+        lines.push(...this.cmdText(separator));
         lines.push(...this.cmdFeed(1));
 
         if (subtotal !== undefined) {
-            lines.push(...this.cmdText(`Sous-total: ${Number(subtotal).toFixed(2)} DH`.padStart(42)));
+            lines.push(...this.cmdText(line('Sous-total', money(subtotal))));
+            lines.push(...this.cmdFeed(1));
         }
         if (discount) {
-            lines.push(...this.cmdText(`Remise: -${Number(discount).toFixed(2)} DH`.padStart(42)));
+            lines.push(...this.cmdText(line('Remise', `-${money(discount)}`)));
+            lines.push(...this.cmdFeed(1));
         }
         if (coupon) {
-            lines.push(...this.cmdText(`Coupon: -${Number(coupon).toFixed(2)} DH`.padStart(42)));
+            lines.push(...this.cmdText(line('Coupon', `-${money(coupon)}`)));
+            lines.push(...this.cmdFeed(1));
         }
         lines.push(...this.cmdFeed(1));
         lines.push(...this.cmdBold(true));
-        lines.push(...this.cmdText(`TOTAL: ${Number(total || 0).toFixed(2)} DH`.padStart(42)));
+        lines.push(...this.cmdText(line('TOTAL', money(total))));
         lines.push(...this.cmdBold(false));
         lines.push(...this.cmdFeed(1));
-        lines.push(...this.cmdText(`Paye: ${Number(paid || 0).toFixed(2)} DH`.padStart(42)));
-        lines.push(...this.cmdText(`Monnaie: ${Number(change || 0).toFixed(2)} DH`.padStart(42)));
-        lines.push(...this.cmdText(`Mode: ${paymentMethod || 'Espces'}`.padStart(42)));
+        lines.push(...this.cmdText(line('Paye', money(paid))));
+        lines.push(...this.cmdFeed(1));
+        lines.push(...this.cmdText(line('Monnaie', money(change))));
+        lines.push(...this.cmdFeed(1));
+        lines.push(...this.cmdText(line('Mode', paymentMethod || 'Espèces')));
+        if (createdBy || updatedBy) {
+            lines.push(...this.cmdFeed(1));
+            lines.push(...this.cmdText(separator));
+            lines.push(...this.cmdFeed(1));
+            if (createdBy) {
+                lines.push(...this.cmdText(line('Cree par', createdBy)));
+                lines.push(...this.cmdFeed(1));
+            }
+            if (updatedBy && updatedBy !== createdBy) {
+                lines.push(...this.cmdText(line('Maj par', updatedBy)));
+                lines.push(...this.cmdFeed(1));
+            }
+        }
         if (note) {
             lines.push(...this.cmdFeed(1));
-            lines.push(...this.cmdText(`Note: ${note}`.padStart(42)));
+            lines.push(...this.cmdText(separator));
+            lines.push(...this.cmdFeed(1));
+            lines.push(...this.cmdText('Note:'));
+            lines.push(...this.cmdFeed(1));
+            wrap(note).forEach((chunk) => {
+                lines.push(...this.cmdText(chunk));
+                lines.push(...this.cmdFeed(1));
+            });
         }
         lines.push(...this.cmdFeed(1));
         lines.push(...this.cmdAlignCenter());
+        lines.push(...this.cmdText(separator));
+        lines.push(...this.cmdFeed(1));
         lines.push(...this.cmdText('Merci pour votre visite !'));
         lines.push(...this.cmdFeed(3));
         lines.push(...this.cmdCut());

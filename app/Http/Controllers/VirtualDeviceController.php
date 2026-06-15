@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Tenant;
 use App\Models\VirtualDevice;
 use App\Models\VirtualDeviceSession;
+use App\Support\TenantContext;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +21,7 @@ class VirtualDeviceController extends Controller
 
     private function tenant(): Tenant
     {
-        return auth()->user()?->currentTenant ?: Tenant::query()->firstOrFail();
+        return TenantContext::require(request(), auth()->user());
     }
 
     private function isOwner(): bool

@@ -181,6 +181,12 @@
             @if ($document['payment_method'])
                 <p><strong>Paiement:</strong> {{ $document['payment_method'] }}</p>
             @endif
+            @if (! empty($document['created_by']))
+                <p><strong>Créé par:</strong> {{ $document['created_by'] }}</p>
+            @endif
+            @if (! empty($document['updated_by']))
+                <p><strong>Mis à jour par:</strong> {{ $document['updated_by'] }}</p>
+            @endif
             @if ($document['note'])
                 <p class="muted">{{ $document['note'] }}</p>
             @endif

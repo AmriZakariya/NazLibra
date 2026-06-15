@@ -189,6 +189,16 @@ const ensureNativeFullscreen = async () => {
     }
 };
 
+const scheduleFullscreenRestore = (delay = 0) => {
+    if (!fullscreenEnabled()) return;
+    setAppFullscreen(true);
+
+    window.setTimeout(() => {
+        if (document.fullscreenElement) return;
+        attachFullscreenRestoreListener();
+    }, delay);
+};
+
 const fullscreenInteractionEvents = ['click', 'keydown', 'touchstart'];
 let fullscreenRestoreController = null;
 
@@ -204,15 +214,19 @@ const attachFullscreenRestoreListener = () => {
 
     fullscreenRestoreController = new AbortController();
 
-    const restoreOnce = async () => {
+    const restoreOnce = async (event) => {
+        if (event.type === 'keydown' && !['Enter', ' ', 'F11', 'F2', 'F4'].includes(event.key)) return;
+        setAppFullscreen(true);
         await ensureNativeFullscreen();
-        detachFullscreenRestoreListener();
+        if (document.fullscreenElement) {
+            detachFullscreenRestoreListener();
+        }
     };
 
     fullscreenInteractionEvents.forEach((eventName) => {
         document.addEventListener(eventName, restoreOnce, {
-            once: true,
-            passive: true,
+            capture: true,
+            passive: eventName !== 'keydown',
             signal: fullscreenRestoreController.signal,
         });
     });
@@ -251,11 +265,7 @@ fullscreenButtons.forEach((button) => {
 
 document.addEventListener('fullscreenchange', () => {
     if (fullscreenEnabled()) {
-        setAppFullscreen(true);
-
-        if (!document.fullscreenElement) {
-            attachFullscreenRestoreListener();
-        }
+        scheduleFullscreenRestore(60);
     } else {
         setAppFullscreen(false);
         detachFullscreenRestoreListener();
@@ -269,12 +279,13 @@ document.addEventListener('fullscreenchange', () => {
 // When navigating back/forward from bfcache.
 window.addEventListener('pageshow', () => {
     if (fullscreenEnabled()) {
-        setAppFullscreen(true);
-
-        if (!document.fullscreenElement) {
-            attachFullscreenRestoreListener();
-        }
+        scheduleFullscreenRestore(60);
     }
+});
+
+window.addEventListener('focus', () => scheduleFullscreenRestore(80));
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) scheduleFullscreenRestore(80);
 });
 
 document.querySelectorAll('[data-pos-close-success]').forEach((link) => {
@@ -287,8 +298,7 @@ document.querySelectorAll('[data-pos-close-success]').forEach((link) => {
         modal.remove();
         window.history.replaceState({}, '', link.getAttribute('href') || window.location.pathname);
 
-        setAppFullscreen(true);
-        await ensureNativeFullscreen();
+        scheduleFullscreenRestore(60);
 
         document.querySelector('.pos-search')?.focus();
     });
@@ -311,19 +321,51 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
         .toLowerCase()
         .replace(/[^a-z0-9\u0600-\u06ff]+/g, ' ')
         .trim();
+    const synonymMap = {
+        timezone: ['fuseau', 'horaire', 'time', 'zone', 'المنطقة', 'الزمنية', 'التوقيت'],
+        fuseau: ['timezone', 'time', 'zone', 'horaire', 'المنطقة', 'الزمنية', 'التوقيت'],
+        horaire: ['timezone', 'fuseau', 'time', 'zone', 'التوقيت'],
+        settings: ['parametres', 'configuration', 'اعدادات'],
+        parametre: ['settings', 'configuration', 'اعدادات'],
+        parametres: ['settings', 'configuration', 'اعدادات'],
+        stock: ['inventory', 'inventaire', 'مخزون'],
+        inventory: ['stock', 'inventaire', 'مخزون'],
+        invoice: ['facture', 'billing', 'فاتورة'],
+        facture: ['invoice', 'billing', 'فاتورة'],
+        payment: ['paiement', 'دفع'],
+        paiement: ['payment', 'دفع'],
+        customer: ['client', 'crm', 'عميل', 'زبون'],
+        client: ['customer', 'crm', 'عميل', 'زبون'],
+        supplier: ['fournisseur', 'vendor', 'مورد'],
+        fournisseur: ['supplier', 'vendor', 'مورد'],
+        discount: ['remise', 'rabais', 'reduction', 'خصم'],
+        remise: ['discount', 'rabais', 'reduction', 'خصم'],
+        printer: ['imprimante', 'thermal', 'thermique', 'طابعة'],
+        imprimante: ['printer', 'thermal', 'thermique', 'طابعة'],
+    };
+    const expandTokenGroups = (tokens) => {
+        return tokens.map((token) => {
+            const alternatives = new Set([token]);
+            (synonymMap[token] || []).forEach((synonym) => {
+                normalize(synonym).split(/\s+/).filter(Boolean).forEach((part) => alternatives.add(part));
+            });
+            return [...alternatives];
+        });
+    };
 
     const visibleItems = () => items.filter((item) => !item.classList.contains('is-hidden'));
 
-    const scoreItem = (haystack, tokens, title, label, moduleName, kind) => {
-        if (tokens.length === 0) return 1;
+    const scoreItem = (haystack, tokenGroups, title, label, moduleName, kind, originalTokens) => {
+        if (tokenGroups.length === 0) return 1;
         let score = 0;
-        const query = tokens.join(' ');
+        const query = originalTokens.join(' ');
 
         if (title === query) score += 80;
         if (title.startsWith(query)) score += 35;
 
-        for (const token of tokens) {
-            if (!haystack.includes(token)) return -1;
+        for (const group of tokenGroups) {
+            const token = group.find((candidate) => haystack.includes(candidate));
+            if (!token) return -1;
             score += label === token ? 40 : 0;
             score += label.startsWith(token) ? 22 : 0;
             score += moduleName === token ? 18 : 0;
@@ -364,7 +406,8 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
 
     const filter = () => {
         const query = normalize(input.value);
-        const tokens = query.split(/\s+/).filter(Boolean);
+        const originalTokens = query.split(/\s+/).filter(Boolean);
+        const tokenGroups = expandTokenGroups(originalTokens);
         const scored = [];
 
         items.forEach((item) => {
@@ -373,7 +416,7 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
             const label = normalize(item.dataset.commandLabel);
             const moduleName = normalize(item.dataset.commandModule);
             const kind = normalize(item.dataset.commandKind);
-            const score = scoreItem(haystack, tokens, title, label, moduleName, kind);
+            const score = scoreItem(haystack, tokenGroups, title, label, moduleName, kind, originalTokens);
             item.dataset.commandScore = String(score);
             item.classList.toggle('is-hidden', score < 0);
             item.classList.remove('is-active');
@@ -1401,6 +1444,13 @@ document.querySelectorAll('[data-purchase-item-builder]').forEach((builder) => {
 });
 
 document.querySelectorAll('.pos-screen').forEach((screen) => {
+    screen.addEventListener('click', () => scheduleFullscreenRestore(90), { capture: true });
+    screen.addEventListener('keydown', (event) => {
+        if (['Enter', ' ', 'Escape', 'F2', 'F4'].includes(event.key)) {
+            scheduleFullscreenRestore(90);
+        }
+    }, { capture: true });
+
     const cart = [];
     const cartNode = screen.querySelector('.pos-cart');
     const emptyNode = screen.querySelector('.pos-empty');
@@ -2609,6 +2659,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
             resetTicketForm();
             await refreshHeldTicketsList();
+            scheduleFullscreenRestore(120);
             showToast(payload.message || 'Ticket mis en attente.', 'Voir', () => {
                 screen.querySelector('.pos-held-tickets')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
@@ -2648,6 +2699,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     });
 
     screen.querySelector('.pos-clear')?.addEventListener('click', () => {
+        scheduleFullscreenRestore(60);
         if (cart.length === 0) {
             showToast('Le panier est déjà vide.');
             return;
@@ -2675,6 +2727,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     });
 
     screen.querySelector('.pos-fill-cash')?.addEventListener('click', () => {
+        scheduleFullscreenRestore(60);
         const total = totals();
         screen.querySelector('input[name="cash_amount"]').value = total.total.toFixed(2);
         screen.querySelector('input[name="card_amount"]').value = '';
@@ -2683,6 +2736,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     });
 
     screen.querySelector('.pos-fill-card')?.addEventListener('click', () => {
+        scheduleFullscreenRestore(60);
         const total = totals();
         screen.querySelector('input[name="card_amount"]').value = total.total.toFixed(2);
         screen.querySelector('input[name="cash_amount"]').value = '';
@@ -2691,6 +2745,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     });
 
     screen.querySelector('.pos-exact-split')?.addEventListener('click', () => {
+        scheduleFullscreenRestore(60);
         const total = totals();
         const firstHalf = Math.floor(total.total * 100 / 2) / 100;
         screen.querySelector('input[name="cash_amount"]').value = firstHalf.toFixed(2);
@@ -2732,6 +2787,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
         if (submitter?.classList.contains('pos-hold-submit')) {
             event.preventDefault();
+            scheduleFullscreenRestore(80);
             holdTicketInline(submitter);
             return;
         }
@@ -2761,6 +2817,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
 
         setCheckoutBusy(true, submitter);
+        scheduleFullscreenRestore(80);
     });
 
     document.addEventListener('keydown', (event) => {
@@ -2789,14 +2846,18 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     syncNoteSummary();
     screen.querySelectorAll('.pos-print-ticket').forEach((button) => {
         button.addEventListener('click', async () => {
+            scheduleFullscreenRestore(60);
             if (window.LibraireProHardware?.connected) {
                 try {
                     const total = totals();
+                    const receiptSource = document.getElementById(button.dataset.receiptSource || '');
+                    const persistedReceipt = receiptSource ? JSON.parse(receiptSource.textContent || '{}') : null;
                     const receiptData = {
                         storeName: screen.querySelector('.pos-receipt-data')?.value ? JSON.parse(screen.querySelector('.pos-receipt-data').value)?.storeName : 'LibrairePro',
+                        serialNumber: screen.querySelector('.pos-receipt-data')?.value ? JSON.parse(screen.querySelector('.pos-receipt-data').value)?.ticketNumber : '',
                         ticketNumber: screen.querySelector('.pos-receipt-data')?.value ? JSON.parse(screen.querySelector('.pos-receipt-data').value)?.ticketNumber : '',
                         date: new Date().toLocaleString('fr-FR'),
-                        items: cart.map((item) => ({ name: item.name, quantity: item.quantity, price: item.price })),
+                        items: cart.map((item) => ({ name: item.name, quantity: item.quantity, price: item.price, total: item.price * item.quantity })),
                         subtotal: total.subtotal,
                         discount: total.discount,
                         coupon: total.couponAmount,
@@ -2806,8 +2867,9 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                         paymentMethod: paymentInputs.map((input) => input.name.replace('_amount', '').replace('cash', 'Espèces').replace('card', 'Carte').replace('transfer', 'Virement').replace('advance', 'Avance')).join(', ') || 'Espèces',
                         note: String(noteInput?.value || '').trim(),
                     };
-                    await window.LibraireProHardware.printReceipt(receiptData);
+                    await window.LibraireProHardware.printReceipt(persistedReceipt?.ticketNumber ? persistedReceipt : receiptData);
                     showToast(translate('Ticket imprimé'));
+                    scheduleFullscreenRestore(120);
                     return;
                 } catch (error) {
                     console.error('Hardware print error:', error);
@@ -2817,10 +2879,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             window.print();
             window.setTimeout(() => {
                 document.body.classList.remove('thermal-print-mode');
-                if (fullscreenEnabled()) {
-                    setAppFullscreen(true);
-                    ensureNativeFullscreen();
-                }
+                scheduleFullscreenRestore(120);
             }, 500);
         });
     });
@@ -3247,6 +3306,56 @@ document.addEventListener('click', (event) => {
         node.textContent = details[node.dataset.advanceReceiptValue] || '—';
     });
     dialog.showModal();
+});
+
+document.addEventListener('click', async (event) => {
+    const button = event.target.closest('.sale-thermal-print');
+    if (!button) return;
+
+    event.preventDefault();
+
+    const source = document.getElementById(button.dataset.receiptSource || '');
+    if (!source) {
+        window.print();
+        return;
+    }
+
+    let receiptData = null;
+    try {
+        receiptData = JSON.parse(source.textContent || '{}');
+    } catch {
+        receiptData = null;
+    }
+
+    if (!receiptData || !receiptData.ticketNumber) {
+        showToast(translate('Données ticket indisponibles.'));
+        window.print();
+        return;
+    }
+
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = translate('Impression...');
+
+    try {
+        if (!window.LibraireProHardware?.connected) {
+            await window.LibraireProHardware?.connect();
+        }
+
+        if (!window.LibraireProHardware?.connected) {
+            throw new Error(translate('Imprimante non connectée.'));
+        }
+
+        await window.LibraireProHardware.printReceipt(receiptData);
+        showToast(translate('Ticket envoyé à l’imprimante thermique.'));
+    } catch (error) {
+        showToast(error?.message || translate('Impossible d’imprimer sur l’imprimante thermique.'));
+        window.print();
+    } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+        scheduleFullscreenRestore(120);
+    }
 });
 
 document.querySelectorAll('.theme-swatch').forEach((button) => {

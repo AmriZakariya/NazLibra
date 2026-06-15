@@ -380,28 +380,52 @@
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[960px] text-left text-sm">
+                        <table class="w-full min-w-[1080px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
-                                <tr><th class="px-3 py-3">N° facture</th><th class="px-3 py-3">Ticket</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Échéance</th><th class="px-3 py-3">Client</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Action</th></tr>
+                                <tr><th class="px-3 py-3">N° facture</th><th class="px-3 py-3">Ticket</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Échéance</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3">Créée par</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Action</th></tr>
                             </thead>
                             <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                                 @forelse ($saleInvoices as $invoice)
-                                    <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5" data-row-url="{{ route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $invoice->id]) }}">
+                                    @php
+                                        $invoiceListCreatedBy = data_get($invoice->metadata, 'created_by_name') ?: $invoice->user?->name ?: 'Utilisateur inconnu';
+                                        $invoiceListCreatedAt = data_get($invoice->metadata, 'created_by_at') ?: $invoice->created_at?->toIso8601String();
+                                        $effectiveInvoiceStatus = in_array($invoice->status, ['paid', 'cancelled', 'refunded'], true)
+                                            ? $invoice->status
+                                            : ($invoice->due_date && $invoice->due_date->toDateString() < now()->toDateString() ? 'overdue' : $invoice->status);
+                                        $invoiceStatusLabel = [
+                                            'paid' => 'Payée',
+                                            'partial' => 'Partielle',
+                                            'unpaid' => 'Impayée',
+                                            'overdue' => 'En retard',
+                                            'issued' => 'Émise',
+                                            'cancelled' => 'Annulée',
+                                            'refunded' => 'Remboursée',
+                                        ][$effectiveInvoiceStatus] ?? $effectiveInvoiceStatus;
+                                        $invoiceStatusTone = match ($effectiveInvoiceStatus) {
+                                            'paid' => 'success',
+                                            'partial', 'issued' => 'warning',
+                                            'overdue', 'unpaid' => 'danger',
+                                            default => 'info',
+                                        };
+                                    @endphp
+                                    <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5" data-row-url="{{ route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $invoice->sale_id, 'invoice' => $invoice->id]) }}">
                                         <td class="px-3 py-3 font-mono text-xs font-semibold">{{ $invoice->number }}</td>
                                         <td class="px-3 py-3 font-semibold">{{ $invoice->sale?->number ?? '—' }}</td>
                                         <td class="px-3 py-3">{{ $invoice->issued_at?->format('d/m/Y H:i') ?? '—' }}</td>
                                         <td class="px-3 py-3">{{ $invoice->due_date?->format('d/m/Y') ?? '—' }}</td>
                                         <td class="px-3 py-3">{{ $invoice->contact?->name ?? $invoice->sale?->contact?->name ?? 'Client Grand Public' }}</td>
+                                        <td class="px-3 py-3"><x-status-pill :tone="$invoiceStatusTone">{{ $invoiceStatusLabel }}</x-status-pill></td>
+                                        <td class="px-3 py-3 whitespace-nowrap"><span class="font-semibold">{{ $invoiceListCreatedBy }}</span><p class="mt-1 text-xs text-slate-500">{{ $invoiceListCreatedAt ? \Illuminate\Support\Carbon::parse($invoiceListCreatedAt)->format('d/m/Y H:i') : '—' }}</p></td>
                                         <td class="px-3 py-3 text-right font-semibold">{{ $money($invoice->total_amount) }}</td>
                                         <td class="px-3 py-3 text-right">
                                             <div class="flex justify-end gap-2">
-                                                <a href="{{ route('module', ['module' => 'sales', 'section' => 'list', 'invoice' => $invoice->id]) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold hover:border-brand hover:text-brand dark:border-white/10">Voir</a>
+                                                <a href="{{ route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $invoice->sale_id, 'invoice' => $invoice->id]) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold hover:border-brand hover:text-brand dark:border-white/10">Voir</a>
                                                 <a href="{{ route('sales.invoices.pdf', $invoice) }}" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">PDF</a>
                                             </div>
                                         </td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="7" class="px-4 py-12 text-center text-sm text-slate-500">Aucune facture créée. Créez une facture depuis la liste des ventes.</td></tr>
+                                    <tr><td colspan="9" class="px-4 py-12 text-center text-sm text-slate-500">Aucune facture créée. Créez une facture depuis la liste des ventes.</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
@@ -497,7 +521,7 @@
 
             <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 <form class="flex flex-wrap items-end gap-3" method="GET" action="{{ route('module', 'sales') }}">
-                    <input name="q" value="{{ request('q') }}" class="h-11 min-w-[220px] flex-[1_1_260px] rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="Rechercher code, client, paiement...">
+                    <input name="q" value="{{ request('q') }}" class="h-11 min-w-[220px] flex-[1_1_260px] rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="Rechercher N° ticket, client, paiement...">
                     <input name="from" value="{{ request('from') }}" type="date" class="h-11 min-w-[150px] flex-[1_1_150px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                     <input name="to" value="{{ request('to') }}" type="date" class="h-11 min-w-[150px] flex-[1_1_150px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                     <select name="client" class="h-11 min-w-[190px] flex-[1_1_210px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
@@ -533,16 +557,18 @@
 
             <article class="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[1280px] text-left text-sm">
+                    <table class="w-full min-w-[1460px] text-left text-sm">
                         <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
                             <tr>
                                 <th class="px-3 py-3"><input type="checkbox" class="rounded border-slate-300"></th>
                                 <th class="px-3 py-3 whitespace-nowrap">N° facture</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Date de vente</th>
-                                <th class="px-3 py-3 whitespace-nowrap">Date d'échéance</th>
-                                <th class="px-3 py-3 whitespace-nowrap">Code de vente</th>
+                                <th class="px-3 py-3 whitespace-nowrap">Échéance</th>
+                                <th class="px-3 py-3 whitespace-nowrap">N° ticket</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Numéro de référence</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Nom du client</th>
+                                <th class="px-3 py-3 whitespace-nowrap">Créé par</th>
+                                <th class="px-3 py-3 whitespace-nowrap">Mis à jour par</th>
                                 <th class="px-3 py-3 text-right whitespace-nowrap">Total</th>
                                 <th class="px-3 py-3 text-right whitespace-nowrap">Payé</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Statut de paiement</th>
@@ -565,20 +591,81 @@
                                     $canReceivePayment = $due > 0.001 && ! in_array($sale->status, ['paid', 'refunded', 'cancelled'], true);
                                     $invoice = $sale->invoice;
                                     $invoiceNumber = $invoice?->number;
-                                    $invoiceDueDate = $invoice?->due_date?->toDateString() ?? data_get($sale->metadata, 'due_date');
+                                    $invoiceDueDate = $invoice?->due_date?->toDateString();
+                                    $paymentDueDate = data_get($sale->metadata, 'due_date');
+                                    $displayDueDate = $invoiceDueDate ?: ($due > 0.001 ? $paymentDueDate : null);
+                                    $dueContext = $invoiceDueDate ? 'Facture' : ($displayDueDate ? 'Paiement' : null);
                                     $invoiceGenerated = (bool) $invoice;
+                                    $effectiveSaleInvoiceStatus = $invoice ? (in_array($invoice->status, ['paid', 'cancelled', 'refunded'], true)
+                                        ? $invoice->status
+                                        : ($invoice->due_date && $invoice->due_date->toDateString() < now()->toDateString() ? 'overdue' : $invoice->status)) : null;
+                                    $invoiceStatusLabelForSale = $invoice ? ([
+                                        'paid' => 'Facture payée',
+                                        'partial' => 'Facture partielle',
+                                        'unpaid' => 'Facture impayée',
+                                        'overdue' => 'Facture en retard',
+                                        'issued' => 'Facture émise',
+                                        'cancelled' => 'Facture annulée',
+                                        'refunded' => 'Facture remboursée',
+                                    ][$effectiveSaleInvoiceStatus] ?? $effectiveSaleInvoiceStatus) : 'Non facturé';
+                                    $saleCreatedBy = data_get($sale->metadata, 'created_by_name') ?: $sale->user?->name ?: 'Utilisateur inconnu';
+                                    $saleCreatedAt = data_get($sale->metadata, 'created_by_at') ?: $sale->created_at?->toIso8601String();
+                                    $saleUpdatedBy = data_get($sale->metadata, 'updated_by_name') ?: data_get($sale->metadata, 'edited_by_name') ?: '—';
+                                    $saleUpdatedAt = data_get($sale->metadata, 'updated_by_at') ?: data_get($sale->metadata, 'edited_at');
+                                    $invoiceCreatedBy = $invoice ? (data_get($invoice->metadata, 'created_by_name') ?: $invoice->user?->name ?: 'Utilisateur inconnu') : null;
+                                    $invoiceUpdatedBy = $invoice ? (data_get($invoice->metadata, 'updated_by_name') ?: '—') : null;
                                     $systemNoteDate = $sale->sold_at?->format('d/m/Y H:i') ?? '—';
                                     $systemNote = data_get($sale->metadata, 'system_note')
                                         ?: 'Note système: vente '.$sale->number.' enregistrée le '.$systemNoteDate.' pour '.($sale->contact?->name ?? 'Client comptoir').', '.$sale->items->count().' ligne(s), total '.$money($sale->total_amount).', paiement '.$sale->payment_method.'.';
+                                    $receiptPaid = (float) data_get($sale->metadata, 'paid_amount', $paid);
+                                    $receiptChange = (float) data_get($sale->metadata, 'change_amount', max(0, $receiptPaid - (float) $sale->total_amount));
+                                    $receiptCoupon = (float) data_get($sale->metadata, 'discount.coupon.amount', 0);
+                                    $receiptPayload = [
+                                        'storeName' => $tenant->name,
+                                        'serialNumber' => $sale->number,
+                                        'ticketNumber' => $sale->number,
+                                        'date' => $sale->sold_at?->format('d/m/Y H:i') ?? now()->format('d/m/Y H:i'),
+                                        'items' => $sale->items->map(fn ($line) => [
+                                            'name' => $line->name,
+                                            'quantity' => (float) $line->quantity,
+                                            'price' => (float) $line->unit_price,
+                                            'total' => (float) $line->total_price,
+                                        ])->values(),
+                                        'subtotal' => (float) $sale->subtotal_amount,
+                                        'discount' => max(0, (float) $sale->discount_amount - $receiptCoupon),
+                                        'coupon' => $receiptCoupon,
+                                        'total' => (float) $sale->total_amount,
+                                        'paid' => $receiptPaid,
+                                        'change' => $receiptChange,
+                                        'paymentMethod' => $sale->payment_method,
+                                        'note' => (string) data_get($sale->metadata, 'note', ''),
+                                        'createdBy' => $saleCreatedBy,
+                                        'updatedBy' => $saleUpdatedBy !== '—' ? $saleUpdatedBy : null,
+                                    ];
                                 @endphp
                                 <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5">
                                     <td class="px-3 py-3"><input type="checkbox" class="rounded border-slate-300" value="{{ $sale->id }}"></td>
                                     <td class="px-3 py-3 whitespace-nowrap text-slate-500">{{ $invoiceNumber ?? '—' }}</td>
                                     <td class="px-3 py-3 whitespace-nowrap">{{ $sale->sold_at?->format('d/m/Y H:i') }}</td>
-                                    <td class="px-3 py-3 whitespace-nowrap">{{ $invoiceDueDate ? \Illuminate\Support\Carbon::parse($invoiceDueDate)->format('d/m/Y') : '—' }}</td>
+                                    <td class="px-3 py-3 whitespace-nowrap">
+                                        @if ($displayDueDate)
+                                            <span class="font-medium">{{ \Illuminate\Support\Carbon::parse($displayDueDate)->format('d/m/Y') }}</span>
+                                            <p class="mt-1 text-xs text-slate-500">{{ $dueContext }}</p>
+                                        @else
+                                            <span class="text-slate-400">—</span>
+                                        @endif
+                                    </td>
                                     <td class="px-3 py-3 whitespace-nowrap font-mono text-xs font-semibold">{{ $sale->number }}</td>
                                     <td class="px-3 py-3 whitespace-nowrap text-slate-500">{{ data_get($sale->metadata, 'reference_number', '—') }}</td>
                                     <td class="px-3 py-3 min-w-48 font-medium">{{ $sale->contact?->name ?? 'Client Grand Public' }}</td>
+                                    <td class="px-3 py-3 whitespace-nowrap">
+                                        <span class="font-semibold">{{ $saleCreatedBy }}</span>
+                                        <p class="mt-1 text-xs text-slate-500">{{ $saleCreatedAt ? \Illuminate\Support\Carbon::parse($saleCreatedAt)->format('d/m/Y H:i') : '—' }}</p>
+                                    </td>
+                                    <td class="px-3 py-3 whitespace-nowrap">
+                                        <span class="font-semibold">{{ $saleUpdatedBy }}</span>
+                                        <p class="mt-1 text-xs text-slate-500">{{ $saleUpdatedAt ? \Illuminate\Support\Carbon::parse($saleUpdatedAt)->format('d/m/Y H:i') : '—' }}</p>
+                                    </td>
                                     <td class="px-3 py-3 text-right font-semibold whitespace-nowrap">{{ $money($sale->total_amount) }}</td>
                                     <td class="px-3 py-3 text-right font-semibold whitespace-nowrap">{{ $money($paid) }}</td>
                                     <td class="px-3 py-3 whitespace-nowrap"><x-status-pill :tone="$statusTone">{{ $paymentStatus }}</x-status-pill></td>
@@ -622,6 +709,7 @@
                                                     <p class="text-sm font-semibold text-brand">Détail ticket</p>
                                                     <div class="mt-1 flex flex-wrap items-center gap-2">
                                                         <h3 class="text-2xl font-semibold tracking-tight">{{ $sale->number }}</h3>
+                                                        <x-status-pill tone="neutral">N° série {{ $sale->number }}</x-status-pill>
                                                         <x-status-pill :tone="$statusTone">{{ $paymentStatus }}</x-status-pill>
                                                         @if ($invoiceGenerated)
                                                             <x-status-pill tone="info">{{ $invoiceNumber }}</x-status-pill>
@@ -645,12 +733,25 @@
                                                         <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                                             <span class="text-xs font-semibold uppercase text-slate-500">Référence</span>
                                                             <strong class="mt-1 block truncate">{{ data_get($sale->metadata, 'reference_number', '—') }}</strong>
-                                                            <span class="mt-1 block text-xs text-slate-500">Échéance {{ $invoiceDueDate ? \Illuminate\Support\Carbon::parse($invoiceDueDate)->format('d/m/Y') : '—' }}</span>
+                                                            <span class="mt-1 block text-xs text-slate-500">{{ $dueContext ? $dueContext.' '.\Illuminate\Support\Carbon::parse($displayDueDate)->format('d/m/Y') : 'Sans échéance' }}</span>
                                                         </div>
                                                         <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                                             <span class="text-xs font-semibold uppercase text-slate-500">Opérations liées</span>
                                                             <strong class="mt-1 block">{{ $sale->payments->count() }} paiement(s)</strong>
                                                             <span class="mt-1 block text-xs text-slate-500">{{ $sale->deliveryOrders->count() }} livraison(s) · {{ $sale->returns->count() }} retour(s)</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="grid gap-3 md:grid-cols-2">
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                            <span class="text-xs font-semibold uppercase text-slate-500">Créé par</span>
+                                                            <strong class="mt-1 block">{{ $saleCreatedBy }}</strong>
+                                                            <span class="mt-1 block text-xs text-slate-500">{{ $saleCreatedAt ? \Illuminate\Support\Carbon::parse($saleCreatedAt)->format('d/m/Y H:i') : 'Date inconnue' }}</span>
+                                                        </div>
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                            <span class="text-xs font-semibold uppercase text-slate-500">Dernière mise à jour</span>
+                                                            <strong class="mt-1 block">{{ $saleUpdatedBy }}</strong>
+                                                            <span class="mt-1 block text-xs text-slate-500">{{ $saleUpdatedAt ? \Illuminate\Support\Carbon::parse($saleUpdatedAt)->format('d/m/Y H:i') : 'Aucune modification' }}</span>
                                                         </div>
                                                     </div>
 
@@ -713,6 +814,11 @@
                                                         <h4 class="text-sm font-semibold">Documents</h4>
                                                         <div class="mt-3 grid gap-2 text-sm">
                                                             <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Facture</span><strong>{{ $invoiceNumber ?? 'Non créée' }}</strong></div>
+                                                            @if ($invoiceGenerated)
+                                                                <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Statut facture</span><strong>{{ $invoiceStatusLabelForSale }}</strong></div>
+                                                                <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Facture créée par</span><strong>{{ $invoiceCreatedBy }}</strong></div>
+                                                                <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Facture mise à jour</span><strong>{{ $invoiceUpdatedBy }}</strong></div>
+                                                            @endif
                                                             <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Date vente</span><strong>{{ $sale->sold_at?->format('d/m/Y') }}</strong></div>
                                                             <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Magasin</span><strong>{{ $currentStore['name'] ?? $tenant->name }}</strong></div>
                                                         </div>
@@ -733,7 +839,8 @@
 
                                         <div class="flex flex-col gap-2 border-t border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950 sm:flex-row sm:items-center sm:justify-between">
                                             <div class="flex flex-wrap gap-2">
-                                                <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950" type="button" onclick="window.print()">Imprimer ticket</button>
+                                                <script type="application/json" id="sale-receipt-data-{{ $sale->id }}">@json($receiptPayload)</script>
+                                                <button class="sale-thermal-print rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950" type="button" data-receipt-source="sale-receipt-data-{{ $sale->id }}">Imprimer ticket</button>
                                                 <a href="{{ route('sales.pdf', $sale) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950">PDF vente</a>
                                                 @if ($invoiceGenerated)
                                                     <a href="{{ route('sales.invoices.pdf', $invoice) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950">PDF facture</a>
@@ -918,7 +1025,7 @@
                                         <div class="sale-invoice-sheet rounded-2xl border border-slate-200 bg-white p-6 text-slate-950 dark:border-white/10">
                                             <div class="flex flex-wrap items-start justify-between gap-6 border-b border-slate-200 pb-5">
                                                 <div><strong class="text-lg">{{ $tenant->name }}</strong><p class="mt-1 text-sm text-slate-500">{{ $tenant->phone }} · ICE {{ $tenant->ice }}</p></div>
-                                                <div class="text-right"><p class="text-xs font-semibold uppercase text-slate-500">{{ $invoiceGenerated ? 'Facture' : 'Pro forma' }}</p><h4 class="text-2xl font-bold">{{ $invoiceNumber ?? 'Non créée' }}</h4><p class="text-sm text-slate-500">{{ $sale->sold_at?->format('d/m/Y') }}{{ $invoiceDueDate ? ' · échéance '.\Illuminate\Support\Carbon::parse($invoiceDueDate)->format('d/m/Y') : '' }}</p></div>
+                                                <div class="text-right"><p class="text-xs font-semibold uppercase text-slate-500">{{ $invoiceGenerated ? 'Facture' : 'Pro forma' }}</p><h4 class="text-2xl font-bold">{{ $invoiceNumber ?? 'Non créée' }}</h4><p class="text-sm text-slate-500">{{ $sale->sold_at?->format('d/m/Y') }}{{ $displayDueDate ? ' · échéance '.\Illuminate\Support\Carbon::parse($displayDueDate)->format('d/m/Y') : '' }}</p></div>
                                             </div>
                                             <div class="mt-5 grid gap-4 sm:grid-cols-2">
                                                 <div class="rounded-xl bg-slate-50 p-4"><span class="text-xs font-semibold uppercase text-slate-500">Client</span><p class="mt-1 font-semibold">{{ $sale->contact?->name ?? 'Client Grand Public' }}</p><p class="text-sm text-slate-500">{{ $sale->contact?->phone ?? '' }}</p></div>
@@ -943,7 +1050,7 @@
                                         </div>
                                         <form action="{{ route('sales.invoice.store', $sale) }}" method="POST" class="mt-4 grid gap-3 sm:grid-cols-[180px_1fr_auto_auto]">
                                             @csrf
-                                            <input name="due_date" value="{{ $invoiceDueDate }}" type="date" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                            <input name="due_date" value="{{ $invoiceDueDate ?: $paymentDueDate }}" type="date" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                                             <input name="invoice_note" value="{{ $invoice?->note }}" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note facture">
                                             <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">{{ $invoiceGenerated ? 'Mettre à jour' : 'Créer facture' }}</button>
                                             @if ($invoiceGenerated)
@@ -1057,13 +1164,13 @@
                                 @endif
                             @empty
                                 <tr>
-                                    <td colspan="11" class="px-4 py-12 text-center text-sm text-slate-500">Aucune vente ne correspond aux filtres.</td>
+                                    <td colspan="13" class="px-4 py-12 text-center text-sm text-slate-500">Aucune vente ne correspond aux filtres.</td>
                                 </tr>
                             @endforelse
                         </tbody>
                         <tfoot class="bg-slate-50 text-sm font-semibold dark:bg-white/5">
                             <tr>
-                                <td colspan="7" class="px-3 py-3 text-right">Totaux filtrés</td>
+                                <td colspan="9" class="px-3 py-3 text-right">Totaux filtrés</td>
                                 <td class="px-3 py-3 text-right">{{ $money($salesTotals['total'] ?? 0) }}</td>
                                 <td class="px-3 py-3 text-right">{{ $money($salesTotals['paid'] ?? 0) }}</td>
                                 <td colspan="2" class="px-3 py-3">{{ $money($salesTotals['due'] ?? 0) }} restant</td>
@@ -1342,13 +1449,14 @@
                         </div>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[1120px] text-left text-sm">
+                        <table class="w-full min-w-[1240px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
                                 <tr>
                                     <th class="px-4 py-3">N° achat</th>
                                     <th class="px-4 py-3">Date</th>
                                     <th class="px-4 py-3">Fournisseur</th>
                                     <th class="px-4 py-3">Facture / référence</th>
+                                    <th class="px-4 py-3">Créé par</th>
                                     <th class="px-4 py-3">Articles</th>
                                     <th class="px-4 py-3">Réception</th>
                                     <th class="px-4 py-3 text-right">Total</th>
@@ -1369,6 +1477,10 @@
                                             'received' => 'Reçu',
                                             'cancelled' => 'Annulé',
                                         ][$purchase->status] ?? $purchase->status;
+                                        $purchaseCreatedBy = data_get($purchase->metadata, 'created_by_name') ?: $purchase->user?->name ?: 'Utilisateur inconnu';
+                                        $purchaseCreatedAt = data_get($purchase->metadata, 'created_by_at') ?: $purchase->created_at?->toIso8601String();
+                                        $purchaseUpdatedBy = data_get($purchase->metadata, 'updated_by_name') ?: data_get($purchase->metadata, 'received_by_name') ?: '—';
+                                        $purchaseUpdatedAt = data_get($purchase->metadata, 'updated_by_at') ?: data_get($purchase->metadata, 'received_by_at');
                                     @endphp
                                     <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/[0.04]">
                                         <td class="px-4 py-3">
@@ -1388,6 +1500,10 @@
                                         <td class="px-4 py-3">
                                             <span class="font-medium">{{ data_get($purchase->metadata, 'supplier_invoice', '—') }}</span>
                                             <p class="mt-1 text-xs text-slate-500">{{ data_get($purchase->metadata, 'reference', 'Sans référence') }}</p>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <span class="font-semibold">{{ $purchaseCreatedBy }}</span>
+                                            <p class="mt-1 text-xs text-slate-500">{{ $purchaseCreatedAt ? \Illuminate\Support\Carbon::parse($purchaseCreatedAt)->format('d/m/Y H:i') : '—' }}</p>
                                         </td>
                                         <td class="px-4 py-3">
                                             <span class="font-semibold">{{ $purchase->items->count() }} ligne(s)</span>
@@ -1434,6 +1550,18 @@
                                                     <div class="purchase-detail-stat"><span>Total</span><strong>{{ $money($purchase->total_amount) }}</strong></div>
                                                     <div class="purchase-detail-stat"><span>Quantité commandée</span><strong>{{ $orderedQuantity }}</strong></div>
                                                     <div class="purchase-detail-stat"><span>Quantité reçue</span><strong>{{ $receivedQuantity }}</strong></div>
+                                                </div>
+                                                <div class="grid gap-3 sm:grid-cols-2">
+                                                    <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                        <span class="text-xs font-semibold uppercase text-slate-500">Créé par</span>
+                                                        <strong class="mt-1 block">{{ $purchaseCreatedBy }}</strong>
+                                                        <span class="mt-1 block text-xs text-slate-500">{{ $purchaseCreatedAt ? \Illuminate\Support\Carbon::parse($purchaseCreatedAt)->format('d/m/Y H:i') : 'Date inconnue' }}</span>
+                                                    </div>
+                                                    <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                        <span class="text-xs font-semibold uppercase text-slate-500">Dernière mise à jour</span>
+                                                        <strong class="mt-1 block">{{ $purchaseUpdatedBy }}</strong>
+                                                        <span class="mt-1 block text-xs text-slate-500">{{ $purchaseUpdatedAt ? \Illuminate\Support\Carbon::parse($purchaseUpdatedAt)->format('d/m/Y H:i') : 'Aucune modification' }}</span>
+                                                    </div>
                                                 </div>
                                                 <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
                                                     <div class="grid grid-cols-[minmax(220px,1fr)_80px_80px_100px_110px] gap-3 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-500 dark:bg-white/5">
@@ -1492,7 +1620,7 @@
                                         </div>
                                     </dialog>
                                 @empty
-                                    <tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun achat trouvé.</td></tr>
+                                    <tr><td colspan="9" class="px-4 py-12 text-center text-sm text-slate-500">Aucun achat trouvé.</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
@@ -2171,6 +2299,9 @@
                 'cust_advance_init' => 'ADV',
             ], $tenant->settings['company_profile'] ?? []);
             $companyProfile['business_mode'] = \App\Support\BusinessMode::get($companyProfile['business_mode'] ?? null)['key'];
+            $timezoneOptions = \App\Support\TenantClock::options();
+            $tenantTimezoneLabel = \App\Support\TenantClock::label($tenant);
+            $tenantTimezoneOffset = \App\Support\TenantClock::offset($tenant);
         @endphp
         <details class="app-collapsible-menu mt-6" data-collapsible-menu data-menu-key="module-settings-menu">
             <summary class="app-collapsible-menu-summary">
@@ -2378,7 +2509,7 @@
                                 <div class="mt-4 grid gap-3 text-sm">
                                     <div class="settings-info-row"><span>Magasin courant</span><strong>{{ $currentStore['name'] ?? $tenant->name }}</strong></div>
                                     <div class="settings-info-row"><span>Devise</span><strong>{{ strtoupper($tenant->currency) }} · DH</strong></div>
-                                    <div class="settings-info-row"><span>Fuseau</span><strong>{{ $tenant->timezone }}</strong></div>
+                                    <div class="settings-info-row"><span>Fuseau</span><strong>{{ $tenantTimezoneLabel }}</strong></div>
                                     <div class="settings-info-row"><span>Langues</span><strong>Français · العربية</strong></div>
                                 </div>
                             </article>
@@ -2582,7 +2713,15 @@
                         <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                             <h3 class="text-sm font-semibold">Formats, devise & caisse</h3>
                             <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Fuseau horaire</span><input name="timezone" required value="{{ old('timezone', $companyProfile['timezone']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label id="timezone" class="space-y-1.5 scroll-mt-24">
+                                    <span class="text-xs font-semibold uppercase text-slate-500">Fuseau horaire</span>
+                                    <select name="timezone" required data-searchable-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                        @foreach ($timezoneOptions as $timezoneOption)
+                                            <option value="{{ $timezoneOption }}" @selected(old('timezone', $companyProfile['timezone']) === $timezoneOption)>{{ $timezoneOption }} · {{ \App\Support\TenantClock::offset($timezoneOption) }}</option>
+                                        @endforeach
+                                    </select>
+                                    <span class="block text-xs text-slate-500">Actuel: <strong>{{ $tenantTimezoneOffset }}</strong>. Utilisé pour les ventes, tickets, rapports, logs, échéances et filtres “aujourd’hui”.</span>
+                                </label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Format date</span><select name="date_format" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach(['dd/mm/yyyy','dd-mm-yyyy','mm-dd-yyyy','yyyy-mm-dd'] as $format)<option value="{{ $format }}" @selected(old('date_format', $companyProfile['date_format']) === $format)>{{ $format }}</option>@endforeach</select></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Format heure</span><select name="time_format" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="24" @selected(old('time_format', $companyProfile['time_format']) === '24')>24 heures</option><option value="12" @selected(old('time_format', $companyProfile['time_format']) === '12')>12 heures</option></select></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Langue</span><select name="language_id" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="fr" @selected(old('language_id', $companyProfile['language_id']) === 'fr')>Français</option><option value="ar" @selected(old('language_id', $companyProfile['language_id']) === 'ar')>العربية</option><option value="en" @selected(old('language_id', $companyProfile['language_id']) === 'en')>English</option></select></label>

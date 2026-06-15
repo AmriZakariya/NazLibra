@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Support\AppModules;
+use App\Support\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -14,7 +15,7 @@ class EnsureTenantAccess
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        $tenant = $user?->currentTenant ?: Tenant::query()->first();
+        $tenant = TenantContext::resolve($request, $user);
 
         if (! $user || ! $tenant || ! $user->tenants()->whereKey($tenant->id)->exists()) {
             return $this->deny($request, $tenant);

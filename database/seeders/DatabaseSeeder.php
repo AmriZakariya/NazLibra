@@ -28,6 +28,12 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        if (app()->environment('production')) {
+            $this->call(ClientTenantSeeder::class);
+
+            return;
+        }
+
         DB::transaction(function (): void {
             $tenant = Tenant::updateOrCreate(
                 ['slug' => 'librairie-atlas'],

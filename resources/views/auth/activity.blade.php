@@ -343,43 +343,103 @@
 
             var dialog = document.getElementById("audit-detail-dialog");
             var content = document.getElementById("audit-detail-content");
+            var esc = function(value) {
+                return String(value ?? "").replace(/[&<>"']/g, function(char) {
+                    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[char];
+                });
+            };
+            var bool = function(value) { return value !== undefined && value !== null && String(value).trim() !== ""; };
+            var card = function(label, value, extraClass) {
+                return '<div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">' +
+                    '<p class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">' + esc(label) + '</p>' +
+                    '<p class="mt-2 break-words text-sm font-bold text-slate-900 dark:text-white ' + (extraClass || '') + '">' + (bool(value) ? esc(value) : '—') + '</p>' +
+                '</div>';
+            };
+            var codeBlock = function(label, value, emptyText) {
+                if (!bool(value) || value === "{}" || value === "[]") {
+                    return '<div class="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-400">' + esc(emptyText) + '</div>';
+                }
+
+                return '<div><p class="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">' + esc(label) + '</p>' +
+                    '<pre class="max-h-72 overflow-auto rounded-xl border border-slate-200 bg-slate-950 p-4 text-xs leading-relaxed text-emerald-200 dark:border-white/10">' + esc(value) + '</pre></div>';
+            };
+            var codeBlockAlways = function(label, value) {
+                return '<div><p class="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">' + esc(label) + '</p>' +
+                    '<pre class="max-h-80 overflow-auto rounded-xl border border-slate-200 bg-slate-950 p-4 text-xs leading-relaxed text-sky-100 dark:border-white/10">' + esc(bool(value) ? value : "{}") + '</pre></div>';
+            };
 
             var methodClass = "bg-slate-100 text-slate-600";
             if (props.method === "POST") methodClass = "bg-emerald-100 text-emerald-700";
             else if (props.method === "PUT") methodClass = "bg-sky-100 text-sky-700";
             else if (props.method === "PATCH") methodClass = "bg-amber-100 text-amber-700";
             else if (props.method === "DELETE") methodClass = "bg-rose-100 text-rose-700";
+            var targetRows = [
+                card("{{ $tr('Type') }}", row.subject_type_label || "{{ $tr('Application') }}"),
+                card("{{ $tr('Identifiant') }}", row.subject_id ? "#" + row.subject_id : ""),
+                card("{{ $tr('Référence') }}", row.subject_reference || row.reference_text || "")
+            ].join("");
+            var deviceCards = [
+                card("{{ $tr('Appareil virtuel') }}", row.virtual_device_label || "{{ $tr('Non utilisé') }}"),
+                card("{{ $tr('Code appareil') }}", row.virtual_device_code || ""),
+                card("{{ $tr('Plateforme réelle') }}", row.real_device_platform || ""),
+                card("{{ $tr('Navigateur') }}", row.real_device_browser || ""),
+                card("{{ $tr('Adresse IP') }}", row.real_device_ip || props.ip || ""),
+                card("{{ $tr('User-Agent') }}", row.real_device_user_agent || props.user_agent || "", "font-mono text-xs")
+            ].join("");
+            var technicalCards = [
+                card("{{ $tr('Méthode') }}", props.method),
+                card("{{ $tr('Statut HTTP') }}", props.status_code),
+                card("{{ $tr('Fuseau horaire') }}", props.timezone),
+                card("{{ $tr('Route Laravel') }}", props.route),
+                card("{{ $tr('Contrôleur') }}", props.route_action),
+                card("{{ $tr('Chemin') }}", props.path, "font-mono text-xs"),
+                card("{{ $tr('Requête AJAX') }}", props.is_ajax ? "{{ $tr('Oui') }}" : "{{ $tr('Non') }}")
+            ].join("");
+            var technicalPanel =
+                '<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">' + technicalCards + '</div>' +
+                '<div class="mt-4 grid gap-4 xl:grid-cols-2">' +
+                    codeBlock("{{ $tr('Données envoyées') }}", props.payload_json, "{{ $tr('Aucune donnée formulaire conservée pour cette action.') }}") +
+                    codeBlock("{{ $tr('Paramètres de route') }}", props.route_json, "{{ $tr('Aucun paramètre technique pour cette route.') }}") +
+                    codeBlock("{{ $tr('Paramètres URL') }}", props.query_json, "{{ $tr('Aucun paramètre dans l’URL.') }}") +
+                    codeBlock("{{ $tr('Headers utiles') }}", props.headers_json, "{{ $tr('Aucun header technique capturé pour cet ancien log.') }}") +
+                '</div>' +
+                '<div class="mt-4">' + codeBlockAlways("{{ $tr('Résumé requête') }}", props.request_summary_json) + '</div>' +
+                '<div class="mt-4">' + codeBlockAlways("{{ $tr('JSON complet du log') }}", props.full_json) + '</div>';
 
             content.innerHTML = "" +
                 '<div class="flex items-start gap-4 border-b border-slate-100 px-6 py-5 dark:border-white/10">' +
-                    '<span class="grid size-11 shrink-0 place-items-center rounded-xl bg-brand/10 text-sm font-bold text-brand">' + (row.user_avatar || "") + '</span>' +
+                    (row.user_avatar || '<span class="grid size-8 shrink-0 place-items-center rounded-lg bg-brand/10 text-[11px] font-bold text-brand">S</span>') +
                     '<div class="min-w-0 flex-1 pt-0.5">' +
-                        '<h3 class="text-base font-bold text-slate-900 dark:text-white">' + (row.user_name || "") + ' <span class="ml-2 text-sm font-normal text-slate-400">' + (row.created_at || "") + '</span></h3>' +
+                        '<h3 class="text-base font-bold text-slate-900 dark:text-white">' + esc(row.user_name || "") + ' <span class="ml-2 text-sm font-normal text-slate-400">' + esc(row.created_at || "") + '</span></h3>' +
                         '<p class="mt-1 text-sm font-semibold text-brand">' + (row.action || "") + '</p>' +
                         '<div class="mt-2 flex flex-wrap items-center gap-2">' +
-                            (row.reference ? '<span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600"># ' + row.reference + '</span>' : '') +
-                            (row.nav_url ? '<a href="' + row.nav_url + '" class="inline-flex items-center gap-1 rounded-md text-xs font-semibold text-brand hover:underline">\u2197 {{ $tr('Voir') }}</a>' : '') +
+                            (bool(row.subject_reference) ? '<span class="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-200"># ' + esc(row.subject_reference) + '</span>' : '') +
+                            (row.nav_url ? '<a href="' + esc(row.nav_url) + '" class="inline-flex items-center gap-1 rounded-md text-xs font-semibold text-brand hover:underline">\u2197 {{ $tr('Voir la fiche') }}</a>' : '') +
                         '</div>' +
                     '</div>' +
                     '<button class="dialog-close grid size-8 shrink-0 place-items-center rounded-lg text-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-white/10 dark:hover:text-white" type="button">&times;</button>' +
                 '</div>' +
-                '<div class="flex gap-1.5 border-b border-slate-100 bg-slate-50/40 px-3 py-2 dark:border-white/10 dark:bg-white/[0.02]">' +
+                '<div class="flex flex-wrap gap-1.5 border-b border-slate-100 bg-slate-50/40 px-3 py-2 dark:border-white/10 dark:bg-white/[0.02]">' +
                     '<button onclick="auditSwitchTab(\'summary\')" id="tab-btn-summary" class="audit-dt-tab inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition bg-white text-brand shadow-sm ring-1 ring-slate-200/60"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> {{ $tr('Résumé') }}</button>' +
-                    (row.device ? '<button onclick="auditSwitchTab(\'device\')" id="tab-btn-device" class="audit-dt-tab inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition text-slate-500 hover:text-slate-700 hover:bg-white/60"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> {{ $tr('Appareil') }}</button>' : '') +
-                    '<button onclick="auditSwitchTab(\'technical\')" id="tab-btn-tech" class="audit-dt-tab inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition text-slate-500 hover:text-slate-700 hover:bg-white/60"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82"/></svg> {{ $tr('Technique') }}</button>' +
+                    '<button onclick="auditSwitchTab(\'device\')" id="tab-btn-device" class="audit-dt-tab inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition text-slate-500 hover:text-slate-700 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> {{ $tr('Appareil') }}</button>' +
+                    '<button onclick="auditSwitchTab(\'technical\')" id="tab-btn-technical" class="audit-dt-tab inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition text-slate-500 hover:text-slate-700 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82"/></svg> {{ $tr('Technique') }}</button>' +
                 '</div>' +
-                '<div id="tab-panel-summary" class="px-6 py-5">' +
+                '<div id="tab-panel-summary" class="max-h-[70vh] overflow-y-auto px-6 py-5">' +
                     '<div class="grid gap-3 sm:grid-cols-3">' +
-                        '<div class="rounded-xl border border-slate-200 bg-slate-50 p-4"><p class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">{{ $tr('Méthode') }}</p><span class="mt-2 inline-flex rounded-lg px-2.5 py-1 text-xs font-bold ' + methodClass + '">' + (props.method || "\u2014") + '</span></div>' +
-                        '<div class="rounded-xl border border-slate-200 bg-slate-50 p-4"><p class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">{{ $tr('Statut') }}</p><p class="mt-2 text-xl font-black text-slate-950">' + (props.status_code || "\u2014") + '</p></div>' +
-                        '<div class="rounded-xl border border-slate-200 bg-slate-50 p-4"><p class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">{{ $tr('IP') }}</p><p class="mt-2 truncate text-sm font-bold text-slate-700">' + (props.ip || "\u2014") + '</p></div>' +
+                        '<div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04]"><p class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr('Méthode') }}</p><span class="mt-2 inline-flex rounded-lg px-2.5 py-1 text-xs font-bold ' + methodClass + '">' + esc(props.method || "—") + '</span></div>' +
+                        card("{{ $tr('Statut réponse') }}", props.status_code) +
+                        card("{{ $tr('Adresse IP') }}", props.ip || row.real_device_ip) +
                     '</div>' +
-                    '<div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4"><p class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">{{ $tr('Route') }}</p><p class="mt-1 text-sm font-semibold text-slate-800">' + (props.route || "\u2014") + '</p><div class="mt-2 space-y-1 rounded-lg bg-white p-2.5 dark:bg-white/5"><p class="break-all text-[11px] font-mono text-slate-500">' + (props.path || "\u2014") + '</p><p class="break-all text-[11px] font-mono text-slate-400">' + (props.url || "\u2014") + '</p></div></div>' +
+                    '<div class="mt-4 grid gap-3 sm:grid-cols-3">' + targetRows + '</div>' +
+                    '<div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04]"><p class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr('Route') }}</p><p class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">' + esc(props.route || "—") + '</p><div class="mt-2 space-y-1 rounded-lg bg-white p-2.5 dark:bg-white/5"><p class="break-all text-[11px] font-mono text-slate-500 dark:text-slate-300">' + esc(props.path || "—") + '</p><p class="break-all text-[11px] font-mono text-slate-400">' + esc(props.url || "—") + '</p></div></div>' +
                 '</div>' +
-                (row.device ? '<div id="tab-panel-device" class="hidden px-6 py-5">' + row.device + '</div>' : '') +
-                '<div id="tab-panel-tech" class="hidden px-6 py-5">' +
-                    '<div class="rounded-xl border border-slate-200 bg-slate-50 p-4"><p class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">{{ $tr('Action') }}</p><p class="mt-1 font-mono text-sm font-semibold text-slate-800">' + (row.action_raw || "") + '</p></div>' +
-                    '<div class="mt-4 grid gap-4 lg:grid-cols-2"><div><p class="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-slate-400">{{ $tr('Données') }}</p><pre class="max-h-72 overflow-auto rounded-xl border border-slate-200 bg-slate-950 p-4 text-xs leading-relaxed text-emerald-200">' + (props.payload_json || "{}") + '</pre></div><div><p class="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-slate-400">{{ $tr('Paramètres') }}</p><pre class="max-h-72 overflow-auto rounded-xl border border-slate-200 bg-slate-950 p-4 text-xs leading-relaxed text-sky-200">' + (props.route_json || "{}") + '</pre></div></div>' +
+                '<div id="tab-panel-device" class="hidden max-h-[70vh] overflow-y-auto px-6 py-5"><div class="grid gap-3 sm:grid-cols-2">' + deviceCards + '</div></div>' +
+                '<div id="tab-panel-tech" class="hidden max-h-[70vh] overflow-y-auto px-6 py-5">' +
+                    '<div class="grid gap-3 sm:grid-cols-2">' +
+                        card("{{ $tr('Action technique') }}", row.action_raw, "font-mono text-xs") +
+                        card("{{ $tr('URL complète') }}", props.url, "font-mono text-xs") +
+                    '</div>' +
+                    '<div class="mt-4">' + technicalPanel + '</div>' +
                 '</div>';
 
             // Store row data for tab switching

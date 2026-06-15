@@ -25,6 +25,11 @@ class Sale extends Model
         return $this->belongsTo(Contact::class);
     }
 
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(SaleItem::class);
