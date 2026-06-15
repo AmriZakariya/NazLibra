@@ -238,53 +238,85 @@
         </section>
     @elseif ($panel === 'stock-adjustments')
         <section class="mt-6 space-y-5">
-            <div class="stock-kpi-grid grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                <article class="rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
-                    <span class="text-xs font-semibold uppercase text-slate-500">Ajustements</span>
-                    <p class="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{{ $stockStats['adjustments'] }}</p>
-                    <p class="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">{{ number_format($stockStats['adjusted_month'], 0, ',', ' ') }} unité(s) ce mois</p>
+            <div class="stock-kpi-grid grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+                <article class="stock-kpi-card is-primary rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
+                    <div class="stock-kpi-meta">
+                        <span class="stock-kpi-label">Ajustements</span>
+                        <span class="stock-kpi-dot is-primary" aria-hidden="true"></span>
+                    </div>
+                    <p class="stock-kpi-value">{{ number_format($stockStats['adjustments'], 0, ',', ' ') }}</p>
+                    <p class="stock-kpi-hint">{{ number_format($stockStats['adjusted_month'], 0, ',', ' ') }} unité(s) ce mois</p>
                 </article>
-                <article class="stock-kpi-card is-volume rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
-                    <span class="text-xs font-semibold uppercase text-slate-500">Volume stock</span>
-                    <p class="mt-2 font-semibold text-slate-950 dark:text-white">{{ number_format($stockStats['stock_units'], 0, ',', ' ') }}</p>
-                    <p class="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">Unités physiques disponibles</p>
+                <article class="stock-kpi-card is-info rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
+                    <div class="stock-kpi-meta">
+                        <span class="stock-kpi-label">Volume stock</span>
+                        <span class="stock-kpi-dot is-info" aria-hidden="true"></span>
+                    </div>
+                    <p class="stock-kpi-value">{{ number_format($stockStats['stock_units'], 0, ',', ' ') }}</p>
+                    <p class="stock-kpi-hint">Unités physiques disponibles</p>
                 </article>
-                <article class="stock-kpi-card is-value rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
-                    <span class="text-xs font-semibold uppercase text-slate-500">Valeur achat</span>
-                    <p class="mt-2 font-semibold text-slate-950 dark:text-white">{{ $money($stockStats['stock_purchase_value']) }}</p>
-                    <p class="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">Stock × prix d'achat</p>
+                <article class="stock-kpi-card is-success rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
+                    <div class="stock-kpi-meta">
+                        <span class="stock-kpi-label">Valeur achat</span>
+                        <span class="stock-kpi-dot is-success" aria-hidden="true"></span>
+                    </div>
+                    <p class="stock-kpi-value is-money">{{ $money($stockStats['stock_purchase_value']) }}</p>
+                    <p class="stock-kpi-hint">Stock × prix d'achat</p>
                 </article>
-                <article class="stock-kpi-card is-value rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
-                    <span class="text-xs font-semibold uppercase text-slate-500">Valeur vente</span>
-                    <p class="mt-2 font-semibold text-slate-950 dark:text-white">{{ $money($stockStats['stock_sale_value']) }}</p>
-                    <p class="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">Potentiel de vente</p>
+                <article class="stock-kpi-card is-success rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
+                    <div class="stock-kpi-meta">
+                        <span class="stock-kpi-label">Valeur vente</span>
+                        <span class="stock-kpi-dot is-success" aria-hidden="true"></span>
+                    </div>
+                    <p class="stock-kpi-value is-money">{{ $money($stockStats['stock_sale_value']) }}</p>
+                    <p class="stock-kpi-hint">Potentiel de vente</p>
                 </article>
-                <article class="rounded-xl border border-amber-300 bg-amber-100 p-4 shadow-sm dark:border-amber-400/30 dark:bg-amber-950/60">
-                    <span class="text-xs font-semibold uppercase text-amber-900 dark:text-amber-100">Alertes stock</span>
-                    <p class="mt-2 text-2xl font-semibold text-amber-950 dark:text-amber-50">{{ $catalogStats['low'] }}</p>
-                    <p class="mt-1 text-xs font-semibold text-amber-900 dark:text-amber-100">À vérifier avant vente</p>
+                <article class="stock-kpi-card is-warning rounded-xl border border-amber-300 bg-amber-100 p-4 shadow-sm dark:border-amber-400/30 dark:bg-amber-950/60">
+                    <div class="stock-kpi-meta">
+                        <span class="stock-kpi-label is-warning">Alertes stock</span>
+                        <span class="stock-kpi-dot is-warning" aria-hidden="true"></span>
+                    </div>
+                    <p class="stock-kpi-value is-warning">{{ number_format($catalogStats['low'], 0, ',', ' ') }}</p>
+                    <p class="stock-kpi-hint is-warning">À vérifier avant vente</p>
                 </article>
             </div>
-            <div class="stock-kpi-grid grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div class="stock-kpi-grid grid gap-3 grid-cols-2 lg:grid-cols-4">
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <span class="text-xs font-semibold uppercase text-slate-500">Emplacements</span>
                     <p class="mt-2 text-2xl font-semibold">{{ $stockStats['locations'] }}</p>
                     <p class="mt-1 text-xs text-slate-500">Magasins, dépôts, rayons actifs</p>
                 </article>
-                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <span class="text-xs font-semibold uppercase text-slate-500">Inventaires</span>
-                    <p class="mt-2 text-2xl font-semibold">{{ $stockStats['stocktakes'] }}</p>
-                    <p class="mt-1 text-xs text-slate-500">Comptages créés</p>
+                <article class="stock-kpi-card is-neutral rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="stock-kpi-meta">
+                        <span class="stock-kpi-label">Emplacements</span>
+                        <span class="stock-kpi-dot is-neutral" aria-hidden="true"></span>
+                    </div>
+                    <p class="stock-kpi-value">{{ number_format($stockStats['locations'], 0, ',', ' ') }}</p>
+                    <p class="stock-kpi-hint">Magasins, dépôts, rayons actifs</p>
                 </article>
-                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <span class="text-xs font-semibold uppercase text-slate-500">Réservations</span>
-                    <p class="mt-2 text-2xl font-semibold">{{ number_format($stockStats['reserved_units'], 0, ',', ' ') }}</p>
-                    <p class="mt-1 text-xs text-slate-500">Unités réservées sur ventes impayées</p>
+                <article class="stock-kpi-card is-neutral rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="stock-kpi-meta">
+                        <span class="stock-kpi-label">Inventaires</span>
+                        <span class="stock-kpi-dot is-neutral" aria-hidden="true"></span>
+                    </div>
+                    <p class="stock-kpi-value">{{ number_format($stockStats['stocktakes'], 0, ',', ' ') }}</p>
+                    <p class="stock-kpi-hint">Comptages créés</p>
                 </article>
-                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <span class="text-xs font-semibold uppercase text-slate-500">Mouvements</span>
-                    <p class="mt-2 text-2xl font-semibold">{{ number_format($stockStats['movement_count'], 0, ',', ' ') }}</p>
-                    <p class="mt-1 text-xs text-slate-500">Historique des mouvements</p>
+                <article class="stock-kpi-card is-neutral rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="stock-kpi-meta">
+                        <span class="stock-kpi-label">Réservations</span>
+                        <span class="stock-kpi-dot is-neutral" aria-hidden="true"></span>
+                    </div>
+                    <p class="stock-kpi-value">{{ number_format($stockStats['reserved_units'], 0, ',', ' ') }}</p>
+                    <p class="stock-kpi-hint">Unités réservées sur ventes impayées</p>
+                </article>
+                <article class="stock-kpi-card is-neutral rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="stock-kpi-meta">
+                        <span class="stock-kpi-label">Mouvements</span>
+                        <span class="stock-kpi-dot is-neutral" aria-hidden="true"></span>
+                    </div>
+                    <p class="stock-kpi-value">{{ number_format($stockStats['movement_count'], 0, ',', ' ') }}</p>
+                    <p class="stock-kpi-hint">Historique des mouvements</p>
                 </article>
             </div>
 

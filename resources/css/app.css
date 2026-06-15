@@ -3539,41 +3539,128 @@
     }
 
     .stock-kpi-card {
-        min-height: 142px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 124px;
+        overflow: hidden;
         position: relative;
     }
 
-    .stock-kpi-card::after {
-        background: color-mix(in srgb, var(--brand-primary) 8%, transparent);
+    .stock-kpi-card::before {
+        background: color-mix(in srgb, var(--brand-primary) 6%, transparent);
         border-radius: 999px;
         content: '';
-        height: 54px;
+        height: 70px;
         position: absolute;
-        right: 14px;
-        top: 14px;
-        width: 54px;
+        right: -18px;
+        top: -18px;
+        width: 70px;
     }
 
-    .stock-kpi-card.is-volume::after {
-        background: color-mix(in srgb, var(--brand-info) 10%, transparent);
+    .stock-kpi-card.is-info::before {
+        background: color-mix(in srgb, var(--brand-info) 8%, transparent);
     }
 
-    .stock-kpi-card.is-value::after {
-        background: color-mix(in srgb, var(--brand-success) 9%, transparent);
+    .stock-kpi-card.is-success::before {
+        background: color-mix(in srgb, var(--brand-success) 8%, transparent);
     }
 
-    .stock-kpi-card p:first-of-type {
-        font-size: clamp(2rem, 3.4vw, 3.35rem);
-        font-weight: 900;
-        line-height: 0.95;
-        max-width: 100%;
-        overflow-wrap: anywhere;
+    .stock-kpi-card.is-warning::before {
+        background: color-mix(in srgb, var(--brand-warning) 12%, transparent);
+    }
+
+    .stock-kpi-meta {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        justify-content: space-between;
         position: relative;
         z-index: 1;
     }
 
-    .stock-kpi-card.is-value p:first-of-type {
-        font-size: clamp(1.65rem, 2.5vw, 2.55rem);
+    .stock-kpi-label {
+        color: var(--text-muted);
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .stock-kpi-label.is-warning {
+        color: color-mix(in srgb, var(--brand-warning) 70%, #000);
+    }
+
+    .dark .stock-kpi-label.is-warning {
+        color: #fcd34d;
+    }
+
+    .stock-kpi-dot {
+        background: color-mix(in srgb, var(--brand-primary) 18%, transparent);
+        border-radius: 999px;
+        flex: 0 0 auto;
+        height: 8px;
+        width: 8px;
+    }
+
+    .stock-kpi-dot.is-info {
+        background: color-mix(in srgb, var(--brand-info) 30%, transparent);
+    }
+
+    .stock-kpi-dot.is-success {
+        background: color-mix(in srgb, var(--brand-success) 30%, transparent);
+    }
+
+    .stock-kpi-dot.is-warning {
+        background: var(--brand-warning);
+    }
+
+    .stock-kpi-dot.is-neutral {
+        background: color-mix(in srgb, var(--text-muted) 50%, transparent);
+    }
+
+    .stock-kpi-value {
+        color: var(--text-main);
+        font-size: clamp(1.6rem, 2.2vw, 2.2rem);
+        font-weight: 900;
+        line-height: 1.1;
+        margin-top: 0.5rem;
+        overflow-wrap: anywhere;
+        position: relative;
+        word-break: break-word;
+        z-index: 1;
+    }
+
+    .stock-kpi-value.is-money {
+        font-size: clamp(1.15rem, 1.55vw, 1.5rem);
+        font-weight: 800;
+        letter-spacing: -0.01em;
+    }
+
+    .stock-kpi-value.is-warning {
+        color: color-mix(in srgb, var(--brand-warning) 70%, #000);
+    }
+
+    .dark .stock-kpi-value.is-warning {
+        color: #fcd34d;
+    }
+
+    .stock-kpi-hint {
+        color: var(--text-muted);
+        font-size: 0.78rem;
+        font-weight: 600;
+        line-height: 1.3;
+        margin-top: 0.35rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    .stock-kpi-hint.is-warning {
+        color: color-mix(in srgb, var(--brand-warning) 80%, #000);
+    }
+
+    .dark .stock-kpi-hint.is-warning {
+        color: #fde68a;
     }
 
     .stock-table-number {
@@ -3594,8 +3681,12 @@
         border-color: color-mix(in srgb, #ffffff 14%, transparent) !important;
     }
 
-    .dark .stock-kpi-card::after {
-        background: color-mix(in srgb, #ffffff 7%, transparent);
+    .dark .stock-kpi-card::before {
+        background: color-mix(in srgb, #ffffff 5%, transparent);
+    }
+
+    .dark .stock-kpi-card.is-warning::before {
+        background: color-mix(in srgb, var(--brand-warning) 16%, transparent);
     }
 
     .dark .stock-table-number {
