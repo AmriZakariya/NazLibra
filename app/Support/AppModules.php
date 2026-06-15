@@ -142,6 +142,8 @@ class AppModules
             'pos.' => 'sales',
             'sales.invoice.' => 'invoices',
             'sales.invoices.' => 'invoices',
+            'documents.invoices.' => 'invoices',
+            'documents.estimates.' => 'quotations',
             'sales.deliveries.' => 'deliveries',
             'sales.' => 'sales',
             'quotations.' => 'quotations',

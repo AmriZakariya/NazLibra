@@ -40,6 +40,16 @@ class Tenant extends Model
         return $this->hasMany(Sale::class);
     }
 
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    public function estimates(): HasMany
+    {
+        return $this->hasMany(Estimate::class);
+    }
+
     public function posTickets(): HasMany
     {
         return $this->hasMany(PosTicket::class);

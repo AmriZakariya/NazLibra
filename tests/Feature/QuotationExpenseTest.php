@@ -7,8 +7,9 @@ use App\Models\CustomerAdvance;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\Item;
+use App\Models\Invoice;
 use App\Models\Quotation;
-use App\Models\Sale;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -52,7 +53,7 @@ class QuotationExpenseTest extends TestCase
             ->assertSee('ECOLE-TEST');
     }
 
-    public function test_quotation_can_be_converted_to_unpaid_sale(): void
+    public function test_quotation_can_be_converted_to_draft_invoice_without_stock_movement(): void
     {
         $this->seed();
 
@@ -68,22 +69,13 @@ class QuotationExpenseTest extends TestCase
         ])->assertRedirect();
 
         $quote = Quotation::firstOrFail();
-        $this->post(route('quotations.convert', $quote))->assertRedirect(route('module', ['module' => 'sales', 'section' => 'quotes']));
+        $this->post(route('quotations.convert', $quote))->assertRedirect();
 
-        $sale = Sale::orderByDesc('id')->firstOrFail();
-        $this->assertSame('unpaid', $sale->status);
-        $this->assertStringContainsString('Note système: vente '.$sale->number, $sale->metadata['system_note']);
-        $this->assertStringContainsString('conversion devis', $sale->metadata['system_note']);
-        $this->assertSame($quote->fresh()->converted_sale_id, $sale->id);
-        $this->assertSame($initialStock - 2, $item->fresh()->stock_quantity);
-        $this->assertDatabaseHas('stock_movements', [
-            'item_id' => $item->id,
-            'type' => 'sale',
-            'quantity_delta' => -2,
-            'quantity_after' => $initialStock - 2,
-            'reference_type' => Sale::class,
-            'reference_id' => $sale->id,
-        ]);
+        $invoice = Invoice::orderByDesc('id')->firstOrFail();
+        $this->assertSame('draft', $invoice->status);
+        $this->assertSame($invoice->id, (int) data_get($quote->fresh()->metadata, 'converted_invoice_id'));
+        $this->assertSame($initialStock, $item->fresh()->stock_quantity);
+        $this->assertSame(0, DB::table('stock_movements')->where('item_id', $item->id)->where('type', 'sale')->count());
     }
 
     public function test_expense_sections_render_and_store_expense(): void

@@ -16,6 +16,8 @@ use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\AccountTransaction;
 use App\Models\FinancialAccount;
+use App\Models\Estimate;
+use App\Models\Invoice;
 use App\Models\Item;
 use App\Models\ItemVariant;
 use App\Models\Loan;
@@ -37,6 +39,7 @@ use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\VariantOption;
 use App\Models\VirtualDeviceSession;
+use App\Services\Documents\InvoiceService;
 use App\Support\AppModules;
 use App\Support\BusinessMode;
 use App\Support\Locale;
@@ -4472,15 +4475,22 @@ class LibraireProController extends Controller
         return back()->with('status', 'Devis '.$quotation->number.' mis à jour.');
     }
 
-    public function convertQuotationToSale(Quotation $quotation): RedirectResponse
+    public function convertQuotationToSale(Quotation $quotation, InvoiceService $invoiceService): RedirectResponse
     {
         $tenant = $this->tenant();
         abort_unless($quotation->tenant_id === $tenant->id, 404);
 
+        $convertedInvoiceId = (int) data_get($quotation->metadata, 'converted_invoice_id', 0);
+        if ($convertedInvoiceId > 0) {
+            return redirect()
+                ->route('module', ['module' => 'sales', 'section' => 'invoices', 'invoice' => $convertedInvoiceId])
+                ->with('status', 'Ce devis est déjà converti en facture.');
+        }
+
         if ($quotation->converted_sale_id) {
             return redirect()
                 ->route('module', ['module' => 'sales', 'section' => 'quotes'])
-                ->with('status', 'Ce devis est déjà converti.');
+                ->withErrors(['quotation' => 'Ce devis a déjà été converti par l’ancien flux de vente.']);
         }
 
         if ($quotation->status !== 'accepted') {
@@ -4489,71 +4499,53 @@ class LibraireProController extends Controller
                 ->withErrors(['quotation' => 'Le devis doit être marqué "Accepté" avant conversion.']);
         }
 
-        try {
-            $sale = DB::transaction(function () use ($tenant, $quotation): Sale {
-                $items = Item::where('tenant_id', $tenant->id)
-                    ->whereIn('id', collect($quotation->lines)->pluck('item_id')->filter())
-                    ->lockForUpdate()
-                    ->get()
-                    ->keyBy('id');
+        $invoice = DB::transaction(function () use ($tenant, $quotation, $invoiceService) {
+            $quotation = Quotation::whereKey($quotation->id)->lockForUpdate()->firstOrFail();
+            $convertedInvoiceId = (int) data_get($quotation->metadata, 'converted_invoice_id', 0);
+            if ($convertedInvoiceId > 0) {
+                return Invoice::whereKey($convertedInvoiceId)->firstOrFail();
+            }
 
-                $saleNumber = $this->nextSaleNumber($tenant);
-                $soldAt = now();
-                $sale = Sale::create([
-                    'tenant_id' => $tenant->id,
-                    'contact_id' => $quotation->contact_id,
-                    'user_id' => auth()->id(),
-                    'number' => $saleNumber,
-                    'status' => 'unpaid',
-                    'payment_method' => 'devis',
-                    'subtotal_amount' => $quotation->subtotal_amount,
-                    'discount_amount' => $quotation->discount_amount,
-                    'tax_amount' => $quotation->tax_amount,
-                    'total_amount' => $quotation->total_amount,
-                    'sold_at' => $soldAt,
-                    'metadata' => [
-                        'reference_number' => $quotation->number,
-                        'paid_amount' => 0,
-                        'due_date' => $quotation->expires_at?->toDateString(),
-                        'source' => 'quotation',
-                        'system_note' => $this->saleSystemNote($tenant, $saleNumber, 'quotation', $quotation->contact, count($quotation->lines), (float) $quotation->total_amount, 'devis', 'unpaid', $soldAt, $quotation->number),
-                    ],
-                ]);
+            $invoice = $invoiceService->create($tenant, [
+                'customer_id' => $quotation->contact_id,
+                'customer_snapshot' => [
+                    'name' => $quotation->contact?->name ?? data_get($quotation->metadata, 'client_name', 'Client comptoir'),
+                    'phone' => $quotation->contact?->phone ?? data_get($quotation->metadata, 'client_phone'),
+                    'email' => $quotation->contact?->email,
+                    'ice' => $quotation->contact?->ice,
+                    'billing_address' => $quotation->contact?->address,
+                ],
+                'status' => 'draft',
+                'issue_date' => now()->toDateString(),
+                'due_date' => $quotation->expires_at?->toDateString() ?: now()->addDays(15)->toDateString(),
+                'document_discount_type' => 'fixed',
+                'document_discount_value' => $quotation->discount_amount,
+                'customer_reference' => $quotation->number,
+                'internal_note' => data_get($quotation->metadata, 'note'),
+                'metadata' => ['source' => 'legacy_quotation', 'legacy_quotation_id' => $quotation->id],
+                'lines' => collect($quotation->lines)->map(fn (array $line): array => [
+                    'item_id' => $line['item_id'] ?? null,
+                    'name' => $line['name'] ?? 'Ligne devis',
+                    'quantity' => $line['quantity'] ?? 1,
+                    'unit_price' => $line['unit_price'] ?? 0,
+                    'tax_rate' => 0,
+                    'tax_inclusive' => false,
+                ])->all(),
+            ]);
 
-                foreach ($quotation->lines as $line) {
-                    $item = $items->get((int) ($line['item_id'] ?? 0));
-                    if ($item && $item->type !== 'service') {
-                        if ($item->stock_quantity < (int) $line['quantity']) {
-                            throw new \RuntimeException("Stock insuffisant pour {$item->title}.");
-                        }
-                        $item->decrement('stock_quantity', (int) $line['quantity']);
-                        $item->refresh();
-                        $this->recordStockMovement($tenant, $item, 'sale', -(int) $line['quantity'], Sale::class, $sale->id, 'Vente devis '.$sale->number);
-                    }
+            $metadata = $quotation->metadata ?? [];
+            $metadata['converted_invoice_id'] = $invoice->id;
+            $metadata['converted_invoice_number'] = $invoice->number;
+            $metadata['converted_at'] = now()->toIso8601String();
+            $metadata['converted_by'] = auth()->id();
+            $quotation->update(['status' => 'accepted', 'metadata' => $metadata]);
 
-                    $sale->items()->create([
-                        'item_id' => $line['item_id'] ?? null,
-                        'name' => $line['name'],
-                        'quantity' => (int) $line['quantity'],
-                        'unit_price' => (float) $line['unit_price'],
-                        'total_price' => (float) $line['total_price'],
-                    ]);
-                }
-
-                $quotation->update([
-                    'status' => 'accepted',
-                    'converted_sale_id' => $sale->id,
-                ]);
-
-                return $sale;
-            });
-        } catch (\RuntimeException $exception) {
-            return back()->withErrors(['quotation' => $exception->getMessage()]);
-        }
+            return $invoice;
+        });
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'quotes'])
-            ->with('status', 'Devis '.$quotation->number.' converti en vente '.$sale->number.'.');
+            ->route('module', ['module' => 'sales', 'section' => 'invoices', 'invoice' => $invoice->id])
+            ->with('status', 'Devis '.$quotation->number.' converti en facture '.$invoice->number.'.');
     }
 
     public function destroyQuotation(Quotation $quotation): RedirectResponse
@@ -5226,6 +5218,42 @@ class LibraireProController extends Controller
             ->latest('issued_at')
             ->paginate(25, ['*'], 'invoices_page')
             ->withQueryString();
+        $commercialInvoices = Invoice::query()
+            ->with(['customer', 'creator', 'payments'])
+            ->where('tenant_id', $tenant->id)
+            ->when($request->query('archived') !== 'with', fn (Builder $builder) => $builder->whereNull('archived_at'))
+            ->when(trim((string) $request->query('q')) !== '', function (Builder $builder) use ($request): void {
+                $query = trim((string) $request->query('q'));
+                $builder->where(function (Builder $builder) use ($query): void {
+                    $builder->where('number', 'like', "%{$query}%")
+                        ->orWhere('status', 'like', "%{$query}%")
+                        ->orWhere('customer_snapshot', 'like', "%{$query}%")
+                        ->orWhereHas('customer', fn (Builder $contact) => $contact->where('name', 'like', "%{$query}%"));
+                });
+            })
+            ->when($request->filled('invoice_status'), fn (Builder $builder) => $builder->where('status', $request->query('invoice_status')))
+            ->latest('issue_date')
+            ->latest('id')
+            ->paginate(25, ['*'], 'commercial_invoices_page')
+            ->withQueryString();
+        $commercialEstimates = Estimate::query()
+            ->with(['customer', 'creator', 'convertedInvoice'])
+            ->where('tenant_id', $tenant->id)
+            ->when($request->query('archived') !== 'with', fn (Builder $builder) => $builder->whereNull('archived_at'))
+            ->when(trim((string) $request->query('q')) !== '', function (Builder $builder) use ($request): void {
+                $query = trim((string) $request->query('q'));
+                $builder->where(function (Builder $builder) use ($query): void {
+                    $builder->where('number', 'like', "%{$query}%")
+                        ->orWhere('status', 'like', "%{$query}%")
+                        ->orWhere('customer_snapshot', 'like', "%{$query}%")
+                        ->orWhereHas('customer', fn (Builder $contact) => $contact->where('name', 'like', "%{$query}%"));
+                });
+            })
+            ->when($request->filled('estimate_status'), fn (Builder $builder) => $builder->where('status', $request->query('estimate_status')))
+            ->latest('issue_date')
+            ->latest('id')
+            ->paginate(25, ['*'], 'commercial_estimates_page')
+            ->withQueryString();
         $quotations = $this->quotationsQuery($tenant, $request)->paginate(25, ['*'], 'quotes_page')->withQueryString();
         $salesTotals = (clone $this->salesListQuery($tenant, $request))
             ->get()
@@ -5279,6 +5307,8 @@ class LibraireProController extends Controller
             'meta' => $modules[$module],
             'sales' => $module === 'sales' ? $sales : $tenant->sales()->with('contact')->latest('sold_at')->take(8)->get(),
             'saleInvoices' => $saleInvoices,
+            'commercialInvoices' => $commercialInvoices,
+            'commercialEstimates' => $commercialEstimates,
             'salesTotals' => $salesTotals,
             'nextSaleNumber' => $module === 'sales' ? $this->nextSaleNumber($tenant) : null,
             'salesClients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
@@ -7268,6 +7298,25 @@ class LibraireProController extends Controller
             'sales.delete' => 'Ventes: annuler',
             'sales.refund' => 'Ventes: rembourser',
             'sales.payments' => 'Ventes: paiements',
+            'invoices.view' => 'Factures: voir',
+            'invoices.create' => 'Factures: créer',
+            'invoices.edit_draft' => 'Factures: modifier brouillon',
+            'invoices.edit_sent' => 'Factures: modifier envoyée',
+            'invoices.send' => 'Factures: envoyer',
+            'invoices.payments' => 'Factures: encaisser',
+            'invoices.cancel' => 'Factures: annuler',
+            'invoices.archive' => 'Factures: archiver',
+            'invoices.restore' => 'Factures: restaurer',
+            'invoices.duplicate' => 'Factures: dupliquer',
+            'estimates.view' => 'Devis: voir',
+            'estimates.create' => 'Devis: créer',
+            'estimates.edit' => 'Devis: modifier',
+            'estimates.send' => 'Devis: envoyer',
+            'estimates.accept_decline' => 'Devis: accepter/refuser',
+            'estimates.convert' => 'Devis: convertir en facture',
+            'estimates.cancel' => 'Devis: annuler',
+            'estimates.archive' => 'Devis: archiver',
+            'estimates.duplicate' => 'Devis: dupliquer',
             'purchases.view' => 'Achats: voir',
             'purchases.create' => 'Achats: créer',
             'purchases.receive' => 'Achats: réceptionner',

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CommercialDocumentController;
 use App\Http\Controllers\LibraireProController;
 use App\Http\Controllers\VariantController;
 use App\Http\Controllers\VirtualDeviceController;
@@ -168,6 +169,15 @@ Route::patch('/ventes/{sale}', [LibraireProController::class, 'updateSale'])->na
 Route::post('/ventes/{sale}/facture', [LibraireProController::class, 'createSaleInvoice'])->name('sales.invoice.store');
 Route::get('/ventes/{sale}/pdf', [LibraireProController::class, 'downloadSalePdf'])->name('sales.pdf');
 Route::get('/factures/{invoice}/pdf', [LibraireProController::class, 'downloadInvoicePdf'])->name('sales.invoices.pdf');
+Route::post('/documents/factures', [CommercialDocumentController::class, 'storeInvoice'])->name('documents.invoices.store');
+Route::put('/documents/factures/{invoice}', [CommercialDocumentController::class, 'updateInvoice'])->name('documents.invoices.update');
+Route::post('/documents/factures/{invoice}/envoyer', [CommercialDocumentController::class, 'sendInvoice'])->name('documents.invoices.send');
+Route::post('/documents/factures/{invoice}/dupliquer', [CommercialDocumentController::class, 'duplicateInvoice'])->name('documents.invoices.duplicate');
+Route::post('/documents/factures/{invoice}/annuler', [CommercialDocumentController::class, 'cancelInvoice'])->name('documents.invoices.cancel');
+Route::post('/documents/factures/{invoice}/archiver', [CommercialDocumentController::class, 'archiveInvoice'])->name('documents.invoices.archive');
+Route::post('/documents/factures/{invoice}/restaurer', [CommercialDocumentController::class, 'restoreInvoice'])->name('documents.invoices.restore');
+Route::post('/documents/factures/{invoice}/paiements', [CommercialDocumentController::class, 'storeInvoicePayment'])->name('documents.invoices.payments.store');
+Route::get('/documents/factures/{invoice}/pdf', [CommercialDocumentController::class, 'previewInvoicePdf'])->name('documents.invoices.pdf');
 Route::post('/ventes/{sale}/rembourser', [LibraireProController::class, 'refundSale'])->name('sales.refund');
 Route::delete('/ventes/{sale}', [LibraireProController::class, 'destroySale'])->name('sales.destroy');
 Route::post('/ventes/livraisons', [LibraireProController::class, 'storeDeliveryOrder'])->name('sales.deliveries.store');
@@ -176,6 +186,12 @@ Route::post('/devis', [LibraireProController::class, 'storeQuotation'])->name('q
 Route::patch('/devis/{quotation}', [LibraireProController::class, 'updateQuotationStatus'])->name('quotations.update');
 Route::post('/devis/{quotation}/convertir', [LibraireProController::class, 'convertQuotationToSale'])->name('quotations.convert');
 Route::delete('/devis/{quotation}', [LibraireProController::class, 'destroyQuotation'])->name('quotations.destroy');
+Route::post('/documents/devis', [CommercialDocumentController::class, 'storeEstimate'])->name('documents.estimates.store');
+Route::put('/documents/devis/{estimate}', [CommercialDocumentController::class, 'updateEstimate'])->name('documents.estimates.update');
+Route::post('/documents/devis/{estimate}/transition', [CommercialDocumentController::class, 'transitionEstimate'])->name('documents.estimates.transition');
+Route::post('/documents/devis/{estimate}/dupliquer', [CommercialDocumentController::class, 'duplicateEstimate'])->name('documents.estimates.duplicate');
+Route::post('/documents/devis/{estimate}/convertir', [CommercialDocumentController::class, 'convertEstimate'])->name('documents.estimates.convert');
+Route::get('/documents/devis/{estimate}/pdf', [CommercialDocumentController::class, 'previewEstimatePdf'])->name('documents.estimates.pdf');
 Route::post('/achats', [LibraireProController::class, 'storePurchase'])->name('purchases.store');
 Route::post('/achats/{purchase}/recevoir', [LibraireProController::class, 'receivePurchase'])->name('purchases.receive');
 Route::get('/achats/{purchase}/pdf', [LibraireProController::class, 'downloadPurchasePdf'])->name('purchases.pdf');

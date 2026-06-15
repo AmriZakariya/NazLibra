@@ -277,13 +277,16 @@
                                     @php
                                         $isExpired = $quote->expires_at && $quote->expires_at->isPast();
                                         $isSoon = $quote->expires_at && ! $isExpired && $quote->expires_at->diffInDays(now()) <= 3;
-                                        $canConvert = ! $quote->converted_sale_id && $quote->status === 'accepted';
+                                        $legacyConvertedInvoiceId = (int) data_get($quote->metadata, 'converted_invoice_id', 0);
+                                        $canConvert = ! $quote->converted_sale_id && ! $legacyConvertedInvoiceId && $quote->status === 'accepted';
                                     @endphp
                                     <tr class="transition hover:bg-slate-50 dark:hover:bg-white/[0.02]">
                                         <td class="px-3 py-3">
                                             <p class="font-semibold">{{ $quote->number }}</p>
-                                            @if ($quote->converted_sale_id)
-                                                <p class="mt-0.5 text-xs text-emerald-600">Converti · {{ $quote->convertedSale?->number }}</p>
+                                            @if ($legacyConvertedInvoiceId)
+                                                <p class="mt-0.5 text-xs text-emerald-600">Converti · {{ data_get($quote->metadata, 'converted_invoice_number') }}</p>
+                                            @elseif ($quote->converted_sale_id)
+                                                <p class="mt-0.5 text-xs text-emerald-600">Ancien flux · {{ $quote->convertedSale?->number }}</p>
                                             @endif
                                         </td>
                                         <td class="px-3 py-3">{{ $quote->quoted_at?->format('d/m/Y H:i') }}</td>
@@ -302,7 +305,7 @@
                                             <div class="flex justify-end gap-2">
                                                 <button type="button" onclick="document.getElementById('quote-detail-{{ $quote->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</button>
                                                 @if ($canConvert)
-                                                    <form action="{{ route('quotations.convert', $quote) }}" method="POST" onsubmit="return confirm('Convertir ce devis en vente ? Le stock sera décrémenté.')">@csrf<button class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Convertir</button></form>
+                                                <form action="{{ route('quotations.convert', $quote) }}" method="POST" onsubmit="return confirm('Convertir ce devis en facture brouillon ? Aucun stock ne sera décrémenté.')">@csrf<button class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Convertir</button></form>
                                                 @endif
                                             </div>
                                         </td>
@@ -354,8 +357,10 @@
                                         </select>
                                         <button class="mt-2 w-full rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Mettre à jour le statut</button>
                                     </form>
-                                    @if (! $quote->converted_sale_id && $quote->status === 'accepted')
-                                        <form action="{{ route('quotations.convert', $quote) }}" method="POST" onsubmit="return confirm('Convertir ce devis en vente ? Le stock sera décrémenté.')">@csrf<button class="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Convertir en vente</button></form>
+                                    @if (! $quote->converted_sale_id && ! data_get($quote->metadata, 'converted_invoice_id') && $quote->status === 'accepted')
+                                        <form action="{{ route('quotations.convert', $quote) }}" method="POST" onsubmit="return confirm('Convertir ce devis en facture brouillon ? Aucun stock ne sera décrémenté.')">@csrf<button class="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Convertir en facture</button></form>
+                                    @elseif (data_get($quote->metadata, 'converted_invoice_id'))
+                                        <a href="{{ route('module', ['module' => 'sales', 'section' => 'invoices', 'invoice' => data_get($quote->metadata, 'converted_invoice_id')]) }}" class="block w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-sm font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">Facture {{ data_get($quote->metadata, 'converted_invoice_number') }}</a>
                                     @elseif ($quote->converted_sale_id)
                                         <a href="{{ route('module', ['module' => 'sales', 'section' => 'list']) }}" class="block w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-sm font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">Vente {{ $quote->convertedSale?->number ?? '' }}</a>
                                     @endif
@@ -370,15 +375,85 @@
             </section>
         @elseif ($salesSection === 'invoices')
             <section class="mt-6 space-y-4">
+                @php
+                    $invoiceStatusLabels = [
+                        'draft' => 'Brouillon',
+                        'sent' => 'Envoyée',
+                        'viewed' => 'Vue',
+                        'partially_paid' => 'Partiellement payée',
+                        'paid' => 'Payée',
+                        'overdue' => 'En retard',
+                        'cancelled' => 'Annulée',
+                        'archived' => 'Archivée',
+                    ];
+                    $invoiceStatusTones = [
+                        'draft' => 'warning',
+                        'sent' => 'info',
+                        'viewed' => 'info',
+                        'partially_paid' => 'warning',
+                        'paid' => 'success',
+                        'overdue' => 'danger',
+                        'cancelled' => 'danger',
+                        'archived' => 'primary',
+                    ];
+                @endphp
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <form method="GET" action="{{ route('module', 'sales') }}" class="flex flex-wrap items-center gap-3">
+                    <form method="GET" action="{{ route('module', 'sales') }}" class="flex flex-wrap items-end gap-3">
                         <input type="hidden" name="section" value="invoices">
-                        <input name="q" value="{{ request('q') }}" class="h-11 min-w-[260px] flex-1 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Rechercher facture, ticket, client...">
+                        <label class="min-w-[260px] flex-1 space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Recherche</span><input name="q" value="{{ request('q') }}" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="N° facture, client, statut..."></label>
+                        <label class="min-w-[180px] space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="invoice_status" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous</option>@foreach($invoiceStatusLabels as $key => $label)<option value="{{ $key }}" @selected(request('invoice_status') === $key)>{{ $label }}</option>@endforeach</select></label>
+                        <label class="min-w-[160px] space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Archives</span><select name="archived" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Actives</option><option value="with" @selected(request('archived') === 'with')>Inclure</option></select></label>
                         <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white" type="submit">Filtrer</button>
                         <a href="{{ route('module', ['module' => 'sales', 'section' => 'invoices']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Reset</a>
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4 dark:border-white/10">
+                        <div>
+                            <h3 class="font-semibold">Factures commerciales</h3>
+                            <p class="mt-1 text-sm text-slate-500">Factures autonomes avec snapshots, paiements partiels, archive et historique.</p>
+                        </div>
+                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-white/10 dark:text-slate-200">{{ $commercialInvoices->total() }} facture(s)</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[1120px] text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                                <tr><th class="px-3 py-3">N°</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Émission</th><th class="px-3 py-3">Échéance</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Payé</th><th class="px-3 py-3 text-right">Reste</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3">Créée par</th><th class="px-3 py-3 text-right">Action</th></tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                @forelse ($commercialInvoices as $invoice)
+                                    @php
+                                        $statusTone = $invoiceStatusTones[$invoice->status] ?? 'info';
+                                    @endphp
+                                    <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5">
+                                        <td class="px-3 py-3 font-mono text-xs font-semibold">{{ $invoice->number }}</td>
+                                        <td class="px-3 py-3"><strong>{{ data_get($invoice->customer_snapshot, 'name', $invoice->customer?->name ?? 'Client comptoir') }}</strong><p class="mt-1 text-xs text-slate-500">{{ data_get($invoice->customer_snapshot, 'phone') ?: data_get($invoice->customer_snapshot, 'email', '—') }}</p></td>
+                                        <td class="px-3 py-3">{{ $invoice->issue_date?->format('d/m/Y') ?? '—' }}</td>
+                                        <td class="px-3 py-3">{{ $invoice->due_date?->format('d/m/Y') ?? '—' }}</td>
+                                        <td class="px-3 py-3 text-right font-semibold">{{ $money($invoice->total) }}</td>
+                                        <td class="px-3 py-3 text-right text-emerald-600 dark:text-emerald-300">{{ $money($invoice->amount_paid) }}</td>
+                                        <td class="px-3 py-3 text-right font-semibold">{{ $money($invoice->balance_due) }}</td>
+                                        <td class="px-3 py-3"><x-status-pill :tone="$statusTone">{{ $invoiceStatusLabels[$invoice->status] ?? $invoice->status }}</x-status-pill></td>
+                                        <td class="px-3 py-3">{{ $invoice->creator?->name ?? '—' }}</td>
+                                        <td class="px-3 py-3 text-right">
+                                            <div class="flex justify-end gap-2">
+                                                <a href="{{ route('documents.invoices.pdf', $invoice) }}" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">PDF</a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="10" class="px-4 py-12 text-center text-sm text-slate-500">Aucune facture commerciale autonome pour le moment.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $commercialInvoices->links() }}</div>
+                </article>
+                <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="border-b border-slate-200 p-4 dark:border-white/10">
+                        <h3 class="font-semibold">Factures issues des ventes POS</h3>
+                        <p class="mt-1 text-sm text-slate-500">Historique existant lié aux tickets de vente.</p>
+                    </div>
                     <div class="overflow-x-auto">
                         <table class="w-full min-w-[1080px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
