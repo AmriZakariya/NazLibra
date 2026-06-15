@@ -78,6 +78,86 @@ class PurchaseTest extends TestCase
         ]);
     }
 
+    public function test_purchase_can_be_partially_received(): void
+    {
+        $this->seed();
+
+        $supplier = Contact::where('kind', 'supplier')->firstOrFail();
+        $item = Item::where('type', '!=', 'service')->firstOrFail();
+        $initialStock = $item->stock_quantity;
+
+        $this->post(route('purchases.store'), [
+            'supplier_id' => $supplier->id,
+            'ordered_at' => now()->toDateString(),
+            'expected_at' => now()->addDays(3)->toDateString(),
+            'status' => 'ordered',
+            'items' => [
+                ['item_id' => $item->id, 'quantity' => 10, 'unit_cost' => 8],
+            ],
+        ]);
+
+        $purchase = Purchase::orderByDesc('id')->firstOrFail();
+        $line = $purchase->items()->firstOrFail();
+
+        $this->post(route('purchases.receive', $purchase), [
+            'quantities' => [$line->id => 3],
+        ])->assertRedirect();
+
+        $purchase->refresh();
+        $this->assertSame('partially_received', $purchase->status);
+        $this->assertSame(3, (int) $line->fresh()->quantity_received);
+        $this->assertSame($initialStock + 3, (int) $item->fresh()->stock_quantity);
+
+        $this->post(route('purchases.receive', $purchase), [
+            'quantities' => [$line->id => 7],
+        ])->assertRedirect();
+
+        $purchase->refresh();
+        $this->assertSame('received', $purchase->status);
+        $this->assertSame(10, (int) $line->fresh()->quantity_received);
+        $this->assertSame($initialStock + 10, (int) $item->fresh()->stock_quantity);
+    }
+
+    public function test_purchase_payment_records_amount_and_updates_supplier_balance(): void
+    {
+        $this->seed();
+
+        $supplier = Contact::where('kind', 'supplier')->firstOrFail();
+        $item = Item::where('type', '!=', 'service')->firstOrFail();
+        $initialSupplierBalance = (float) $supplier->outstanding_balance;
+
+        $this->post(route('purchases.store'), [
+            'supplier_id' => $supplier->id,
+            'ordered_at' => now()->toDateString(),
+            'status' => 'received',
+            'items' => [
+                ['item_id' => $item->id, 'quantity' => 5, 'unit_cost' => 10],
+            ],
+        ]);
+
+        $purchase = Purchase::orderByDesc('id')->firstOrFail();
+        $this->assertSame(50.0, (float) $purchase->total_amount);
+
+        $this->post(route('purchases.payments.store'), [
+            'purchase_id' => $purchase->id,
+            'method' => 'cash',
+            'amount' => 20,
+        ])->assertRedirect();
+
+        $purchase->refresh();
+        $this->assertSame(20.0, (float) $purchase->payments()->sum('amount'));
+        $this->assertSame($initialSupplierBalance + 30, (float) $supplier->fresh()->outstanding_balance);
+
+        $this->post(route('purchases.payments.store'), [
+            'purchase_id' => $purchase->id,
+            'method' => 'transfer',
+            'amount' => 30,
+        ])->assertRedirect();
+
+        $this->assertSame(50.0, (float) $purchase->fresh()->payments()->sum('amount'));
+        $this->assertSame($initialSupplierBalance, (float) $supplier->fresh()->outstanding_balance);
+    }
+
     public function test_purchase_return_decrements_stock_and_is_searchable(): void
     {
         $this->seed();

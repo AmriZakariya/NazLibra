@@ -186,6 +186,33 @@ class PosTest extends TestCase
             ->assertSee('Note comptoir test');
     }
 
+    public function test_pos_sale_is_idempotent_with_client_key(): void
+    {
+        $this->seed();
+
+        $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 1)->firstOrFail();
+        $initialStock = (int) $item->stock_quantity;
+        $total = (float) $item->sale_price;
+        $key = (string) \Illuminate\Support\Str::uuid();
+
+        $payload = [
+            'cart' => json_encode([['id' => $item->id, 'quantity' => 1]]),
+            'cash_amount' => $total,
+            '_idempotency_key' => $key,
+        ];
+
+        $this->post(route('pos.store'), $payload)->assertRedirect();
+        $this->post(route('pos.store'), $payload)->assertRedirect();
+
+        $this->assertSame(1, Sale::where('idempotency_key', $key)->count());
+        $this->assertSame($initialStock - 1, (int) $item->fresh()->stock_quantity);
+        $this->assertSame(1, \DB::table('stock_movements')
+            ->where('item_id', $item->id)
+            ->where('type', 'sale')
+            ->where('reference_type', Sale::class)
+            ->count());
+    }
+
     public function test_pos_accepts_percentage_discount_and_tracks_it(): void
     {
         $this->seed();
@@ -547,6 +574,51 @@ class PosTest extends TestCase
             ->assertOk()
             ->assertSee('Note système')
             ->assertSee($sale->metadata['system_note']);
+    }
+
+    public function test_manual_unpaid_sale_can_reserve_stock_and_convert_on_payment(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $tenant->update(['settings' => array_merge($tenant->settings ?? [], ['pos' => ['reserve_stock_for_unpaid_sales' => true, 'allow_oversell' => false]])]);
+
+        $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 2)->firstOrFail();
+        $initialStock = (int) $item->stock_quantity;
+
+        $response = $this->post(route('sales.store'), [
+            'sale_status' => 'unpaid',
+            'items' => [
+                ['item_id' => $item->id, 'quantity' => 2, 'unit_price' => (float) $item->sale_price, 'tax_rate' => 20],
+            ],
+        ]);
+
+        $sale = Sale::orderByDesc('id')->firstOrFail();
+        $response->assertRedirect();
+        $this->assertSame('unpaid', $sale->status);
+        $this->assertSame($initialStock, (int) $item->fresh()->stock_quantity);
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'type' => 'reservation',
+            'reference_type' => Sale::class,
+            'reference_id' => $sale->id,
+        ]);
+
+        $this->post(route('sales.payments.store'), [
+            'sale_id' => $sale->id,
+            'method' => 'cash',
+            'amount' => (float) $sale->total_amount,
+        ])->assertRedirect();
+
+        $sale->refresh();
+        $this->assertSame('paid', $sale->status);
+        $this->assertSame($initialStock - 2, (int) $item->fresh()->stock_quantity);
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'type' => 'sale',
+            'reference_type' => Sale::class,
+            'reference_id' => $sale->id,
+        ]);
     }
 
     public function test_sale_invoice_can_be_created_from_sales_list(): void

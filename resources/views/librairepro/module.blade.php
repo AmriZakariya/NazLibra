@@ -60,6 +60,7 @@
             <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]" data-manual-sale-form>
                 <form id="manual-sale-form" action="{{ route('sales.store') }}" method="POST" class="space-y-5">
                     @csrf
+                    <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
                     <div class="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                         <div class="border-b border-slate-200 p-5 dark:border-white/10">
                             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -518,6 +519,7 @@
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <form action="{{ route('sales.payments.store') }}" method="POST" class="grid gap-3 lg:grid-cols-[1fr_150px_140px_170px_1fr_auto]">
                         @csrf
+                        <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
                         <select name="sale_id" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" required>
                             <option value="">Vente à payer</option>
                             @foreach ($paymentSales as $sale)
@@ -638,14 +640,14 @@
                                 <th class="px-3 py-3"><input type="checkbox" class="rounded border-slate-300"></th>
                                 <th class="px-3 py-3 whitespace-nowrap">N° facture</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Date de vente</th>
-                                <th class="px-3 py-3 whitespace-nowrap">Échéance</th>
-                                <th class="px-3 py-3 whitespace-nowrap">N° ticket</th>
+                                <th class="px-3 py-3 whitespace-nowrap">Date d'échéance</th>
+                                <th class="px-3 py-3 whitespace-nowrap">Code de vente</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Numéro de référence</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Nom du client</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Créé par</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Mis à jour par</th>
                                 <th class="px-3 py-3 text-right whitespace-nowrap">Total</th>
-                                <th class="px-3 py-3 text-right whitespace-nowrap">Payé</th>
+                                <th class="px-3 py-3 text-right whitespace-nowrap">Paiement payé</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Statut de paiement</th>
                                 <th class="sticky right-0 bg-slate-50 px-3 py-3 text-right whitespace-nowrap dark:bg-slate-900">Action</th>
                             </tr>
@@ -1052,6 +1054,7 @@
                                     @if ($canReceivePayment)
                                         <form action="{{ route('sales.payments.store') }}" method="POST" class="p-5">
                                             @csrf
+                                            <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
                                             <input type="hidden" name="sale_id" value="{{ $sale->id }}">
                                             <div class="flex items-start justify-between gap-4">
                                                 <div><p class="text-sm font-semibold text-brand">Recevoir paiement</p><h3 class="mt-1 text-xl font-semibold">Reste {{ $money($due) }}</h3><p class="mt-1 text-sm text-slate-500">Le montant reçu ne peut pas dépasser le reste à payer.</p></div>
@@ -1144,6 +1147,7 @@
                                     <dialog id="sale-refund-{{ $sale->id }}" class="app-dialog w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
                                         <form action="{{ route('sales.refund', $sale) }}" method="POST" class="p-5">
                                             @csrf
+                                            <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
                                             <div class="flex items-start justify-between gap-4">
                                                 <div><p class="text-sm font-semibold text-rose-600">Retour de vente</p><h3 class="mt-1 text-xl font-semibold">{{ $sale->number }} · {{ $money($sale->total_amount) }}</h3></div>
                                                 <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
@@ -1284,6 +1288,7 @@
             <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
                 <form action="{{ route('purchases.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     @csrf
+                    <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
                     <div class="flex flex-col gap-3 border-b border-slate-200 pb-5 dark:border-white/10 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                             <p class="text-sm font-semibold text-brand">Achats · commande fournisseur</p>
@@ -1465,6 +1470,7 @@
                     <h2 class="font-semibold">Créer un retour fournisseur</h2>
                     <form action="{{ route('purchases.returns.store') }}" method="POST" class="app-action-form mt-4">
                         @csrf
+                        <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
                         <select name="purchase_id" required class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Achat source</option>@foreach ($purchaseReturnSources as $purchase)<option value="{{ $purchase->id }}">{{ $purchase->number }} · {{ $purchase->supplier?->name }} · {{ $money($purchase->total_amount) }}</option>@endforeach</select>
                         <input name="returned_at" type="date" value="{{ now()->toDateString() }}" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <input name="reason" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Motif: erreur, abîmé, surplus...">
@@ -1544,6 +1550,8 @@
                                         $orderedQuantity = (int) $purchase->items->sum('quantity_ordered');
                                         $receivedQuantity = (int) $purchase->items->sum('quantity_received');
                                         $remainingQuantity = max(0, $orderedQuantity - $receivedQuantity);
+                                        $paidAmount = (float) $purchase->payments->sum('amount');
+                                        $dueAmount = max(0, round((float) $purchase->total_amount - $paidAmount, 2));
                                         $purchaseStatusTone = $purchase->status === 'received' ? 'success' : ($purchase->status === 'cancelled' ? 'danger' : 'warning');
                                         $purchaseStatusLabel = [
                                             'draft' => 'Brouillon',
@@ -1604,74 +1612,173 @@
                                             </div>
                                         </td>
                                     </tr>
-                                    <dialog id="purchase-detail-{{ $purchase->id }}" class="app-dialog purchase-detail-dialog w-[min(980px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                    <dialog id="purchase-detail-{{ $purchase->id }}" class="app-dialog purchase-detail-dialog w-[min(1024px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
                                         <div class="purchase-detail-hero">
-                                            <div class="flex items-start gap-3">
+                                            <div class="flex items-start gap-3 min-w-0">
                                                 <span class="purchase-detail-icon">PO</span>
                                                 <div class="min-w-0">
                                                     <p class="text-sm font-semibold text-brand">Détail achat</p>
-                                                    <h3 class="mt-1 text-xl font-semibold">{{ $purchase->number }}</h3>
+                                                    <h3 class="mt-1 text-xl font-semibold truncate">{{ $purchase->number }}</h3>
                                                     <p class="mt-1 text-sm text-slate-500">{{ $purchase->supplier?->name ?? 'Sans fournisseur' }} · {{ $purchase->ordered_at?->format('d/m/Y') ?? 'Sans date' }}</p>
                                                 </div>
                                             </div>
-                                            <div class="flex items-start gap-2">
+                                            <div class="flex items-start gap-2 shrink-0">
                                                 <x-status-pill :tone="$purchaseStatusTone">{{ $purchaseStatusLabel }}</x-status-pill>
                                                 <button class="dialog-close grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-lg font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button">×</button>
                                             </div>
                                         </div>
-                                        <div class="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-                                            <div class="space-y-4">
+
+                                        <div class="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+                                            <div class="space-y-5 min-w-0">
+                                                {{-- Summary stats --}}
                                                 <div class="grid gap-3 sm:grid-cols-3">
-                                                    <div class="purchase-detail-stat"><span>Total</span><strong>{{ $money($purchase->total_amount) }}</strong></div>
-                                                    <div class="purchase-detail-stat"><span>Quantité commandée</span><strong>{{ $orderedQuantity }}</strong></div>
-                                                    <div class="purchase-detail-stat"><span>Quantité reçue</span><strong>{{ $receivedQuantity }}</strong></div>
+                                                    <div class="purchase-detail-stat"><span>Total TTC</span><strong>{{ $money($purchase->total_amount) }}</strong></div>
+                                                    <div class="purchase-detail-stat"><span>Commandée</span><strong>{{ $orderedQuantity }}</strong></div>
+                                                    <div class="purchase-detail-stat"><span>Reçue</span><strong>{{ $receivedQuantity }}</strong></div>
                                                 </div>
+
+                                                {{-- Receipt progress --}}
+                                                @php
+                                                    $receiptPercent = $orderedQuantity > 0 ? round(min(100, ($receivedQuantity / $orderedQuantity) * 100)) : 0;
+                                                @endphp
+                                                <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                    <div class="flex items-center justify-between gap-3">
+                                                        <span class="text-xs font-semibold uppercase text-slate-500">Avancement réception</span>
+                                                        <span class="text-sm font-semibold">{{ $receivedQuantity }} / {{ $orderedQuantity }} ({{ $receiptPercent }}%)</span>
+                                                    </div>
+                                                    <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                                                        <div class="h-full rounded-full bg-emerald-500 transition-all" style="width: {{ $receiptPercent }}%"></div>
+                                                    </div>
+                                                    @if ($remainingQuantity > 0)
+                                                        <p class="mt-2 text-xs font-medium text-amber-600">{{ $remainingQuantity }} unité(s) en attente de réception</p>
+                                                    @endif
+                                                </div>
+
+                                                {{-- Metadata --}}
                                                 <div class="grid gap-3 sm:grid-cols-2">
                                                     <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                                         <span class="text-xs font-semibold uppercase text-slate-500">Créé par</span>
-                                                        <strong class="mt-1 block">{{ $purchaseCreatedBy }}</strong>
+                                                        <strong class="mt-1 block truncate">{{ $purchaseCreatedBy }}</strong>
                                                         <span class="mt-1 block text-xs text-slate-500">{{ $purchaseCreatedAt ? \Illuminate\Support\Carbon::parse($purchaseCreatedAt)->format('d/m/Y H:i') : 'Date inconnue' }}</span>
                                                     </div>
                                                     <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                                         <span class="text-xs font-semibold uppercase text-slate-500">Dernière mise à jour</span>
-                                                        <strong class="mt-1 block">{{ $purchaseUpdatedBy }}</strong>
+                                                        <strong class="mt-1 block truncate">{{ $purchaseUpdatedBy }}</strong>
                                                         <span class="mt-1 block text-xs text-slate-500">{{ $purchaseUpdatedAt ? \Illuminate\Support\Carbon::parse($purchaseUpdatedAt)->format('d/m/Y H:i') : 'Aucune modification' }}</span>
                                                     </div>
                                                 </div>
+
+                                                {{-- Line items table --}}
                                                 <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
-                                                    <div class="grid grid-cols-[minmax(220px,1fr)_80px_80px_100px_110px] gap-3 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-500 dark:bg-white/5">
-                                                        <span>Article</span><span class="text-right">Cmd</span><span class="text-right">Reçu</span><span class="text-right">Coût</span><span class="text-right">Ligne</span>
-                                                    </div>
-                                                    <div class="divide-y divide-slate-200 dark:divide-white/10">
-                                                        @forelse ($purchase->items as $line)
-                                                            <div class="grid grid-cols-[minmax(220px,1fr)_80px_80px_100px_110px] gap-3 px-4 py-3 text-sm">
-                                                                <div class="min-w-0">
-                                                                    <span class="block truncate font-semibold">{{ $line->item?->title ?? 'Article supprimé' }}</span>
-                                                                    <small class="mt-1 block truncate text-xs text-slate-500">{{ $line->item?->barcode ?? $line->item?->isbn ?? $line->item?->item_code ?? 'Sans code' }}</small>
-                                                                </div>
-                                                                <span class="text-right font-medium">{{ $line->quantity_ordered }}</span>
-                                                                <span class="text-right font-medium">{{ $line->quantity_received }}</span>
-                                                                <span class="text-right">{{ $money($line->unit_cost) }}</span>
-                                                                <strong class="text-right">{{ $money($line->quantity_ordered * $line->unit_cost) }}</strong>
-                                                            </div>
-                                                        @empty
-                                                            <div class="px-4 py-10 text-center text-sm text-slate-500">Aucune ligne article.</div>
-                                                        @endforelse
+                                                    <div class="overflow-x-auto">
+                                                        <table class="w-full min-w-[640px] text-left text-sm">
+                                                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                                                                <tr>
+                                                                    <th class="px-4 py-3">Article</th>
+                                                                    <th class="px-4 py-3 text-right">Cmd</th>
+                                                                    <th class="px-4 py-3 text-right">Reçu</th>
+                                                                    <th class="px-4 py-3 text-right">Restant</th>
+                                                                    <th class="px-4 py-3 text-right">Coût unit.</th>
+                                                                    <th class="px-4 py-3 text-right">Total ligne</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                                                @forelse ($purchase->items as $line)
+                                                                    @php
+                                                                        $lineRemaining = max(0, $line->quantity_ordered - $line->quantity_received);
+                                                                        $lineStatusTone = $lineRemaining === 0 ? 'success' : ($line->quantity_received > 0 ? 'warning' : 'neutral');
+                                                                    @endphp
+                                                                    <tr class="hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                                                                        <td class="px-4 py-3">
+                                                                            <span class="block truncate font-semibold">{{ $line->item?->title ?? 'Article supprimé' }}</span>
+                                                                            <span class="mt-1 block truncate text-xs text-slate-500">
+                                                                                {{ $line->item?->sku ?? $line->item?->barcode ?? $line->item?->isbn ?? $line->item?->item_code ?? 'Sans code' }}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td class="px-4 py-3 text-right font-medium">{{ $line->quantity_ordered }}</td>
+                                                                        <td class="px-4 py-3 text-right font-medium">{{ $line->quantity_received }}</td>
+                                                                        <td class="px-4 py-3 text-right">
+                                                                            @if ($lineRemaining > 0)
+                                                                                <x-status-pill :tone="$lineStatusTone" size="sm">{{ $lineRemaining }}</x-status-pill>
+                                                                            @else
+                                                                                <span class="text-xs text-slate-400">—</span>
+                                                                            @endif
+                                                                        </td>
+                                                                        <td class="px-4 py-3 text-right text-slate-600">{{ $money($line->unit_cost) }}</td>
+                                                                        <td class="px-4 py-3 text-right font-semibold">{{ $money($line->quantity_ordered * $line->unit_cost) }}</td>
+                                                                    </tr>
+                                                                @empty
+                                                                    <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500">Aucune ligne article.</td></tr>
+                                                                @endforelse
+                                                            </tbody>
+                                                        </table>
                                                     </div>
                                                 </div>
                                             </div>
-                                            <aside class="space-y-3">
+
+                                            {{-- Sidebar --}}
+                                            <aside class="space-y-4">
                                                 <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                                                     <h4 class="text-sm font-semibold">Informations fournisseur</h4>
-                                                    <dl class="mt-3 space-y-2 text-sm">
+                                                    <dl class="mt-3 space-y-2.5 text-sm">
                                                         <div class="flex justify-between gap-3"><dt class="text-slate-500">Fournisseur</dt><dd class="text-right font-semibold">{{ $purchase->supplier?->name ?? '—' }}</dd></div>
                                                         <div class="flex justify-between gap-3"><dt class="text-slate-500">Téléphone</dt><dd class="text-right">{{ $purchase->supplier?->phone ?? '—' }}</dd></div>
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Facture</dt><dd class="text-right">{{ data_get($purchase->metadata, 'supplier_invoice', '—') }}</dd></div>
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Email</dt><dd class="text-right">{{ $purchase->supplier?->email ?? '—' }}</dd></div>
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">ICE</dt><dd class="text-right">{{ $purchase->supplier?->ice ?? '—' }}</dd></div>
+                                                    </dl>
+                                                </div>
+
+                                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                                    <h4 class="text-sm font-semibold">Informations commande</h4>
+                                                    <dl class="mt-3 space-y-2.5 text-sm">
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Facture fournisseur</dt><dd class="text-right">{{ data_get($purchase->metadata, 'supplier_invoice', '—') }}</dd></div>
                                                         <div class="flex justify-between gap-3"><dt class="text-slate-500">Référence</dt><dd class="text-right">{{ data_get($purchase->metadata, 'reference', '—') }}</dd></div>
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Dépôt</dt><dd class="text-right">{{ data_get($purchase->metadata, 'warehouse', 'Magasin principal') ?: 'Magasin principal' }}</dd></div>
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Lieu de livraison</dt><dd class="text-right">{{ data_get($purchase->metadata, 'warehouse', 'Magasin principal') ?: 'Magasin principal' }}</dd></div>
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Commandé le</dt><dd class="text-right">{{ $purchase->ordered_at?->format('d/m/Y') ?? '—' }}</dd></div>
                                                         <div class="flex justify-between gap-3"><dt class="text-slate-500">Réception prévue</dt><dd class="text-right">{{ $purchase->expected_at?->format('d/m/Y') ?? '—' }}</dd></div>
                                                     </dl>
                                                 </div>
+
+                                                <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                                    <h4 class="text-sm font-semibold">Paiement</h4>
+                                                    <dl class="mt-3 space-y-2.5 text-sm">
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Total</dt><dd class="text-right font-semibold">{{ $money($purchase->total_amount) }}</dd></div>
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Payé</dt><dd class="text-right text-emerald-600">{{ $money($paidAmount) }}</dd></div>
+                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Reste dû</dt><dd class="text-right font-semibold {{ $dueAmount > 0.001 ? 'text-rose-600' : 'text-emerald-600' }}">{{ $money($dueAmount) }}</dd></div>
+                                                    </dl>
+
+                                                    @if ($dueAmount > 0.001)
+                                                        <form action="{{ route('purchases.payments.store') }}" method="POST" class="mt-4 space-y-3">
+                                                            @csrf
+                                                            <input type="hidden" name="purchase_id" value="{{ $purchase->id }}">
+                                                            <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
+                                                            <div class="grid gap-2 sm:grid-cols-2">
+                                                                <select name="method" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" required>
+                                                                    <option value="cash">Espèces</option>
+                                                                    <option value="card">Carte</option>
+                                                                    <option value="transfer">Virement</option>
+                                                                    <option value="cheque">Chèque</option>
+                                                                    <option value="other">Autre</option>
+                                                                </select>
+                                                                <input type="number" name="amount" step="0.01" min="0.01" max="{{ $dueAmount }}" value="{{ old('amount', $dueAmount) }}" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Montant" required>
+                                                            </div>
+                                                            <input type="text" name="reference" value="{{ old('reference') }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Référence paiement">
+                                                            <button type="submit" class="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Enregistrer paiement</button>
+                                                        </form>
+                                                    @endif
+
+                                                    @if ($purchase->payments->isNotEmpty())
+                                                        <div class="mt-4 space-y-2">
+                                                            @foreach ($purchase->payments as $payment)
+                                                                <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs dark:border-white/5 dark:bg-white/5">
+                                                                    <span class="font-medium">{{ $payment->number }} · {{ $payment->method }}</span>
+                                                                    <span class="font-semibold">{{ $money($payment->amount) }}</span>
+                                                                </div>
+                                                            @endforeach
+                                                        </div>
+                                                    @endif
+                                                </div>
+
                                                 @if (data_get($purchase->metadata, 'note'))
                                                     <div class="rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-white/10 dark:bg-slate-950/40">
                                                         <h4 class="font-semibold">Note</h4>
@@ -1680,16 +1787,46 @@
                                                 @endif
                                             </aside>
                                         </div>
+
+                                        @if ($purchase->status !== 'received' && $remainingQuantity > 0)
+                                            <form id="purchase-receipt-form-{{ $purchase->id }}" action="{{ route('purchases.receive', $purchase) }}" method="POST" class="hidden border-t border-slate-200 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/5">
+                                                @csrf
+                                                <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
+                                                <div class="mb-4 flex items-center justify-between">
+                                                    <h4 class="text-sm font-semibold">Réception partielle</h4>
+                                                    <span class="text-xs text-slate-500">Laissez 0 pour ignorer une ligne</span>
+                                                </div>
+                                                <div class="space-y-3">
+                                                    @foreach ($purchase->items as $line)
+                                                        @php
+                                                            $lineRemaining = max(0, $line->quantity_ordered - $line->quantity_received);
+                                                        @endphp
+                                                        @if ($lineRemaining > 0 && $line->item)
+                                                            <div class="grid items-center gap-3 sm:grid-cols-[1fr_120px_100px]">
+                                                                <div>
+                                                                    <p class="text-sm font-medium">{{ $line->item->title }}</p>
+                                                                    <p class="text-xs text-slate-500">{{ $lineRemaining }} restant(s)</p>
+                                                                </div>
+                                                                <input type="number" name="quantities[{{ $line->id }}]" min="0" max="{{ $lineRemaining }}" value="{{ old('quantities.'.$line->id, $lineRemaining) }}" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                                                <span class="text-right text-xs text-slate-500">/{{ $lineRemaining }}</span>
+                                                            </div>
+                                                        @endif
+                                                    @endforeach
+                                                </div>
+                                                <div class="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+                                                    <button type="button" class="dialog-close rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950" onclick="document.getElementById('purchase-receipt-form-{{ $purchase->id }}').classList.add('hidden')">Annuler</button>
+                                                    <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Enregistrer la réception</button>
+                                                </div>
+                                            </form>
+                                        @endif
+
                                         <div class="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
                                             <a href="{{ route('module', ['module' => 'purchases', 'section' => 'list', 'detail_purchase' => $purchase->id]) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">Lien direct</a>
-                                            <div class="flex justify-end gap-2">
+                                            <div class="flex flex-col-reverse justify-end gap-2 sm:flex-row sm:items-center">
                                                 <button type="button" class="dialog-close rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950">Fermer</button>
-                                                <a href="{{ route('purchases.pdf', $purchase) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">Télécharger PDF</a>
-                                                @if ($purchase->status !== 'received')
-                                                    <form action="{{ route('purchases.receive', $purchase) }}" method="POST">
-                                                        @csrf
-                                                        <button class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Confirmer réception</button>
-                                                    </form>
+                                                <a href="{{ route('purchases.pdf', $purchase) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">Télécharger PDF</a>
+                                                @if ($purchase->status !== 'received' && $remainingQuantity > 0)
+                                                    <button type="button" class="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 sm:w-auto" onclick="document.getElementById('purchase-receipt-form-{{ $purchase->id }}').classList.toggle('hidden')">Réceptionner</button>
                                                 @endif
                                             </div>
                                         </div>

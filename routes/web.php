@@ -154,6 +154,9 @@ Route::post('/catalogue/import', [LibraireProController::class, 'importItems'])-
 Route::get('/catalogue/import/exemple/{kind}', [LibraireProController::class, 'importExample'])->name('catalog.import.example');
 Route::post('/catalogue/stock/ajustements', [LibraireProController::class, 'storeStockAdjustment'])->name('catalog.stock-adjustments.store');
 Route::post('/catalogue/stock/transferts', [LibraireProController::class, 'storeStockTransfer'])->name('catalog.stock-transfers.store');
+Route::post('/catalogue/stock/inventaires', [LibraireProController::class, 'storeStocktake'])->name('catalog.stocktakes.store');
+Route::post('/catalogue/stock/inventaires/{stocktake}/comptes', [LibraireProController::class, 'updateStocktake'])->name('catalog.stocktakes.counts.update');
+Route::post('/catalogue/stock/inventaires/{stocktake}/terminer', [LibraireProController::class, 'completeStocktake'])->name('catalog.stocktakes.complete');
 Route::get('/catalogue/stock/articles', [LibraireProController::class, 'stockItemSearch'])->name('catalog.stock-items.search');
 Route::get('/catalogue/export', [LibraireProController::class, 'exportCatalog'])->name('catalog.export');
 Route::get('/catalogue/etiquettes', [LibraireProController::class, 'labels'])->name('catalog.labels');
@@ -194,6 +197,7 @@ Route::post('/documents/devis/{estimate}/convertir', [CommercialDocumentControll
 Route::get('/documents/devis/{estimate}/pdf', [CommercialDocumentController::class, 'previewEstimatePdf'])->name('documents.estimates.pdf');
 Route::post('/achats', [LibraireProController::class, 'storePurchase'])->name('purchases.store');
 Route::post('/achats/{purchase}/recevoir', [LibraireProController::class, 'receivePurchase'])->name('purchases.receive');
+Route::post('/achats/paiements', [LibraireProController::class, 'storePurchasePayment'])->name('purchases.payments.store');
 Route::get('/achats/{purchase}/pdf', [LibraireProController::class, 'downloadPurchasePdf'])->name('purchases.pdf');
 Route::post('/achats/retours', [LibraireProController::class, 'storePurchaseReturn'])->name('purchases.returns.store');
 Route::get('/contacts/data', [LibraireProController::class, 'contactsData'])->name('contacts.data');

@@ -64,4 +64,19 @@ class Tenant extends Model
     {
         return $this->hasMany(Role::class);
     }
+
+    public function locations(): HasMany
+    {
+        return $this->hasMany(Location::class);
+    }
+
+    public function itemLocationStocks(): HasMany
+    {
+        return $this->hasMany(ItemLocationStock::class);
+    }
+
+    public function inventoryMovements(): HasMany
+    {
+        return $this->hasMany(InventoryMovement::class);
+    }
 }

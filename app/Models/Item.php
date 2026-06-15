@@ -101,8 +101,30 @@ class Item extends Model
         return $this->hasMany(ItemVariant::class);
     }
 
+    public function itemLocationStocks(): HasMany
+    {
+        return $this->hasMany(ItemLocationStock::class);
+    }
+
+    public function inventoryMovements(): HasMany
+    {
+        return $this->hasMany(InventoryMovement::class);
+    }
+
     public function getIsLowStockAttribute(): bool
     {
         return $this->stock_quantity <= $this->min_stock_threshold;
+    }
+
+    public function totalStockQuantity(): int
+    {
+        return (int) $this->itemLocationStocks()->sum('quantity');
+    }
+
+    public function totalAvailableQuantity(): int
+    {
+        return (int) $this->itemLocationStocks()
+            ->selectRaw('SUM(quantity - reserved_quantity) as available')
+            ->value('available') ?? 0;
     }
 }

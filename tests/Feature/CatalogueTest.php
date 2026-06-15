@@ -962,6 +962,53 @@ class CatalogueTest extends TestCase
             ->assertSee('Magasin B');
     }
 
+    public function test_stocktake_can_be_created_counted_and_completed(): void
+    {
+        $this->seed();
+
+        $location = \App\Models\Location::where('tenant_id', \App\Models\Tenant::firstOrFail()->id)->where('is_default', true)->firstOrFail();
+        $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 5)->firstOrFail();
+        $initialStock = (int) $item->stock_quantity;
+
+        $this->get(route('stock', ['panel' => 'stocktake-add']))
+            ->assertOk()
+            ->assertSee('Nouvel inventaire');
+
+        $this->post(route('catalog.stocktakes.store'), [
+            'location_id' => $location->id,
+            'note' => 'Inventaire test',
+            'items' => [
+                ['item_id' => $item->id, 'counted_quantity' => ''],
+            ],
+        ])->assertRedirect();
+
+        $stocktake = \App\Models\Stocktake::firstOrFail();
+        $this->assertSame('INV', substr($stocktake->number, 0, 3));
+        $this->assertSame('in_progress', $stocktake->status);
+        $stocktakeItem = $stocktake->items()->firstOrFail();
+        $this->assertSame($initialStock, (int) $stocktakeItem->expected_quantity);
+        $this->assertNull($stocktakeItem->counted_quantity);
+
+        $this->post(route('catalog.stocktakes.counts.update', $stocktake), [
+            'counts' => [$stocktakeItem->id => $initialStock - 2],
+        ])->assertRedirect();
+
+        $this->post(route('catalog.stocktakes.complete', $stocktake), [
+            '_idempotency_key' => 'stocktake-complete-test',
+        ])->assertRedirect();
+
+        $stocktake->refresh();
+        $this->assertSame('completed', $stocktake->status);
+        $this->assertSame($initialStock - 2, (int) $item->fresh()->stock_quantity);
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'type' => 'stocktake',
+            'quantity_delta' => -2,
+            'reference_type' => \App\Models\Stocktake::class,
+            'reference_id' => $stocktake->id,
+        ]);
+    }
+
     public function test_settings_can_persist_tenant_theme(): void
     {
         $this->seed();

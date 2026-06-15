@@ -6,8 +6,10 @@ use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Contact;
 use App\Models\Item;
+use App\Models\ItemLocationStock;
 use App\Models\ItemVariant;
 use App\Models\Loan;
+use App\Models\Location;
 use App\Models\Purchase;
 use App\Models\Sale;
 use App\Models\Tax;
@@ -153,6 +155,24 @@ class DatabaseSeeder extends Seeder
                 $row[0] => Tax::updateOrCreate(['tenant_id' => $tenant->id, 'name' => $row[0]], ['rate' => $row[1], 'is_active' => $row[2] ?? true]),
             ]);
 
+            $defaultLocation = \App\Models\Location::create([
+                'tenant_id' => $tenant->id,
+                'name' => 'Magasin principal',
+                'type' => 'store',
+                'address' => $tenant->address,
+                'phone' => $tenant->phone,
+                'is_active' => true,
+                'is_default' => true,
+            ]);
+
+            \App\Models\Location::create([
+                'tenant_id' => $tenant->id,
+                'name' => 'Dépôt',
+                'type' => 'warehouse',
+                'is_active' => true,
+                'is_default' => false,
+            ]);
+
             $clients = collect([
                 ['Sara Berrada', 'individual', '+212 661 10 20 30', ['VIP'], 120],
                 ['École Al Massira', 'school', '+212 522 88 40 10', ['school', 'wholesale'], 2500],
@@ -224,7 +244,7 @@ class DatabaseSeeder extends Seeder
                 ]);
             });
 
-            ItemVariant::create([
+            $variant = ItemVariant::create([
                 'item_id' => $items[1]->id,
                 'tenant_id' => $tenant->id,
                 'name' => 'Couverture bleue',
@@ -233,6 +253,32 @@ class DatabaseSeeder extends Seeder
                 'purchase_price' => 4.50,
                 'sale_price' => 8.00,
                 'stock_quantity' => 80,
+            ]);
+
+            foreach ($items as $item) {
+                ItemLocationStock::create([
+                    'tenant_id' => $tenant->id,
+                    'item_id' => $item->id,
+                    'variant_id' => null,
+                    'location_id' => $defaultLocation->id,
+                    'quantity' => max(0, (int) $item->stock_quantity),
+                    'min_stock' => max(0, (int) $item->min_stock_threshold),
+                    'reorder_point' => max(0, (int) $item->min_stock_threshold),
+                    'average_cost' => (float) ($item->purchase_price ?? 0),
+                    'last_purchase_cost' => (float) ($item->purchase_price ?? 0),
+                ]);
+            }
+
+            ItemLocationStock::create([
+                'tenant_id' => $tenant->id,
+                'item_id' => $variant->item_id,
+                'variant_id' => $variant->id,
+                'location_id' => $defaultLocation->id,
+                'quantity' => max(0, (int) $variant->stock_quantity),
+                'min_stock' => 0,
+                'reorder_point' => 0,
+                'average_cost' => (float) ($variant->purchase_price ?? 0),
+                'last_purchase_cost' => (float) ($variant->purchase_price ?? 0),
             ]);
 
             $salesData = [

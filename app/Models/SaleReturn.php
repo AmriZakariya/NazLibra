@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['tenant_id', 'sale_id', 'contact_id', 'user_id', 'number', 'status', 'refund_method', 'total_amount', 'lines', 'reason', 'restock', 'returned_at'])]
+#[Fillable(['tenant_id', 'sale_id', 'contact_id', 'user_id', 'number', 'status', 'refund_method', 'total_amount', 'lines', 'reason', 'restock', 'returned_at', 'idempotency_key'])]
 class SaleReturn extends Model
 {
     protected function casts(): array

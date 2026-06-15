@@ -424,6 +424,7 @@
         <aside class="pos-checkout-shell xl:sticky xl:top-20 xl:h-[calc(100vh-6rem)]">
             <form id="pos-checkout-form" action="{{ route('pos.store') }}" method="POST" class="grid h-full min-h-0 gap-3 xl:grid-rows-[minmax(320px,1fr)_auto]" data-pos-checkout>
                 @csrf
+                <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
                 <input class="pos-cart-json" name="cart" type="hidden" value="[]">
                 <input name="ticket_id" type="hidden" value="{{ $resumeTicket?->id }}">
                 <input class="pos-receipt-data" type="hidden" value="{{ json_encode(['storeName' => $tenant?->name, 'ticketNumber' => $nextSaleNumber]) }}">

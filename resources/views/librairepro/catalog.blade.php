@@ -50,6 +50,8 @@
             'stock-adjustments' => ['label' => "Liste d'ajustement", 'hint' => 'Historique', 'href' => route('stock', ['panel' => 'stock-adjustments'])],
             'stock-transfer-add' => ['label' => 'Ajouter transfert', 'hint' => 'Déplacer', 'href' => route('stock', ['panel' => 'stock-transfer-add'])],
             'stock-transfers' => ['label' => 'Liste de transfert', 'hint' => 'Suivi', 'href' => route('stock', ['panel' => 'stock-transfers'])],
+            'stocktake-add' => ['label' => 'Ajouter inventaire', 'hint' => 'Compter', 'href' => route('stock', ['panel' => 'stocktake-add'])],
+            'stocktakes' => ['label' => 'Liste des inventaires', 'hint' => 'Historique', 'href' => route('stock', ['panel' => 'stocktakes'])],
         ],
     ];
     $activeSectionLabel = collect($sections)->flatMap(fn ($links) => $links)->get($panel)['label'] ?? 'Navigation rapide';
@@ -64,8 +66,9 @@
         </div>
         <div class="app-action-row">
             @if ($isStockWorkspace)
-                <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Ajustements</a>
-                <a href="{{ route('stock', ['panel' => 'stock-transfers']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Transferts</a>
+                <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/[0.05]">Ajustements</a>
+                <a href="{{ route('stock', ['panel' => 'stock-transfers']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/[0.05]">Transferts</a>
+                <a href="{{ route('stock', ['panel' => 'stocktakes']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/[0.05]">Inventaires</a>
                 <a href="{{ route('stock', ['panel' => 'stock-adjustment-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm">Nouvel ajustement</a>
             @else
                 <a href="{{ route('catalog.labels') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Imprimer étiquettes</a>
@@ -607,6 +610,162 @@
             <div class="grid gap-3 md:grid-cols-2"><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Transferts</span><p class="mt-2 text-2xl font-semibold">{{ $stockStats['transfers'] }}</p></article><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Quantité ce mois</span><p class="mt-2 text-2xl font-semibold">{{ number_format($stockStats['transferred_month'], 0, ',', ' ') }}</p></article></div>
             <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h2 class="font-semibold">Liste de transfert</h2><p class="mt-1 text-sm text-slate-500">Suivi des déplacements entre magasins, dépôts et rayons.</p></div><a href="{{ route('stock', ['panel' => 'stock-transfer-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouveau transfert</a></div><form method="GET" action="{{ route('stock') }}" class="app-action-form mt-4"><input type="hidden" name="panel" value="stock-transfers"><input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Rechercher n°, article, magasin, entrepôt..."><input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('stock', ['panel' => 'stock-transfers']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div></form></article>
             <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="overflow-x-auto"><table class="w-full min-w-[1040px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N°</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Source</th><th class="px-3 py-3">Destination</th><th class="px-3 py-3 text-right">Quantité</th><th class="px-3 py-3">Articles</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($stockTransfers as $transfer)<tr><td class="px-3 py-3 font-semibold">{{ $transfer->number }}</td><td class="px-3 py-3">{{ $transfer->transferred_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3">{{ collect([$transfer->store_from, $transfer->warehouse_from])->filter()->implode(' · ') ?: '—' }}</td><td class="px-3 py-3">{{ collect([$transfer->store_to, $transfer->warehouse_to])->filter()->implode(' · ') ?: '—' }}</td><td class="px-3 py-3 text-right font-semibold">{{ number_format($transfer->total_quantity, 0, ',', ' ') }}</td><td class="px-3 py-3 text-sm text-slate-500">{{ collect($transfer->lines)->pluck('name')->take(2)->implode(', ') }}{{ count($transfer->lines ?? []) > 2 ? '…' : '' }}</td><td class="px-3 py-3 text-right"><button type="button" onclick="document.getElementById('transfer-detail-{{ $transfer->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</button></td></tr><dialog id="transfer-detail-{{ $transfer->id }}" class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"><div class="border-b border-slate-200 p-5 dark:border-white/10"><div class="flex justify-between gap-4"><div><p class="text-sm font-semibold text-brand">Transfert stock</p><h3 class="mt-1 text-xl font-semibold">{{ $transfer->number }}</h3><p class="mt-1 text-sm text-slate-500">{{ collect([$transfer->store_from, $transfer->warehouse_from])->filter()->implode(' · ') ?: 'Source' }} → {{ collect([$transfer->store_to, $transfer->warehouse_to])->filter()->implode(' · ') ?: 'Destination' }}</p></div><button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 dark:border-white/10" type="button">×</button></div></div><div class="space-y-2 p-5">@foreach ($transfer->lines as $line)<div class="flex justify-between rounded-lg bg-slate-50 p-3 text-sm dark:bg-white/5"><strong>{{ $line['name'] }}</strong><span>{{ $line['quantity'] }} unité(s)</span></div>@endforeach</div></dialog>@empty<tr><td colspan="7" class="px-4 py-12 text-center text-sm text-slate-500">Aucun transfert trouvé.</td></tr>@endforelse</tbody></table></div><div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $stockTransfers->links() }}</div></article>
+        </section>
+    @elseif ($panel === 'stocktake-add')
+        <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <form action="{{ route('catalog.stocktakes.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                @csrf
+                <div>
+                    <h2 class="font-semibold">Nouvel inventaire</h2>
+                    <p class="mt-1 text-sm text-slate-500">Créez un inventaire pour un emplacement. Les quantités attendues sont pré-remplies depuis le stock actuel.</p>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <label class="block">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Emplacement *</span>
+                        <select name="location_id" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" required>
+                            <option value="">Choisir…</option>
+                            @foreach ($locations as $location)
+                                <option value="{{ $location->id }}" @selected(old('location_id') == $location->id)>{{ $location->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label class="block">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Note</span>
+                        <input name="note" value="{{ old('note') }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Inventaire mensuel…">
+                    </label>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold">Articles à compter</h3>
+                    <p class="mt-1 text-xs text-slate-500">Laissez les comptages vides pour les compter plus tard.</p>
+                    <div class="mt-3 space-y-3" id="stocktake-lines">
+                        @php $stocktakeLines = old('items', [['item_id' => '', 'counted_quantity' => '']]); @endphp
+                        @foreach ($stocktakeLines as $index => $line)
+                            <div class="stocktake-line grid items-end gap-3 sm:grid-cols-[1fr_140px_auto]">
+                                <select name="items[{{ $index }}][item_id]" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                    <option value="">Article…</option>
+                                    @foreach ($stockItems as $stockItem)
+                                        <option value="{{ $stockItem->id }}" @selected($line['item_id'] == $stockItem->id)>{{ $stockItem->title }} ({{ $stockItem->item_code ?? $stockItem->barcode ?? '—' }})</option>
+                                    @endforeach
+                                </select>
+                                <input type="number" name="items[{{ $index }}][counted_quantity]" min="0" value="{{ $line['counted_quantity'] }}" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Comptage">
+                                <button type="button" class="remove-stocktake-line rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600" onclick="this.closest('.stocktake-line').remove()">×</button>
+                            </div>
+                        @endforeach
+                    </div>
+                    <button type="button" class="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-900" onclick="const c = document.getElementById('stocktake-lines'); const i = c.children.length; c.insertAdjacentHTML('beforeend', `<div class='stocktake-line grid items-end gap-3 sm:grid-cols-[1fr_140px_auto]'><select name='items[\${i}][item_id]' class='h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900'><option value=''>Article…</option>@foreach ($stockItems as $stockItem)<option value='{{ $stockItem->id }}'>{{ $stockItem->title }} ({{ $stockItem->item_code ?? $stockItem->barcode ?? '—' }})</option>@endforeach</select><input type='number' name='items[\${i}][counted_quantity]' min='0' class='h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900' placeholder='Comptage'><button type='button' class='remove-stocktake-line rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600' onclick='this.closest(\".stocktake-line\").remove()'>×</button></div>`)">+ Ajouter une ligne</button>
+                </div>
+                <div class="flex gap-2">
+                    <a href="{{ route('stock', ['panel' => 'stocktakes']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">Annuler</a>
+                    <button type="submit" class="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm">Créer l'inventaire</button>
+                </div>
+            </form>
+        </section>
+    @elseif ($panel === 'stocktakes')
+        <section class="mt-6 space-y-5">
+            <div class="grid gap-3 md:grid-cols-3">
+                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Inventaires</span><p class="mt-2 text-2xl font-semibold">{{ $stocktakes->total() }}</p></article>
+                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">En cours</span><p class="mt-2 text-2xl font-semibold">{{ $stocktakes->whereIn('status', ['draft', 'in_progress'])->count() }}</p></article>
+                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Terminés</span><p class="mt-2 text-2xl font-semibold">{{ $stocktakes->where('status', 'completed')->count() }}</p></article>
+            </div>
+            <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div><h2 class="font-semibold">Liste des inventaires</h2><p class="mt-1 text-sm text-slate-500">Comptages physiques et ajustements générés.</p></div>
+                    <a href="{{ route('stock', ['panel' => 'stocktake-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouvel inventaire</a>
+                </div>
+            </article>
+            <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[900px] text-left text-sm">
+                        <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                            <tr>
+                                <th class="px-4 py-3">N°</th>
+                                <th class="px-4 py-3">Emplacement</th>
+                                <th class="px-4 py-3">Statut</th>
+                                <th class="px-4 py-3">Lignes</th>
+                                <th class="px-4 py-3">Écarts</th>
+                                <th class="px-4 py-3">Date</th>
+                                <th class="px-4 py-3 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                            @forelse ($stocktakes as $stocktake)
+                                @php
+                                    $differences = $stocktake->items->map(fn ($i) => $i->difference());
+                                    $totalDifference = $differences->sum();
+                                    $hasCounts = $stocktake->items->contains(fn ($i) => $i->counted_quantity !== null);
+                                @endphp
+                                <tr>
+                                    <td class="px-4 py-3 font-semibold">{{ $stocktake->number }}</td>
+                                    <td class="px-4 py-3">{{ $stocktake->location?->name ?? '—' }}</td>
+                                    <td class="px-4 py-3"><x-status-pill :tone="match($stocktake->status) {'draft' => 'neutral', 'in_progress' => 'warning', 'completed' => 'success', 'cancelled' => 'danger', default => 'neutral'}">{{ match($stocktake->status) {'draft' => 'Brouillon', 'in_progress' => 'En cours', 'completed' => 'Terminé', 'cancelled' => 'Annulé', default => $stocktake->status} }}</x-status-pill></td>
+                                    <td class="px-4 py-3">{{ $stocktake->items->count() }}</td>
+                                    <td class="px-4 py-3 font-semibold {{ $totalDifference > 0 ? 'text-emerald-600' : ($totalDifference < 0 ? 'text-rose-600' : 'text-slate-500') }}">{{ $totalDifference > 0 ? '+' : '' }}{{ $totalDifference }}</td>
+                                    <td class="px-4 py-3">{{ $stocktake->started_at?->format('d/m/Y H:i') ?? '—' }}</td>
+                                    <td class="px-4 py-3 text-right"><button type="button" onclick="document.getElementById('stocktake-detail-{{ $stocktake->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</button></td>
+                                </tr>
+                                <dialog id="stocktake-detail-{{ $stocktake->id }}" class="app-dialog w-[min(900px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                    <div class="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-white/10">
+                                        <div>
+                                            <p class="text-sm font-semibold text-brand">Inventaire {{ $stocktake->number }}</p>
+                                            <h3 class="mt-1 text-xl font-semibold">{{ $stocktake->location?->name ?? '—' }}</h3>
+                                        </div>
+                                        <button class="dialog-close grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-lg font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button">×</button>
+                                    </div>
+                                    <div class="p-5">
+                                        @if ($stocktake->status === 'in_progress')
+                                            <form action="{{ route('catalog.stocktakes.counts.update', $stocktake) }}" method="POST" class="space-y-3">
+                                                @csrf
+                                                <table class="w-full text-left text-sm">
+                                                    <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-2">Article</th><th class="px-3 py-2 text-right">Attendu</th><th class="px-3 py-2 text-right">Compté</th></tr></thead>
+                                                    <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                                        @foreach ($stocktake->items as $item)
+                                                            <tr>
+                                                                <td class="px-3 py-2">{{ $item->item?->title ?? '—' }}</td>
+                                                                <td class="px-3 py-2 text-right">{{ $item->expected_quantity }}</td>
+                                                                <td class="px-3 py-2 text-right"><input type="number" name="counts[{{ $item->id }}]" min="0" value="{{ old('counts.'.$item->id, $item->counted_quantity) }}" class="h-9 w-24 rounded-lg border border-slate-200 bg-white px-2 text-right text-sm dark:border-white/10 dark:bg-slate-900"></td>
+                                                            </tr>
+                                                        @endforeach
+                                                    </tbody>
+                                                </table>
+                                                <div class="flex justify-end gap-2">
+                                                    <button type="button" class="dialog-close rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950">Fermer</button>
+                                                    <button type="submit" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer comptage</button>
+                                                </div>
+                                            </form>
+                                        @else
+                                            <table class="w-full text-left text-sm">
+                                                <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-2">Article</th><th class="px-3 py-2 text-right">Attendu</th><th class="px-3 py-2 text-right">Compté</th><th class="px-3 py-2 text-right">Écart</th></tr></thead>
+                                                <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                                    @foreach ($stocktake->items as $item)
+                                                        <tr>
+                                                            <td class="px-3 py-2">{{ $item->item?->title ?? '—' }}</td>
+                                                            <td class="px-3 py-2 text-right">{{ $item->expected_quantity }}</td>
+                                                            <td class="px-3 py-2 text-right">{{ $item->counted_quantity ?? '—' }}</td>
+                                                            <td class="px-3 py-2 text-right font-semibold {{ $item->difference() > 0 ? 'text-emerald-600' : ($item->difference() < 0 ? 'text-rose-600' : 'text-slate-500') }}">{{ $item->difference() > 0 ? '+' : '' }}{{ $item->difference() }}</td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        @endif
+                                    </div>
+                                    @if ($stocktake->status === 'in_progress' && $hasCounts)
+                                        <div class="border-t border-slate-200 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/5">
+                                            <form action="{{ route('catalog.stocktakes.complete', $stocktake) }}" method="POST" class="flex justify-end">
+                                                @csrf
+                                                <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
+                                                <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Terminer et ajuster le stock</button>
+                                            </form>
+                                        </div>
+                                    @endif
+                                </dialog>
+                            @empty
+                                <tr><td colspan="7" class="px-4 py-12 text-center text-sm text-slate-500">Aucun inventaire.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+                <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $stocktakes->links() }}</div>
+            </article>
         </section>
     @elseif (in_array($panel, ['articles', 'services'], true))
         <section class="mt-6 flex flex-col gap-6">

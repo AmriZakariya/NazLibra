@@ -28,6 +28,8 @@
     $timezoneOffset = \App\Support\TenantClock::offset($tenant);
     $appVersion = config('app.version', '1.0.0-beta.3');
     $releaseLabel = app()->environment('production') ? $tr('Production') : \Illuminate\Support\Str::headline(app()->environment());
+    $authUser = auth()->user();
+    $isOwner = $authUser !== null && (string) ($tenant->users()->whereKey($authUser->id)->first()?->pivot?->role ?? '') === 'owner';
     $layoutStores = collect($tenant->settings['stores'] ?? [])
         ->map(fn ($store) => is_array($store) ? $store : ['name' => (string) $store])
         ->map(function (array $store) use ($tenant) {
@@ -271,7 +273,7 @@
                     ['label' => 'Liste des pays', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'countries'])],
                     ['label' => 'Liste des états', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'states'])],
                     ['label' => 'Changer le mot de passe', 'icon' => '⌐', 'href' => route('module', ['module' => 'settings', 'section' => 'password'])],
-                    ['label' => "Journal d'activité", 'icon' => '▥', 'href' => route('profile.activity')],
+                    ...($isOwner ? [['label' => "Journal d'activité", 'icon' => '▥', 'href' => route('profile.activity')]] : []),
                     ...($virtualDevicesEnabled ? [['label' => 'Appareils virtuels', 'icon' => '🖥', 'href' => route('devices.index')]] : []),
                     ['label' => 'Matériel', 'icon' => '🖨', 'href' => route('module', ['module' => 'settings', 'section' => 'hardware'])],
                 ]],
@@ -340,12 +342,12 @@
                 'settings' => 'settings paramètres parametres configuration setup preferences préférences timezone time zone fuseau horaire language langue thème theme modules app mode hardware printer taxes units payment types إعدادات منطقة زمنية لغة ثيم طابعة',
             ];
             $commandAliases = [
-                'Point de vente' => 'pos caisse checkout encaisser sell sale barcode scan scanner ticket paiement payment cash carte card comptoir receipt reçu بيع صندوق ماسح دفع',
+                'Point de vente' => 'pos caisse encaisser barcode scan scanner ticket paiement payment cash carte card comptoir checkout sell sale receipt reçu بيع صندوق ماسح دفع',
                 'Ajouter une vente' => 'vente manuelle manual sale invoice facture client customer paiement payment',
                 'Liste des ventes' => 'ticket facture invoice historique history refund remboursement retour return paiement serial number numéro série',
                 'Paiements des ventes' => 'encaissement payment payments cash carte card virement advance avance reçu receipt',
                 'Liste de livraison' => 'delivery deliveries bl bon livraison dispatch expédition shipping',
-                'Ajouter un article' => 'item article product produit livre book isbn barcode code barre stock prix price catalogue create add إضافة منتج كتاب',
+                'Ajouter un article' => 'item produit livre isbn article product book barcode code barre stock prix price catalogue create add إضافة منتج كتاب',
                 'Liste d\'articles' => 'items articles products produits books livres services catalogue search recherche filtre filter export datatable قائمة منتجات',
                 'Ajouter un service' => 'service prestation non physical sans stock frais membership abonnement create add خدمة',
                 'Services d\'importation' => 'import imports excel csv spreadsheet upload migration mylibrairie articles services bulk رفع استيراد',
@@ -355,11 +357,11 @@
                 'Liste des variantes' => 'variant variants variante variantes attribut attribute format taille size couleur color edition édition خيارات',
                 'Liste des unités' => 'unit units unite unité mesure measure piece pièce pack boite boîte وحدات قياس',
                 'Liste des impôts' => 'tax taxes taxe taxes tva vat fiscal impôt impot no tva sans tva ضريبة',
-                'Ajouter ajustement' => 'stock correction adjustment inventaire quantité rupture manual add تعديل مخزون',
+                'Ajouter ajustement' => 'stock correction inventaire adjustment quantité rupture manual add تعديل مخزون',
                 'Liste d\'ajustement' => 'historique history stock inventory inventaire correction adjustment movements mouvements',
                 'Ajouter transfert' => 'stock transfer transfert warehouse magasin depot dépôt move déplacer',
                 'Liste de transfert' => 'transfert transfer stock suivi depot dépôt magasin warehouse',
-                'Stock' => 'stock inventory inventaire rupture alerte quantité quantity adjustment transfer movement mouvement history valeur value volume مخزون',
+                'Stock' => 'stock inventaire rupture alerte quantité quantity inventory adjustment transfer movement mouvement history valeur value volume مخزون',
                 'Ajouter un client' => 'customer client contact crm téléphone phone cin add create زبون عميل',
                 'Liste des clients' => 'contacts clients customers crm solde balance avance crédit credit export قائمة عملاء',
                 'Ajouter un fournisseur' => 'supplier fournisseur vendor achat purchase ice rc add create مورد',
@@ -745,7 +747,9 @@
                                 </div>
                             @endif
                             <a href="{{ route('profile') }}" class="mt-2 block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Mon profil') }}</a>
-                            <a href="{{ route('profile.activity') }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr("Journal d'activité") }}</a>
+                            @if ($isOwner)
+                                <a href="{{ route('profile.activity') }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr("Journal d'activité") }}</a>
+                            @endif
                                     <a href="{{ route('module', ['module' => 'settings', 'section' => 'users']) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Utilisateurs & rôles') }}</a>
                                     <button class="app-theme-toggle w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="button">
                                         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>

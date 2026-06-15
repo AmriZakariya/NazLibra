@@ -19,11 +19,14 @@ use App\Models\FinancialAccount;
 use App\Models\Estimate;
 use App\Models\Invoice;
 use App\Models\Item;
+use App\Models\ItemLocationStock;
 use App\Models\ItemVariant;
 use App\Models\Loan;
+use App\Models\Location;
 use App\Models\PosTicket;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
+use App\Models\PurchasePayment;
 use App\Models\PurchaseReturn;
 use App\Models\Quotation;
 use App\Models\Role;
@@ -33,6 +36,8 @@ use App\Models\SaleItem;
 use App\Models\SalePayment;
 use App\Models\SaleReturn;
 use App\Models\StockAdjustment;
+use App\Models\Stocktake;
+use App\Models\StocktakeItem;
 use App\Models\StockTransfer;
 use App\Models\Tax;
 use App\Models\Tenant;
@@ -628,6 +633,7 @@ class LibraireProController extends Controller
             ->withQueryString();
         $stockAdjustments = $this->stockAdjustmentsQuery($tenant, $request)->paginate($perPage, ['*'], 'adjustments_page')->withQueryString();
         $stockTransfers = $this->stockTransfersQuery($tenant, $request)->paginate($perPage, ['*'], 'transfers_page')->withQueryString();
+        $stocktakes = $this->stocktakesQuery($tenant, $request)->paginate($perPage, ['*'], 'stocktakes_page')->withQueryString();
         $stockMovementsQuery = DB::table('stock_movements')
             ->join('items', 'stock_movements.item_id', '=', 'items.id')
             ->leftJoin('users', 'stock_movements.user_id', '=', 'users.id')
@@ -757,6 +763,8 @@ class LibraireProController extends Controller
                 ->get(),
             'stockAdjustments' => $stockAdjustments,
             'stockTransfers' => $stockTransfers,
+            'stocktakes' => $stocktakes,
+            'locations' => Location::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('name')->get(),
             'stockInventoryItems' => $stockInventoryItems,
             'stockInventoryQuery' => $stockInventoryQuery,
             'stockInventoryState' => $stockInventoryState,
@@ -914,7 +922,9 @@ class LibraireProController extends Controller
 
         try {
             $adjustment = DB::transaction(function () use ($tenant, $data): StockAdjustment {
-                $lines = [];
+                $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+                $locationId = $inventoryService->locationIdFromName($tenant->id, $data['warehouse'] ?? null);
+                $pendingLines = [];
                 $totalQuantity = 0;
 
                 foreach ($data['items'] as $line) {
@@ -937,27 +947,23 @@ class LibraireProController extends Controller
                     };
                     $delta = $after - $before;
 
-                    $item->update([
-                        'stock_quantity' => $after,
-                        'status' => $after <= 0 ? 'out_of_stock' : ($item->status === 'out_of_stock' ? 'active' : $item->status),
-                    ]);
+                    if ($delta === 0) {
+                        continue;
+                    }
 
-                    $lines[] = [
-                        'item_id' => $item->id,
-                        'item_code' => $item->item_code,
-                        'name' => $item->title,
-                        'barcode' => $item->barcode,
+                    $pendingLines[] = [
+                        'item' => $item,
                         'direction' => $direction,
                         'quantity' => $quantity,
-                        'quantity_before' => $before,
-                        'quantity_after' => $after,
-                        'quantity_delta' => $delta,
+                        'before' => $before,
+                        'after' => $after,
+                        'delta' => $delta,
                         'note' => $line['note'] ?? null,
                     ];
                     $totalQuantity += abs($delta);
                 }
 
-                if ($lines === []) {
+                if ($pendingLines === []) {
                     throw new \RuntimeException('Ajoutez au moins une ligne avec une quantité positive.');
                 }
 
@@ -968,22 +974,43 @@ class LibraireProController extends Controller
                     'warehouse' => $data['warehouse'] ?? null,
                     'reason' => $data['reason'] ?? null,
                     'total_quantity' => $totalQuantity,
-                    'lines' => $lines,
+                    'lines' => collect($pendingLines)->map(fn (array $line) => [
+                        'item_id' => $line['item']->id,
+                        'item_code' => $line['item']->item_code,
+                        'name' => $line['item']->title,
+                        'barcode' => $line['item']->barcode,
+                        'direction' => $line['direction'],
+                        'quantity' => $line['quantity'],
+                        'quantity_before' => $line['before'],
+                        'quantity_after' => $line['after'],
+                        'quantity_delta' => $line['delta'],
+                        'note' => $line['note'],
+                    ])->all(),
                     'note' => $data['note'] ?? null,
                     'adjusted_at' => $data['adjusted_at'] ?? now(),
                 ]);
 
-                foreach ($lines as $line) {
-                    $this->recordStockMovementSnapshot(
-                        $tenant,
-                        (int) $line['item_id'],
-                        'adjustment',
-                        (int) $line['quantity_delta'],
-                        (int) $line['quantity_after'],
-                        StockAdjustment::class,
-                        $adjustment->id,
-                        trim(($data['reason'] ?? 'Ajustement stock').' '.($line['note'] ?? ''))
-                    );
+                foreach ($pendingLines as $line) {
+                    $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                        tenantId: $tenant->id,
+                        itemId: $line['item']->id,
+                        variantId: null,
+                        locationId: $locationId,
+                        type: $line['direction'] === 'set'
+                            ? \App\Services\Inventory\InventoryMovementType::CORRECTION
+                            : \App\Services\Inventory\InventoryMovementType::ADJUSTMENT,
+                        quantityChanged: $line['delta'],
+                        referenceType: StockAdjustment::class,
+                        referenceId: $adjustment->id,
+                        referenceNumber: $adjustment->number,
+                        note: trim(($data['reason'] ?? 'Ajustement stock').' '.($line['note'] ?? '')),
+                        reason: $data['reason'] ?? null,
+                    ));
+
+                    $line['item']->update([
+                        'stock_quantity' => $line['after'],
+                        'status' => $line['after'] <= 0 ? 'out_of_stock' : ($line['item']->status === 'out_of_stock' ? 'active' : $line['item']->status),
+                    ]);
                 }
 
                 return $adjustment;
@@ -1101,7 +1128,14 @@ class LibraireProController extends Controller
 
         try {
             $transfer = DB::transaction(function () use ($tenant, $data): StockTransfer {
-                $lines = [];
+                $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+                $sourceName = $data['store_from'] ?? $data['warehouse_from'] ?? null;
+                $destinationName = $data['store_to'] ?? $data['warehouse_to'] ?? null;
+                $sourceLocationId = $inventoryService->locationIdFromName($tenant->id, $sourceName);
+                $destinationLocationId = $inventoryService->locationIdFromName($tenant->id, $destinationName);
+
+                $moveStock = $sourceLocationId !== $destinationLocationId;
+                $pendingLines = [];
                 $totalQuantity = 0;
 
                 foreach ($data['items'] as $line) {
@@ -1115,23 +1149,26 @@ class LibraireProController extends Controller
                         ->findOrFail((int) $line['item_id']);
 
                     $quantity = (int) $line['quantity'];
-                    if ((int) $item->stock_quantity < $quantity) {
+
+                    if ($moveStock) {
+                        $availableAtSource = $inventoryService->available($tenant->id, $item->id, null, $sourceLocationId);
+
+                        if ($availableAtSource < $quantity) {
+                            throw new \RuntimeException('Stock insuffisant pour '.$item->title.' à l\'emplacement source. Disponible: '.$availableAtSource.'.');
+                        }
+                    } elseif ((int) $item->stock_quantity < $quantity) {
                         throw new \RuntimeException('Stock insuffisant pour '.$item->title.'. Disponible: '.$item->stock_quantity.'.');
                     }
 
-                    $lines[] = [
-                        'item_id' => $item->id,
-                        'item_code' => $item->item_code,
-                        'name' => $item->title,
-                        'barcode' => $item->barcode,
+                    $pendingLines[] = [
+                        'item' => $item,
                         'quantity' => $quantity,
-                        'available_stock' => (int) $item->stock_quantity,
                         'note' => $line['note'] ?? null,
                     ];
                     $totalQuantity += $quantity;
                 }
 
-                if ($lines === []) {
+                if ($pendingLines === []) {
                     throw new \RuntimeException('Ajoutez au moins une ligne de transfert.');
                 }
 
@@ -1144,13 +1181,53 @@ class LibraireProController extends Controller
                     'store_to' => $data['store_to'] ?? null,
                     'warehouse_to' => $data['warehouse_to'] ?? null,
                     'total_quantity' => $totalQuantity,
-                    'lines' => $lines,
+                    'lines' => collect($pendingLines)->map(fn (array $line) => [
+                        'item_id' => $line['item']->id,
+                        'item_code' => $line['item']->item_code,
+                        'name' => $line['item']->title,
+                        'barcode' => $line['item']->barcode,
+                        'quantity' => $line['quantity'],
+                        'available_stock' => (int) $line['item']->stock_quantity,
+                        'note' => $line['note'],
+                    ])->all(),
                     'note' => $data['note'] ?? null,
                     'transferred_at' => $data['transferred_at'] ?? now(),
                 ]);
 
-                foreach ($lines as $line) {
-                    $this->recordStockMovementSnapshot($tenant, (int) $line['item_id'], 'transfer', 0, (int) $line['available_stock'], StockTransfer::class, $transfer->id, 'Transfert stock '.$transfer->number);
+                if ($moveStock) {
+                    foreach ($pendingLines as $line) {
+                        $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                            tenantId: $tenant->id,
+                            itemId: $line['item']->id,
+                            variantId: null,
+                            locationId: $sourceLocationId,
+                            type: \App\Services\Inventory\InventoryMovementType::TRANSFER_OUT,
+                            quantityChanged: $line['quantity'],
+                            referenceType: StockTransfer::class,
+                            referenceId: $transfer->id,
+                            referenceNumber: $transfer->number,
+                            note: 'Transfert stock '.$transfer->number.($line['note'] ? ' · '.$line['note'] : ''),
+                            reason: 'Transfert vers '.($destinationName ?: 'destination'),
+                        ));
+
+                        $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                            tenantId: $tenant->id,
+                            itemId: $line['item']->id,
+                            variantId: null,
+                            locationId: $destinationLocationId,
+                            type: \App\Services\Inventory\InventoryMovementType::TRANSFER_IN,
+                            quantityChanged: $line['quantity'],
+                            referenceType: StockTransfer::class,
+                            referenceId: $transfer->id,
+                            referenceNumber: $transfer->number,
+                            note: 'Transfert stock '.$transfer->number.($line['note'] ? ' · '.$line['note'] : ''),
+                            reason: 'Transfert depuis '.($sourceName ?: 'source'),
+                        ));
+                    }
+                } else {
+                    foreach ($pendingLines as $line) {
+                        $this->recordStockMovementSnapshot($tenant, (int) $line['item']->id, 'transfer', 0, (int) $line['item']->stock_quantity, StockTransfer::class, $transfer->id, 'Transfert stock '.$transfer->number);
+                    }
                 }
 
                 return $transfer;
@@ -1162,6 +1239,158 @@ class LibraireProController extends Controller
         return redirect()
             ->route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $transfer->id])
             ->with('status', 'Transfert '.$transfer->number.' enregistré.');
+    }
+
+    public function storeStocktake(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $request->validate([
+            'location_id' => ['required', 'integer', Rule::exists('locations', 'id')->where('tenant_id', $tenant->id)->where('is_active', true)],
+            'note' => ['nullable', 'string', 'max:700'],
+            'items' => ['nullable', 'array'],
+            'items.*.item_id' => ['nullable', 'integer', Rule::exists('items', 'id')->where('tenant_id', $tenant->id)],
+            'items.*.counted_quantity' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $stocktake = DB::transaction(function () use ($tenant, $data): Stocktake {
+            $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+            $locationId = (int) $data['location_id'];
+
+            $stocktake = Stocktake::create([
+                'tenant_id' => $tenant->id,
+                'location_id' => $locationId,
+                'user_id' => auth()->id(),
+                'number' => $this->nextStocktakeNumber($tenant),
+                'status' => 'in_progress',
+                'note' => $data['note'] ?? null,
+                'started_at' => now(),
+                'metadata' => $this->creationActorMetadata(),
+            ]);
+
+            foreach ($data['items'] ?? [] as $line) {
+                $itemId = (int) ($line['item_id'] ?? 0);
+                if ($itemId <= 0) {
+                    continue;
+                }
+
+                $expected = $inventoryService->quantity($tenant->id, $itemId, null, $locationId);
+                StocktakeItem::create([
+                    'tenant_id' => $tenant->id,
+                    'stocktake_id' => $stocktake->id,
+                    'item_id' => $itemId,
+                    'expected_quantity' => $expected,
+                    'counted_quantity' => isset($line['counted_quantity']) ? max(0, (int) $line['counted_quantity']) : null,
+                ]);
+            }
+
+            return $stocktake;
+        });
+
+        return redirect()
+            ->route('stock', ['panel' => 'stocktakes', 'detail_stocktake' => $stocktake->id])
+            ->with('status', 'Inventaire '.$stocktake->number.' créé.');
+    }
+
+    public function updateStocktake(Request $request, Stocktake $stocktake): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless($stocktake->tenant_id === $tenant->id, 404);
+        abort_unless(in_array($stocktake->status, ['draft', 'in_progress'], true), 403);
+
+        $data = $request->validate([
+            'counts' => ['required', 'array'],
+            'counts.*' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        DB::transaction(function () use ($stocktake, $tenant, $data): void {
+            $stocktake = Stocktake::where('tenant_id', $tenant->id)->whereKey($stocktake->id)->lockForUpdate()->firstOrFail();
+            abort_unless(in_array($stocktake->status, ['draft', 'in_progress'], true), 403);
+
+            foreach ($data['counts'] as $itemId => $count) {
+                $stocktakeItem = StocktakeItem::where('tenant_id', $tenant->id)
+                    ->where('stocktake_id', $stocktake->id)
+                    ->whereKey((int) $itemId)
+                    ->first();
+
+                if ($stocktakeItem) {
+                    $stocktakeItem->update(['counted_quantity' => $count]);
+                }
+            }
+        });
+
+        return back()->with('status', 'Comptage mis à jour.');
+    }
+
+    public function completeStocktake(Request $request, Stocktake $stocktake): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless($stocktake->tenant_id === $tenant->id, 404);
+        abort_unless(in_array($stocktake->status, ['draft', 'in_progress'], true), 403);
+
+        $idempotencyKey = $this->idempotencyKey($request);
+        $batchKey = 'stocktake-complete-'.$stocktake->id.'-'.sha1($idempotencyKey);
+
+        $stocktake = DB::transaction(function () use ($stocktake, $tenant, $batchKey): Stocktake {
+            $existing = \App\Models\InventoryMovement::query()
+                ->where('idempotency_key', $batchKey)
+                ->where('tenant_id', $tenant->id)
+                ->first();
+
+            if ($existing) {
+                return $stocktake;
+            }
+
+            $stocktake = Stocktake::where('tenant_id', $tenant->id)->whereKey($stocktake->id)->lockForUpdate()->firstOrFail();
+            abort_unless(in_array($stocktake->status, ['draft', 'in_progress'], true), 403);
+
+            $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+            $locationId = $stocktake->location_id;
+
+            foreach ($stocktake->items as $line) {
+                if ($line->counted_quantity === null || ! $line->item || $line->item->type === 'service') {
+                    continue;
+                }
+
+                $difference = $line->difference();
+                if ($difference === 0) {
+                    continue;
+                }
+
+                $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                    tenantId: $tenant->id,
+                    itemId: $line->item->id,
+                    variantId: $line->variant_id,
+                    locationId: $locationId,
+                    type: \App\Services\Inventory\InventoryMovementType::STOCKTAKE,
+                    quantityChanged: $difference,
+                    referenceType: Stocktake::class,
+                    referenceId: $stocktake->id,
+                    referenceNumber: $stocktake->number,
+                    note: 'Inventaire '.$stocktake->number,
+                    idempotencyKey: $batchKey.'-item-'.$line->id,
+                ));
+
+                $line->item->increment('stock_quantity', $difference);
+            }
+
+            $metadata = array_merge($stocktake->metadata ?? [], $this->actorMetadata('updated'), [
+                'completed_by' => auth()->id(),
+                'completed_by_name' => auth()->user()?->name,
+                'completed_by_at' => now()->toIso8601String(),
+            ]);
+
+            $stocktake->update([
+                'status' => 'completed',
+                'completed_at' => now(),
+                'metadata' => $metadata,
+            ]);
+
+            return $stocktake;
+        });
+
+        return redirect()
+            ->route('stock', ['panel' => 'stocktakes', 'detail_stocktake' => $stocktake->id])
+            ->with('status', 'Inventaire '.$stocktake->number.' terminé.');
     }
 
     public function contactsData(Request $request): \Illuminate\Http\JsonResponse
@@ -1471,7 +1700,20 @@ class LibraireProController extends Controller
         $item = Item::create($data);
 
         if ($item->type !== 'service' && (int) $item->stock_quantity !== 0) {
-            $this->recordStockMovement($tenant, $item, 'opening_stock', (int) $item->stock_quantity, Item::class, $item->id, 'Stock initial article '.$item->item_code);
+            $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+            $locationId = $inventoryService->locationIdFromName($tenant->id, null);
+            $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                tenantId: $tenant->id,
+                itemId: $item->id,
+                variantId: null,
+                locationId: $locationId,
+                type: \App\Services\Inventory\InventoryMovementType::OPENING_STOCK,
+                quantityChanged: (int) $item->stock_quantity,
+                referenceType: Item::class,
+                referenceId: $item->id,
+                referenceNumber: $item->item_code,
+                note: 'Stock initial article '.$item->item_code,
+            ));
         }
 
         return back()->with('status', 'Article ajouté au catalogue.');
@@ -1490,7 +1732,20 @@ class LibraireProController extends Controller
         $item->refresh();
 
         if ($beforeType !== 'service' && $item->type !== 'service' && $beforeStock !== (int) $item->stock_quantity) {
-            $this->recordStockMovement($tenant, $item, 'item_update', (int) $item->stock_quantity - $beforeStock, Item::class, $item->id, 'Modification fiche article '.$item->item_code);
+            $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+            $locationId = $inventoryService->locationIdFromName($tenant->id, null);
+            $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                tenantId: $tenant->id,
+                itemId: $item->id,
+                variantId: null,
+                locationId: $locationId,
+                type: \App\Services\Inventory\InventoryMovementType::ITEM_UPDATE,
+                quantityChanged: (int) $item->stock_quantity - $beforeStock,
+                referenceType: Item::class,
+                referenceId: $item->id,
+                referenceNumber: $item->item_code,
+                note: 'Modification fiche article '.$item->item_code,
+            ));
         }
 
         return back()->with('status', 'Article mis à jour.');
@@ -3297,8 +3552,18 @@ class LibraireProController extends Controller
             ->values()
             ->all();
 
+            $idempotencyKey = $this->idempotencyKey($request);
+
         try {
-            $sale = DB::transaction(function () use ($tenant, $data, $lineItems, $discountInput, $payments, $selectedPaymentMethods, $priceEditable, $allowOversell) {
+            $sale = DB::transaction(function () use ($tenant, $data, $lineItems, $discountInput, $payments, $selectedPaymentMethods, $priceEditable, $allowOversell, $idempotencyKey) {
+                $existing = $this->findByIdempotencyKey(Sale::class, $tenant->id, $idempotencyKey);
+                if ($existing instanceof Sale) {
+                    return $existing;
+                }
+
+                $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+                $saleLocationId = $inventoryService->locationIdFromName($tenant->id, null);
+
                 $contact = null;
                 if (! empty($data['contact_id'])) {
                     $contact = Contact::where('tenant_id', $tenant->id)->whereKey($data['contact_id'])->lockForUpdate()->firstOrFail();
@@ -3334,6 +3599,7 @@ class LibraireProController extends Controller
                     $catalogPrice = (float) $item->sale_price;
                     $unitPrice = $priceEditable && $line['unit_price'] !== null ? (float) $line['unit_price'] : $catalogPrice;
                     $lineTotal = round($unitPrice * $line['quantity'], 2);
+                    $averageCost = $item->type !== 'service' ? $this->locationAverageCost($tenant->id, $item->id, null, $saleLocationId) : 0.0;
                     $subtotal += $lineTotal;
                     $saleLines[] = [
                         'item' => $item,
@@ -3343,8 +3609,12 @@ class LibraireProController extends Controller
                         'total_price' => $lineTotal,
                         'note' => $line['note'],
                         'price_overridden' => abs($unitPrice - $catalogPrice) > 0.001,
+                        'average_cost' => $averageCost,
+                        'cogs' => round($averageCost * $line['quantity'], 4),
                     ];
                 }
+
+                $totalCogs = collect($saleLines)->sum(fn (array $line) => $line['cogs']);
 
                 $couponDetail = $this->couponDiscountForSubtotal($tenant, $data['coupon_code'] ?? null, $subtotal, $contact);
                 $afterCoupon = max(0, $subtotal - $couponDetail['amount']);
@@ -3389,6 +3659,7 @@ class LibraireProController extends Controller
                     'tax_amount' => round($total * 0.2 / 1.2, 2),
                     'total_amount' => $total,
                     'sold_at' => $soldAt,
+                    'idempotency_key' => $idempotencyKey,
                     'metadata' => [
                         ...$this->creationActorMetadata(),
                         'reference_number' => $saleReference,
@@ -3409,8 +3680,14 @@ class LibraireProController extends Controller
                             'catalog_price' => $line['catalog_price'],
                             'unit_price' => $line['unit_price'],
                             'price_overridden' => $line['price_overridden'],
+                            'average_cost' => $line['average_cost'],
+                            'cogs' => $line['cogs'],
                             'note' => $line['note'],
                         ])->values()->all(),
+                        'cogs' => [
+                            'total' => round($totalCogs, 4),
+                            'currency' => 'MAD',
+                        ],
                         'discount' => [
                             'amount' => $discount,
                             'manual' => $manualDiscountDetail,
@@ -3433,10 +3710,24 @@ class LibraireProController extends Controller
                     ]);
 
                     if ($line['item']->type !== 'service') {
+                        $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                            tenantId: $tenant->id,
+                            itemId: $line['item']->id,
+                            variantId: null,
+                            locationId: $saleLocationId,
+                            type: \App\Services\Inventory\InventoryMovementType::SALE,
+                            quantityChanged: -$line['quantity'],
+                            unitCost: null,
+                            allowNegative: $allowOversell,
+                            referenceType: Sale::class,
+                            referenceId: $sale->id,
+                            referenceNumber: $sale->number,
+                            note: 'Vente '.$sale->number,
+                        ));
+
                         $line['item']->decrement('stock_quantity', $line['quantity']);
                         $line['item']->refresh();
-                        $this->recordStockMovement($tenant, $line['item'], 'sale', -$line['quantity'], Sale::class, $sale->id, 'Vente '.$sale->number);
-                        if (! $allowOversell && $line['item']->fresh()->stock_quantity <= 0) {
+                        if (! $allowOversell && $line['item']->stock_quantity <= 0) {
                             $line['item']->update(['status' => 'out_of_stock']);
                         }
                     }
@@ -3686,8 +3977,18 @@ class LibraireProController extends Controller
             'advance' => round((float) ($data['advance_amount'] ?? 0), 2),
         ];
 
+        $idempotencyKey = $this->idempotencyKey($request);
+
         try {
-            $sale = DB::transaction(function () use ($tenant, $data, $lines, $payments, $allowOversell): Sale {
+            $sale = DB::transaction(function () use ($tenant, $data, $lines, $payments, $allowOversell, $idempotencyKey): Sale {
+                $existing = $this->findByIdempotencyKey(Sale::class, $tenant->id, $idempotencyKey);
+                if ($existing instanceof Sale) {
+                    return $existing;
+                }
+
+                $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+                $saleLocationId = $inventoryService->locationIdFromName($tenant->id, null);
+
                 $contact = null;
                 if (! empty($data['contact_id'])) {
                     $contact = Contact::where('tenant_id', $tenant->id)->whereKey($data['contact_id'])->lockForUpdate()->firstOrFail();
@@ -3731,6 +4032,7 @@ class LibraireProController extends Controller
                     $lineDiscount = min($line['discount_amount'], $grossLine);
                     $netLine = max(0, round($grossLine - $lineDiscount, 2));
                     $lineTax = $line['tax_rate'] > 0 ? round($netLine * $line['tax_rate'] / (100 + $line['tax_rate']), 2) : 0.0;
+                    $averageCost = $item->type !== 'service' ? $this->locationAverageCost($tenant->id, $item->id, null, $saleLocationId) : 0.0;
 
                     $subtotal += $grossLine;
                     $lineDiscountTotal += $lineDiscount;
@@ -3745,12 +4047,15 @@ class LibraireProController extends Controller
                         'tax_amount' => $lineTax,
                         'total_price' => $netLine,
                         'description' => $line['description'],
+                        'average_cost' => $averageCost,
+                        'cogs' => round($averageCost * $line['quantity'], 4),
                     ];
                 }
 
                 $globalDiscount = min(round((float) ($data['discount_amount'] ?? 0), 2), max(0, $subtotal - $lineDiscountTotal));
                 $otherCharges = round((float) ($data['other_charges'] ?? 0), 2);
                 $total = max(0, round($subtotal - $lineDiscountTotal - $globalDiscount + $otherCharges, 2));
+                $totalCogs = collect($saleLines)->sum(fn (array $line) => $line['cogs']);
                 $paid = min(round(array_sum($payments), 2), $total);
 
                 if ($data['sale_status'] === 'unpaid') {
@@ -3789,6 +4094,7 @@ class LibraireProController extends Controller
                     'tax_amount' => round($taxAmount, 2),
                     'total_amount' => $total,
                     'sold_at' => $soldAt,
+                    'idempotency_key' => $idempotencyKey,
                     'metadata' => [
                         ...$this->creationActorMetadata(),
                         'reference_number' => $data['reference_number'] ?? null,
@@ -3801,6 +4107,10 @@ class LibraireProController extends Controller
                         'payments' => $payments,
                         'delivery_address' => $data['delivery_address'] ?? null,
                         'delivery_note' => $data['delivery_note'] ?? null,
+                        'cogs' => [
+                            'total' => round($totalCogs, 4),
+                            'currency' => 'MAD',
+                        ],
                         'system_note' => $this->saleSystemNote($tenant, $saleNumber, 'manual_sale', $contact, count($saleLines), $total, $paymentMethod, $status, $soldAt, $data['reference_number'] ?? null),
                         'note' => $data['note'] ?? null,
                     ],
@@ -3816,11 +4126,42 @@ class LibraireProController extends Controller
                     ]);
 
                     if ($line['item']->type !== 'service') {
-                        $line['item']->decrement('stock_quantity', $line['quantity']);
-                        $line['item']->refresh();
-                        $this->recordStockMovement($tenant, $line['item'], 'sale', -$line['quantity'], Sale::class, $sale->id, 'Vente manuelle '.$sale->number);
-                        if (! $allowOversell && $line['item']->fresh()->stock_quantity <= 0) {
-                            $line['item']->update(['status' => 'out_of_stock']);
+                        $reserveStock = in_array($status, ['unpaid', 'partial'], true)
+                            && (bool) data_get($tenant->settings, 'pos.reserve_stock_for_unpaid_sales', false);
+
+                        if ($reserveStock) {
+                            $inventoryService->reserve(
+                                tenantId: $tenant->id,
+                                itemId: $line['item']->id,
+                                variantId: null,
+                                locationId: $saleLocationId,
+                                quantity: $line['quantity'],
+                                reason: 'Réservation vente '.$sale->number,
+                                idempotencyKey: 'sale-reserve-'.$sale->id.'-item-'.$line['item']->id,
+                                referenceType: Sale::class,
+                                referenceId: $sale->id,
+                            );
+                        } else {
+                            $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                                tenantId: $tenant->id,
+                                itemId: $line['item']->id,
+                                variantId: null,
+                                locationId: $saleLocationId,
+                                type: \App\Services\Inventory\InventoryMovementType::SALE,
+                                quantityChanged: -$line['quantity'],
+                                unitCost: null,
+                                allowNegative: $allowOversell,
+                                referenceType: Sale::class,
+                                referenceId: $sale->id,
+                                referenceNumber: $sale->number,
+                                note: 'Vente manuelle '.$sale->number,
+                            ));
+
+                            $line['item']->decrement('stock_quantity', $line['quantity']);
+                            $line['item']->refresh();
+                            if (! $allowOversell && $line['item']->fresh()->stock_quantity <= 0) {
+                                $line['item']->update(['status' => 'out_of_stock']);
+                            }
                         }
                     }
                 }
@@ -4149,16 +4490,27 @@ class LibraireProController extends Controller
             return back()->withErrors(['sale' => 'Cette vente est déjà clôturée.']);
         }
 
+        $idempotencyKey = $this->idempotencyKey($request);
+
         $data = $request->validate([
             'refund_method' => ['required', 'in:cash,card,transfer,credit'],
             'refund_reason' => ['nullable', 'string', 'max:500'],
             'restock' => ['nullable', 'boolean'],
         ]);
 
-        DB::transaction(function () use ($tenant, $sale, $data): void {
+        $sale = DB::transaction(function () use ($tenant, $sale, $data, $idempotencyKey): Sale {
+            $existing = $this->findByIdempotencyKey(SaleReturn::class, $tenant->id, $idempotencyKey);
+            if ($existing instanceof SaleReturn) {
+                return $sale;
+            }
+
+            $sale = Sale::where('tenant_id', $tenant->id)->whereKey($sale->id)->lockForUpdate()->firstOrFail();
+
+            $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+            $returnLocationId = $inventoryService->locationIdFromName($tenant->id, null);
+
             $sale->load('items');
             $lines = [];
-            $stockMovements = [];
 
             if ($data['restock'] ?? true) {
                 foreach ($sale->items as $line) {
@@ -4177,10 +4529,23 @@ class LibraireProController extends Controller
 
                     $item = Item::whereKey($line->item_id)->lockForUpdate()->first();
                     if ($item && $item->type !== 'service') {
+                        $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                            tenantId: $tenant->id,
+                            itemId: $item->id,
+                            variantId: null,
+                            locationId: $returnLocationId,
+                            type: \App\Services\Inventory\InventoryMovementType::RETURN,
+                            quantityChanged: (int) $line->quantity,
+                            unitCost: null,
+                            referenceType: SaleReturn::class,
+                            referenceId: null,
+                            referenceNumber: null,
+                            note: 'Retour vente · vente '.$sale->number,
+                        ));
+
                         $item->increment('stock_quantity', $line->quantity);
                         $item->refresh();
-                        $stockMovements[] = [$item->id, (int) $line->quantity, (int) $item->stock_quantity];
-                        if ($item->status === 'out_of_stock' && $item->fresh()->stock_quantity > 0) {
+                        if ($item->status === 'out_of_stock' && $item->stock_quantity > 0) {
                             $item->update(['status' => 'active']);
                         }
                     }
@@ -4209,11 +4574,19 @@ class LibraireProController extends Controller
                 'reason' => $data['refund_reason'] ?? null,
                 'restock' => (bool) ($data['restock'] ?? true),
                 'returned_at' => now(),
+                'idempotency_key' => $idempotencyKey,
             ]);
 
-            foreach ($stockMovements as [$itemId, $delta, $quantityAfter]) {
-                $this->recordStockMovementSnapshot($tenant, $itemId, 'return', $delta, $quantityAfter, SaleReturn::class, $saleReturn->id, 'Retour vente '.$saleReturn->number.' · vente '.$sale->number);
-            }
+            \App\Models\InventoryMovement::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('reference_type', SaleReturn::class)
+                ->whereNull('reference_id')
+                ->where('note', 'like', 'Retour vente · vente '.$sale->number.'%')
+                ->update([
+                    'reference_id' => $saleReturn->id,
+                    'reference_number' => $saleReturn->number,
+                    'updated_at' => now(),
+                ]);
 
             $metadata = $sale->metadata ?? [];
             $metadata['refund'] = [
@@ -4232,6 +4605,8 @@ class LibraireProController extends Controller
                 'metadata' => $metadata,
             ]);
             $this->syncSaleInvoiceStatus($sale->fresh('invoice'));
+
+            return $sale;
         });
 
         return back()->with('status', 'Vente '.$sale->number.' remboursée.');
@@ -4249,7 +4624,14 @@ class LibraireProController extends Controller
             'note' => ['nullable', 'string', 'max:500'],
         ]);
 
-        DB::transaction(function () use ($tenant, $data): void {
+        $idempotencyKey = $this->idempotencyKey($request);
+
+        DB::transaction(function () use ($tenant, $data, $idempotencyKey): void {
+            $existing = $this->findByIdempotencyKey(SalePayment::class, $tenant->id, $idempotencyKey);
+            if ($existing instanceof SalePayment) {
+                return;
+            }
+
             $sale = Sale::where('tenant_id', $tenant->id)->whereKey($data['sale_id'])->lockForUpdate()->firstOrFail();
             if (in_array($sale->status, ['paid', 'refunded', 'cancelled'], true)) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
@@ -4285,7 +4667,60 @@ class LibraireProController extends Controller
                 'paid_at' => ! empty($data['paid_at']) ? Carbon::parse($data['paid_at']) : now(),
                 'reference' => $data['reference'] ?? null,
                 'note' => $data['note'] ?? null,
+                'idempotency_key' => $idempotencyKey,
             ]);
+
+            $newStatus = $this->salePaymentStatus($sale, min((float) $sale->total_amount, round($paidBefore + $amount, 2)));
+
+            // Convert reservations into actual stock deductions when the sale is fully paid.
+            if ($newStatus === 'paid' && (bool) data_get($tenant->settings, 'pos.reserve_stock_for_unpaid_sales', false)) {
+                $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+                $saleLocationId = $inventoryService->locationIdFromName($tenant->id, null);
+                $reservations = \App\Models\InventoryMovement::query()
+                    ->where('tenant_id', $tenant->id)
+                    ->where('reference_type', Sale::class)
+                    ->where('reference_id', $sale->id)
+                    ->where('type', \App\Services\Inventory\InventoryMovementType::RESERVATION)
+                    ->get();
+
+                foreach ($reservations as $reservation) {
+                    $inventoryService->releaseReservation(
+                        tenantId: $tenant->id,
+                        itemId: $reservation->item_id,
+                        variantId: $reservation->variant_id,
+                        locationId: $reservation->location_id,
+                        quantity: abs((int) $reservation->quantity_delta),
+                        reason: 'Libération réservation vente '.$sale->number,
+                        idempotencyKey: 'sale-release-'.$sale->id.'-item-'.$reservation->item_id,
+                        referenceType: Sale::class,
+                        referenceId: $sale->id,
+                    );
+
+                    $item = Item::whereKey($reservation->item_id)->lockForUpdate()->first();
+                    if ($item && $item->type !== 'service') {
+                        $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                            tenantId: $tenant->id,
+                            itemId: $item->id,
+                            variantId: $reservation->variant_id,
+                            locationId: $reservation->location_id,
+                            type: \App\Services\Inventory\InventoryMovementType::SALE,
+                            quantityChanged: -abs((int) $reservation->quantity_delta),
+                            unitCost: null,
+                            allowNegative: (bool) data_get($tenant->settings, 'pos.allow_oversell', false),
+                            referenceType: Sale::class,
+                            referenceId: $sale->id,
+                            referenceNumber: $sale->number,
+                            note: 'Vente manuelle '.$sale->number,
+                        ));
+
+                        $item->decrement('stock_quantity', abs((int) $reservation->quantity_delta));
+                        $item->refresh();
+                        if ($item->stock_quantity <= 0) {
+                            $item->update(['status' => 'out_of_stock']);
+                        }
+                    }
+                }
+            }
 
             $metadata = $sale->metadata ?? [];
             $metadata['paid_amount'] = min((float) $sale->total_amount, round($paidBefore + $amount, 2));
@@ -4298,7 +4733,7 @@ class LibraireProController extends Controller
             ];
             $metadata = array_merge($metadata, $this->actorMetadata('updated'));
             $sale->update([
-                'status' => $this->salePaymentStatus($sale, (float) $metadata['paid_amount']),
+                'status' => $newStatus,
                 'metadata' => $metadata,
             ]);
             $this->syncSaleInvoiceStatus($sale->fresh('invoice'));
@@ -4996,9 +5431,25 @@ class LibraireProController extends Controller
             return back()->withErrors(['items' => 'Ajoutez au moins un article à la commande.'])->withInput();
         }
 
-        $purchase = DB::transaction(function () use ($tenant, $data, $lines): Purchase {
+        $idempotencyKey = $this->idempotencyKey($request);
+
+        $purchase = DB::transaction(function () use ($tenant, $data, $lines, $idempotencyKey): Purchase {
+            $existing = $this->findByIdempotencyKey(Purchase::class, $tenant->id, $idempotencyKey);
+            if ($existing instanceof Purchase) {
+                return $existing;
+            }
+
+            $inventoryService = app(\App\Services\Inventory\InventoryService::class);
             $updateCostOnPurchase = (bool) data_get($tenant->settings, 'pos.update_cost_on_purchase', true);
             $receiveNow = $data['status'] === 'received';
+            $locationId = $inventoryService->locationIdFromName($tenant->id, $data['warehouse'] ?? null);
+
+            $supplier = Contact::where('tenant_id', $tenant->id)
+                ->where('kind', 'supplier')
+                ->whereKey($data['supplier_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $items = Item::where('tenant_id', $tenant->id)
                 ->whereIn('id', $lines->pluck('item_id'))
                 ->lockForUpdate()
@@ -5016,6 +5467,7 @@ class LibraireProController extends Controller
                 'ordered_at' => $data['ordered_at'] ?? now()->toDateString(),
                 'expected_at' => $data['expected_at'] ?? null,
                 'received_at' => $receiveNow ? now()->toDateString() : null,
+                'idempotency_key' => $idempotencyKey,
                 'metadata' => [
                     ...$this->creationActorMetadata(),
                     'supplier_invoice' => $data['supplier_invoice'] ?? null,
@@ -5039,15 +5491,31 @@ class LibraireProController extends Controller
                 ]);
 
                 if ($receiveNow && $item->type !== 'service') {
+                    $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                        tenantId: $tenant->id,
+                        itemId: $item->id,
+                        variantId: null,
+                        locationId: $locationId,
+                        type: \App\Services\Inventory\InventoryMovementType::PURCHASE,
+                        quantityChanged: $line['quantity'],
+                        unitCost: $line['unit_cost'],
+                        referenceType: Purchase::class,
+                        referenceId: $purchase->id,
+                        referenceNumber: $purchase->number,
+                        note: 'Achat '.$purchase->number,
+                    ));
+
                     $item->increment('stock_quantity', $line['quantity']);
                     $item->update(array_filter([
                         'purchase_price' => $updateCostOnPurchase ? $line['unit_cost'] : null,
                         'status' => 'active',
                     ], fn ($value) => $value !== null));
-                    $item->refresh();
-                    $this->recordStockMovement($tenant, $item, 'purchase', $line['quantity'], Purchase::class, $purchase->id, 'Achat '.$purchase->number);
+
+                    $this->updateLocationCost($tenant->id, $item->id, null, $locationId, $line['unit_cost'], $line['quantity']);
                 }
             }
+
+            $supplier->increment('outstanding_balance', $purchase->total_amount);
 
             return $purchase;
         });
@@ -5057,46 +5525,187 @@ class LibraireProController extends Controller
             ->with('status', 'Achat '.$purchase->number.' enregistré.');
     }
 
-    public function receivePurchase(Purchase $purchase): RedirectResponse
+    public function receivePurchase(Request $request, Purchase $purchase): RedirectResponse
     {
         $tenant = $this->tenant();
         abort_unless($purchase->tenant_id === $tenant->id, 404);
 
-        DB::transaction(function () use ($purchase, $tenant): void {
+        $data = $request->validate([
+            'received_at' => ['nullable', 'date'],
+            'quantities' => ['nullable', 'array'],
+            'quantities.*' => ['nullable', 'integer', 'min:0'],
+            '_idempotency_key' => ['nullable', 'string', 'max:64'],
+        ]);
+
+        $batchKey = trim((string) ($data['_idempotency_key'] ?? ''));
+        if ($batchKey === '') {
+            // Fallback key depends on the actual quantities so that different receipt
+            // batches are processed, while an identical resubmit is ignored.
+            $batchKey = $request->method().$request->url().$request->ip().serialize($request->only('quantities', 'received_at'));
+        }
+        $batchKey = 'purchase-receive-'.$purchase->id.'-'.sha1($batchKey);
+
+        $receivedAt = ! empty($data['received_at']) ? Carbon::parse($data['received_at'])->toDateString() : now()->toDateString();
+        $requestedQuantities = collect($data['quantities'] ?? [])
+            ->map(fn ($value, $key) => [(int) $key, max(0, (int) $value)])
+            ->filter(fn ($pair) => $pair[0] > 0)
+            ->mapWithKeys(fn ($pair) => [$pair[0] => $pair[1]]);
+
+        $receipt = DB::transaction(function () use ($purchase, $tenant, $requestedQuantities, $receivedAt, $batchKey): array {
+            $inventoryService = app(\App\Services\Inventory\InventoryService::class);
             $updateCostOnPurchase = (bool) data_get($tenant->settings, 'pos.update_cost_on_purchase', true);
+            $locationId = $inventoryService->locationIdFromName($tenant->id, data_get($purchase->metadata, 'warehouse'));
+
+            $metadata = $purchase->metadata ?? [];
+            $receivedBatches = data_get($metadata, 'received_batches', []);
+            if (in_array($batchKey, $receivedBatches, true)) {
+                return ['purchase' => $purchase, 'received' => 0, 'skipped' => true];
+            }
+
+            $purchase = Purchase::where('tenant_id', $tenant->id)->whereKey($purchase->id)->lockForUpdate()->firstOrFail();
             $purchase->load('items.item');
+
+            $totalReceived = 0;
             foreach ($purchase->items as $line) {
-                $missing = max(0, $line->quantity_ordered - $line->quantity_received);
-                if ($missing <= 0 || ! $line->item) {
+                $remaining = max(0, $line->quantity_ordered - $line->quantity_received);
+                if ($remaining <= 0 || ! $line->item) {
+                    continue;
+                }
+
+                $requested = $requestedQuantities->get($line->id);
+                if ($requested === null) {
+                    // Backward compatibility: receive all remaining when no per-line input is supplied.
+                    $requested = $remaining;
+                }
+
+                $toReceive = min($requested, $remaining);
+                if ($toReceive <= 0) {
                     continue;
                 }
 
                 if ($line->item->type !== 'service') {
-                    $line->item->increment('stock_quantity', $missing);
+                    $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                        tenantId: $tenant->id,
+                        itemId: $line->item->id,
+                        variantId: null,
+                        locationId: $locationId,
+                        type: \App\Services\Inventory\InventoryMovementType::PURCHASE,
+                        quantityChanged: $toReceive,
+                        unitCost: $line->unit_cost,
+                        referenceType: Purchase::class,
+                        referenceId: $purchase->id,
+                        referenceNumber: $purchase->number,
+                        note: 'Réception achat '.$purchase->number,
+                        idempotencyKey: $batchKey.'-item-'.$line->id,
+                    ));
+
+                    $line->item->increment('stock_quantity', $toReceive);
                     $line->item->update(array_filter([
                         'purchase_price' => $updateCostOnPurchase ? $line->unit_cost : null,
                         'status' => 'active',
                     ], fn ($value) => $value !== null));
-                    $line->item->refresh();
-                    $this->recordStockMovement($tenant, $line->item, 'purchase', $missing, Purchase::class, $purchase->id, 'Réception achat '.$purchase->number);
+
+                    $this->updateLocationCost($tenant->id, $line->item->id, null, $locationId, $line->unit_cost, $toReceive);
                 }
-                $line->increment('quantity_received', $missing);
+                $line->increment('quantity_received', $toReceive);
+                $totalReceived += $toReceive;
             }
 
-            $metadata = array_merge($purchase->metadata ?? [], $this->actorMetadata('updated'), [
+            $orderedTotal = (int) $purchase->items->sum('quantity_ordered');
+            $receivedTotal = (int) $purchase->items->sum('quantity_received');
+            $newStatus = $receivedTotal >= $orderedTotal ? 'received' : 'partially_received';
+
+            $metadata = array_merge($metadata, $this->actorMetadata('updated'), [
                 'received_by' => auth()->id(),
                 'received_by_name' => auth()->user()?->name,
                 'received_by_at' => now()->toIso8601String(),
+                'received_batches' => array_merge($receivedBatches, [$batchKey]),
             ]);
 
             $purchase->update([
-                'status' => 'received',
-                'received_at' => now()->toDateString(),
+                'status' => $newStatus,
+                'received_at' => $receivedAt,
                 'metadata' => $metadata,
             ]);
+
+            return ['purchase' => $purchase, 'received' => $totalReceived, 'skipped' => false];
         });
 
-        return back()->with('status', 'Achat '.$purchase->number.' réceptionné.');
+        if ($receipt['skipped']) {
+            return back()->with('status', 'Cette réception a déjà été enregistrée.');
+        }
+
+        $message = $receipt['received'] > 0
+            ? 'Achat '.$receipt['purchase']->number.' : '.$receipt['received'].' unité(s) réceptionnée(s).'
+            : 'Achat '.$receipt['purchase']->number.' réceptionné.';
+
+        return back()->with('status', $message);
+    }
+
+    public function storePurchasePayment(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $request->validate([
+            'purchase_id' => ['required', 'integer', Rule::exists('purchases', 'id')->where('tenant_id', $tenant->id)],
+            'method' => ['required', 'in:cash,card,transfer,cheque,other'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'paid_at' => ['nullable', 'date'],
+            'reference' => ['nullable', 'string', 'max:160'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $idempotencyKey = $this->idempotencyKey($request);
+
+        DB::transaction(function () use ($tenant, $data, $idempotencyKey): void {
+            $existing = $this->findByIdempotencyKey(PurchasePayment::class, $tenant->id, $idempotencyKey);
+            if ($existing instanceof PurchasePayment) {
+                return;
+            }
+
+            $purchase = Purchase::where('tenant_id', $tenant->id)->whereKey($data['purchase_id'])->lockForUpdate()->firstOrFail();
+            abort_if(in_array($purchase->status, ['cancelled'], true), 403, 'Cet achat est annulé.');
+
+            $paidBefore = (float) $purchase->payments()->sum('amount');
+            $remaining = round((float) $purchase->total_amount - $paidBefore, 2);
+            $amount = round((float) $data['amount'], 2);
+
+            if ($amount > $remaining + 0.001) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'amount' => 'Le montant ne peut pas dépasser le reste à payer ('.number_format($remaining, 2, ',', ' ').' DH).',
+                ]);
+            }
+
+            PurchasePayment::create([
+                'tenant_id' => $tenant->id,
+                'purchase_id' => $purchase->id,
+                'supplier_id' => $purchase->supplier_id,
+                'user_id' => auth()->id(),
+                'number' => $this->nextPurchasePaymentNumber($tenant),
+                'method' => $data['method'],
+                'amount' => $amount,
+                'paid_at' => ! empty($data['paid_at']) ? Carbon::parse($data['paid_at']) : now(),
+                'reference' => $data['reference'] ?? null,
+                'note' => $data['note'] ?? null,
+                'idempotency_key' => $idempotencyKey,
+            ]);
+
+            $paidAfter = $paidBefore + $amount;
+            $paymentStatus = $paidAfter + 0.001 >= (float) $purchase->total_amount ? 'paid' : 'partial';
+            $metadata = array_merge($purchase->metadata ?? [], [
+                'payment_status' => $paymentStatus,
+                'paid_amount' => $paidAfter,
+            ]);
+
+            $purchase->update([
+                'metadata' => $metadata,
+            ]);
+
+            if ($purchase->supplier) {
+                $purchase->supplier->decrement('outstanding_balance', $amount);
+            }
+        });
+
+        return back()->with('status', 'Paiement fournisseur enregistré.');
     }
 
     public function storePurchaseReturn(Request $request): RedirectResponse
@@ -5125,8 +5734,17 @@ class LibraireProController extends Controller
             return back()->withErrors(['items' => 'Ajoutez au moins un article à retourner.'])->withInput();
         }
 
-        $return = DB::transaction(function () use ($tenant, $data, $lines): PurchaseReturn {
+        $idempotencyKey = $this->idempotencyKey($request);
+
+        $return = DB::transaction(function () use ($tenant, $data, $lines, $idempotencyKey): PurchaseReturn {
+            $existing = $this->findByIdempotencyKey(PurchaseReturn::class, $tenant->id, $idempotencyKey);
+            if ($existing instanceof PurchaseReturn) {
+                return $existing;
+            }
+
+            $inventoryService = app(\App\Services\Inventory\InventoryService::class);
             $purchase = Purchase::where('tenant_id', $tenant->id)->whereKey($data['purchase_id'])->lockForUpdate()->firstOrFail();
+            $locationId = $inventoryService->locationIdFromName($tenant->id, data_get($purchase->metadata, 'warehouse'));
             $items = Item::where('tenant_id', $tenant->id)
                 ->whereIn('id', $lines->pluck('item_id'))
                 ->lockForUpdate()
@@ -5134,7 +5752,6 @@ class LibraireProController extends Controller
                 ->keyBy('id');
 
             $payloadLines = [];
-            $stockMovements = [];
             $total = 0.0;
             foreach ($lines as $line) {
                 $item = $items->get($line['item_id']);
@@ -5153,9 +5770,21 @@ class LibraireProController extends Controller
                 ];
 
                 if ($item->type !== 'service') {
+                    $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                        tenantId: $tenant->id,
+                        itemId: $item->id,
+                        variantId: null,
+                        locationId: $locationId,
+                        type: \App\Services\Inventory\InventoryMovementType::PURCHASE_RETURN,
+                        quantityChanged: -$line['quantity'],
+                        unitCost: $line['unit_cost'],
+                        referenceType: PurchaseReturn::class,
+                        referenceId: null,
+                        referenceNumber: null,
+                        note: 'Retour achat · achat '.$purchase->number,
+                    ));
+
                     $item->decrement('stock_quantity', $line['quantity']);
-                    $item->refresh();
-                    $stockMovements[] = [$item->id, -$line['quantity'], (int) $item->stock_quantity];
                 }
             }
 
@@ -5169,11 +5798,20 @@ class LibraireProController extends Controller
                 'returned_at' => ! empty($data['returned_at']) ? Carbon::parse($data['returned_at']) : now(),
                 'reason' => $data['reason'] ?? null,
                 'lines' => $payloadLines,
+                'idempotency_key' => $idempotencyKey,
             ]);
 
-            foreach ($stockMovements as [$itemId, $delta, $quantityAfter]) {
-                $this->recordStockMovementSnapshot($tenant, $itemId, 'purchase_return', $delta, $quantityAfter, PurchaseReturn::class, $purchaseReturn->id, 'Retour achat '.$purchaseReturn->number.' · achat '.$purchase->number);
-            }
+            // Re-link movements to the now-created return document.
+            \App\Models\InventoryMovement::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('reference_type', PurchaseReturn::class)
+                ->whereNull('reference_id')
+                ->where('note', 'like', 'Retour achat · achat '.$purchase->number.'%')
+                ->update([
+                    'reference_id' => $purchaseReturn->id,
+                    'reference_number' => $purchaseReturn->number,
+                    'updated_at' => now(),
+                ]);
 
             return $purchaseReturn;
         });
@@ -6200,6 +6838,17 @@ class LibraireProController extends Controller
         return 'RAC'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
     }
 
+    private function nextPurchasePaymentNumber(Tenant $tenant): string
+    {
+        $max = PurchasePayment::where('tenant_id', $tenant->id)
+            ->where('number', 'like', 'PAF%')
+            ->pluck('number')
+            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
+            ->max() ?? 0;
+
+        return 'PAF'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
+    }
+
     private function nextQuotationNumber(Tenant $tenant): string
     {
         $max = Quotation::where('tenant_id', $tenant->id)
@@ -6355,6 +7004,68 @@ class LibraireProController extends Controller
         ]);
     }
 
+    private function locationAverageCost(int $tenantId, int $itemId, ?int $variantId, int $locationId): float
+    {
+        return (float) ItemLocationStock::query()
+            ->where('tenant_id', $tenantId)
+            ->where('item_id', $itemId)
+            ->where('variant_id', $variantId)
+            ->where('location_id', $locationId)
+            ->value('average_cost') ?? 0;
+    }
+
+    private function updateLocationCost(int $tenantId, int $itemId, ?int $variantId, int $locationId, float $unitCost, ?int $receivedQuantity = null): void
+    {
+        $stock = ItemLocationStock::query()
+            ->where('tenant_id', $tenantId)
+            ->where('item_id', $itemId)
+            ->where('variant_id', $variantId)
+            ->where('location_id', $locationId)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $stock) {
+            return;
+        }
+
+        $updates = [
+            'last_purchase_cost' => $unitCost,
+            'updated_at' => now(),
+        ];
+
+        if ($receivedQuantity !== null && $receivedQuantity > 0) {
+            $oldQuantity = max(0, (int) $stock->quantity - $receivedQuantity);
+            $oldAverage = (float) $stock->average_cost;
+            $newTotalCost = ($oldQuantity * $oldAverage) + ($receivedQuantity * $unitCost);
+            $newQuantity = $oldQuantity + $receivedQuantity;
+            $updates['average_cost'] = $newQuantity > 0 ? round($newTotalCost / $newQuantity, 4) : $unitCost;
+        }
+
+        $stock->update($updates);
+    }
+
+    private function idempotencyKey(Request $request): string
+    {
+        $key = trim((string) $request->input('_idempotency_key'));
+
+        return $key !== '' ? $key : (string) Str::uuid();
+    }
+
+    /**
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     */
+    private function findByIdempotencyKey(string $modelClass, int $tenantId, string $key): ?\Illuminate\Database\Eloquent\Model
+    {
+        if ($key === '') {
+            return null;
+        }
+
+        return $modelClass::query()
+            ->where('tenant_id', $tenantId)
+            ->where('idempotency_key', $key)
+            ->first();
+    }
+
     private function nextStockAdjustmentNumber(Tenant $tenant): string
     {
         $max = StockAdjustment::where('tenant_id', $tenant->id)
@@ -6364,6 +7075,17 @@ class LibraireProController extends Controller
             ->max() ?? 0;
 
         return 'AJS'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
+    }
+
+    private function nextStocktakeNumber(Tenant $tenant): string
+    {
+        $max = Stocktake::where('tenant_id', $tenant->id)
+            ->where('number', 'like', 'INV%')
+            ->pluck('number')
+            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
+            ->max() ?? 0;
+
+        return 'INV'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
     }
 
     private function nextStockTransferNumber(Tenant $tenant): string
@@ -6581,7 +7303,7 @@ class LibraireProController extends Controller
         $detailPurchase = (int) $request->query('detail_purchase');
 
         return Purchase::query()
-            ->with(['supplier', 'items.item', 'returns', 'user'])
+            ->with(['supplier', 'items.item', 'returns', 'payments', 'user'])
             ->where('tenant_id', $tenant->id)
             ->when($detailPurchase > 0, fn (Builder $builder) => $builder->whereKey($detailPurchase))
             ->when($query !== '', function (Builder $builder) use ($query): void {
@@ -6646,6 +7368,24 @@ class LibraireProController extends Controller
             ->when($request->query('from'), fn (Builder $builder, $from) => $builder->whereDate('transferred_at', '>=', $from))
             ->when($request->query('to'), fn (Builder $builder, $to) => $builder->whereDate('transferred_at', '<=', $to))
             ->latest('transferred_at');
+    }
+
+    private function stocktakesQuery(Tenant $tenant, Request $request): Builder
+    {
+        $query = trim((string) $request->query('q'));
+        $detailStocktake = (int) $request->query('detail_stocktake');
+
+        return Stocktake::query()
+            ->with(['location', 'user', 'items.item'])
+            ->where('tenant_id', $tenant->id)
+            ->when($detailStocktake > 0, fn (Builder $builder) => $builder->whereKey($detailStocktake))
+            ->when($query !== '', function (Builder $builder) use ($query): void {
+                $builder->where(function (Builder $builder) use ($query): void {
+                    $builder->where('number', 'like', "%{$query}%")
+                        ->orWhere('note', 'like', "%{$query}%");
+                });
+            })
+            ->latest('started_at');
     }
 
     private function contactsQuery(Tenant $tenant, Request $request, string $kind = 'client'): Builder

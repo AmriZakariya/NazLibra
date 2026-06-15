@@ -6,15 +6,14 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['tenant_id', 'purchase_id', 'supplier_id', 'number', 'status', 'total_amount', 'returned_at', 'reason', 'lines', 'metadata', 'idempotency_key'])]
-class PurchaseReturn extends Model
+#[Fillable(['tenant_id', 'purchase_id', 'supplier_id', 'user_id', 'number', 'method', 'amount', 'paid_at', 'reference', 'note', 'idempotency_key'])]
+class PurchasePayment extends Model
 {
     protected function casts(): array
     {
         return [
-            'returned_at' => 'datetime',
-            'lines' => 'array',
-            'metadata' => 'array',
+            'paid_at' => 'datetime',
+            'amount' => 'decimal:2',
         ];
     }
 
@@ -26,5 +25,10 @@ class PurchaseReturn extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Contact::class, 'supplier_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

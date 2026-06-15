@@ -55,6 +55,16 @@ class ItemVariant extends Model
         return $this->belongsTo(Tenant::class);
     }
 
+    public function itemLocationStocks(): HasMany
+    {
+        return $this->hasMany(ItemLocationStock::class, 'variant_id');
+    }
+
+    public function inventoryMovements(): HasMany
+    {
+        return $this->hasMany(InventoryMovement::class, 'variant_id');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['tenant_id', 'supplier_id', 'user_id', 'number', 'status', 'total_amount', 'ordered_at', 'expected_at', 'received_at', 'metadata'])]
+#[Fillable(['tenant_id', 'supplier_id', 'user_id', 'number', 'status', 'total_amount', 'ordered_at', 'expected_at', 'received_at', 'metadata', 'idempotency_key'])]
 class Purchase extends Model
 {
     protected function casts(): array
@@ -38,5 +38,10 @@ class Purchase extends Model
     public function returns(): HasMany
     {
         return $this->hasMany(PurchaseReturn::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(PurchasePayment::class);
     }
 }
