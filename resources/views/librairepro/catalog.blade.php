@@ -265,6 +265,28 @@
                     <p class="mt-1 text-xs font-semibold text-amber-900 dark:text-amber-100">À vérifier avant vente</p>
                 </article>
             </div>
+            <div class="stock-kpi-grid grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Emplacements</span>
+                    <p class="mt-2 text-2xl font-semibold">{{ $stockStats['locations'] }}</p>
+                    <p class="mt-1 text-xs text-slate-500">Magasins, dépôts, rayons actifs</p>
+                </article>
+                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Inventaires</span>
+                    <p class="mt-2 text-2xl font-semibold">{{ $stockStats['stocktakes'] }}</p>
+                    <p class="mt-1 text-xs text-slate-500">Comptages créés</p>
+                </article>
+                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Réservations</span>
+                    <p class="mt-2 text-2xl font-semibold">{{ number_format($stockStats['reserved_units'], 0, ',', ' ') }}</p>
+                    <p class="mt-1 text-xs text-slate-500">Unités réservées sur ventes impayées</p>
+                </article>
+                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Mouvements</span>
+                    <p class="mt-2 text-2xl font-semibold">{{ number_format($stockStats['movement_count'], 0, ',', ' ') }}</p>
+                    <p class="mt-1 text-xs text-slate-500">Historique des mouvements</p>
+                </article>
+            </div>
 
             <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 <div class="border-b border-slate-200 p-4 dark:border-white/10">
@@ -501,7 +523,15 @@
                             <div class="inventory-selected-item mt-4">
                                 <div class="min-w-0">
                                     <span class="block truncate font-semibold text-slate-950 dark:text-white">{{ $selectedInventoryItem->title }}</span>
-                                    <small class="mt-1 block truncate text-slate-600 dark:text-slate-300">{{ $selectedInventoryItem->item_code ?? 'Sans code' }} · Stock {{ number_format((int) $selectedInventoryItem->stock_quantity, 0, ',', ' ') }} · {{ $selectedInventoryItem->category?->name ?? 'Sans catégorie' }}</small>
+                                    <small class="mt-1 block truncate text-slate-600 dark:text-slate-300">
+                                        {{ $selectedInventoryItem->item_code ?? 'Sans code' }}
+                                        · Stock {{ number_format((int) $selectedInventoryItem->stock_quantity, 0, ',', ' ') }}
+                                        @if ($selectedInventoryItemReserved > 0)
+                                            · Réservé {{ number_format($selectedInventoryItemReserved, 0, ',', ' ') }}
+                                        @endif
+                                        · Valeur stock {{ $money($selectedInventoryItemStockValue) }}
+                                        · {{ $selectedInventoryItem->category?->name ?? 'Sans catégorie' }}
+                                    </small>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
                                     <a href="{{ route('stock', ['panel' => 'stock-adjustment-add', 'item' => $selectedInventoryItem->id, 'stock_q' => $selectedInventoryItem->item_code ?? $selectedInventoryItem->barcode ?? $selectedInventoryItem->title]) }}" class="inventory-action-button is-primary">Ajuster maintenant</a>
@@ -517,7 +547,7 @@
                             <input
                                 name="inventory_q"
                                 value="{{ $selectedInventoryItem ? $selectedInventoryItem->title : $inventoryQuery }}"
-                                class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-950"
+                                class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-950"
                                 placeholder="Rechercher article, code-barres, ISBN..."
                                 autocomplete="off"
                                 data-inventory-item-input
@@ -526,6 +556,39 @@
                         </div>
                         <button class="inventory-action-button is-primary">Chercher</button>
                         <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}#inventory-history" class="inventory-action-button">Effacer</a>
+                        <div class="inventory-search-filters">
+                            <select name="movement_type" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-950">
+                                <option value="all">Tous les types</option>
+                                @foreach ([
+                                    'sale' => 'Vente',
+                                    'purchase' => 'Achat',
+                                    'purchase_receipt' => 'Réception achat',
+                                    'return' => 'Retour vente',
+                                    'purchase_return' => 'Retour achat',
+                                    'adjustment' => 'Ajustement',
+                                    'correction' => 'Correction',
+                                    'transfer' => 'Transfert',
+                                    'transfer_out' => 'Transfert sortie',
+                                    'transfer_in' => 'Transfert entrée',
+                                    'opening_stock' => 'Stock initial',
+                                    'item_update' => 'Fiche article',
+                                    'reservation' => 'Réservation',
+                                    'reservation_release' => 'Libération réservation',
+                                    'stocktake' => 'Inventaire',
+                                    'damage' => 'Casse',
+                                    'loss' => 'Perte',
+                                ] as $typeValue => $typeLabel)
+                                    <option value="{{ $typeValue }}" @selected($movementType === $typeValue)>{{ $typeLabel }}</option>
+                                @endforeach
+                            </select>
+                            <select name="movement_location" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-950">
+                                <option value="0">Tous les emplacements</option>
+                                @foreach ($locations as $location)
+                                    <option value="{{ $location->id }}" @selected($movementLocation === $location->id)>{{ $location->name }}</option>
+                                @endforeach
+                            </select>
+                            <div class="hidden sm:block"></div>
+                        </div>
                     </form>
                 </div>
                 <div class="inventory-movement-list" data-inventory-movement-list>
@@ -535,14 +598,23 @@
                             $movementLabels = [
                                 'sale' => ['label' => 'Vente', 'tone' => 'danger', 'icon' => '-'],
                                 'purchase' => ['label' => 'Achat', 'tone' => 'success', 'icon' => '+'],
+                                'purchase_receipt' => ['label' => 'Réception achat', 'tone' => 'success', 'icon' => '+'],
                                 'return' => ['label' => 'Retour vente', 'tone' => 'info', 'icon' => '+'],
                                 'purchase_return' => ['label' => 'Retour achat', 'tone' => 'warning', 'icon' => '-'],
                                 'adjustment' => ['label' => 'Ajustement', 'tone' => 'primary', 'icon' => '±'],
+                                'correction' => ['label' => 'Correction', 'tone' => 'primary', 'icon' => '±'],
                                 'transfer' => ['label' => 'Transfert', 'tone' => 'neutral', 'icon' => '↔'],
+                                'transfer_out' => ['label' => 'Transfert sortie', 'tone' => 'neutral', 'icon' => '→'],
+                                'transfer_in' => ['label' => 'Transfert entrée', 'tone' => 'neutral', 'icon' => '←'],
                                 'opening_stock' => ['label' => 'Stock initial', 'tone' => 'success', 'icon' => '+'],
                                 'item_update' => ['label' => 'Fiche article', 'tone' => 'info', 'icon' => '✎'],
                                 'import_opening_stock' => ['label' => 'Import initial', 'tone' => 'success', 'icon' => '+'],
                                 'import_stock_update' => ['label' => 'Import stock', 'tone' => 'info', 'icon' => '↥'],
+                                'reservation' => ['label' => 'Réservation', 'tone' => 'warning', 'icon' => 'R'],
+                                'reservation_release' => ['label' => 'Libération réservation', 'tone' => 'info', 'icon' => 'L'],
+                                'stocktake' => ['label' => 'Inventaire', 'tone' => 'primary', 'icon' => 'I'],
+                                'damage' => ['label' => 'Casse', 'tone' => 'danger', 'icon' => '!'],
+                                'loss' => ['label' => 'Perte', 'tone' => 'danger', 'icon' => '!'],
                             ];
                             $movementMeta = $movementLabels[$movement->type] ?? ['label' => $movement->type, 'tone' => 'neutral', 'icon' => '•'];
                             $relatedAction = match ($movement->reference_type) {
@@ -555,7 +627,8 @@
                                 \App\Models\Item::class => ['label' => 'Voir article', 'icon' => 'AR', 'href' => route('catalog', ['panel' => 'articles', 'edit' => $movement->reference_id]).'#edit-item'],
                                 default => null,
                             };
-                            $valueImpact = abs($delta) * (float) $movement->purchase_price;
+                            $movementValue = $movement->total_cost !== null ? abs((float) $movement->total_cost) : abs($delta) * (float) $movement->purchase_price;
+                            $stockValueAfter = $movement->unit_cost !== null ? (int) $movement->quantity_after * (float) $movement->unit_cost : (int) $movement->quantity_after * (float) $movement->purchase_price;
                         @endphp
                         <div class="inventory-movement-row is-{{ $movementMeta['tone'] }}">
                             <div class="inventory-movement-type">
@@ -564,7 +637,15 @@
                             </div>
                             <div class="min-w-0">
                                 <p class="font-semibold text-slate-950 dark:text-white">{{ $movement->item_title }}</p>
-                                <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">{{ $movement->item_code ?? 'Sans code' }} · {{ $movement->barcode ?? 'Sans code-barres' }} · {{ $movement->user_name ?? 'Système' }}</p>
+                                <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                                    {{ $movement->item_code ?? 'Sans code' }}
+                                    · {{ $movement->barcode ?? 'Sans code-barres' }}
+                                    · {{ $movement->location_name ?? 'Principal' }}
+                                    @if ($movement->variant_name)
+                                        · Variante {{ $movement->variant_name }}
+                                    @endif
+                                    · {{ $movement->user_name ?? 'Système' }}
+                                </p>
                                 @if ($movement->note)
                                     <p class="inventory-movement-note">{{ $movement->note }}</p>
                                 @endif
@@ -573,14 +654,20 @@
                                 <div class="inventory-metric">
                                     <span>Mouvement</span>
                                     <strong class="{{ $delta >= 0 ? 'is-positive' : 'is-negative' }}">{{ $delta > 0 ? '+' : '' }}{{ number_format($delta, 0, ',', ' ') }}</strong>
+                                    <span class="mt-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">{{ $money($movementValue) }}</span>
                                 </div>
                                 <div class="inventory-metric">
                                     <span>Stock après</span>
                                     <strong>{{ number_format((int) $movement->quantity_after, 0, ',', ' ') }}</strong>
+                                    <span class="mt-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">{{ $money($stockValueAfter) }}</span>
+                                </div>
+                                <div class="inventory-metric">
+                                    <span>Coût unitaire</span>
+                                    <strong>{{ $movement->unit_cost !== null ? $money((float) $movement->unit_cost) : '—' }}</strong>
                                 </div>
                             </div>
                             <div class="inventory-movement-actions">
-                                <span class="inventory-value">{{ $money($valueImpact) }}</span>
+                                <span class="inventory-value">{{ $money($movementValue) }}</span>
                                 @if ($relatedAction)
                                     <a href="{{ $relatedAction['href'] }}" class="inventory-action-button is-linked">
                                         <span aria-hidden="true">{{ $relatedAction['icon'] }}</span>
@@ -911,6 +998,31 @@
                             </a>
                         @endforeach
                     </div>
+
+                    @if ($editItem->type !== 'service' && $editItemLocationStock->isNotEmpty())
+                        <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-sm font-semibold">Stock par emplacement</h3>
+                                <x-status-pill :tone="$editItem->is_low_stock ? 'warning' : 'success'">Total {{ $editItemLocationStock->sum('quantity') }}</x-status-pill>
+                            </div>
+                            <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                @foreach ($editItemLocationStock as $locationStock)
+                                    <div class="rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-white/10 dark:bg-slate-950/40">
+                                        <div class="flex items-start justify-between gap-3">
+                                            <span class="font-medium">{{ $locationStock->location?->name ?? '—' }}</span>
+                                            <x-status-pill tone="{{ (int) $locationStock->quantity <= 0 ? 'danger' : ((int) $locationStock->quantity <= (int) $locationStock->min_stock ? 'warning' : 'success') }}" size="sm">{{ number_format((int) $locationStock->quantity, 0, ',', ' ') }}</x-status-pill>
+                                        </div>
+                                        <div class="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
+                                            <span>Réservé: {{ number_format((int) $locationStock->reserved_quantity, 0, ',', ' ') }}</span>
+                                            <span>Min: {{ number_format((int) $locationStock->min_stock, 0, ',', ' ') }}</span>
+                                            <span>Coût moyen: {{ $money($locationStock->average_cost) }}</span>
+                                            <span>Dernier achat: {{ $money($locationStock->last_purchase_cost) }}</span>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
 
                     <form action="{{ route('catalog.items.update', $editItem) }}" method="POST" enctype="multipart/form-data" data-smart-validation data-error-fields='@json($errors->keys())' class="mt-5 grid gap-4 lg:grid-cols-4">
                         @csrf

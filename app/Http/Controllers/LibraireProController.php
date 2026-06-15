@@ -599,6 +599,8 @@ class LibraireProController extends Controller
         $stockInventoryState = $request->query('stock_inventory_state', 'all');
         $inventoryQuery = trim((string) $request->query('inventory_q'));
         $inventoryItemId = (int) $request->query('inventory_item');
+        $movementType = $request->query('movement_type', 'all');
+        $movementLocation = (int) $request->query('movement_location', 0);
         $selectedInventoryItem = $inventoryItemId > 0
             ? $tenant->items()
                 ->with(['category', 'brand', 'unit'])
@@ -606,6 +608,17 @@ class LibraireProController extends Controller
                 ->whereKey($inventoryItemId)
                 ->first()
             : null;
+        $selectedInventoryItemStockValue = $selectedInventoryItem
+            ? (float) ItemLocationStock::where('tenant_id', $tenant->id)
+                ->where('item_id', $selectedInventoryItem->id)
+                ->selectRaw('SUM(quantity * average_cost) as value')
+                ->value('value') ?? 0
+            : 0;
+        $selectedInventoryItemReserved = $selectedInventoryItem
+            ? (int) ItemLocationStock::where('tenant_id', $tenant->id)
+                ->where('item_id', $selectedInventoryItem->id)
+                ->sum('reserved_quantity')
+            : 0;
         $stockInventoryItems = $tenant->items()
             ->with(['category', 'brand', 'unit'])
             ->select('items.*')
@@ -637,6 +650,8 @@ class LibraireProController extends Controller
         $stockMovementsQuery = DB::table('stock_movements')
             ->join('items', 'stock_movements.item_id', '=', 'items.id')
             ->leftJoin('users', 'stock_movements.user_id', '=', 'users.id')
+            ->leftJoin('locations', 'stock_movements.location_id', '=', 'locations.id')
+            ->leftJoin('item_variants', 'stock_movements.variant_id', '=', 'item_variants.id')
             ->where('stock_movements.tenant_id', $tenant->id)
             ->when($inventoryItemId > 0, fn ($builder) => $builder->where('stock_movements.item_id', $inventoryItemId))
             ->when($inventoryQuery !== '', function ($builder) use ($inventoryQuery): void {
@@ -648,7 +663,9 @@ class LibraireProController extends Controller
                         ->orWhere('stock_movements.type', 'like', "%{$inventoryQuery}%")
                         ->orWhere('stock_movements.note', 'like', "%{$inventoryQuery}%");
                 });
-            });
+            })
+            ->when($movementType !== 'all' && $movementType !== '', fn ($builder) => $builder->where('stock_movements.type', $movementType))
+            ->when($movementLocation > 0, fn ($builder) => $builder->where('stock_movements.location_id', $movementLocation));
 
         $stockMovementCount = (clone $stockMovementsQuery)->count('stock_movements.id');
         $stockMovementPerPage = min(max((int) $request->query('movement_per_page', 50), 20), 100);
@@ -657,11 +674,17 @@ class LibraireProController extends Controller
             ->select([
                 'stock_movements.id',
                 'stock_movements.item_id',
+                'stock_movements.variant_id',
+                'stock_movements.location_id',
                 'stock_movements.type',
+                'stock_movements.quantity_before',
                 'stock_movements.quantity_delta',
                 'stock_movements.quantity_after',
+                'stock_movements.unit_cost',
+                'stock_movements.total_cost',
                 'stock_movements.reference_type',
                 'stock_movements.reference_id',
+                'stock_movements.reference_number',
                 'stock_movements.note',
                 'stock_movements.created_at',
                 'items.title as item_title',
@@ -671,6 +694,8 @@ class LibraireProController extends Controller
                 'items.sale_price',
                 'items.stock_quantity',
                 'users.name as user_name',
+                'locations.name as location_name',
+                'item_variants.name as variant_name',
             ])
             ->latest('stock_movements.created_at')
             ->paginate($stockMovementPerPage, ['*'], 'movements_page')
@@ -687,11 +712,22 @@ class LibraireProController extends Controller
             ->withQueryString();
 
         $editItem = null;
+        $editItemLocationStock = collect();
         if ($request->filled('edit')) {
             $editItem = $tenant->items()
                 ->with(['category', 'brand', 'unit', 'tax', 'variants'])
                 ->whereKey((int) $request->query('edit'))
                 ->first();
+
+            if ($editItem && $editItem->type !== 'service') {
+                $editItemLocationStock = ItemLocationStock::query()
+                    ->with('location')
+                    ->where('tenant_id', $tenant->id)
+                    ->where('item_id', $editItem->id)
+                    ->whereNull('variant_id')
+                    ->orderByDesc('quantity')
+                    ->get();
+            }
         }
 
         return view('librairepro.catalog', [
@@ -769,21 +805,29 @@ class LibraireProController extends Controller
             'stockInventoryQuery' => $stockInventoryQuery,
             'stockInventoryState' => $stockInventoryState,
             'selectedInventoryItem' => $selectedInventoryItem,
+            'selectedInventoryItemStockValue' => $selectedInventoryItemStockValue,
+            'selectedInventoryItemReserved' => $selectedInventoryItemReserved,
             'stockMovements' => $stockMovements,
+            'movementType' => $movementType,
+            'movementLocation' => $movementLocation,
             'stores' => $this->storeCatalog($tenant),
             'currentStore' => $this->currentStore($tenant),
             'suggestedItemCode' => $this->nextItemCode($tenant->id),
             'stockStats' => [
                 'adjustments' => StockAdjustment::where('tenant_id', $tenant->id)->count(),
                 'transfers' => StockTransfer::where('tenant_id', $tenant->id)->count(),
+                'stocktakes' => Stocktake::where('tenant_id', $tenant->id)->count(),
+                'locations' => Location::where('tenant_id', $tenant->id)->where('is_active', true)->count(),
                 'adjusted_month' => StockAdjustment::where('tenant_id', $tenant->id)->whereDate('adjusted_at', '>=', now()->startOfMonth())->sum('total_quantity'),
                 'transferred_month' => StockTransfer::where('tenant_id', $tenant->id)->whereDate('transferred_at', '>=', now()->startOfMonth())->sum('total_quantity'),
                 'stock_units' => (int) $tenant->items()->where('type', '!=', 'service')->sum('stock_quantity'),
+                'reserved_units' => (int) ItemLocationStock::where('tenant_id', $tenant->id)->sum('reserved_quantity'),
                 'stock_purchase_value' => (float) $tenant->items()->where('type', '!=', 'service')->selectRaw('sum(stock_quantity * purchase_price) as value')->value('value'),
                 'stock_sale_value' => (float) $tenant->items()->where('type', '!=', 'service')->selectRaw('sum(stock_quantity * sale_price) as value')->value('value'),
                 'movement_count' => $stockMovementCount,
             ],
             'editItem' => $editItem,
+            'editItemLocationStock' => $editItemLocationStock,
             'catalogStats' => [
                 'items' => $tenant->items()->where('type', '!=', 'service')->count(),
                 'services' => $tenant->items()->where('type', 'service')->count(),

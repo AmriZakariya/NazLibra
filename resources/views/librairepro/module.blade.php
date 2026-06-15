@@ -884,6 +884,15 @@
                                                             <div class="flex justify-between gap-3"><dt class="text-slate-500">Payé</dt><dd class="font-semibold text-emerald-600">{{ $money($paid) }}</dd></div>
                                                             <div class="flex justify-between gap-3"><dt class="text-slate-500">Reste</dt><dd class="font-semibold {{ $due > 0.001 ? 'text-rose-600' : 'text-emerald-600' }}">{{ $money($due) }}</dd></div>
                                                             <div class="flex justify-between gap-3"><dt class="text-slate-500">Méthode</dt><dd class="font-semibold">{{ $sale->payment_method }}</dd></div>
+                                                            @php
+                                                                $saleCogs = (float) data_get($sale->metadata, 'cogs.total', 0);
+                                                                $saleMargin = max(0, round((float) $sale->total_amount - $saleCogs, 2));
+                                                                $saleMarginRate = (float) $sale->total_amount > 0 ? round(($saleMargin / (float) $sale->total_amount) * 100, 1) : 0;
+                                                            @endphp
+                                                            @if ($saleCogs > 0.001)
+                                                                <div class="flex justify-between gap-3 border-t border-slate-200 pt-3 dark:border-white/10"><dt class="text-slate-500">Coût des ventes</dt><dd class="font-semibold">{{ $money($saleCogs) }}</dd></div>
+                                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Marge</dt><dd class="font-semibold text-brand">{{ $money($saleMargin) }} ({{ $saleMarginRate }}%)</dd></div>
+                                                            @endif
                                                         </dl>
                                                     </div>
 
@@ -1612,175 +1621,229 @@
                                             </div>
                                         </td>
                                     </tr>
-                                    <dialog id="purchase-detail-{{ $purchase->id }}" class="app-dialog purchase-detail-dialog w-[min(1024px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
-                                        <div class="purchase-detail-hero">
-                                            <div class="flex items-start gap-3 min-w-0">
-                                                <span class="purchase-detail-icon">PO</span>
-                                                <div class="min-w-0">
-                                                    <p class="text-sm font-semibold text-brand">Détail achat</p>
-                                                    <h3 class="mt-1 text-xl font-semibold truncate">{{ $purchase->number }}</h3>
-                                                    <p class="mt-1 text-sm text-slate-500">{{ $purchase->supplier?->name ?? 'Sans fournisseur' }} · {{ $purchase->ordered_at?->format('d/m/Y') ?? 'Sans date' }}</p>
-                                                </div>
-                                            </div>
-                                            <div class="flex items-start gap-2 shrink-0">
-                                                <x-status-pill :tone="$purchaseStatusTone">{{ $purchaseStatusLabel }}</x-status-pill>
-                                                <button class="dialog-close grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-lg font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button">×</button>
-                                            </div>
-                                        </div>
-
-                                        <div class="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-                                            <div class="space-y-5 min-w-0">
-                                                {{-- Summary stats --}}
-                                                <div class="grid gap-3 sm:grid-cols-3">
-                                                    <div class="purchase-detail-stat"><span>Total TTC</span><strong>{{ $money($purchase->total_amount) }}</strong></div>
-                                                    <div class="purchase-detail-stat"><span>Commandée</span><strong>{{ $orderedQuantity }}</strong></div>
-                                                    <div class="purchase-detail-stat"><span>Reçue</span><strong>{{ $receivedQuantity }}</strong></div>
-                                                </div>
-
-                                                {{-- Receipt progress --}}
-                                                @php
-                                                    $receiptPercent = $orderedQuantity > 0 ? round(min(100, ($receivedQuantity / $orderedQuantity) * 100)) : 0;
-                                                @endphp
-                                                <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                                                    <div class="flex items-center justify-between gap-3">
-                                                        <span class="text-xs font-semibold uppercase text-slate-500">Avancement réception</span>
-                                                        <span class="text-sm font-semibold">{{ $receivedQuantity }} / {{ $orderedQuantity }} ({{ $receiptPercent }}%)</span>
-                                                    </div>
-                                                    <div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
-                                                        <div class="h-full rounded-full bg-emerald-500 transition-all" style="width: {{ $receiptPercent }}%"></div>
-                                                    </div>
-                                                    @if ($remainingQuantity > 0)
-                                                        <p class="mt-2 text-xs font-medium text-amber-600">{{ $remainingQuantity }} unité(s) en attente de réception</p>
-                                                    @endif
-                                                </div>
-
-                                                {{-- Metadata --}}
-                                                <div class="grid gap-3 sm:grid-cols-2">
-                                                    <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                                                        <span class="text-xs font-semibold uppercase text-slate-500">Créé par</span>
-                                                        <strong class="mt-1 block truncate">{{ $purchaseCreatedBy }}</strong>
-                                                        <span class="mt-1 block text-xs text-slate-500">{{ $purchaseCreatedAt ? \Illuminate\Support\Carbon::parse($purchaseCreatedAt)->format('d/m/Y H:i') : 'Date inconnue' }}</span>
-                                                    </div>
-                                                    <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
-                                                        <span class="text-xs font-semibold uppercase text-slate-500">Dernière mise à jour</span>
-                                                        <strong class="mt-1 block truncate">{{ $purchaseUpdatedBy }}</strong>
-                                                        <span class="mt-1 block text-xs text-slate-500">{{ $purchaseUpdatedAt ? \Illuminate\Support\Carbon::parse($purchaseUpdatedAt)->format('d/m/Y H:i') : 'Aucune modification' }}</span>
-                                                    </div>
-                                                </div>
-
-                                                {{-- Line items table --}}
-                                                <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
-                                                    <div class="overflow-x-auto">
-                                                        <table class="w-full min-w-[640px] text-left text-sm">
-                                                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
-                                                                <tr>
-                                                                    <th class="px-4 py-3">Article</th>
-                                                                    <th class="px-4 py-3 text-right">Cmd</th>
-                                                                    <th class="px-4 py-3 text-right">Reçu</th>
-                                                                    <th class="px-4 py-3 text-right">Restant</th>
-                                                                    <th class="px-4 py-3 text-right">Coût unit.</th>
-                                                                    <th class="px-4 py-3 text-right">Total ligne</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
-                                                                @forelse ($purchase->items as $line)
-                                                                    @php
-                                                                        $lineRemaining = max(0, $line->quantity_ordered - $line->quantity_received);
-                                                                        $lineStatusTone = $lineRemaining === 0 ? 'success' : ($line->quantity_received > 0 ? 'warning' : 'neutral');
-                                                                    @endphp
-                                                                    <tr class="hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
-                                                                        <td class="px-4 py-3">
-                                                                            <span class="block truncate font-semibold">{{ $line->item?->title ?? 'Article supprimé' }}</span>
-                                                                            <span class="mt-1 block truncate text-xs text-slate-500">
-                                                                                {{ $line->item?->sku ?? $line->item?->barcode ?? $line->item?->isbn ?? $line->item?->item_code ?? 'Sans code' }}
-                                                                            </span>
-                                                                        </td>
-                                                                        <td class="px-4 py-3 text-right font-medium">{{ $line->quantity_ordered }}</td>
-                                                                        <td class="px-4 py-3 text-right font-medium">{{ $line->quantity_received }}</td>
-                                                                        <td class="px-4 py-3 text-right">
-                                                                            @if ($lineRemaining > 0)
-                                                                                <x-status-pill :tone="$lineStatusTone" size="sm">{{ $lineRemaining }}</x-status-pill>
-                                                                            @else
-                                                                                <span class="text-xs text-slate-400">—</span>
-                                                                            @endif
-                                                                        </td>
-                                                                        <td class="px-4 py-3 text-right text-slate-600">{{ $money($line->unit_cost) }}</td>
-                                                                        <td class="px-4 py-3 text-right font-semibold">{{ $money($line->quantity_ordered * $line->unit_cost) }}</td>
-                                                                    </tr>
-                                                                @empty
-                                                                    <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500">Aucune ligne article.</td></tr>
-                                                                @endforelse
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {{-- Sidebar --}}
-                                            <aside class="space-y-4">
-                                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                                                    <h4 class="text-sm font-semibold">Informations fournisseur</h4>
-                                                    <dl class="mt-3 space-y-2.5 text-sm">
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Fournisseur</dt><dd class="text-right font-semibold">{{ $purchase->supplier?->name ?? '—' }}</dd></div>
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Téléphone</dt><dd class="text-right">{{ $purchase->supplier?->phone ?? '—' }}</dd></div>
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Email</dt><dd class="text-right">{{ $purchase->supplier?->email ?? '—' }}</dd></div>
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">ICE</dt><dd class="text-right">{{ $purchase->supplier?->ice ?? '—' }}</dd></div>
-                                                    </dl>
-                                                </div>
-
-                                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                                                    <h4 class="text-sm font-semibold">Informations commande</h4>
-                                                    <dl class="mt-3 space-y-2.5 text-sm">
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Facture fournisseur</dt><dd class="text-right">{{ data_get($purchase->metadata, 'supplier_invoice', '—') }}</dd></div>
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Référence</dt><dd class="text-right">{{ data_get($purchase->metadata, 'reference', '—') }}</dd></div>
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Lieu de livraison</dt><dd class="text-right">{{ data_get($purchase->metadata, 'warehouse', 'Magasin principal') ?: 'Magasin principal' }}</dd></div>
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Commandé le</dt><dd class="text-right">{{ $purchase->ordered_at?->format('d/m/Y') ?? '—' }}</dd></div>
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Réception prévue</dt><dd class="text-right">{{ $purchase->expected_at?->format('d/m/Y') ?? '—' }}</dd></div>
-                                                    </dl>
-                                                </div>
-
-                                                <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
-                                                    <h4 class="text-sm font-semibold">Paiement</h4>
-                                                    <dl class="mt-3 space-y-2.5 text-sm">
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Total</dt><dd class="text-right font-semibold">{{ $money($purchase->total_amount) }}</dd></div>
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Payé</dt><dd class="text-right text-emerald-600">{{ $money($paidAmount) }}</dd></div>
-                                                        <div class="flex justify-between gap-3"><dt class="text-slate-500">Reste dû</dt><dd class="text-right font-semibold {{ $dueAmount > 0.001 ? 'text-rose-600' : 'text-emerald-600' }}">{{ $money($dueAmount) }}</dd></div>
-                                                    </dl>
-
-                                                    @if ($dueAmount > 0.001)
-                                                        <form action="{{ route('purchases.payments.store') }}" method="POST" class="mt-4 space-y-3">
-                                                            @csrf
-                                                            <input type="hidden" name="purchase_id" value="{{ $purchase->id }}">
-                                                            <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
-                                                            <div class="grid gap-2 sm:grid-cols-2">
-                                                                <select name="method" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" required>
-                                                                    <option value="cash">Espèces</option>
-                                                                    <option value="card">Carte</option>
-                                                                    <option value="transfer">Virement</option>
-                                                                    <option value="cheque">Chèque</option>
-                                                                    <option value="other">Autre</option>
-                                                                </select>
-                                                                <input type="number" name="amount" step="0.01" min="0.01" max="{{ $dueAmount }}" value="{{ old('amount', $dueAmount) }}" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Montant" required>
-                                                            </div>
-                                                            <input type="text" name="reference" value="{{ old('reference') }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Référence paiement">
-                                                            <button type="submit" class="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Enregistrer paiement</button>
-                                                        </form>
-                                                    @endif
-
-                                                    @if ($purchase->payments->isNotEmpty())
-                                                        <div class="mt-4 space-y-2">
-                                                            @foreach ($purchase->payments as $payment)
-                                                                <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs dark:border-white/5 dark:bg-white/5">
-                                                                    <span class="font-medium">{{ $payment->number }} · {{ $payment->method }}</span>
-                                                                    <span class="font-semibold">{{ $money($payment->amount) }}</span>
-                                                                </div>
-                                                            @endforeach
+                                    <dialog id="purchase-detail-{{ $purchase->id }}" class="app-dialog purchase-detail-dialog w-[min(1080px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                        <div class="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
+                                            {{-- Header --}}
+                                            <div class="border-b border-slate-200 bg-slate-50/80 p-5 dark:border-white/10 dark:bg-white/[0.04]">
+                                                <div class="flex items-start justify-between gap-4">
+                                                    <div class="flex items-start gap-3 min-w-0">
+                                                        <span class="grid size-12 shrink-0 place-items-center rounded-xl bg-brand/10 text-lg font-bold text-brand">PO</span>
+                                                        <div class="min-w-0">
+                                                            <p class="text-sm font-semibold text-brand">Détail achat</p>
+                                                            <h3 class="mt-0.5 text-2xl font-semibold tracking-tight">{{ $purchase->number }}</h3>
+                                                            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $purchase->supplier?->name ?? 'Sans fournisseur' }} · Commandé le {{ $purchase->ordered_at?->format('d/m/Y') ?? '—' }}</p>
                                                         </div>
-                                                    @endif
+                                                    </div>
+                                                    <div class="flex items-start gap-2 shrink-0">
+                                                        <x-status-pill :tone="$purchaseStatusTone">{{ $purchaseStatusLabel }}</x-status-pill>
+                                                        <button class="dialog-close grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-lg font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button">×</button>
+                                                    </div>
                                                 </div>
+                                            </div>
 
-                                                @if (data_get($purchase->metadata, 'note'))
-                                                    <div class="rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-white/10 dark:bg-slate-950/40">
+                                            <div class="min-h-0 flex-1 overflow-y-auto p-5">
+                                                <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+                                                    {{-- Main column --}}
+                                                    <div class="space-y-5 min-w-0">
+                                                        {{-- KPI row --}}
+                                                        <div class="grid gap-3 sm:grid-cols-4">
+                                                            <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                                <span class="text-xs font-semibold uppercase text-slate-500">Total</span>
+                                                                <strong class="mt-1 block text-lg">{{ $money($purchase->total_amount) }}</strong>
+                                                            </div>
+                                                            <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                                <span class="text-xs font-semibold uppercase text-slate-500">Commandée</span>
+                                                                <strong class="mt-1 block text-lg">{{ number_format($orderedQuantity, 0, ',', ' ') }}</strong>
+                                                            </div>
+                                                            <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                                <span class="text-xs font-semibold uppercase text-slate-500">Reçue</span>
+                                                                <strong class="mt-1 block text-lg {{ $receivedQuantity >= $orderedQuantity ? 'text-emerald-600' : 'text-amber-600' }}">{{ number_format($receivedQuantity, 0, ',', ' ') }}</strong>
+                                                            </div>
+                                                            <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                                <span class="text-xs font-semibold uppercase text-slate-500">Restante</span>
+                                                                <strong class="mt-1 block text-lg {{ $remainingQuantity > 0 ? 'text-amber-600' : 'text-emerald-600' }}">{{ number_format($remainingQuantity, 0, ',', ' ') }}</strong>
+                                                            </div>
+                                                        </div>
+
+                                                        {{-- Receipt progress --}}
+                                                        @php
+                                                            $receiptPercent = $orderedQuantity > 0 ? round(min(100, ($receivedQuantity / $orderedQuantity) * 100)) : 0;
+                                                        @endphp
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                            <div class="flex items-center justify-between gap-3">
+                                                                <span class="text-sm font-semibold">Avancement réception</span>
+                                                                <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ $receivedQuantity }} / {{ $orderedQuantity }} ({{ $receiptPercent }}%)</span>
+                                                            </div>
+                                                            <div class="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                                                                <div class="h-full rounded-full bg-emerald-500 transition-all" style="width: {{ $receiptPercent }}%"></div>
+                                                            </div>
+                                                            @if ($remainingQuantity > 0)
+                                                                <p class="mt-2 text-xs font-medium text-amber-600">{{ number_format($remainingQuantity, 0, ',', ' ') }} unité(s) en attente de réception</p>
+                                                            @else
+                                                                <p class="mt-2 text-xs font-medium text-emerald-600">Réception complète</p>
+                                                            @endif
+                                                        </div>
+
+                                                        {{-- Line items with per-line progress --}}
+                                                        <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
+                                                            <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
+                                                                <h4 class="text-sm font-semibold">Lignes de commande</h4>
+                                                                <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">{{ $purchase->items->count() }} article(s)</span>
+                                                            </div>
+                                                            <div class="overflow-x-auto">
+                                                                <table class="w-full min-w-[640px] text-left text-sm">
+                                                                    <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                                                                        <tr>
+                                                                            <th class="px-4 py-3">Article</th>
+                                                                            <th class="px-4 py-3 text-right">Cmd</th>
+                                                                            <th class="px-4 py-3 text-right">Reçu</th>
+                                                                            <th class="px-4 py-3 text-right">Restant</th>
+                                                                            <th class="px-4 py-3 text-right">Coût unit.</th>
+                                                                            <th class="px-4 py-3 text-right">Total</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                                                        @forelse ($purchase->items as $line)
+                                                                            @php
+                                                                                $lineRemaining = max(0, $line->quantity_ordered - $line->quantity_received);
+                                                                                $linePercent = $line->quantity_ordered > 0 ? round(min(100, ($line->quantity_received / $line->quantity_ordered) * 100)) : 0;
+                                                                                $lineStatusTone = $lineRemaining === 0 ? 'success' : ($line->quantity_received > 0 ? 'warning' : 'neutral');
+                                                                            @endphp
+                                                                            <tr class="hover:bg-slate-50/60 dark:hover:bg-white/[0.03]">
+                                                                                <td class="px-4 py-3">
+                                                                                    <span class="block truncate font-semibold">{{ $line->item?->title ?? 'Article supprimé' }}</span>
+                                                                                    <span class="mt-1 block truncate text-xs text-slate-500">{{ $line->item?->sku ?? $line->item?->barcode ?? $line->item?->isbn ?? $line->item?->item_code ?? 'Sans code' }}</span>
+                                                                                    <div class="mt-2 h-1.5 w-24 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                                                                                        <div class="h-full rounded-full {{ $linePercent >= 100 ? 'bg-emerald-500' : 'bg-amber-500' }}" style="width: {{ $linePercent }}%"></div>
+                                                                                    </div>
+                                                                                </td>
+                                                                                <td class="px-4 py-3 text-right font-medium">{{ $line->quantity_ordered }}</td>
+                                                                                <td class="px-4 py-3 text-right font-medium">{{ $line->quantity_received }}</td>
+                                                                                <td class="px-4 py-3 text-right">
+                                                                                    @if ($lineRemaining > 0)
+                                                                                        <x-status-pill :tone="$lineStatusTone" size="sm">{{ $lineRemaining }}</x-status-pill>
+                                                                                    @else
+                                                                                        <x-status-pill tone="success" size="sm">OK</x-status-pill>
+                                                                                    @endif
+                                                                                </td>
+                                                                                <td class="px-4 py-3 text-right text-slate-600">{{ $money($line->unit_cost) }}</td>
+                                                                                <td class="px-4 py-3 text-right font-semibold">{{ $money($line->quantity_ordered * $line->unit_cost) }}</td>
+                                                                            </tr>
+                                                                        @empty
+                                                                            <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500">Aucune ligne article.</td></tr>
+                                                                        @endforelse
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+
+                                                        {{-- Activity timeline --}}
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                            <h4 class="text-sm font-semibold">Activité</h4>
+                                                            <div class="mt-3 space-y-3">
+                                                                <div class="flex gap-3 text-sm">
+                                                                    <span class="mt-1.5 size-2 shrink-0 rounded-full bg-blue-500"></span>
+                                                                    <div>
+                                                                        <p class="font-medium">Commande créée</p>
+                                                                        <p class="text-xs text-slate-500">Par {{ $purchaseCreatedBy }} · {{ $purchaseCreatedAt ? \Illuminate\Support\Carbon::parse($purchaseCreatedAt)->format('d/m/Y H:i') : '—' }}</p>
+                                                                    </div>
+                                                                </div>
+                                                                @if ($purchase->received_at || $receivedQuantity > 0)
+                                                                    <div class="flex gap-3 text-sm">
+                                                                        <span class="mt-1.5 size-2 shrink-0 rounded-full bg-emerald-500"></span>
+                                                                        <div>
+                                                                            <p class="font-medium">Réception en cours / terminée</p>
+                                                                            <p class="text-xs text-slate-500">{{ number_format($receivedQuantity, 0, ',', ' ') }} unité(s) reçue(s) · {{ $purchaseUpdatedAt ? \Illuminate\Support\Carbon::parse($purchaseUpdatedAt)->format('d/m/Y H:i') : '—' }}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                @endif
+                                                                @if ($purchase->payments->isNotEmpty())
+                                                                    @foreach ($purchase->payments as $payment)
+                                                                        <div class="flex gap-3 text-sm">
+                                                                            <span class="mt-1.5 size-2 shrink-0 rounded-full bg-violet-500"></span>
+                                                                            <div>
+                                                                                <p class="font-medium">Paiement {{ $payment->number }}</p>
+                                                                                <p class="text-xs text-slate-500">{{ $money($payment->amount) }} · {{ $payment->method }} · {{ $payment->paid_at?->format('d/m/Y') }}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                    @endforeach
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {{-- Sidebar --}}
+                                                    <aside class="space-y-4">
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                            <h4 class="text-sm font-semibold">Fournisseur</h4>
+                                                            <div class="mt-3 space-y-3 text-sm">
+                                                                <div>
+                                                                    <p class="font-semibold">{{ $purchase->supplier?->name ?? '—' }}</p>
+                                                                    <p class="text-xs text-slate-500">{{ $purchase->supplier?->phone ?? 'Sans téléphone' }}</p>
+                                                                </div>
+                                                                <div class="flex justify-between gap-3 text-xs"><span class="text-slate-500">Email</span><span>{{ $purchase->supplier?->email ?? '—' }}</span></div>
+                                                                <div class="flex justify-between gap-3 text-xs"><span class="text-slate-500">ICE</span><span>{{ $purchase->supplier?->ice ?? '—' }}</span></div>
+                                                                <div class="flex justify-between gap-3 text-xs"><span class="text-slate-500">Solde fournisseur</span><span class="font-semibold {{ ($purchase->supplier?->outstanding_balance ?? 0) > 0 ? 'text-rose-600' : 'text-emerald-600' }}">{{ $money($purchase->supplier?->outstanding_balance ?? 0) }}</span></div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                            <h4 class="text-sm font-semibold">Commande</h4>
+                                                            <dl class="mt-3 space-y-2.5 text-sm">
+                                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Facture fournisseur</dt><dd class="text-right font-medium">{{ data_get($purchase->metadata, 'supplier_invoice', '—') }}</dd></div>
+                                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Référence</dt><dd class="text-right font-medium">{{ data_get($purchase->metadata, 'reference', '—') }}</dd></div>
+                                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Lieu de livraison</dt><dd class="text-right font-medium">{{ data_get($purchase->metadata, 'warehouse', 'Magasin principal') ?: 'Magasin principal' }}</dd></div>
+                                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Commandé le</dt><dd class="text-right font-medium">{{ $purchase->ordered_at?->format('d/m/Y') ?? '—' }}</dd></div>
+                                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Réception prévue</dt><dd class="text-right font-medium">{{ $purchase->expected_at?->format('d/m/Y') ?? '—' }}</dd></div>
+                                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Reçu le</dt><dd class="text-right font-medium">{{ $purchase->received_at?->format('d/m/Y') ?? '—' }}</dd></div>
+                                                            </dl>
+                                                        </div>
+
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                                            <h4 class="text-sm font-semibold">Paiement</h4>
+                                                            <dl class="mt-3 space-y-2 text-sm">
+                                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Total</dt><dd class="text-right font-semibold">{{ $money($purchase->total_amount) }}</dd></div>
+                                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Payé</dt><dd class="text-right text-emerald-600">{{ $money($paidAmount) }}</dd></div>
+                                                                <div class="flex justify-between gap-3 border-t border-slate-200 pt-2 dark:border-white/10"><dt class="font-medium">Reste dû</dt><dd class="font-semibold {{ $dueAmount > 0.001 ? 'text-rose-600' : 'text-emerald-600' }}">{{ $money($dueAmount) }}</dd></div>
+                                                            </dl>
+
+                                                            @if ($dueAmount > 0.001)
+                                                                <form action="{{ route('purchases.payments.store') }}" method="POST" class="mt-4 space-y-3">
+                                                                    @csrf
+                                                                    <input type="hidden" name="purchase_id" value="{{ $purchase->id }}">
+                                                                    <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
+                                                                    <div class="grid gap-2 sm:grid-cols-2">
+                                                                        <select name="method" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" required>
+                                                                            <option value="cash">Espèces</option>
+                                                                            <option value="card">Carte</option>
+                                                                            <option value="transfer">Virement</option>
+                                                                            <option value="cheque">Chèque</option>
+                                                                            <option value="other">Autre</option>
+                                                                        </select>
+                                                                        <input type="number" name="amount" step="0.01" min="0.01" max="{{ $dueAmount }}" value="{{ old('amount', $dueAmount) }}" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Montant" required>
+                                                                    </div>
+                                                                    <input type="text" name="reference" value="{{ old('reference') }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Référence paiement">
+                                                                    <button type="submit" class="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">Enregistrer paiement</button>
+                                                                </form>
+                                                            @endif
+
+                                                            @if ($purchase->payments->isNotEmpty())
+                                                                <div class="mt-4 space-y-2">
+                                                                    @foreach ($purchase->payments as $payment)
+                                                                        <div class="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs dark:border-white/5 dark:bg-white/5">
+                                                                            <div>
+                                                                                <span class="font-medium">{{ $payment->number }}</span>
+                                                                                <span class="block text-[10px] uppercase text-slate-500">{{ $payment->method }} · {{ $payment->paid_at?->format('d/m/Y') }}</span>
+                                                                            </div>
+                                                                            <span class="font-semibold">{{ $money($payment->amount) }}</span>
+                                                                        </div>
+                                                                    @endforeach
+                                                                </div>
+                                                            @endif
+                                                        </div>
+
+                                                        @if (data_get($purchase->metadata, 'note'))
+                                                            <div class="rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-white/10 dark:bg-slate-950/40">
                                                         <h4 class="font-semibold">Note</h4>
                                                         <p class="mt-2 text-slate-500">{{ data_get($purchase->metadata, 'note') }}</p>
                                                     </div>

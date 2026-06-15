@@ -4,7 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Contact;
 use App\Models\Item;
+use App\Models\Purchase;
 use App\Models\StockAdjustment;
 use App\Models\StockTransfer;
 use App\Models\Tax;
@@ -895,6 +897,59 @@ class CatalogueTest extends TestCase
             ->assertSee('detail_adjustment='.$adjustment->id, false)
             ->assertSee('Ajuster maintenant')
             ->assertSee('Tous les articles');
+    }
+
+    public function test_inventory_history_displays_stock_value_and_cost_per_movement(): void
+    {
+        $this->seed();
+
+        $supplier = Contact::where('kind', 'supplier')->firstOrFail();
+        $item = Item::where('type', '!=', 'service')->firstOrFail();
+        $item->update(['purchase_price' => 10, 'sale_price' => 20]);
+        $initialStock = (int) $item->stock_quantity;
+
+        $this->post(route('purchases.store'), [
+            'supplier_id' => $supplier->id,
+            'ordered_at' => now()->toDateString(),
+            'expected_at' => now()->addDays(3)->toDateString(),
+            'status' => 'ordered',
+            'items' => [
+                ['item_id' => $item->id, 'quantity' => 3, 'unit_cost' => 12],
+            ],
+        ]);
+
+        $purchase = Purchase::orderByDesc('id')->firstOrFail();
+        $this->post(route('purchases.receive', $purchase))->assertRedirect();
+
+        $item->refresh();
+        $this->assertSame($initialStock + 3, (int) $item->stock_quantity);
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'type' => 'purchase',
+            'quantity_delta' => 3,
+            'quantity_after' => $initialStock + 3,
+            'unit_cost' => 12,
+            'total_cost' => 36,
+            'reference_type' => Purchase::class,
+            'reference_id' => $purchase->id,
+        ]);
+
+        $this->get(route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $item->id]))
+            ->assertOk()
+            ->assertSee($item->title)
+            ->assertSee('Valeur stock')
+            ->assertSee('Coût unitaire')
+            ->assertSee('Stock après')
+            ->assertSee('Mouvement')
+            ->assertSee('12,00 DH')
+            ->assertSee('36,00 DH')
+            ->assertSee('Voir achat');
+
+        $this->get(route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $item->id, 'movement_type' => 'purchase']))
+            ->assertOk()
+            ->assertSee($item->title)
+            ->assertSee('Achat')
+            ->assertSee('12,00 DH');
     }
 
     public function test_stock_item_search_returns_combobox_options(): void

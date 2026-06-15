@@ -3080,6 +3080,19 @@
         }
     }
 
+    .inventory-search-filters {
+        grid-column: 1 / -1;
+        display: grid;
+        gap: 10px;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    @media (min-width: 640px) {
+        .inventory-search-filters {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+        }
+    }
+
     .inventory-item-picker {
         min-width: 0;
         position: relative;
@@ -3269,7 +3282,7 @@
 
     @media (min-width: 1024px) {
         .inventory-movement-row {
-            grid-template-columns: 150px minmax(0, 1.25fr) minmax(260px, 0.75fr) 180px;
+            grid-template-columns: 150px minmax(0, 1fr) minmax(380px, 1fr) 180px;
             align-items: center;
         }
     }
@@ -3353,6 +3366,12 @@
         display: grid;
         gap: 10px;
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    @media (min-width: 1024px) {
+        .inventory-movement-metrics {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
     }
 
     .inventory-metric {
