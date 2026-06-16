@@ -12,8 +12,8 @@ class AppModules
             'dashboard' => ['label' => 'Tableau de bord', 'description' => 'KPIs, activité du jour, rapports rapides et centre d’action.', 'locked' => true, 'default' => true],
             'catalog' => ['label' => 'Catalogue', 'description' => 'Articles, services, catégories, marques, variantes, imports et étiquettes.', 'default' => true],
             'sales' => ['label' => 'Ventes & caisse', 'description' => 'POS, ventes, paiements, retours et workflow comptoir.', 'default' => true],
-            'invoices' => ['label' => 'Factures', 'description' => 'Création, consultation, impression et PDF des factures client.', 'default' => true],
-            'quotations' => ['label' => 'Devis', 'description' => 'Pro-forma, devis client, expiration et conversion en vente.', 'default' => true],
+            'invoices' => ['label' => 'Facturation', 'description' => 'Factures clients, devis, pro-forma, impressions PDF et relances.', 'default' => true],
+            'quotations' => ['label' => 'Devis', 'description' => 'Pro-forma, devis client, expiration et conversion en facture.', 'default' => true],
             'deliveries' => ['label' => 'Livraisons', 'description' => 'Bons de livraison, suivi de préparation et statut de livraison.', 'default' => true],
             'purchases' => ['label' => 'Achats', 'description' => 'Commandes fournisseurs, réception de stock et retours d’achat.', 'default' => true],
             'customers' => ['label' => 'Clients', 'description' => 'Fiches clients, historique, imports, CRM et soldes.', 'default' => true],
@@ -82,10 +82,15 @@ class AppModules
     {
         return match ($module) {
             'sales' => match (true) {
-                in_array($section, ['invoices'], true) => 'invoices',
+                in_array($section, ['invoices', 'invoice-add'], true) => 'invoices',
                 in_array($section, ['quotes', 'quote-add'], true) => 'quotations',
                 in_array($section, ['delivery'], true) => 'deliveries',
                 default => 'sales',
+            },
+            'invoices' => match (true) {
+                in_array($section, ['invoices', 'invoice-add'], true) => 'invoices',
+                in_array($section, ['estimates', 'estimate-add'], true) => 'quotations',
+                default => 'invoices',
             },
             'purchases' => 'purchases',
             'loans' => 'loans',

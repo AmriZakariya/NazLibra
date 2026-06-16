@@ -5871,7 +5871,8 @@ class LibraireProController extends Controller
         $businessMode = BusinessMode::current($tenant);
 
         $modules = [
-            'sales' => ['title' => 'Ventes', 'subtitle' => 'Historique, devis, retours, livraisons et crédits client.', 'active' => 'sales'],
+            'sales' => ['title' => 'Ventes', 'subtitle' => 'Historique, paiements, retours, livraisons et crédits client.', 'active' => 'sales'],
+            'invoices' => ['title' => 'Facturation', 'subtitle' => 'Factures clients, devis, pro-forma, impressions PDF et relances.', 'active' => 'invoices'],
             'purchases' => ['title' => 'Achats', 'subtitle' => 'Commandes fournisseurs, réception de stock et planification rentrée.', 'active' => 'purchases'],
             'loans' => ['title' => 'Emprunts', 'subtitle' => 'Prêts, retours, pénalités, réservations et cartes membre.', 'active' => 'loans'],
             'contacts' => ['title' => 'Contacts', 'subtitle' => 'Clients, écoles, fournisseurs, segmentation et communication.', 'active' => 'contacts'],

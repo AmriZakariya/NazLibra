@@ -17,6 +17,9 @@
             @if ($module === 'sales')
                 <a href="{{ route('module', ['module' => 'sales', 'section' => 'add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Ajouter vente</a>
                 <a href="{{ route('pos') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Caisse</a>
+            @elseif ($module === 'invoices')
+                <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoice-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouvelle facture</a>
+                <a href="{{ route('module', ['module' => 'invoices', 'section' => 'estimate-add']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Nouveau devis</a>
             @elseif ($module === 'purchases')
                 <a href="{{ route('module', ['module' => 'purchases', 'section' => 'add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouvel achat</a>
                 <a href="{{ route('module', ['module' => 'contacts', 'section' => 'supplier-add']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Fournisseur</a>
@@ -1271,6 +1274,433 @@
                 </div>
             </article>
         </section>
+        @endif
+    @elseif ($module === 'invoices')
+        @php
+            $invoiceSection = request('section', 'invoices');
+            $invoiceTabs = [
+                'invoices' => ['label' => 'Liste des factures', 'href' => route('module', ['module' => 'invoices', 'section' => 'invoices'])],
+                'estimates' => ['label' => 'Liste des devis', 'href' => route('module', ['module' => 'invoices', 'section' => 'estimates'])],
+                'invoice-add' => ['label' => 'Nouvelle facture', 'href' => route('module', ['module' => 'invoices', 'section' => 'invoice-add'])],
+                'estimate-add' => ['label' => 'Nouveau devis', 'href' => route('module', ['module' => 'invoices', 'section' => 'estimate-add'])],
+            ];
+            $invoiceStatusLabels = [
+                'draft' => 'Brouillon',
+                'sent' => 'Envoyée',
+                'viewed' => 'Vue',
+                'partially_paid' => 'Partiellement payée',
+                'paid' => 'Payée',
+                'overdue' => 'En retard',
+                'cancelled' => 'Annulée',
+                'archived' => 'Archivée',
+            ];
+            $invoiceStatusTones = [
+                'draft' => 'warning',
+                'sent' => 'info',
+                'viewed' => 'info',
+                'partially_paid' => 'warning',
+                'paid' => 'success',
+                'overdue' => 'danger',
+                'cancelled' => 'danger',
+                'archived' => 'primary',
+            ];
+        @endphp
+        <details class="app-collapsible-menu mt-6" data-collapsible-menu data-menu-key="module-invoices-menu">
+            <summary class="app-collapsible-menu-summary">
+                <span><strong>Menu facturation</strong><small>{{ $invoiceTabs[$invoiceSection]['label'] ?? 'Liste des factures' }}</small></span>
+                <em data-collapsible-menu-state>Afficher</em>
+            </summary>
+            <nav class="app-tab-nav">
+                @foreach ($invoiceTabs as $key => $tab)
+                    <a href="{{ $tab['href'] }}" class="app-tab-link {{ $invoiceSection === $key || ($key === 'invoices' && ! in_array($invoiceSection, ['estimates', 'invoice-add', 'estimate-add'], true)) ? 'is-active' : '' }}">{{ $tab['label'] }}</a>
+                @endforeach
+            </nav>
+        </details>
+
+        @if ($invoiceSection === 'invoices')
+            @php $detailInvoice = request()->query('invoice') ? $commercialInvoices->firstWhere('id', (int) request()->query('invoice')) : null; @endphp
+            <section class="mt-6 space-y-4">
+                @if ($detailInvoice)
+                    <article class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Facture enregistrée</p>
+                                <p class="text-sm text-emerald-700 dark:text-emerald-300">{{ $detailInvoice->number }} · {{ $money($detailInvoice->total) }} · {{ $invoiceStatusLabels[$detailInvoice->status] ?? $detailInvoice->status }}</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <a href="{{ route('documents.invoices.pdf', $detailInvoice) }}" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">PDF</a>
+                                <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices']) }}" class="rounded-lg border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-slate-950 dark:text-emerald-300">Fermer</a>
+                            </div>
+                        </div>
+                    </article>
+                @endif
+                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <form method="GET" action="{{ route('module', ['module' => 'invoices', 'section' => 'invoices']) }}" class="flex flex-wrap items-end gap-3">
+                        <input type="hidden" name="section" value="invoices">
+                        <label class="min-w-[260px] flex-1 space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Recherche</span><input name="q" value="{{ request('q') }}" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="N° facture, client, statut..."></label>
+                        <label class="min-w-[180px] space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="invoice_status" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous</option>@foreach($invoiceStatusLabels as $key => $label)<option value="{{ $key }}" @selected(request('invoice_status') === $key)>{{ $label }}</option>@endforeach</select></label>
+                        <label class="min-w-[160px] space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Archives</span><select name="archived" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Actives</option><option value="with" @selected(request('archived') === 'with')>Inclure</option></select></label>
+                        <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white" type="submit">Filtrer</button>
+                        <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Reset</a>
+                    </form>
+                </article>
+                <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4 dark:border-white/10">
+                        <div>
+                            <h3 class="font-semibold">Factures commerciales</h3>
+                            <p class="mt-1 text-sm text-slate-500">Factures autonomes avec snapshots, paiements partiels, archive et historique.</p>
+                        </div>
+                        <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-white/10 dark:text-slate-200">{{ $commercialInvoices->total() }} facture(s)</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[1120px] text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                                <tr><th class="px-3 py-3">N°</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Émission</th><th class="px-3 py-3">Échéance</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Payé</th><th class="px-3 py-3 text-right">Reste</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3">Créée par</th><th class="px-3 py-3 text-right">Action</th></tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                @forelse ($commercialInvoices as $invoice)
+                                    @php $statusTone = $invoiceStatusTones[$invoice->status] ?? 'info'; @endphp
+                                    <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5">
+                                        <td class="px-3 py-3 font-mono text-xs font-semibold">{{ $invoice->number }}</td>
+                                        <td class="px-3 py-3"><strong>{{ data_get($invoice->customer_snapshot, 'name', $invoice->customer?->name ?? 'Client comptoir') }}</strong><p class="mt-1 text-xs text-slate-500">{{ data_get($invoice->customer_snapshot, 'phone') ?: data_get($invoice->customer_snapshot, 'email', '—') }}</p></td>
+                                        <td class="px-3 py-3">{{ $invoice->issue_date?->format('d/m/Y') ?? '—' }}</td>
+                                        <td class="px-3 py-3">{{ $invoice->due_date?->format('d/m/Y') ?? '—' }}</td>
+                                        <td class="px-3 py-3 text-right font-semibold">{{ $money($invoice->total) }}</td>
+                                        <td class="px-3 py-3 text-right text-emerald-600 dark:text-emerald-300">{{ $money($invoice->amount_paid) }}</td>
+                                        <td class="px-3 py-3 text-right font-semibold">{{ $money($invoice->balance_due) }}</td>
+                                        <td class="px-3 py-3"><x-status-pill :tone="$statusTone">{{ $invoiceStatusLabels[$invoice->status] ?? $invoice->status }}</x-status-pill></td>
+                                        <td class="px-3 py-3">{{ $invoice->creator?->name ?? '—' }}</td>
+                                        <td class="px-3 py-3 text-right">
+                                            <div class="flex justify-end gap-2">
+                                                <a href="{{ route('documents.invoices.pdf', $invoice) }}" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">PDF</a>
+                                                <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $invoice->id]) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="10" class="px-4 py-12 text-center text-sm text-slate-500">Aucune facture commerciale autonome pour le moment.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $commercialInvoices->links() }}</div>
+                </article>
+                <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="border-b border-slate-200 p-4 dark:border-white/10">
+                        <h3 class="font-semibold">Factures issues des ventes POS</h3>
+                        <p class="mt-1 text-sm text-slate-500">Historique existant lié aux tickets de vente.</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[1080px] text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                                <tr><th class="px-3 py-3">N° facture</th><th class="px-3 py-3">Ticket</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Échéance</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3">Créée par</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Action</th></tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                @forelse ($saleInvoices as $invoice)
+                                    @php
+                                        $invoiceListCreatedBy = data_get($invoice->metadata, 'created_by_name') ?: $invoice->user?->name ?: 'Utilisateur inconnu';
+                                        $invoiceListCreatedAt = data_get($invoice->metadata, 'created_by_at') ?: $invoice->created_at?->toIso8601String();
+                                        $effectiveInvoiceStatus = in_array($invoice->status, ['paid', 'cancelled', 'refunded'], true)
+                                            ? $invoice->status
+                                            : ($invoice->due_date && $invoice->due_date->toDateString() < now()->toDateString() ? 'overdue' : $invoice->status);
+                                        $invoiceStatusLabel = [
+                                            'paid' => 'Payée',
+                                            'partial' => 'Partielle',
+                                            'unpaid' => 'Impayée',
+                                            'overdue' => 'En retard',
+                                            'issued' => 'Émise',
+                                            'cancelled' => 'Annulée',
+                                            'refunded' => 'Remboursée',
+                                        ][$effectiveInvoiceStatus] ?? $effectiveInvoiceStatus;
+                                        $invoiceStatusTone = match ($effectiveInvoiceStatus) {
+                                            'paid' => 'success',
+                                            'partial', 'issued' => 'warning',
+                                            'overdue', 'unpaid' => 'danger',
+                                            default => 'info',
+                                        };
+                                    @endphp
+                                    <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5" data-row-url="{{ route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $invoice->sale_id, 'invoice' => $invoice->id]) }}">
+                                        <td class="px-3 py-3 font-mono text-xs font-semibold">{{ $invoice->number }}</td>
+                                        <td class="px-3 py-3 font-semibold">{{ $invoice->sale?->number ?? '—' }}</td>
+                                        <td class="px-3 py-3">{{ $invoice->issued_at?->format('d/m/Y H:i') ?? '—' }}</td>
+                                        <td class="px-3 py-3">{{ $invoice->due_date?->format('d/m/Y') ?? '—' }}</td>
+                                        <td class="px-3 py-3">{{ $invoice->contact?->name ?? $invoice->sale?->contact?->name ?? 'Client Grand Public' }}</td>
+                                        <td class="px-3 py-3"><x-status-pill :tone="$invoiceStatusTone">{{ $invoiceStatusLabel }}</x-status-pill></td>
+                                        <td class="px-3 py-3 whitespace-nowrap"><span class="font-semibold">{{ $invoiceListCreatedBy }}</span><p class="mt-1 text-xs text-slate-500">{{ $invoiceListCreatedAt ? \Illuminate\Support\Carbon::parse($invoiceListCreatedAt)->format('d/m/Y H:i') : '—' }}</p></td>
+                                        <td class="px-3 py-3 text-right font-semibold">{{ $money($invoice->total_amount) }}</td>
+                                        <td class="px-3 py-3 text-right">
+                                            <div class="flex justify-end gap-2">
+                                                <a href="{{ route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $invoice->sale_id, 'invoice' => $invoice->id]) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold hover:border-brand hover:text-brand dark:border-white/10">Voir</a>
+                                                <a href="{{ route('sales.invoices.pdf', $invoice) }}" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">PDF</a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="9" class="px-4 py-12 text-center text-sm text-slate-500">Aucune facture créée. Créez une facture depuis la liste des ventes.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $saleInvoices->links() }}</div>
+                </article>
+            </section>
+        @elseif ($invoiceSection === 'estimates')
+            @php
+                $estimateStatusLabels = ['draft' => 'Brouillon', 'sent' => 'Envoyé', 'accepted' => 'Accepté', 'declined' => 'Rejeté', 'expired' => 'Expiré', 'converted' => 'Converti', 'cancelled' => 'Annulé', 'archived' => 'Archivé'];
+                $estimateStatusTones = ['draft' => 'warning', 'sent' => 'info', 'accepted' => 'success', 'declined' => 'danger', 'expired' => 'danger', 'converted' => 'primary', 'cancelled' => 'danger', 'archived' => 'primary'];
+            @endphp
+            <section class="mt-6 space-y-5">
+                <div class="grid gap-3 md:grid-cols-4">
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Devis total</span><p class="mt-2 text-2xl font-semibold">{{ $commercialEstimates->total() + $quotations->total() }}</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Montant filtré</span><p class="mt-2 text-2xl font-semibold">{{ $money($commercialEstimates->sum('total') + $quotations->sum('total_amount')) }}</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Acceptés</span><p class="mt-2 text-2xl font-semibold text-emerald-600">{{ \App\Models\Estimate::where('tenant_id', $tenant->id)->where('status', 'accepted')->count() + \App\Models\Quotation::where('tenant_id', $tenant->id)->where('status', 'accepted')->count() }}</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">À relancer</span><p class="mt-2 text-2xl font-semibold text-amber-600">{{ \App\Models\Estimate::where('tenant_id', $tenant->id)->whereIn('status', ['draft', 'sent'])->where(function($q){$q->whereNull('expiration_date')->orWhereDate('expiration_date', '>=', now());})->count() + \App\Models\Quotation::where('tenant_id', $tenant->id)->whereIn('status', ['draft', 'sent'])->where(function($q){$q->whereNull('expires_at')->orWhereDate('expires_at', '>=', now());})->count() }}</p></article>
+                </div>
+                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <form class="grid gap-3 lg:grid-cols-[1fr_190px_150px_150px_160px_auto]" method="GET" action="{{ route('module', ['module' => 'invoices', 'section' => 'estimates']) }}">
+                        <input type="hidden" name="section" value="estimates">
+                        <input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Rechercher devis, client, référence...">
+                        <select name="client" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous clients</option>@foreach ($salesClients as $client)<option value="{{ $client->id }}" @selected((string) request('client') === (string) $client->id)>{{ $client->name }}</option>@endforeach</select>
+                        <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                        <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                        <select name="estimate_status" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous statuts</option>@foreach ($estimateStatusLabels as $key => $label)<option value="{{ $key }}" @selected(request('estimate_status') === $key)>{{ $label }}</option>@endforeach</select>
+                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'invoices', 'section' => 'estimates']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+                    </form>
+                </article>
+                <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="border-b border-slate-200 p-4 dark:border-white/10"><h3 class="font-semibold">Devis commerciaux</h3><p class="mt-1 text-sm text-slate-500">Propositions clients avec conversion en facture.</p></div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[1120px] text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                                <tr><th class="px-3 py-3">N° devis</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Expiration</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Référence</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Action</th></tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                @forelse ($commercialEstimates as $estimate)
+                                    @php
+                                        $isExpired = $estimate->expiration_date && $estimate->expiration_date->isPast();
+                                        $isSoon = $estimate->expiration_date && ! $isExpired && $estimate->expiration_date->diffInDays(now()) <= 3;
+                                        $canConvert = in_array($estimate->status, ['sent', 'accepted'], true) && ! $estimate->converted_invoice_id && ! $isExpired;
+                                    @endphp
+                                    <tr class="transition hover:bg-slate-50 dark:hover:bg-white/[0.02]">
+                                        <td class="px-3 py-3"><p class="font-semibold">{{ $estimate->number }}</p>@if ($estimate->converted_invoice_id)<p class="mt-0.5 text-xs text-emerald-600">Converti · {{ $estimate->convertedInvoice?->number }}</p>@endif</td>
+                                        <td class="px-3 py-3">{{ $estimate->issue_date?->format('d/m/Y') ?? '—' }}</td>
+                                        <td class="px-3 py-3"><span class="{{ $isExpired ? 'text-rose-600 font-semibold' : ($isSoon ? 'text-amber-600 font-semibold' : '') }}">{{ $estimate->expiration_date?->format('d/m/Y') ?? '—' }}</span>@if ($isExpired)<span class="ml-1 text-[10px] font-bold uppercase text-rose-600">Expiré</span>@endif @if ($isSoon)<span class="ml-1 text-[10px] font-bold uppercase text-amber-600">Bientôt</span>@endif</td>
+                                        <td class="px-3 py-3">{{ data_get($estimate->customer_snapshot, 'name', $estimate->customer?->name ?? 'Client comptoir') }}</td>
+                                        <td class="px-3 py-3 text-slate-500">{{ $estimate->customer_reference ?? '—' }}</td>
+                                        <td class="px-3 py-3"><x-status-pill :tone="$estimateStatusTones[$estimate->status] ?? 'warning'">{{ $estimateStatusLabels[$estimate->status] ?? $estimate->status }}</x-status-pill></td>
+                                        <td class="px-3 py-3 text-right font-semibold">{{ $money($estimate->total) }}</td>
+                                        <td class="px-3 py-3 text-right">
+                                            <div class="flex justify-end gap-2">
+                                                <a href="{{ route('documents.estimates.pdf', $estimate) }}" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">PDF</a>
+                                                @if ($canConvert)
+                                                    <form action="{{ route('documents.estimates.convert', $estimate) }}" method="POST" onsubmit="return confirm('Convertir ce devis en facture brouillon ?')">@csrf<button class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Convertir</button></form>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun devis commercial.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $commercialEstimates->links() }}</div>
+                </article>
+                <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="border-b border-slate-200 p-4 dark:border-white/10"><h3 class="font-semibold">Anciens devis (historique)</h3><p class="mt-1 text-sm text-slate-500">Devis legacy conservés pour traçabilité.</p></div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[1120px] text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                                <tr><th class="px-3 py-3">N° devis</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Expiration</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Référence</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Action</th></tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                @forelse ($quotations as $quote)
+                                    @php
+                                        $isExpired = $quote->expires_at && $quote->expires_at->isPast();
+                                        $isSoon = $quote->expires_at && ! $isExpired && $quote->expires_at->diffInDays(now()) <= 3;
+                                        $legacyConvertedInvoiceId = (int) data_get($quote->metadata, 'converted_invoice_id', 0);
+                                        $canConvert = ! $quote->converted_sale_id && ! $legacyConvertedInvoiceId && $quote->status === 'accepted';
+                                    @endphp
+                                    <tr class="transition hover:bg-slate-50 dark:hover:bg-white/[0.02]">
+                                        <td class="px-3 py-3"><p class="font-semibold">{{ $quote->number }}</p>@if ($legacyConvertedInvoiceId)<p class="mt-0.5 text-xs text-emerald-600">Converti · {{ data_get($quote->metadata, 'converted_invoice_number') }}</p>@elseif ($quote->converted_sale_id)<p class="mt-0.5 text-xs text-emerald-600">Ancien flux · {{ $quote->convertedSale?->number }}</p>@endif</td>
+                                        <td class="px-3 py-3">{{ $quote->quoted_at?->format('d/m/Y H:i') }}</td>
+                                        <td class="px-3 py-3"><span class="{{ $isExpired ? 'text-rose-600 font-semibold' : ($isSoon ? 'text-amber-600 font-semibold' : '') }}">{{ $quote->expires_at?->format('d/m/Y') ?? '—' }}</span>@if ($isExpired)<span class="ml-1 text-[10px] font-bold uppercase text-rose-600">Expiré</span>@endif @if ($isSoon)<span class="ml-1 text-[10px] font-bold uppercase text-amber-600">Bientôt</span>@endif</td>
+                                        <td class="px-3 py-3">{{ $quote->contact?->name ?? data_get($quote->metadata, 'client_name', 'Client comptoir') }}</td>
+                                        <td class="px-3 py-3 text-slate-500">{{ data_get($quote->metadata, 'reference', '—') }}</td>
+                                        <td class="px-3 py-3"><x-status-pill :tone="$quoteStatusTones[$quote->status] ?? 'warning'">{{ $quoteStatusLabels[$quote->status] ?? $quote->status }}</x-status-pill></td>
+                                        <td class="px-3 py-3 text-right font-semibold">{{ $money($quote->total_amount) }}</td>
+                                        <td class="px-3 py-3 text-right">
+                                            <div class="flex justify-end gap-2">
+                                                @if ($canConvert)
+                                                    <form action="{{ route('quotations.convert', $quote) }}" method="POST" onsubmit="return confirm('Convertir ce devis en facture brouillon ? Aucun stock ne sera décrémenté.')">@csrf<button class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Convertir</button></form>
+                                                @endif
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun ancien devis.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $quotations->links() }}</div>
+                </article>
+            </section>
+        @elseif ($invoiceSection === 'estimate-add')
+            <section class="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
+                <form action="{{ route('documents.estimates.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]" data-quote-form>
+                    @csrf
+                    <div class="flex flex-col gap-2 border-b border-slate-200 pb-4 dark:border-white/10 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h2 class="text-lg font-semibold">Nouveau devis</h2>
+                            <p class="mt-1 text-sm text-slate-500">Préparez une offre client sans impacter le stock avant conversion.</p>
+                        </div>
+                        <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white">Enregistrer le devis</button>
+                    </div>
+                    <div class="grid gap-4 lg:grid-cols-4">
+                        <label class="space-y-1.5 lg:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Client existant</span><select name="customer_id" data-searchable-select data-placeholder="Client..." class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Client comptoir / nouveau</option>@foreach ($salesClients as $client)<option value="{{ $client->id }}" @selected(old('customer_id') == $client->id)>{{ $client->name }} · {{ $client->phone }}</option>@endforeach</select></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date devis</span><input name="issue_date" value="{{ old('issue_date', now()->toDateString()) }}" type="date" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Expiration</span><input name="expiration_date" value="{{ old('expiration_date', now()->addDays(15)->toDateString()) }}" type="date" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nom client</span><input name="customer_name" value="{{ old('customer_name') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom client"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" value="{{ old('phone') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212..."></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Référence client</span><input name="customer_reference" value="{{ old('customer_reference') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Bon, école..."></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="status" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="draft" @selected(old('status', 'draft') === 'draft')>Brouillon</option><option value="sent" @selected(old('status') === 'sent')>Envoyé</option></select></label>
+                        <label class="space-y-1.5 lg:col-span-4"><span class="text-xs font-semibold uppercase text-slate-500">Adresse de facturation</span><textarea name="billing_address" class="min-h-16 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Adresse...">{{ old('billing_address') }}</textarea></label>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between pb-2">
+                            <h3 class="text-sm font-semibold">Lignes devis</h3>
+                            <button type="button" class="quote-add-line inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold dark:border-white/10 dark:bg-white/5">
+                                <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                                Ajouter une ligne
+                            </button>
+                        </div>
+                        <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10" data-quote-lines>
+                            <div class="grid gap-2 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500 dark:bg-white/5 lg:grid-cols-[1fr_90px_120px_120px_120px_40px]"><span>Article</span><span class="text-center">Qté</span><span class="text-right">Prix</span><span class="text-right">Remise</span><span class="text-right">Total</span><span></span></div>
+                            @for ($i = 0; $i < 5; $i++)
+                                <div class="quote-line grid gap-2 border-t border-slate-200 p-2 dark:border-white/10 lg:grid-cols-[1fr_90px_120px_120px_120px_40px]" data-line-index="{{ $i }}">
+                                    <select name="lines[{{ $i }}][item_id]" data-quote-item data-searchable-select data-placeholder="Rechercher article..." class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value=""></option>@foreach ($quoteItems as $item)<option value="{{ $item->id }}" data-price="{{ $item->sale_price }}">{{ $item->title }} · {{ $money($item->sale_price) }} · stock {{ $item->type === 'service' ? '∞' : $item->stock_quantity }}</option>@endforeach</select>
+                                    <input name="lines[{{ $i }}][quantity]" data-quote-qty type="number" min="1" value="1" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-center dark:border-white/10 dark:bg-slate-900">
+                                    <input name="lines[{{ $i }}][unit_price]" data-quote-price type="number" min="0" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900">
+                                    <input name="lines[{{ $i }}][discount_value]" data-quote-discount-line type="number" min="0" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900" placeholder="DH">
+                                    <div class="flex h-10 items-center justify-end rounded-lg bg-slate-50 px-3 text-sm font-semibold dark:bg-white/5" data-quote-line-total>0,00 DH</div>
+                                    <button type="button" class="quote-remove-line grid size-10 place-items-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Retirer"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+                                    <input type="hidden" name="lines[{{ $i }}][discount_type]" value="fixed">
+                                    <input type="hidden" name="lines[{{ $i }}][tax_rate]" value="20">
+                                </div>
+                            @endfor
+                        </div>
+                    </div>
+                    <div class="grid gap-4 lg:grid-cols-[1fr_200px_200px]">
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Message client</span><textarea name="customer_message" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Message...">{{ old('customer_message') }}</textarea></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale (DH)</span><input name="document_discount_value" data-quote-discount value="{{ old('document_discount_value', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Frais (DH)</span><input name="fee_total" value="{{ old('fee_total', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                    </div>
+                    <input type="hidden" name="document_discount_type" value="fixed">
+                    <div class="grid gap-4 lg:grid-cols-2">
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note interne</span><textarea name="internal_note" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note interne...">{{ old('internal_note') }}</textarea></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Conditions / Footer</span><textarea name="terms" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Conditions...">{{ old('terms') }}</textarea></label>
+                    </div>
+                </form>
+                <aside class="space-y-4">
+                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <h3 class="font-semibold">Récapitulatif</h3>
+                        <dl class="mt-4 space-y-3 text-sm">
+                            <div class="flex justify-between"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold" data-quote-summary-subtotal>0,00 DH</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Remise</dt><dd class="font-semibold text-rose-600" data-quote-summary-discount>0,00 DH</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">TVA (20%)</dt><dd class="font-semibold" data-quote-summary-tax>0,00 DH</dd></div>
+                            <div class="flex justify-between border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-semibold">Total TTC</dt><dd class="font-bold text-brand" data-quote-summary-total>0,00 DH</dd></div>
+                        </dl>
+                    </article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <h3 class="font-semibold">Flux recommandé</h3>
+                        <div class="mt-3 space-y-2 text-sm text-slate-500">
+                            <p><span class="inline-flex size-5 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">1</span> Créez le devis en brouillon</p>
+                            <p><span class="inline-flex size-5 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">2</span> Envoyez-le au client (marquez "Envoyé")</p>
+                            <p><span class="inline-flex size-5 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">3</span> Quand le client confirme, marquez "Accepté"</p>
+                            <p><span class="inline-flex size-5 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">4</span> Convertissez en facture</p>
+                        </div>
+                    </article>
+                </aside>
+            </section>
+        @elseif ($invoiceSection === 'invoice-add')
+            <section class="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
+                <form action="{{ route('documents.invoices.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]" data-invoice-form>
+                    @csrf
+                    <div class="flex flex-col gap-2 border-b border-slate-200 pb-4 dark:border-white/10 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h2 class="text-lg font-semibold">Nouvelle facture</h2>
+                            <p class="mt-1 text-sm text-slate-500">Créez une facture commerciale autonome.</p>
+                        </div>
+                        <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white">Enregistrer la facture</button>
+                    </div>
+                    <div class="grid gap-4 lg:grid-cols-4">
+                        <label class="space-y-1.5 lg:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Client existant</span><select name="customer_id" data-searchable-select data-placeholder="Client..." class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Client comptoir / nouveau</option>@foreach ($salesClients as $client)<option value="{{ $client->id }}" @selected(old('customer_id') == $client->id)>{{ $client->name }} · {{ $client->phone }}</option>@endforeach</select></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date d'émission *</span><input name="issue_date" value="{{ old('issue_date', now()->toDateString()) }}" type="date" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Échéance</span><input name="due_date" value="{{ old('due_date') }}" type="date" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nom client</span><input name="customer_name" value="{{ old('customer_name') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom client"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" value="{{ old('phone') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212..."></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email</span><input name="email" value="{{ old('email') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="client@example.com"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Référence client</span><input name="customer_reference" value="{{ old('customer_reference') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Bon, école..."></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="status" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="draft" @selected(old('status', 'draft') === 'draft')>Brouillon</option><option value="sent" @selected(old('status') === 'sent')>Envoyée</option></select></label>
+                        <label class="space-y-1.5 lg:col-span-4"><span class="text-xs font-semibold uppercase text-slate-500">Adresse de facturation</span><textarea name="billing_address" class="min-h-16 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Adresse...">{{ old('billing_address') }}</textarea></label>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between pb-2">
+                            <h3 class="text-sm font-semibold">Lignes facture</h3>
+                            <button type="button" class="invoice-add-line inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold dark:border-white/10 dark:bg-white/5">
+                                <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                                Ajouter une ligne
+                            </button>
+                        </div>
+                        <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10" data-invoice-lines>
+                            <div class="grid gap-2 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500 dark:bg-white/5 lg:grid-cols-[1fr_90px_120px_120px_120px_40px]"><span>Article</span><span class="text-center">Qté</span><span class="text-right">Prix</span><span class="text-right">Remise</span><span class="text-right">Total</span><span></span></div>
+                            @for ($i = 0; $i < 5; $i++)
+                                <div class="invoice-line grid gap-2 border-t border-slate-200 p-2 dark:border-white/10 lg:grid-cols-[1fr_90px_120px_120px_120px_40px]" data-line-index="{{ $i }}">
+                                    <select name="lines[{{ $i }}][item_id]" data-invoice-item data-searchable-select data-placeholder="Rechercher article..." class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value=""></option>@foreach ($quoteItems as $item)<option value="{{ $item->id }}" data-price="{{ $item->sale_price }}">{{ $item->title }} · {{ $money($item->sale_price) }} · stock {{ $item->type === 'service' ? '∞' : $item->stock_quantity }}</option>@endforeach</select>
+                                    <input name="lines[{{ $i }}][quantity]" data-invoice-qty type="number" min="1" value="1" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-center dark:border-white/10 dark:bg-slate-900">
+                                    <input name="lines[{{ $i }}][unit_price]" data-invoice-price type="number" min="0" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900">
+                                    <input name="lines[{{ $i }}][discount_value]" data-invoice-discount-line type="number" min="0" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900" placeholder="DH">
+                                    <div class="flex h-10 items-center justify-end rounded-lg bg-slate-50 px-3 text-sm font-semibold dark:bg-white/5" data-invoice-line-total>0,00 DH</div>
+                                    <button type="button" class="invoice-remove-line grid size-10 place-items-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Retirer"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+                                    <input type="hidden" name="lines[{{ $i }}][discount_type]" value="fixed">
+                                    <input type="hidden" name="lines[{{ $i }}][tax_rate]" value="20">
+                                    <input type="hidden" name="lines[{{ $i }}][note]" value="">
+                                </div>
+                            @endfor
+                        </div>
+                    </div>
+                    <div class="grid gap-4 lg:grid-cols-[1fr_200px_200px]">
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Message client</span><textarea name="customer_message" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Message...">{{ old('customer_message') }}</textarea></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale (DH)</span><input name="document_discount_value" data-invoice-discount value="{{ old('document_discount_value', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Frais (DH)</span><input name="fee_total" value="{{ old('fee_total', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                    </div>
+                    <input type="hidden" name="document_discount_type" value="fixed">
+                    <div class="grid gap-4 lg:grid-cols-2">
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note interne</span><textarea name="internal_note" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note interne...">{{ old('internal_note') }}</textarea></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Conditions / Footer</span><textarea name="terms" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Conditions...">{{ old('terms') }}</textarea></label>
+                    </div>
+                </form>
+                <aside class="space-y-4">
+                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <h3 class="font-semibold">Récapitulatif</h3>
+                        <dl class="mt-4 space-y-3 text-sm">
+                            <div class="flex justify-between"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold" data-invoice-summary-subtotal>0,00 DH</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Remise</dt><dd class="font-semibold text-rose-600" data-invoice-summary-discount>0,00 DH</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">TVA (20%)</dt><dd class="font-semibold" data-invoice-summary-tax>0,00 DH</dd></div>
+                            <div class="flex justify-between border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-semibold">Total TTC</dt><dd class="font-bold text-brand" data-invoice-summary-total>0,00 DH</dd></div>
+                        </dl>
+                    </article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <h3 class="font-semibold">Raccourcis</h3>
+                        <div class="mt-3 space-y-2 text-sm text-slate-500">
+                            <p><span class="inline-flex size-5 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">1</span> Renseignez le client et les lignes</p>
+                            <p><span class="inline-flex size-5 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">2</span> Vérifiez le total TTC</p>
+                            <p><span class="inline-flex size-5 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">3</span> Enregistrez en brouillon puis envoyez</p>
+                        </div>
+                    </article>
+                </aside>
+            </section>
         @endif
     @elseif ($module === 'purchases')
         @php

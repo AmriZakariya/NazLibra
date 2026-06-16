@@ -1038,16 +1038,20 @@ document.querySelectorAll('[data-quote-form]').forEach((form) => {
 
     const recalc = () => {
         let subtotal = 0;
+        let lineDiscountTotal = 0;
         form.querySelectorAll('.quote-line').forEach((row) => {
             const itemSelect = row.querySelector('[data-quote-item]');
             const qtyInput = row.querySelector('[data-quote-qty]');
             const priceInput = row.querySelector('[data-quote-price]');
+            const lineDiscountInput = row.querySelector('[data-quote-discount-line]');
             const totalCell = row.querySelector('[data-quote-line-total]');
 
             const qty = parseInt(qtyInput?.value || 0, 10) || 0;
             const price = parseFloat(priceInput?.value || 0) || 0;
-            const lineTotal = qty * price;
-            subtotal += lineTotal;
+            const lineDiscount = Math.min(parseFloat(lineDiscountInput?.value || 0) || 0, qty * price);
+            const lineTotal = Math.max(0, qty * price - lineDiscount);
+            subtotal += qty * price;
+            lineDiscountTotal += lineDiscount;
 
             if (totalCell) totalCell.textContent = fmt(lineTotal);
 
@@ -1062,17 +1066,14 @@ document.querySelectorAll('[data-quote-form]').forEach((form) => {
             }
         });
 
-        const discount = parseFloat(discountInput?.value || 0) || 0;
-        const afterDiscount = Math.max(0, subtotal - discount);
+        const documentDiscount = parseFloat(discountInput?.value || 0) || 0;
+        const afterDiscount = Math.max(0, subtotal - lineDiscountTotal - documentDiscount);
         // TVA 20% included (Moroccan style: total = HT + TVA, but here storeQuotation does: tax = round(total * 0.2 / 1.2, 2))
-        // Let me match backend logic: tax = round(subtotal * 0.2, 2) when no discount, or more precisely:
-        // backend: total = subtotal - discount; tax_amount = round(total * 0.2 / 1.2, 2)
-        // Actually looking at storeQuotation: tax_amount = round($total * 0.2 / 1.2, 2) where $total = $subtotal - $discount
         const tax = Math.round(afterDiscount * 0.2 / 1.2 * 100) / 100;
         const total = afterDiscount;
 
         if (summarySubtotal) summarySubtotal.textContent = fmt(subtotal);
-        if (summaryDiscount) summaryDiscount.textContent = fmt(discount);
+        if (summaryDiscount) summaryDiscount.textContent = fmt(lineDiscountTotal + documentDiscount);
         if (summaryTax) summaryTax.textContent = fmt(tax);
         if (summaryTotal) summaryTotal.textContent = fmt(total);
     };
@@ -1087,8 +1088,8 @@ document.querySelectorAll('[data-quote-form]').forEach((form) => {
         clone.dataset.lineIndex = idx;
         clone.querySelectorAll('input, select').forEach((el) => {
             const name = el.getAttribute('name');
-            if (name) el.setAttribute('name', name.replace(/items\[\d+\]/, `items[${idx}]`));
-            if (el.tagName === 'INPUT') el.value = el.type === 'number' && el.dataset.quoteQty ? '1' : '';
+            if (name) el.setAttribute('name', name.replace(/(lines|items)\[\d+\]/, `$1[${idx}]`));
+            if (el.tagName === 'INPUT' && el.type !== 'hidden') el.value = el.type === 'number' && el.dataset.quoteQty ? '1' : '';
             if (el.dataset.quoteLineTotal) el.textContent = '0,00 DH';
         });
         clone.querySelectorAll('[data-searchable-select]').forEach((el) => el.classList.remove('choices--enabled'));
@@ -1104,7 +1105,7 @@ document.querySelectorAll('[data-quote-form]').forEach((form) => {
         if (lines.length <= 1) {
             // Clear instead of remove
             const row = btn.closest('.quote-line');
-            row.querySelectorAll('input').forEach((el) => { el.value = ''; });
+            row.querySelectorAll('input:not([type="hidden"])').forEach((el) => { el.value = ''; });
             row.querySelectorAll('select').forEach((el) => { el.value = ''; });
             row.querySelector('[data-quote-line-total]').textContent = '0,00 DH';
         } else {
@@ -1114,6 +1115,95 @@ document.querySelectorAll('[data-quote-form]').forEach((form) => {
     });
 
     // Recalc on any change
+    form.addEventListener('input', recalc);
+    form.addEventListener('change', recalc);
+    recalc();
+});
+
+// Invoice live calculator (commercial invoices)
+document.querySelectorAll('[data-invoice-form]').forEach((form) => {
+    const linesContainer = form.querySelector('[data-invoice-lines]');
+    const discountInput = form.querySelector('[data-invoice-discount]');
+    const summarySubtotal = form.querySelector('[data-invoice-summary-subtotal]');
+    const summaryDiscount = form.querySelector('[data-invoice-summary-discount]');
+    const summaryTax = form.querySelector('[data-invoice-summary-tax]');
+    const summaryTotal = form.querySelector('[data-invoice-summary-total]');
+
+    const fmt = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' DH';
+
+    const recalc = () => {
+        let subtotal = 0;
+        let lineDiscountTotal = 0;
+        form.querySelectorAll('.invoice-line').forEach((row) => {
+            const itemSelect = row.querySelector('[data-invoice-item]');
+            const qtyInput = row.querySelector('[data-invoice-qty]');
+            const priceInput = row.querySelector('[data-invoice-price]');
+            const lineDiscountInput = row.querySelector('[data-invoice-discount-line]');
+            const totalCell = row.querySelector('[data-invoice-line-total]');
+
+            const qty = parseInt(qtyInput?.value || 0, 10) || 0;
+            const price = parseFloat(priceInput?.value || 0) || 0;
+            const lineDiscount = Math.min(parseFloat(lineDiscountInput?.value || 0) || 0, qty * price);
+            const lineTotal = Math.max(0, qty * price - lineDiscount);
+            subtotal += qty * price;
+            lineDiscountTotal += lineDiscount;
+
+            if (totalCell) totalCell.textContent = fmt(lineTotal);
+
+            if (itemSelect && priceInput && !priceInput.value && itemSelect.selectedOptions[0]) {
+                const optPrice = itemSelect.selectedOptions[0].dataset.price;
+                if (optPrice) {
+                    priceInput.value = optPrice;
+                    const evt = new Event('input', { bubbles: true });
+                    priceInput.dispatchEvent(evt);
+                }
+            }
+        });
+
+        const documentDiscount = parseFloat(discountInput?.value || 0) || 0;
+        const afterDiscount = Math.max(0, subtotal - lineDiscountTotal - documentDiscount);
+        const tax = Math.round(afterDiscount * 0.2 / 1.2 * 100) / 100;
+        const total = afterDiscount;
+
+        if (summarySubtotal) summarySubtotal.textContent = fmt(subtotal);
+        if (summaryDiscount) summaryDiscount.textContent = fmt(lineDiscountTotal + documentDiscount);
+        if (summaryTax) summaryTax.textContent = fmt(tax);
+        if (summaryTotal) summaryTotal.textContent = fmt(total);
+    };
+
+    form.querySelector('.invoice-add-line')?.addEventListener('click', () => {
+        if (!linesContainer) return;
+        const template = linesContainer.querySelector('.invoice-line');
+        if (!template) return;
+        const clone = template.cloneNode(true);
+        const idx = linesContainer.querySelectorAll('.invoice-line').length;
+        clone.dataset.lineIndex = idx;
+        clone.querySelectorAll('input, select').forEach((el) => {
+            const name = el.getAttribute('name');
+            if (name) el.setAttribute('name', name.replace(/lines\[\d+\]/, `lines[${idx}]`));
+            if (el.tagName === 'INPUT' && el.type !== 'hidden') el.value = el.type === 'number' && el.dataset.invoiceQty ? '1' : '';
+            if (el.dataset.invoiceLineTotal) el.textContent = '0,00 DH';
+        });
+        clone.querySelectorAll('[data-searchable-select]').forEach((el) => el.classList.remove('choices--enabled'));
+        linesContainer.appendChild(clone);
+        recalc();
+    });
+
+    form.addEventListener('click', (e) => {
+        const btn = e.target.closest('.invoice-remove-line');
+        if (!btn) return;
+        const lines = form.querySelectorAll('.invoice-line');
+        if (lines.length <= 1) {
+            const row = btn.closest('.invoice-line');
+            row.querySelectorAll('input:not([type="hidden"])').forEach((el) => { el.value = ''; });
+            row.querySelectorAll('select').forEach((el) => { el.value = ''; });
+            row.querySelector('[data-invoice-line-total]').textContent = '0,00 DH';
+        } else {
+            btn.closest('.invoice-line').remove();
+        }
+        recalc();
+    });
+
     form.addEventListener('input', recalc);
     form.addEventListener('change', recalc);
     recalc();

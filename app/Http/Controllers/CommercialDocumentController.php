@@ -21,7 +21,7 @@ class CommercialDocumentController extends Controller
         $invoice = $service->create($tenant, $this->validateInvoicePayload($request));
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'invoices', 'invoice' => $invoice->id])
+            ->route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $invoice->id])
             ->with('status', 'Facture '.$invoice->number.' enregistrée.');
     }
 
@@ -33,7 +33,7 @@ class CommercialDocumentController extends Controller
         $invoice = $service->update($invoice, $this->validateInvoicePayload($request, true), $request->integer('version') ?: null);
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'invoices', 'invoice' => $invoice->id])
+            ->route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $invoice->id])
             ->with('status', 'Facture '.$invoice->number.' mise à jour.');
     }
 
@@ -51,7 +51,7 @@ class CommercialDocumentController extends Controller
         $copy = $service->duplicate($invoice);
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'invoices', 'invoice' => $copy->id])
+            ->route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $copy->id])
             ->with('status', 'Facture '.$invoice->number.' dupliquée en '.$copy->number.'.');
     }
 
@@ -102,7 +102,7 @@ class CommercialDocumentController extends Controller
         $estimate = $service->create($tenant, $this->validateEstimatePayload($request));
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'quotes', 'estimate' => $estimate->id])
+            ->route('module', ['module' => 'invoices', 'section' => 'estimates', 'estimate' => $estimate->id])
             ->with('status', 'Devis '.$estimate->number.' enregistré.');
     }
 
@@ -113,7 +113,7 @@ class CommercialDocumentController extends Controller
         $estimate = $service->update($estimate, $this->validateEstimatePayload($request, true), $request->integer('version') ?: null);
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'quotes', 'estimate' => $estimate->id])
+            ->route('module', ['module' => 'invoices', 'section' => 'estimates', 'estimate' => $estimate->id])
             ->with('status', 'Devis '.$estimate->number.' mis à jour.');
     }
 
@@ -143,7 +143,7 @@ class CommercialDocumentController extends Controller
         $copy = $service->duplicate($estimate);
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'quotes', 'estimate' => $copy->id])
+            ->route('module', ['module' => 'invoices', 'section' => 'estimates', 'estimate' => $copy->id])
             ->with('status', 'Devis '.$estimate->number.' dupliqué en '.$copy->number.'.');
     }
 
@@ -158,7 +158,7 @@ class CommercialDocumentController extends Controller
         $invoice = $service->convertToInvoice($estimate, $data);
 
         return redirect()
-            ->route('module', ['module' => 'sales', 'section' => 'invoices', 'invoice' => $invoice->id])
+            ->route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $invoice->id])
             ->with('status', 'Devis converti en facture '.$invoice->number.'.');
     }
 

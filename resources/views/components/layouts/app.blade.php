@@ -175,7 +175,7 @@
             ];
             $quickAdds = [
                 ['module_key' => 'sales', 'label' => 'Ventes', 'href' => route('module', ['module' => 'sales', 'section' => 'add'])],
-                ['module_key' => 'quotations', 'label' => 'Devis', 'href' => route('module', ['module' => 'sales', 'section' => 'quote-add'])],
+                ['module_key' => 'invoices', 'label' => 'Devis', 'href' => route('module', ['module' => 'invoices', 'section' => 'estimate-add'])],
                 ['module_key' => 'purchases', 'label' => 'Achat', 'href' => route('module', ['module' => 'purchases', 'section' => 'add'])],
                 ['module_key' => 'customers', 'label' => 'Client', 'href' => route('module', ['module' => 'contacts', 'section' => 'customer-add'])],
                 ['module_key' => 'suppliers', 'label' => 'Fournisseur', 'href' => route('module', ['module' => 'contacts', 'section' => 'supplier-add'])],
@@ -197,7 +197,12 @@
                     ['label' => 'Paiements des ventes', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'payments'])],
                     ['label' => 'Liste des retours de vente', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'returns'])],
                 ]],
-                ['key' => 'invoices', 'label' => 'Factures', 'icon' => '▤', 'href' => route('module', ['module' => 'sales', 'section' => 'invoices'])],
+                ['key' => 'invoices', 'label' => 'Facturation', 'icon' => '▤', 'href' => route('module', 'invoices'), 'children' => [
+                    ['label' => 'Nouvelle facture', 'icon' => '+', 'href' => route('module', ['module' => 'invoices', 'section' => 'invoice-add'])],
+                    ['label' => 'Liste des factures', 'icon' => '≡', 'href' => route('module', ['module' => 'invoices', 'section' => 'invoices'])],
+                    ['label' => 'Nouveau devis', 'icon' => '+', 'href' => route('module', ['module' => 'invoices', 'section' => 'estimate-add'])],
+                    ['label' => 'Liste des devis', 'icon' => '≡', 'href' => route('module', ['module' => 'invoices', 'section' => 'estimates'])],
+                ]],
                 ['key' => 'deliveries', 'label' => 'Livraisons', 'icon' => '⇢', 'href' => route('module', ['module' => 'sales', 'section' => 'delivery'])],
                 ['key' => 'purchases', 'label' => 'Achat', 'icon' => '↧', 'href' => route('module', 'purchases'), 'children' => [
                     ['label' => 'Nouvel achat', 'icon' => '+', 'href' => route('module', ['module' => 'purchases', 'section' => 'add'])],
@@ -210,10 +215,7 @@
                     ['label' => 'Liste des dépenses', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'expenses'])],
                     ['label' => 'Liste des catégories', 'icon' => '≡', 'href' => route('module', ['module' => 'finance', 'section' => 'expense-categories'])],
                 ]],
-                ['key' => 'quotations', 'label' => 'Devis', 'icon' => '□', 'href' => route('module', ['module' => 'sales', 'section' => 'quotes']), 'children' => [
-                    ['label' => 'Nouveau devis', 'icon' => '+', 'href' => route('module', ['module' => 'sales', 'section' => 'quote-add'])],
-                    ['label' => 'Liste de devis', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'quotes'])],
-                ]],
+                // Removed from top-level nav: devis now live under Facturation (module invoices).
                 ['key' => 'customers', 'label' => 'Les clients', 'icon' => '◌', 'href' => route('module', ['module' => 'contacts', 'section' => 'customers']), 'children' => [
                     ['label' => 'Ajouter un client', 'icon' => '+', 'href' => route('module', ['module' => 'contacts', 'section' => 'customer-add'])],
                     ['label' => 'Liste des clients', 'icon' => '≡', 'href' => route('module', ['module' => 'contacts', 'section' => 'customers'])],
@@ -321,7 +323,7 @@
                 'dashboard' => 'dashboard tableau board home accueil الرئيسية لوحة القيادة kpi analytics stats statistiques اليوم today',
                 'catalog' => 'catalog catalogue articles items produits books livres خدمات services isbn barcode code barre categories catégories marques publishers éditeurs variants variantes labels etiquettes étiquettes import excel inventory مخزون منتجات كتب خدمات تصنيفات',
                 'sales' => 'sales ventes pos caisse checkout payment paiement ticket receipt reçu facture refund retour encaissement barcode scanner مبيعات صندوق تذكرة دفع',
-                'invoices' => 'invoice invoices facture factures billing due échéance pdf print طباعة فاتورة فواتير',
+                'invoices' => 'invoice invoices facture factures facturation billing devis estimate proforma pro-forma due échéance pdf print طباعة فاتورة فواتير عرض سعر تقدير',
                 'deliveries' => 'delivery deliveries livraison livraisons bl dispatch shipping expédition توصيل شحن',
                 'purchases' => 'purchase purchases achat achats supplier fournisseur commande réception po order مشتريات موردين طلبات',
                 'loans' => 'library loans emprunts prêt livre membre pénalité retard reservation مكتبة إعارة استعارة أعضاء',
@@ -345,6 +347,11 @@
                 'Point de vente' => 'pos caisse encaisser barcode scan scanner ticket paiement payment cash carte card comptoir checkout sell sale receipt reçu بيع صندوق ماسح دفع',
                 'Ajouter une vente' => 'vente manuelle manual sale invoice facture client customer paiement payment',
                 'Liste des ventes' => 'ticket facture invoice historique history refund remboursement retour return paiement serial number numéro série',
+                'Facturation' => 'facturation invoices factures devis estimates proforma module billing',
+                'Nouvelle facture' => 'nouvelle facture invoice create add créer commercial document',
+                'Liste des factures' => 'liste factures invoices échéance pdf billing',
+                'Nouveau devis' => 'nouveau devis estimate quote proforma create add',
+                'Liste des devis' => 'liste devis estimates quotes proforma',
                 'Paiements des ventes' => 'encaissement payment payments cash carte card virement advance avance reçu receipt',
                 'Liste de livraison' => 'delivery deliveries bl bon livraison dispatch expédition shipping',
                 'Ajouter un article' => 'item produit livre isbn article product book barcode code barre stock prix price catalogue create add إضافة منتج كتاب',
