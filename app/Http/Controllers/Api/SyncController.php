@@ -103,7 +103,9 @@ class SyncController extends Controller
                 'unit:id,name',
                 'tax:id,name,rate',
             ])
-            ->when($since, fn ($q) => $q->where('updated_at', '>=', $since));
+            ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
+            ->orderBy('updated_at', 'asc')
+            ->orderBy('id', 'asc');
 
         $paginated = $query->paginate($perPage, [
             'id', 'category_id', 'brand_id', 'unit_id', 'tax_id',
@@ -326,11 +328,13 @@ class SyncController extends Controller
 
         $paginated = Contact::withTrashed()
             ->where('tenant_id', $tenant->id)
-            ->where('type', 'customer')
+            ->where('kind', 'customer')
             ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
+            ->orderBy('updated_at', 'asc')
+            ->orderBy('id', 'asc')
             ->paginate($perPage, [
-                'id', 'type', 'name', 'email', 'phone', 'address',
-                'advance_balance', 'credit_balance',
+                'id', 'kind', 'name', 'email', 'phone', 'address',
+                'advance_balance', 'outstanding_balance',
                 'updated_at', 'created_at', 'deleted_at',
             ]);
 

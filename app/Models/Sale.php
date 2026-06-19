@@ -8,10 +8,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable(['tenant_id', 'contact_id', 'user_id', 'source_invoice_id', 'source_online_order_id', 'number', 'status', 'payment_method', 'subtotal_amount', 'discount_amount', 'tax_amount', 'total_amount', 'sold_at', 'metadata', 'idempotency_key'])]
 class Sale extends Model
 {
+    use SoftDeletes;
     protected function casts(): array
     {
         return [
