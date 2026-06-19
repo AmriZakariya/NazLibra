@@ -242,6 +242,22 @@ URLs principales :
 | `/modules/{module}` | Modules du back-office |
 | `/boutique` | Boutique publique |
 | `/modules/settings` | Configuration de l’organisation |
+| `/telescope` | Debug local/dev des requêtes API, exceptions, requêtes SQL, logs, jobs et mails |
+
+### Debug API avec Laravel Telescope
+
+Telescope est installé en dépendance de développement pour inspecter les appels API et diagnostiquer les erreurs applicatives.
+
+Variables utiles :
+
+```env
+TELESCOPE_ENABLED=true
+TELESCOPE_PATH=telescope
+TELESCOPE_ALLOWED_EMAILS=
+TELESCOPE_ALLOW_OWNER_ROLE=true
+```
+
+En local, l’accès est direct pour faciliter le debug. Sur un environnement partagé, l’accès est limité aux utilisateurs `owner` du tenant courant ou aux emails listés dans `TELESCOPE_ALLOWED_EMAILS`.
 
 ## Tests et qualité
 

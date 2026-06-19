@@ -3832,6 +3832,7 @@
                 'messaging' => 'Messagerie',
                 'message-templates' => 'Modèles',
                 'sms-api' => 'API messages',
+                'demo-data' => 'Données démo',
                 'theme' => 'Thème',
                 'hardware' => 'Matériel',
             ];
@@ -4221,6 +4222,132 @@
                     @include('librairepro.partials.document-settings')
                 @elseif (in_array($settingsSection, ['messaging', 'message-templates', 'sms-api'], true))
                     @include('librairepro.partials.messaging-section')
+
+                @elseif ($settingsSection === 'demo-data')
+                    @php
+                        $demoActions = [
+                            'clear_sales' => [
+                                'icon' => '🧾',
+                                'tone' => 'rose',
+                                'title' => 'Clear all sales',
+                                'description' => 'Supprime ventes, paiements, retours, livraisons, tickets POS et mouvements caisse liés aux ventes.',
+                                'count' => $demoMaintenanceStats['sales'] ?? 0,
+                            ],
+                            'clear_inventory' => [
+                                'icon' => '📦',
+                                'tone' => 'amber',
+                                'title' => 'Clear all inventory data',
+                                'description' => 'Vide mouvements stock, inventaires, ajustements, transferts et remet les quantités articles/variantes à zéro.',
+                                'count' => $demoMaintenanceStats['inventory_rows'] ?? 0,
+                            ],
+                            'clear_items' => [
+                                'icon' => '📚',
+                                'tone' => 'rose',
+                                'title' => 'Clear items',
+                                'description' => 'Nettoie transactions dépendantes puis supprime articles, services, variantes et prêts liés au catalogue.',
+                                'count' => $demoMaintenanceStats['items'] ?? 0,
+                            ],
+                            'clear_online_orders' => [
+                                'icon' => '🌐',
+                                'tone' => 'amber',
+                                'title' => 'Clear online orders',
+                                'description' => 'Supprime toutes les précommandes web/WhatsApp et leurs lignes.',
+                                'count' => $demoMaintenanceStats['online_orders'] ?? 0,
+                            ],
+                            'clear_purchases' => [
+                                'icon' => '🚚',
+                                'tone' => 'amber',
+                                'title' => 'Clear purchases',
+                                'description' => 'Supprime achats, réceptions, paiements fournisseurs, retours achat et stock généré par achat.',
+                                'count' => $demoMaintenanceStats['purchases'] ?? 0,
+                            ],
+                            'clear_documents' => [
+                                'icon' => '📄',
+                                'tone' => 'amber',
+                                'title' => 'Clear invoices & estimates',
+                                'description' => 'Supprime factures, devis, paiements de facture, historiques documentaires et séquences FAC/DEV.',
+                                'count' => ($demoMaintenanceStats['invoices'] ?? 0) + ($demoMaintenanceStats['estimates'] ?? 0),
+                            ],
+                            'clear_finance' => [
+                                'icon' => '💳',
+                                'tone' => 'amber',
+                                'title' => 'Clear finance/demo payments',
+                                'description' => 'Supprime dépenses, avances, coupons, remises, transactions comptes et sessions de caisse.',
+                                'count' => $demoMaintenanceStats['finance_rows'] ?? 0,
+                            ],
+                            'clear_contacts' => [
+                                'icon' => '👥',
+                                'tone' => 'amber',
+                                'title' => 'Clear contacts',
+                                'description' => 'Supprime clients/fournisseurs après nettoyage des documents dépendants.',
+                                'count' => $demoMaintenanceStats['contacts'] ?? 0,
+                            ],
+                            'reset_demo' => [
+                                'icon' => '🧹',
+                                'tone' => 'rose',
+                                'title' => 'Reset demo workspace',
+                                'description' => 'Nettoyage complet: ventes, commandes, achats, documents, stock, catalogue, contacts et finances. Garde société, utilisateurs, rôles, magasins et paramètres.',
+                                'count' => $demoMaintenanceStats['total_demo_rows'] ?? 0,
+                            ],
+                        ];
+                    @endphp
+                    <article class="rounded-xl border border-rose-200 bg-white shadow-sm dark:border-rose-500/20 dark:bg-slate-950/40">
+                        <div class="border-b border-rose-100 bg-gradient-to-br from-rose-50 via-white to-amber-50 p-5 dark:border-rose-500/20 dark:from-rose-500/10 dark:via-slate-950 dark:to-amber-500/10">
+                            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div class="flex items-start gap-4">
+                                    <span class="grid size-12 shrink-0 place-items-center rounded-2xl bg-rose-600 text-xl text-white shadow-sm shadow-rose-500/20">🧹</span>
+                                    <div>
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-300">Admin · démo uniquement</p>
+                                        <h2 class="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-100">Préparer / nettoyer les données de démonstration</h2>
+                                        <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">Ces actions sont destructives et limitées au tenant courant. Elles servent à remettre l’espace de démo à plat avant une présentation, sans toucher aux utilisateurs, rôles, société, magasins ni paramètres principaux.</p>
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <x-status-pill tone="danger">Owner only</x-status-pill>
+                                    <x-status-pill tone="neutral">Confirmation DEMO</x-status-pill>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (! $currentUserIsOwner)
+                            <div class="m-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+                                Seul le propriétaire peut exécuter ces nettoyages. L’écran est visible pour transparence, mais les boutons sont désactivés.
+                            </div>
+                        @endif
+
+                        <div class="grid gap-4 p-5 lg:grid-cols-2">
+                            @foreach ($demoActions as $actionKey => $action)
+                                @php
+                                    $isDanger = $action['tone'] === 'rose';
+                                    $buttonClass = $isDanger
+                                        ? 'bg-rose-600 text-white hover:bg-rose-700'
+                                        : 'bg-amber-500 text-white hover:bg-amber-600';
+                                @endphp
+                                <form action="{{ route('settings.demo-maintenance.run', $actionKey) }}" method="POST" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]" onsubmit="return confirm('Action destructive: {{ $action['title'] }}. Continuer ?')">
+                                    @csrf
+                                    <div class="flex items-start gap-3">
+                                        <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-white text-xl shadow-sm dark:bg-slate-900">{{ $action['icon'] }}</span>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <h3 class="font-semibold text-slate-950 dark:text-slate-100">{{ $action['title'] }}</h3>
+                                                <x-status-pill :tone="$isDanger ? 'danger' : 'warning'">{{ number_format((int) $action['count'], 0, ',', ' ') }} ligne(s)</x-status-pill>
+                                            </div>
+                                            <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $action['description'] }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                                        <label class="space-y-1.5">
+                                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tapez DEMO pour confirmer</span>
+                                            <input name="confirmation" required pattern="DEMO" placeholder="DEMO" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold tracking-wide outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:border-white/10 dark:bg-slate-900 dark:focus:ring-rose-500/20" @disabled(! $currentUserIsOwner)>
+                                        </label>
+                                        <button class="inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 {{ $buttonClass }}" @disabled(! $currentUserIsOwner)>
+                                            Exécuter
+                                        </button>
+                                    </div>
+                                </form>
+                            @endforeach
+                        </div>
+                    </article>
 
                 @elseif ($settingsSection === 'company')
                 <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">

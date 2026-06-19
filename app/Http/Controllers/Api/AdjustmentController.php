@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use OpenApi\Attributes as OA;
 
 /**
  * Manual stock adjustment endpoint for the mobile app.
@@ -32,61 +33,56 @@ class AdjustmentController extends Controller
     /**
      * POST /api/v1/inventory/adjustments
      *
-     * {
-     *   "idempotency_key": "<UUID>",
-     *   "item_id": 42,
-     *   "variant_id": null,
-     *   "mode": "delta|correction",
-     *   "quantity": 5,          // signed delta for "delta"; absolute count for "correction"
-     *   "reason": "Inventory count",
-     *   "note": "Shelf B3"
-     * }
-     *
      * Returns the resulting stock snapshot and the movement record.
-     *
-     * @OA\Post(
-     *     path="/api/v1/inventory/adjustments",
-     *     operationId="adjustmentStore",
-     *     tags={"Inventory"},
-     *     summary="Manual stock adjustment (delta or correction, idempotent)",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\RequestBody(
-     *         required=true,
-     *         @OA\JsonContent(
-     *             required={"idempotency_key","item_id","mode","quantity"},
-     *             @OA\Property(property="idempotency_key", type="string", example="550e8400-e29b-41d4-a716-446655440002"),
-     *             @OA\Property(property="item_id", type="integer", example=42),
-     *             @OA\Property(property="variant_id", type="integer", nullable=true),
-     *             @OA\Property(property="mode", type="string", enum={"delta","correction"}, description="delta=signed change, correction=set absolute quantity"),
-     *             @OA\Property(property="quantity", type="integer", description="Signed delta (delta mode) or absolute target (correction mode)", example=5),
-     *             @OA\Property(property="reason", type="string", nullable=true, example="Inventory count"),
-     *             @OA\Property(property="note", type="string", nullable=true, example="Shelf B3")
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=201,
-     *         description="Adjustment applied",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="already_existed", type="boolean"),
-     *             @OA\Property(property="no_change", type="boolean"),
-     *             @OA\Property(property="movement", type="object", nullable=true),
-     *             @OA\Property(property="stock_after", type="object",
-     *                 @OA\Property(property="item_id", type="integer"),
-     *                 @OA\Property(property="location_id", type="integer"),
-     *                 @OA\Property(property="quantity", type="integer"),
-     *                 @OA\Property(property="reserved", type="integer"),
-     *                 @OA\Property(property="available", type="integer"),
-     *                 @OA\Property(property="average_cost", type="number")
-     *             )
-     *         )
-     *     ),
-     *     @OA\Response(response=422, description="Validation error or business rule violation"),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
      */
+    #[OA\Post(
+        path: '/api/v1/inventory/adjustments',
+        operationId: 'adjustmentStore',
+        summary: 'Manual stock adjustment (delta or correction, idempotent)',
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['idempotency_key', 'item_id', 'mode', 'quantity'],
+                properties: [
+                    new OA\Property(property: 'idempotency_key', type: 'string', example: '550e8400-e29b-41d4-a716-446655440002'),
+                    new OA\Property(property: 'item_id', type: 'integer', example: 42),
+                    new OA\Property(property: 'variant_id', type: 'integer', nullable: true),
+                    new OA\Property(property: 'mode', type: 'string', enum: ['delta', 'correction'], description: 'delta=signed change, correction=set absolute quantity'),
+                    new OA\Property(property: 'quantity', type: 'integer', description: 'Signed delta (delta mode) or absolute target (correction mode)', example: 5),
+                    new OA\Property(property: 'reason', type: 'string', nullable: true, example: 'Inventory count'),
+                    new OA\Property(property: 'note', type: 'string', nullable: true, example: 'Shelf B3'),
+                ]
+            )
+        ),
+        tags: ['Inventory'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Adjustment applied',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'already_existed', type: 'boolean'),
+                    new OA\Property(property: 'no_change', type: 'boolean'),
+                    new OA\Property(property: 'movement', type: 'object', nullable: true),
+                    new OA\Property(property: 'stock_after', type: 'object', properties: [
+                        new OA\Property(property: 'item_id', type: 'integer'),
+                        new OA\Property(property: 'location_id', type: 'integer'),
+                        new OA\Property(property: 'quantity', type: 'integer'),
+                        new OA\Property(property: 'reserved', type: 'integer'),
+                        new OA\Property(property: 'available', type: 'integer'),
+                        new OA\Property(property: 'average_cost', type: 'number'),
+                    ]),
+                ])
+            ),
+            new OA\Response(response: 422, description: 'Validation error or business rule violation'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([

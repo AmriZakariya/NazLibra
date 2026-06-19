@@ -7,6 +7,7 @@ use App\Models\Contact;
 use App\Models\Tenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use OpenApi\Attributes as OA;
 
 /**
  * Quick contact (customer) management from the mobile app.
@@ -20,34 +21,39 @@ class ContactController extends Controller
      * GET /api/v1/contacts?q=<name|phone|email>
      *
      * Search customers for the autocomplete field in the POS cart.
-     *
-     * @OA\Get(
-     *     path="/api/v1/contacts",
-     *     operationId="contactIndex",
-     *     tags={"Contacts"},
-     *     summary="Search contacts (customers) for autocomplete",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\Parameter(name="q", in="query", required=false, description="Search term (name, phone, or email)", @OA\Schema(type="string")),
-     *     @OA\Response(
-     *         response=200,
-     *         description="Matching contacts (max 30)",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="contacts", type="array", @OA\Items(
-     *                 @OA\Property(property="id", type="integer"),
-     *                 @OA\Property(property="name", type="string"),
-     *                 @OA\Property(property="phone", type="string", nullable=true),
-     *                 @OA\Property(property="email", type="string", nullable=true),
-     *                 @OA\Property(property="advance_balance", type="number"),
-     *                 @OA\Property(property="credit_balance", type="number")
-     *             ))
-     *         )
-     *     ),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
      */
+    #[OA\Get(
+        path: '/api/v1/contacts',
+        operationId: 'contactIndex',
+        summary: 'Search contacts (customers) for autocomplete',
+        security: [['bearerAuth' => []]],
+        tags: ['Contacts'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'q', in: 'query', required: false, description: 'Search term (name, phone, or email)', schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Matching contacts (max 30)',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'contacts', type: 'array', items: new OA\Items(
+                        properties: [
+                            new OA\Property(property: 'id', type: 'integer'),
+                            new OA\Property(property: 'name', type: 'string'),
+                            new OA\Property(property: 'phone', type: 'string', nullable: true),
+                            new OA\Property(property: 'email', type: 'string', nullable: true),
+                            new OA\Property(property: 'advance_balance', type: 'number'),
+                            new OA\Property(property: 'credit_balance', type: 'number'),
+                        ]
+                    )),
+                ])
+            ),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function index(Request $request): JsonResponse
     {
         /** @var Tenant $tenant */
@@ -72,30 +78,31 @@ class ContactController extends Controller
         return response()->json(['ok' => true, 'contacts' => $contacts]);
     }
 
-    /**
-     * GET /api/v1/contacts/{contact}
-     *
-     * @OA\Get(
-     *     path="/api/v1/contacts/{contact}",
-     *     operationId="contactShow",
-     *     tags={"Contacts"},
-     *     summary="Get a single contact by ID",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\Parameter(name="contact", in="path", required=true, description="Contact ID", @OA\Schema(type="integer")),
-     *     @OA\Response(
-     *         response=200,
-     *         description="Contact detail",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="contact", type="object")
-     *         )
-     *     ),
-     *     @OA\Response(response=404, description="Contact not found"),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
-     */
+    /** GET /api/v1/contacts/{contact} */
+    #[OA\Get(
+        path: '/api/v1/contacts/{contact}',
+        operationId: 'contactShow',
+        summary: 'Get a single contact by ID',
+        security: [['bearerAuth' => []]],
+        tags: ['Contacts'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'contact', in: 'path', required: true, description: 'Contact ID', schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Contact detail',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'contact', type: 'object'),
+                ])
+            ),
+            new OA\Response(response: 404, description: 'Contact not found'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function show(Request $request, Contact $contact): JsonResponse
     {
         /** @var Tenant $tenant */
@@ -112,37 +119,42 @@ class ContactController extends Controller
      * POST /api/v1/contacts — quick-create a customer during a sale.
      *
      * Only name is required; everything else is optional.
-     *
-     * @OA\Post(
-     *     path="/api/v1/contacts",
-     *     operationId="contactStore",
-     *     tags={"Contacts"},
-     *     summary="Quick-create a customer contact",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\RequestBody(
-     *         required=true,
-     *         @OA\JsonContent(
-     *             required={"name"},
-     *             @OA\Property(property="name", type="string", maxLength=150, example="John Doe"),
-     *             @OA\Property(property="phone", type="string", nullable=true, example="+212600000000"),
-     *             @OA\Property(property="email", type="string", format="email", nullable=true),
-     *             @OA\Property(property="address", type="string", nullable=true)
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=201,
-     *         description="Contact created",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="contact", type="object")
-     *         )
-     *     ),
-     *     @OA\Response(response=422, description="Validation error"),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
      */
+    #[OA\Post(
+        path: '/api/v1/contacts',
+        operationId: 'contactStore',
+        summary: 'Quick-create a customer contact',
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', maxLength: 150, example: 'John Doe'),
+                    new OA\Property(property: 'phone', type: 'string', nullable: true, example: '+212600000000'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email', nullable: true),
+                    new OA\Property(property: 'address', type: 'string', nullable: true),
+                ]
+            )
+        ),
+        tags: ['Contacts'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Contact created',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'contact', type: 'object'),
+                ])
+            ),
+            new OA\Response(response: 422, description: 'Validation error'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([

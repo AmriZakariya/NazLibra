@@ -188,46 +188,47 @@ class AuthController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    /**
-     * Return the authenticated user + tenant context.
-     *
-     * @OA\Get(
-     *     path="/api/v1/auth/me",
-     *     operationId="authMe",
-     *     tags={"Auth"},
-     *     summary="Get current authenticated user",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\Response(
-     *         response=200,
-     *         description="Current user info",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="user", type="object",
-     *                 @OA\Property(property="id", type="integer"),
-     *                 @OA\Property(property="name", type="string"),
-     *                 @OA\Property(property="email", type="string"),
-     *                 @OA\Property(property="role", type="string", nullable=true)
-     *             ),
-     *             @OA\Property(property="tenant", type="object",
-     *                 @OA\Property(property="id", type="integer"),
-     *                 @OA\Property(property="name", type="string"),
-     *                 @OA\Property(property="slug", type="string"),
-     *                 @OA\Property(property="currency", type="string"),
-     *                 @OA\Property(property="locale", type="string"),
-     *                 @OA\Property(property="timezone", type="string")
-     *             ),
-     *             @OA\Property(property="location", type="object", nullable=true,
-     *                 @OA\Property(property="id", type="integer"),
-     *                 @OA\Property(property="name", type="string")
-     *             ),
-     *             @OA\Property(property="abilities", type="array", @OA\Items(type="string"))
-     *         )
-     *     ),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
-     */
+    /** Return the authenticated user + tenant context. */
+    #[OA\Get(
+        path: '/api/v1/auth/me',
+        operationId: 'authMe',
+        summary: 'Get current authenticated user',
+        security: [['bearerAuth' => []]],
+        tags: ['Auth'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Current user info',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'user', type: 'object', properties: [
+                        new OA\Property(property: 'id', type: 'integer'),
+                        new OA\Property(property: 'name', type: 'string'),
+                        new OA\Property(property: 'email', type: 'string'),
+                        new OA\Property(property: 'role', type: 'string', nullable: true),
+                    ]),
+                    new OA\Property(property: 'tenant', type: 'object', properties: [
+                        new OA\Property(property: 'id', type: 'integer'),
+                        new OA\Property(property: 'name', type: 'string'),
+                        new OA\Property(property: 'slug', type: 'string'),
+                        new OA\Property(property: 'currency', type: 'string'),
+                        new OA\Property(property: 'locale', type: 'string'),
+                        new OA\Property(property: 'timezone', type: 'string'),
+                    ]),
+                    new OA\Property(property: 'location', type: 'object', nullable: true, properties: [
+                        new OA\Property(property: 'id', type: 'integer'),
+                        new OA\Property(property: 'name', type: 'string'),
+                    ]),
+                    new OA\Property(property: 'abilities', type: 'array', items: new OA\Items(type: 'string')),
+                ])
+            ),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function me(Request $request): JsonResponse
     {
         $user   = $request->user();

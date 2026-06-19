@@ -245,6 +245,7 @@ Route::post('/parametres/messagerie/envoyer', [LibraireProController::class, 'se
 Route::post('/parametres/messagerie/modeles', [LibraireProController::class, 'storeMessageTemplate'])->name('settings.message-templates.store');
 Route::put('/parametres/messagerie/modeles/{key}', [LibraireProController::class, 'updateMessageTemplate'])->name('settings.message-templates.update');
 Route::delete('/parametres/messagerie/modeles/{key}', [LibraireProController::class, 'destroyMessageTemplate'])->name('settings.message-templates.destroy');
+Route::post('/parametres/donnees-demo/{action}', [LibraireProController::class, 'runDemoMaintenance'])->name('settings.demo-maintenance.run');
 Route::post('/parametres/magasin-courant', [LibraireProController::class, 'updateCurrentStore'])->name('settings.current-store.update');
 Route::post('/parametres/magasins', [LibraireProController::class, 'storeStore'])->name('settings.stores.store');
 Route::put('/parametres/magasins/{storeKey}', [LibraireProController::class, 'updateStore'])->name('settings.stores.update');

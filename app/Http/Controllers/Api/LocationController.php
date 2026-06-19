@@ -7,38 +7,42 @@ use App\Models\Location;
 use App\Models\Tenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use OpenApi\Attributes as OA;
 
 class LocationController extends Controller
 {
-    /**
-     * GET /api/v1/locations — all active locations for the authenticated user's tenant.
-     *
-     * @OA\Get(
-     *     path="/api/v1/locations",
-     *     operationId="locationIndex",
-     *     tags={"Locations"},
-     *     summary="List all active locations for the tenant",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\Response(
-     *         response=200,
-     *         description="List of locations",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="locations", type="array", @OA\Items(
-     *                 @OA\Property(property="id", type="integer"),
-     *                 @OA\Property(property="name", type="string"),
-     *                 @OA\Property(property="type", type="string"),
-     *                 @OA\Property(property="address", type="string", nullable=true),
-     *                 @OA\Property(property="is_default", type="boolean"),
-     *                 @OA\Property(property="is_active", type="boolean")
-     *             ))
-     *         )
-     *     ),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
-     */
+    /** GET /api/v1/locations — all active locations for the authenticated user's tenant. */
+    #[OA\Get(
+        path: '/api/v1/locations',
+        operationId: 'locationIndex',
+        summary: 'List all active locations for the tenant',
+        security: [['bearerAuth' => []]],
+        tags: ['Locations'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'List of locations',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'locations', type: 'array', items: new OA\Items(
+                        properties: [
+                            new OA\Property(property: 'id', type: 'integer'),
+                            new OA\Property(property: 'name', type: 'string'),
+                            new OA\Property(property: 'type', type: 'string'),
+                            new OA\Property(property: 'address', type: 'string', nullable: true),
+                            new OA\Property(property: 'is_default', type: 'boolean'),
+                            new OA\Property(property: 'is_active', type: 'boolean'),
+                        ]
+                    )),
+                ])
+            ),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function index(Request $request): JsonResponse
     {
         /** @var Tenant $tenant */

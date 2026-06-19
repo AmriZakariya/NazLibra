@@ -278,6 +278,7 @@
                     ['label' => 'Types de paiement', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'payment-types'])],
                     ['label' => 'Liste des pays', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'countries'])],
                     ['label' => 'Liste des états', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'states'])],
+                    ['label' => 'Données démo', 'icon' => '🧹', 'href' => route('module', ['module' => 'settings', 'section' => 'demo-data'])],
                     ['label' => 'Changer le mot de passe', 'icon' => '⌐', 'href' => route('module', ['module' => 'settings', 'section' => 'password'])],
                     ...($isOwner ? [['label' => "Journal d'activité", 'icon' => '▥', 'href' => route('profile.activity')]] : []),
                     ...($virtualDevicesEnabled ? [['label' => 'Appareils virtuels', 'icon' => '🖥', 'href' => route('devices.index')]] : []),

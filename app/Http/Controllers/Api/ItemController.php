@@ -8,6 +8,7 @@ use App\Models\ItemLocationStock;
 use App\Models\Tenant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use OpenApi\Attributes as OA;
 
 /**
  * Item lookup endpoints for the POS scanner and search.
@@ -28,31 +29,34 @@ class ItemController extends Controller
      *   barcode  Exact match on barcode / custom_barcode1
      *   isbn     Exact match on ISBN
      *   sku      Exact match on SKU
-     *
-     * @OA\Get(
-     *     path="/api/v1/items/search",
-     *     operationId="itemSearch",
-     *     tags={"Items"},
-     *     summary="Real-time item search by barcode, ISBN, SKU, or keyword",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\Parameter(name="q", in="query", required=false, description="Keyword search on title/author/barcode/isbn", @OA\Schema(type="string")),
-     *     @OA\Parameter(name="barcode", in="query", required=false, description="Exact barcode match", @OA\Schema(type="string")),
-     *     @OA\Parameter(name="isbn", in="query", required=false, description="Exact ISBN match", @OA\Schema(type="string")),
-     *     @OA\Parameter(name="sku", in="query", required=false, description="Exact SKU match", @OA\Schema(type="string")),
-     *     @OA\Response(
-     *         response=200,
-     *         description="Matching items (max 30)",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="items", type="array", @OA\Items(type="object"))
-     *         )
-     *     ),
-     *     @OA\Response(response=422, description="No search criteria provided"),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
      */
+    #[OA\Get(
+        path: '/api/v1/items/search',
+        operationId: 'itemSearch',
+        summary: 'Real-time item search by barcode, ISBN, SKU, or keyword',
+        security: [['bearerAuth' => []]],
+        tags: ['Items'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'q', in: 'query', required: false, description: 'Keyword search on title/author/barcode/isbn', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'barcode', in: 'query', required: false, description: 'Exact barcode match', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'isbn', in: 'query', required: false, description: 'Exact ISBN match', schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'sku', in: 'query', required: false, description: 'Exact SKU match', schema: new OA\Schema(type: 'string')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Matching items (max 30)',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'items', type: 'array', items: new OA\Items(type: 'object')),
+                ])
+            ),
+            new OA\Response(response: 422, description: 'No search criteria provided'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function search(Request $request): JsonResponse
     {
         /** @var Tenant $tenant */
@@ -120,30 +124,31 @@ class ItemController extends Controller
         return response()->json(['ok' => true, 'items' => $items]);
     }
 
-    /**
-     * GET /api/v1/items/{item} — single item detail with stock at location.
-     *
-     * @OA\Get(
-     *     path="/api/v1/items/{item}",
-     *     operationId="itemShow",
-     *     tags={"Items"},
-     *     summary="Get a single item detail with stock at current location",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\Parameter(name="item", in="path", required=true, description="Item ID", @OA\Schema(type="integer")),
-     *     @OA\Response(
-     *         response=200,
-     *         description="Item detail",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="item", type="object")
-     *         )
-     *     ),
-     *     @OA\Response(response=404, description="Item not found"),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
-     */
+    /** GET /api/v1/items/{item} — single item detail with stock at location. */
+    #[OA\Get(
+        path: '/api/v1/items/{item}',
+        operationId: 'itemShow',
+        summary: 'Get a single item detail with stock at current location',
+        security: [['bearerAuth' => []]],
+        tags: ['Items'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'item', in: 'path', required: true, description: 'Item ID', schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Item detail',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'item', type: 'object'),
+                ])
+            ),
+            new OA\Response(response: 404, description: 'Item not found'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function show(Request $request, Item $item): JsonResponse
     {
         /** @var Tenant $tenant */

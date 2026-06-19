@@ -16,6 +16,7 @@ use App\Services\Inventory\MovementDTO;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use OpenApi\Attributes as OA;
 
 /**
  * Handles sale submission from the offline-first mobile app.
@@ -49,58 +50,65 @@ class SaleController extends Controller
      *   "note": "",
      *   "sold_at": "2026-06-19T10:00:00Z"    // Optional, for backfilling offline sales.
      * }
-     *
-     * @OA\Post(
-     *     path="/api/v1/pos/sales",
-     *     operationId="saleStore",
-     *     tags={"Sales"},
-     *     summary="Submit a new sale (idempotent)",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\RequestBody(
-     *         required=true,
-     *         @OA\JsonContent(
-     *             required={"idempotency_key","items","payments"},
-     *             @OA\Property(property="idempotency_key", type="string", example="550e8400-e29b-41d4-a716-446655440000"),
-     *             @OA\Property(property="contact_id", type="integer", nullable=true),
-     *             @OA\Property(property="location_id", type="integer", nullable=true),
-     *             @OA\Property(property="items", type="array", @OA\Items(
-     *                 required={"item_id","quantity"},
-     *                 @OA\Property(property="item_id", type="integer"),
-     *                 @OA\Property(property="quantity", type="integer", minimum=1),
-     *                 @OA\Property(property="unit_price", type="number", format="float", nullable=true),
-     *                 @OA\Property(property="note", type="string", nullable=true)
-     *             )),
-     *             @OA\Property(property="payments", type="object",
-     *                 @OA\Property(property="cash", type="number", format="float", nullable=true),
-     *                 @OA\Property(property="card", type="number", format="float", nullable=true),
-     *                 @OA\Property(property="transfer", type="number", format="float", nullable=true),
-     *                 @OA\Property(property="advance", type="number", format="float", nullable=true)
-     *             ),
-     *             @OA\Property(property="discount", type="object", nullable=true,
-     *                 @OA\Property(property="type", type="string", enum={"percent","fixed"}),
-     *                 @OA\Property(property="value", type="number", format="float")
-     *             ),
-     *             @OA\Property(property="note", type="string", nullable=true),
-     *             @OA\Property(property="sold_at", type="string", format="date-time", nullable=true)
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=201,
-     *         description="Sale created",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="already_existed", type="boolean", example=false),
-     *             @OA\Property(property="sale", type="object"),
-     *             @OA\Property(property="stock_after", type="object")
-     *         )
-     *     ),
-     *     @OA\Response(response=200, description="Sale already existed (idempotent replay)"),
-     *     @OA\Response(response=422, description="Validation error or insufficient stock"),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
      */
+    #[OA\Post(
+        path: '/api/v1/pos/sales',
+        operationId: 'saleStore',
+        summary: 'Submit a new sale (idempotent)',
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['idempotency_key', 'items', 'payments'],
+                properties: [
+                    new OA\Property(property: 'idempotency_key', type: 'string', example: '550e8400-e29b-41d4-a716-446655440000'),
+                    new OA\Property(property: 'contact_id', type: 'integer', nullable: true),
+                    new OA\Property(property: 'location_id', type: 'integer', nullable: true),
+                    new OA\Property(property: 'items', type: 'array', items: new OA\Items(
+                        required: ['item_id', 'quantity'],
+                        properties: [
+                            new OA\Property(property: 'item_id', type: 'integer'),
+                            new OA\Property(property: 'quantity', type: 'integer', minimum: 1),
+                            new OA\Property(property: 'unit_price', type: 'number', format: 'float', nullable: true),
+                            new OA\Property(property: 'note', type: 'string', nullable: true),
+                        ]
+                    )),
+                    new OA\Property(property: 'payments', type: 'object', properties: [
+                        new OA\Property(property: 'cash', type: 'number', format: 'float', nullable: true),
+                        new OA\Property(property: 'card', type: 'number', format: 'float', nullable: true),
+                        new OA\Property(property: 'transfer', type: 'number', format: 'float', nullable: true),
+                        new OA\Property(property: 'advance', type: 'number', format: 'float', nullable: true),
+                    ]),
+                    new OA\Property(property: 'discount', type: 'object', nullable: true, properties: [
+                        new OA\Property(property: 'type', type: 'string', enum: ['percent', 'fixed']),
+                        new OA\Property(property: 'value', type: 'number', format: 'float'),
+                    ]),
+                    new OA\Property(property: 'note', type: 'string', nullable: true),
+                    new OA\Property(property: 'sold_at', type: 'string', format: 'date-time', nullable: true),
+                ]
+            )
+        ),
+        tags: ['Sales'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Sale created',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'already_existed', type: 'boolean', example: false),
+                    new OA\Property(property: 'sale', type: 'object'),
+                    new OA\Property(property: 'stock_after', type: 'object'),
+                ])
+            ),
+            new OA\Response(response: 200, description: 'Sale already existed (idempotent replay)'),
+            new OA\Response(response: 422, description: 'Validation error or insufficient stock'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -386,32 +394,33 @@ class SaleController extends Controller
         return $this->saleResponse($sale, $data['items'], $tenant->id, $locationId);
     }
 
-    /**
-     * GET /api/v1/pos/sales
-     *
-     * @OA\Get(
-     *     path="/api/v1/pos/sales",
-     *     operationId="saleIndex",
-     *     tags={"Sales"},
-     *     summary="List sales for the tenant",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\Parameter(name="page", in="query", required=false, @OA\Schema(type="integer", default=1)),
-     *     @OA\Parameter(name="per_page", in="query", required=false, @OA\Schema(type="integer", default=50, maximum=200)),
-     *     @OA\Response(
-     *         response=200,
-     *         description="Paginated sales",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="has_more", type="boolean"),
-     *             @OA\Property(property="page", type="integer"),
-     *             @OA\Property(property="sales", type="array", @OA\Items(type="object"))
-     *         )
-     *     ),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
-     */
+    /** GET /api/v1/pos/sales */
+    #[OA\Get(
+        path: '/api/v1/pos/sales',
+        operationId: 'saleIndex',
+        summary: 'List sales for the tenant',
+        security: [['bearerAuth' => []]],
+        tags: ['Sales'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: 1)),
+            new OA\Parameter(name: 'per_page', in: 'query', required: false, schema: new OA\Schema(type: 'integer', default: 50, maximum: 200)),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Paginated sales',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'has_more', type: 'boolean'),
+                    new OA\Property(property: 'page', type: 'integer'),
+                    new OA\Property(property: 'sales', type: 'array', items: new OA\Items(type: 'object')),
+                ])
+            ),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function index(Request $request): JsonResponse
     {
         /** @var Tenant $tenant */
@@ -434,30 +443,31 @@ class SaleController extends Controller
         ]);
     }
 
-    /**
-     * GET /api/v1/pos/sales/{sale}
-     *
-     * @OA\Get(
-     *     path="/api/v1/pos/sales/{sale}",
-     *     operationId="saleShow",
-     *     tags={"Sales"},
-     *     summary="Get a single sale by ID",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\Parameter(name="sale", in="path", required=true, description="Sale ID", @OA\Schema(type="integer")),
-     *     @OA\Response(
-     *         response=200,
-     *         description="Sale detail",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="sale", type="object")
-     *         )
-     *     ),
-     *     @OA\Response(response=404, description="Sale not found"),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
-     */
+    /** GET /api/v1/pos/sales/{sale} */
+    #[OA\Get(
+        path: '/api/v1/pos/sales/{sale}',
+        operationId: 'saleShow',
+        summary: 'Get a single sale by ID',
+        security: [['bearerAuth' => []]],
+        tags: ['Sales'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'sale', in: 'path', required: true, description: 'Sale ID', schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Sale detail',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'sale', type: 'object'),
+                ])
+            ),
+            new OA\Response(response: 404, description: 'Sale not found'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function show(Request $request, Sale $sale): JsonResponse
     {
         /** @var Tenant $tenant */

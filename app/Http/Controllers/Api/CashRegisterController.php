@@ -9,6 +9,7 @@ use App\Services\CashRegisterService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use OpenApi\Attributes as OA;
 
 /**
  * Cash register session management for the mobile app.
@@ -24,27 +25,30 @@ class CashRegisterController extends Controller
      * GET /api/v1/cash-register
      *
      * Returns the current open session for the resolved store, if any.
-     *
-     * @OA\Get(
-     *     path="/api/v1/cash-register",
-     *     operationId="cashRegisterStatus",
-     *     tags={"Cash Register"},
-     *     summary="Get current cash register session status",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\Response(
-     *         response=200,
-     *         description="Cash register status",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="is_open", type="boolean"),
-     *             @OA\Property(property="session", type="object", nullable=true)
-     *         )
-     *     ),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
      */
+    #[OA\Get(
+        path: '/api/v1/cash-register',
+        operationId: 'cashRegisterStatus',
+        summary: 'Get current cash register session status',
+        security: [['bearerAuth' => []]],
+        tags: ['Cash Register'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Cash register status',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'is_open', type: 'boolean'),
+                    new OA\Property(property: 'session', type: 'object', nullable: true),
+                ])
+            ),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function status(Request $request): JsonResponse
     {
         /** @var Tenant $tenant */
@@ -62,34 +66,39 @@ class CashRegisterController extends Controller
      * POST /api/v1/cash-register/open
      *
      * { "opening_amount": 500.00, "note": "" }
-     *
-     * @OA\Post(
-     *     path="/api/v1/cash-register/open",
-     *     operationId="cashRegisterOpen",
-     *     tags={"Cash Register"},
-     *     summary="Open a new cash register session (idempotent)",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\RequestBody(
-     *         required=true,
-     *         @OA\JsonContent(
-     *             required={"opening_amount"},
-     *             @OA\Property(property="opening_amount", type="number", format="float", example=500.00),
-     *             @OA\Property(property="note", type="string", nullable=true)
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=201,
-     *         description="Session opened",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="session", type="object")
-     *         )
-     *     ),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
      */
+    #[OA\Post(
+        path: '/api/v1/cash-register/open',
+        operationId: 'cashRegisterOpen',
+        summary: 'Open a new cash register session (idempotent)',
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['opening_amount'],
+                properties: [
+                    new OA\Property(property: 'opening_amount', type: 'number', format: 'float', example: 500.00),
+                    new OA\Property(property: 'note', type: 'string', nullable: true),
+                ]
+            )
+        ),
+        tags: ['Cash Register'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Session opened',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'session', type: 'object'),
+                ])
+            ),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function open(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -135,36 +144,41 @@ class CashRegisterController extends Controller
      * POST /api/v1/cash-register/close
      *
      * { "counted_cash_amount": 650.00, "closing_note": "" }
-     *
-     * @OA\Post(
-     *     path="/api/v1/cash-register/close",
-     *     operationId="cashRegisterClose",
-     *     tags={"Cash Register"},
-     *     summary="Close the current cash register session",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\RequestBody(
-     *         required=true,
-     *         @OA\JsonContent(
-     *             required={"counted_cash_amount"},
-     *             @OA\Property(property="counted_cash_amount", type="number", format="float", example=650.00),
-     *             @OA\Property(property="closing_note", type="string", nullable=true)
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=200,
-     *         description="Session closed",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="session", type="object"),
-     *             @OA\Property(property="difference", type="number", format="float")
-     *         )
-     *     ),
-     *     @OA\Response(response=422, description="No open session"),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
      */
+    #[OA\Post(
+        path: '/api/v1/cash-register/close',
+        operationId: 'cashRegisterClose',
+        summary: 'Close the current cash register session',
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['counted_cash_amount'],
+                properties: [
+                    new OA\Property(property: 'counted_cash_amount', type: 'number', format: 'float', example: 650.00),
+                    new OA\Property(property: 'closing_note', type: 'string', nullable: true),
+                ]
+            )
+        ),
+        tags: ['Cash Register'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Session closed',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'session', type: 'object'),
+                    new OA\Property(property: 'difference', type: 'number', format: 'float'),
+                ])
+            ),
+            new OA\Response(response: 422, description: 'No open session'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function close(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -206,37 +220,42 @@ class CashRegisterController extends Controller
      * Record a manual cash in/out (float, petty cash, etc.).
      *
      * { "direction": "in|out", "amount": 100.00, "note": "Petty cash" }
-     *
-     * @OA\Post(
-     *     path="/api/v1/cash-register/movements",
-     *     operationId="cashRegisterMovement",
-     *     tags={"Cash Register"},
-     *     summary="Record a manual cash in/out movement",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\RequestBody(
-     *         required=true,
-     *         @OA\JsonContent(
-     *             required={"direction","amount"},
-     *             @OA\Property(property="direction", type="string", enum={"in","out"}),
-     *             @OA\Property(property="amount", type="number", format="float", minimum=0.01, example=100.00),
-     *             @OA\Property(property="note", type="string", nullable=true),
-     *             @OA\Property(property="reference", type="string", nullable=true)
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=201,
-     *         description="Movement recorded",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="movement", type="object")
-     *         )
-     *     ),
-     *     @OA\Response(response=422, description="No open session"),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
      */
+    #[OA\Post(
+        path: '/api/v1/cash-register/movements',
+        operationId: 'cashRegisterMovement',
+        summary: 'Record a manual cash in/out movement',
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['direction', 'amount'],
+                properties: [
+                    new OA\Property(property: 'direction', type: 'string', enum: ['in', 'out']),
+                    new OA\Property(property: 'amount', type: 'number', format: 'float', minimum: 0.01, example: 100.00),
+                    new OA\Property(property: 'note', type: 'string', nullable: true),
+                    new OA\Property(property: 'reference', type: 'string', nullable: true),
+                ]
+            )
+        ),
+        tags: ['Cash Register'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Movement recorded',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'movement', type: 'object'),
+                ])
+            ),
+            new OA\Response(response: 422, description: 'No open session'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function movement(Request $request): JsonResponse
     {
         $data = $request->validate([

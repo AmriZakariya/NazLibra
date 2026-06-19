@@ -16,6 +16,7 @@ use App\Services\Inventory\MovementDTO;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use OpenApi\Attributes as OA;
 
 /**
  * Handles sale returns / refunds from the mobile app.
@@ -33,61 +34,55 @@ class ReturnController extends Controller
     /**
      * POST /api/v1/pos/sales/{sale}/returns
      *
-     * {
-     *   "idempotency_key": "<UUID>",
-     *   "refund_method": "cash|credit|account",
-     *   "refund_reason": "Defective product",
-     *   "return_lines": [
-     *     {
-     *       "sale_item_id": 12,
-     *       "quantity": 1,
-     *       "stock_action": "restock|no_restock|damaged|lost|waste",
-     *       "reason": ""
-     *     }
-     *   ]
-     * }
      * Omit return_lines to return all items of the sale.
-     *
-     * @OA\Post(
-     *     path="/api/v1/pos/sales/{sale}/returns",
-     *     operationId="returnStore",
-     *     tags={"Returns"},
-     *     summary="Create a return / refund for a sale (idempotent)",
-     *     security={{"bearerAuth":{}}},
-     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
-     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
-     *     @OA\Parameter(name="sale", in="path", required=true, description="Sale ID", @OA\Schema(type="integer")),
-     *     @OA\RequestBody(
-     *         required=true,
-     *         @OA\JsonContent(
-     *             required={"idempotency_key","refund_method"},
-     *             @OA\Property(property="idempotency_key", type="string", example="550e8400-e29b-41d4-a716-446655440001"),
-     *             @OA\Property(property="refund_method", type="string", enum={"cash","credit","account"}),
-     *             @OA\Property(property="refund_reason", type="string", nullable=true),
-     *             @OA\Property(property="return_lines", type="array", nullable=true, @OA\Items(
-     *                 required={"sale_item_id","quantity"},
-     *                 @OA\Property(property="sale_item_id", type="integer"),
-     *                 @OA\Property(property="quantity", type="integer", minimum=1),
-     *                 @OA\Property(property="stock_action", type="string", enum={"restock","no_restock","damaged","lost","waste"}, nullable=true),
-     *                 @OA\Property(property="reason", type="string", nullable=true)
-     *             ))
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=201,
-     *         description="Return created",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="ok", type="boolean", example=true),
-     *             @OA\Property(property="already_existed", type="boolean", example=false),
-     *             @OA\Property(property="return", type="object")
-     *         )
-     *     ),
-     *     @OA\Response(response=200, description="Return already existed (idempotent replay)"),
-     *     @OA\Response(response=404, description="Sale not found"),
-     *     @OA\Response(response=422, description="Validation error or business rule violation"),
-     *     @OA\Response(response=401, description="Unauthenticated")
-     * )
      */
+    #[OA\Post(
+        path: '/api/v1/pos/sales/{sale}/returns',
+        operationId: 'returnStore',
+        summary: 'Create a return / refund for a sale (idempotent)',
+        security: [['bearerAuth' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['idempotency_key', 'refund_method'],
+                properties: [
+                    new OA\Property(property: 'idempotency_key', type: 'string', example: '550e8400-e29b-41d4-a716-446655440001'),
+                    new OA\Property(property: 'refund_method', type: 'string', enum: ['cash', 'credit', 'account']),
+                    new OA\Property(property: 'refund_reason', type: 'string', nullable: true),
+                    new OA\Property(property: 'return_lines', type: 'array', nullable: true, items: new OA\Items(
+                        required: ['sale_item_id', 'quantity'],
+                        properties: [
+                            new OA\Property(property: 'sale_item_id', type: 'integer'),
+                            new OA\Property(property: 'quantity', type: 'integer', minimum: 1),
+                            new OA\Property(property: 'stock_action', type: 'string', enum: ['restock', 'no_restock', 'damaged', 'lost', 'waste'], nullable: true),
+                            new OA\Property(property: 'reason', type: 'string', nullable: true),
+                        ]
+                    )),
+                ]
+            )
+        ),
+        tags: ['Returns'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+            new OA\Parameter(name: 'sale', in: 'path', required: true, description: 'Sale ID', schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'Return created',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean', example: true),
+                    new OA\Property(property: 'already_existed', type: 'boolean', example: false),
+                    new OA\Property(property: 'return', type: 'object'),
+                ])
+            ),
+            new OA\Response(response: 200, description: 'Return already existed (idempotent replay)'),
+            new OA\Response(response: 404, description: 'Sale not found'),
+            new OA\Response(response: 422, description: 'Validation error or business rule violation'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function store(Request $request, Sale $sale): JsonResponse
     {
         $data = $request->validate([
