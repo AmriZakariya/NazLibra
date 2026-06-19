@@ -41,14 +41,11 @@ class InventoryService
             $quantityAfter = $quantityBefore + $delta;
 
             if ($quantityAfter < 0 && ! $dto->allowNegative) {
-                throw new \RuntimeException(
-                    sprintf(
-                        'Insufficient stock for item %s at location %s. Available: %d, requested: %d.',
-                        $dto->itemId,
-                        $dto->locationId,
-                        $quantityBefore,
-                        abs($delta)
-                    )
+                throw new InsufficientStockException(
+                    itemId: $dto->itemId,
+                    locationId: $dto->locationId,
+                    available: $quantityBefore,
+                    requested: abs($delta),
                 );
             }
 
@@ -150,7 +147,12 @@ class InventoryService
             $stock = $this->lockStock($tenantId, $itemId, $variantId, $locationId);
 
             if ($stock->availableQuantity() < $quantity) {
-                throw new \RuntimeException('Insufficient available stock for reservation.');
+                throw new InsufficientStockException(
+                    itemId: $itemId,
+                    locationId: $locationId,
+                    available: $stock->availableQuantity(),
+                    requested: $quantity,
+                );
             }
 
             $stock->reserved_quantity += $quantity;

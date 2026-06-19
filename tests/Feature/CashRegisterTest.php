@@ -8,6 +8,7 @@ use App\Models\FinancialAccount;
 use App\Models\Item;
 use App\Models\Sale;
 use App\Models\Tenant;
+use App\Services\Documents\InvoiceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -101,6 +102,47 @@ class CashRegisterTest extends TestCase
         $this->assertSame(50.0 + $price, (float) $session->refresh()->expected_cash_amount);
         $this->assertSame($session->id, $sale->metadata['cash_register']['session_id']);
         $this->assertSame($movement->id, $sale->metadata['cash_register']['movement_id']);
+    }
+
+    public function test_cash_invoice_payment_is_recorded_in_open_cash_register(): void
+    {
+        $this->seed();
+        $tenant = Tenant::firstOrFail();
+
+        $this->post(route('cash-register.open'), [
+            'store_key' => 'magasin-principal',
+            'opening_amount' => 20,
+        ])->assertRedirect(route('module', 'cash-register'));
+
+        $session = CashRegisterSession::firstOrFail();
+        $invoice = app(InvoiceService::class)->create($tenant, [
+            'status' => 'sent',
+            'issue_date' => '2026-06-15',
+            'due_date' => '2026-06-30',
+            'lines' => [['name' => 'Service abonnement', 'quantity' => 1, 'unit_price' => '80.00']],
+        ]);
+
+        $payment = app(InvoiceService::class)->recordPayment($invoice, [
+            'amount' => '80.00',
+            'method' => 'cash',
+            'idempotency_key' => 'invoice-cash-1',
+        ]);
+        app(InvoiceService::class)->recordPayment($invoice->fresh(), [
+            'amount' => '80.00',
+            'method' => 'cash',
+            'idempotency_key' => 'invoice-cash-1',
+        ]);
+
+        $movement = CashRegisterMovement::where('type', 'invoice_cash')->firstOrFail();
+        $this->assertSame($session->id, $movement->cash_register_session_id);
+        $this->assertSame(80.0, (float) $movement->amount);
+        $this->assertSame('cash', $movement->payment_method);
+        $this->assertSame($invoice->number, $movement->reference);
+        $this->assertSame($invoice->id, $movement->metadata['invoice_id']);
+        $this->assertSame($payment->id, $movement->metadata['invoice_payment_id']);
+        $this->assertSame($movement->id, $payment->refresh()->metadata['cash_register']['movement_id']);
+        $this->assertSame(100.0, (float) $session->refresh()->expected_cash_amount);
+        $this->assertSame(1, CashRegisterMovement::where('type', 'invoice_cash')->count());
     }
 
     public function test_cash_drawer_navbar_indicator_can_be_hidden_from_settings(): void

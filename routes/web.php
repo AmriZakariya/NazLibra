@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CommercialDocumentController;
 use App\Http\Controllers\LibraireProController;
+use App\Http\Controllers\OnlineStoreController;
 use App\Http\Controllers\VariantController;
 use App\Http\Controllers\VirtualDeviceController;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +30,9 @@ Route::post('/reinitialiser-mot-de-passe', [AuthController::class, 'updatePasswo
 Route::get('/reinitialiser-pin', [AuthController::class, 'showResetPin'])->name('pin.reset');
 Route::post('/reinitialiser-pin', [AuthController::class, 'updatePin'])->name('pin.reset.update');
 
+Route::get('/boutique', [OnlineStoreController::class, 'index'])->name('storefront.index');
+Route::post('/boutique/commandes', [OnlineStoreController::class, 'storeOrder'])->name('storefront.orders.store');
+
 Route::middleware(['auth', 'tenant.access', 'session.unlocked', 'device.selected'])->group(function (): void {
 Route::post('/langue/{locale}', [LibraireProController::class, 'switchLocale'])->name('locale.switch');
 Route::get('/', [LibraireProController::class, 'dashboard'])->name('dashboard');
@@ -44,7 +48,7 @@ Route::redirect('/items/labels', '/catalogue/etiquettes')->name('legacy.items.la
 Route::redirect('/import/items', '/catalogue?panel=import&kind=items')->name('legacy.import.items');
 Route::redirect('/import/services', '/catalogue?panel=import&kind=services')->name('legacy.import.services');
 Route::redirect('/pos', '/caisse')->name('legacy.pos');
-Route::redirect('/sales/add', '/modules/sales?section=add')->name('legacy.sales.add');
+Route::redirect('/sales/add', '/caisse')->name('legacy.sales.add');
 Route::redirect('/sales', '/modules/sales?section=list')->name('legacy.sales');
 Route::redirect('/sales_payments', '/modules/sales?section=payments')->name('legacy.sales.payments');
 Route::redirect('/sales_payments/', '/modules/sales?section=payments');
@@ -181,10 +185,14 @@ Route::post('/documents/factures/{invoice}/archiver', [CommercialDocumentControl
 Route::post('/documents/factures/{invoice}/restaurer', [CommercialDocumentController::class, 'restoreInvoice'])->name('documents.invoices.restore');
 Route::post('/documents/factures/{invoice}/paiements', [CommercialDocumentController::class, 'storeInvoicePayment'])->name('documents.invoices.payments.store');
 Route::get('/documents/factures/{invoice}/pdf', [CommercialDocumentController::class, 'previewInvoicePdf'])->name('documents.invoices.pdf');
+Route::get('/documents/factures/data', [CommercialDocumentController::class, 'invoicesData'])->name('documents.invoices.data');
 Route::post('/ventes/{sale}/rembourser', [LibraireProController::class, 'refundSale'])->name('sales.refund');
 Route::delete('/ventes/{sale}', [LibraireProController::class, 'destroySale'])->name('sales.destroy');
 Route::post('/ventes/livraisons', [LibraireProController::class, 'storeDeliveryOrder'])->name('sales.deliveries.store');
 Route::patch('/ventes/livraisons/{delivery}', [LibraireProController::class, 'updateDeliveryOrder'])->name('sales.deliveries.update');
+Route::post('/precommandes', [LibraireProController::class, 'storeOnlineOrder'])->name('online-orders.store');
+Route::patch('/precommandes/{onlineOrder}', [LibraireProController::class, 'updateOnlineOrderStatus'])->name('online-orders.status.update');
+Route::get('/precommandes/{onlineOrder}/encaisser', [LibraireProController::class, 'prepareOnlineOrderSale'])->name('online-orders.sale.prepare');
 Route::post('/devis', [LibraireProController::class, 'storeQuotation'])->name('quotations.store');
 Route::patch('/devis/{quotation}', [LibraireProController::class, 'updateQuotationStatus'])->name('quotations.update');
 Route::post('/devis/{quotation}/convertir', [LibraireProController::class, 'convertQuotationToSale'])->name('quotations.convert');
@@ -195,6 +203,7 @@ Route::post('/documents/devis/{estimate}/transition', [CommercialDocumentControl
 Route::post('/documents/devis/{estimate}/dupliquer', [CommercialDocumentController::class, 'duplicateEstimate'])->name('documents.estimates.duplicate');
 Route::post('/documents/devis/{estimate}/convertir', [CommercialDocumentController::class, 'convertEstimate'])->name('documents.estimates.convert');
 Route::get('/documents/devis/{estimate}/pdf', [CommercialDocumentController::class, 'previewEstimatePdf'])->name('documents.estimates.pdf');
+Route::get('/achats/data', [LibraireProController::class, 'purchasesData'])->name('purchases.data');
 Route::post('/achats', [LibraireProController::class, 'storePurchase'])->name('purchases.store');
 Route::post('/achats/{purchase}/recevoir', [LibraireProController::class, 'receivePurchase'])->name('purchases.receive');
 Route::post('/achats/paiements', [LibraireProController::class, 'storePurchasePayment'])->name('purchases.payments.store');

@@ -16,6 +16,7 @@
     $warehouseValue = old('warehouse', $item?->warehouse ?? $defaultStoreName);
     $isEnabled = old('is_enabled', $item?->is_enabled ?? true);
     $checkoutVisible = old('checkout_visible', $item?->checkout_visible ?? true);
+    $onlineStoreVisible = old('online_store_visible', $item?->online_store_visible ?? true);
     $currentImage = collect($item?->images ?? [])->first();
     $defaultTax = $taxes->firstWhere('name', 'Sans TVA') ?? $taxes->first(fn ($tax) => (float) $tax->rate === 0.0);
     $taxValue = old('tax_id', $item?->tax_id ?? $defaultTax?->id);
@@ -296,6 +297,16 @@
         </span>
     </span>
 </label>
+<label class="block rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900">
+    <input type="hidden" name="online_store_visible" value="0">
+    <span class="flex items-start gap-3">
+        <input name="online_store_visible" value="1" type="checkbox" @checked((bool) $onlineStoreVisible) class="mt-1 rounded border-slate-300 text-brand focus:ring-brand">
+        <span>
+            <span class="block text-xs font-semibold uppercase text-slate-500">Visible sur la boutique en ligne</span>
+            <small class="mt-1 block text-xs text-slate-500">Décochez pour empêcher cet article d'apparaître côté client.</small>
+        </span>
+    </span>
+</label>
 <div class="block lg:col-span-3">
     <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Image article') }}</span>
     <div class="mt-1 grid gap-3 rounded-lg border border-dashed border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900 md:grid-cols-[96px_minmax(0,1fr)]">
@@ -322,6 +333,11 @@
         </div>
     </div>
 </div>
+<label class="block lg:col-span-4">
+    <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Tags boutique') }}</span>
+    <input name="tags" value="{{ old('tags', collect($item?->tags ?? [])->implode(', ')) }}" class="{{ $input }}" placeholder="{{ $tr('Ex: rentrée, scolaire, nouveautés') }}">
+    <span class="mt-1 block text-xs text-slate-500">{{ $tr('Séparez les tags par des virgules. Ils servent aux filtres de la boutique en ligne.') }}</span>
+</label>
 <label class="block lg:col-span-4">
     <span class="text-xs font-semibold uppercase text-slate-500">Description</span>
     <textarea name="description" rows="3" class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Description, notes internes, détails d’édition">{{ old('description', $item?->description) }}</textarea>

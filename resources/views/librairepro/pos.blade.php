@@ -11,7 +11,7 @@
 @endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · Caisse">
-    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? [])' data-discount-rules='@json($posDiscountRules)' data-pos-search-url="{{ route('pos.search') }}" data-coupon-preview-url="{{ route('pos.coupons.preview') }}" data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}" data-show-out-of-stock="{{ $showOutOfStock ? '1' : '0' }}">
+    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? $sourceCart ?? [])' data-discount-rules='@json($posDiscountRules)' data-pos-search-url="{{ route('pos.search') }}" data-coupon-preview-url="{{ route('pos.coupons.preview') }}" data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}" data-show-out-of-stock="{{ $showOutOfStock ? '1' : '0' }}">
         <div class="min-w-0 space-y-5">
             @if ($lastSale)
                 @php
@@ -370,7 +370,9 @@
                 <div class="pos-products grid max-h-[calc(100vh-300px)] min-h-[420px] gap-2 overflow-y-auto pr-1" data-view="compact" style="--pos-columns: 4;">
                     @foreach ($items as $item)
                         @php($image = collect($item->images)->first())
-                        @php($isOutOfStock = $item->type !== 'service' && $item->stock_quantity <= 0)
+                        @php($posStock = $item->type === 'service' ? 999999 : (int) ($item->pos_stock_quantity ?? $item->stock_quantity))
+                        @php($isOutOfStock = $item->type !== 'service' && $posStock <= 0)
+                        @php($isLowStock = $item->type !== 'service' && ! $isOutOfStock && $posStock <= (int) $item->min_stock_threshold)
                         @php($isSellable = $allowOversell || $item->type === 'service' || ! $isOutOfStock)
                             <article class="pos-product pos-item pos-product-card rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand hover:shadow-md dark:border-white/10 dark:bg-white/[0.03] {{ $isSellable ? '' : 'opacity-60 grayscale hover:translate-y-0 hover:border-rose-200 hover:shadow-sm dark:hover:border-rose-500/30' }}"
                             role="button"
@@ -379,7 +381,7 @@
                             data-id="{{ $item->id }}"
                             data-name="{{ $item->title }}"
                             data-price="{{ $item->sale_price }}"
-                            data-stock="{{ $item->type === 'service' ? 999999 : $item->stock_quantity }}"
+                            data-stock="{{ $posStock }}"
                             data-sellable="{{ $isSellable ? '1' : '0' }}"
                             data-stock-url="{{ route('catalog', ['panel' => 'stock-adjustment-add', 'stock_q' => $item->barcode ?? $item->isbn ?? $item->item_code ?? $item->title]) }}"
                             data-low-threshold="{{ $item->min_stock_threshold }}"
@@ -396,8 +398,8 @@
                                 @else
                                     <div class="grid size-12 place-items-center rounded-lg bg-slate-100 text-sm font-bold text-slate-500 dark:bg-white/10">{{ mb_substr($item->title, 0, 2) }}</div>
                                 @endif
-                                <x-status-pill :tone="$isOutOfStock ? 'danger' : ($item->type === 'service' ? 'info' : ($item->is_low_stock ? 'warning' : 'success'))">
-                                    {{ $isOutOfStock ? $tr('Rupture') : ($item->type === 'service' ? $tr('Service') : $item->stock_quantity) }}
+                                <x-status-pill :tone="$isOutOfStock ? 'danger' : ($item->type === 'service' ? 'info' : ($isLowStock ? 'warning' : 'success'))">
+                                    {{ $isOutOfStock ? $tr('Rupture') : ($item->type === 'service' ? $tr('Service') : $posStock) }}
                                 </x-status-pill>
                             </div>
                             <div class="pos-product-name mt-3 flex items-start gap-2">
@@ -427,6 +429,8 @@
                 <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
                 <input class="pos-cart-json" name="cart" type="hidden" value="[]">
                 <input name="ticket_id" type="hidden" value="{{ $resumeTicket?->id }}">
+                <input name="source_invoice_id" type="hidden" value="{{ $sourceInvoice?->id }}">
+                <input name="source_online_order_id" type="hidden" value="{{ $sourceOnlineOrder?->id }}">
                 <input class="pos-receipt-data" type="hidden" value="{{ json_encode(['storeName' => $tenant?->name, 'ticketNumber' => $nextSaleNumber]) }}">
 
                 <section class="pos-checkout-panel grid min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -497,7 +501,7 @@
                                     <select form="pos-checkout-form" name="contact_id" class="pos-client mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
                                         <option value="" data-advance="0">{{ $tr('Client comptoir') }}</option>
                                         @foreach ($clients as $client)
-                                            <option value="{{ $client->id }}" data-advance="{{ $client->advance_balance }}" @selected($resumeTicket?->contact_id === $client->id)>{{ $client->name }} · avance {{ $money($client->advance_balance) }}</option>
+                                            <option value="{{ $client->id }}" data-advance="{{ $client->advance_balance }}" @selected(($resumeTicket?->contact_id ?? $sourceContactId ?? null) === $client->id)>{{ $client->name }} · avance {{ $money($client->advance_balance) }}</option>
                                         @endforeach
                                     </select>
                                 </label>
@@ -608,7 +612,7 @@
                     </div>
 
                     <div class="mt-2 grid grid-cols-[1fr_1.5fr] gap-2">
-                        <button class="pos-hold-submit rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50" type="submit" formaction="{{ route('pos.tickets.store') }}">
+                        <button class="pos-hold-submit rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50" type="submit" formaction="{{ route('pos.tickets.store') }}" @disabled($sourceInvoice || $sourceOnlineOrder)>
                             {{ $tr('Mettre en attente') }}
                         </button>
                         <button class="pos-submit rounded-lg bg-brand px-4 py-2.5 text-base font-bold text-white shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50" type="submit" disabled>

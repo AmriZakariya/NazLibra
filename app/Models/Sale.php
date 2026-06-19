@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['tenant_id', 'contact_id', 'user_id', 'number', 'status', 'payment_method', 'subtotal_amount', 'discount_amount', 'tax_amount', 'total_amount', 'sold_at', 'metadata', 'idempotency_key'])]
+#[Fillable(['tenant_id', 'contact_id', 'user_id', 'source_invoice_id', 'source_online_order_id', 'number', 'status', 'payment_method', 'subtotal_amount', 'discount_amount', 'tax_amount', 'total_amount', 'sold_at', 'metadata', 'idempotency_key'])]
 class Sale extends Model
 {
     protected function casts(): array
@@ -28,6 +28,16 @@ class Sale extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function sourceInvoice(): BelongsTo
+    {
+        return $this->belongsTo(Invoice::class, 'source_invoice_id');
+    }
+
+    public function sourceOnlineOrder(): BelongsTo
+    {
+        return $this->belongsTo(OnlineOrder::class, 'source_online_order_id');
     }
 
     public function items(): HasMany

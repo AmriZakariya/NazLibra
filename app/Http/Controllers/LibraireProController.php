@@ -23,6 +23,8 @@ use App\Models\ItemLocationStock;
 use App\Models\ItemVariant;
 use App\Models\Loan;
 use App\Models\Location;
+use App\Models\OnlineOrder;
+use App\Models\OnlineOrderItem;
 use App\Models\PosTicket;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
@@ -44,6 +46,7 @@ use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\VariantOption;
 use App\Models\VirtualDeviceSession;
+use App\Services\CashRegisterService;
 use App\Services\Documents\InvoiceService;
 use App\Support\AppModules;
 use App\Support\BusinessMode;
@@ -458,7 +461,7 @@ class LibraireProController extends Controller
                 'title' => 'Ventes',
                 'description' => 'Ventes manuelles, paiements, retours, livraisons, factures et devis.',
                 'features' => [
-                    $feature('Ajouter une vente', 'Saisie complète hors caisse: client, lignes, taxes, remises, échéance, note, livraison et paiements.', route('module', ['module' => 'sales', 'section' => 'add'])),
+                    $feature('Ajouter une vente', 'Panier, contrôle du stock et paiement centralisés dans la caisse.', route('pos')),
                     $feature('Liste des ventes', 'Historique filtrable avec détail, PDF, facture, remboursement et suppression.', route('module', 'sales')),
                     $feature('Paiements des ventes', 'Liste et ajout d encaissements par espèce, carte, virement ou avance client.', route('module', ['module' => 'sales', 'section' => 'payments'])),
                     $feature('Retours de vente', 'Création et suivi des remboursements avec option de restock.', route('module', ['module' => 'sales', 'section' => 'returns'])),
@@ -601,9 +604,23 @@ class LibraireProController extends Controller
         $inventoryItemId = (int) $request->query('inventory_item');
         $movementType = $request->query('movement_type', 'all');
         $movementLocation = (int) $request->query('movement_location', 0);
+        $currentStore = $this->currentStore($tenant);
+        $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+        $currentStoreLocationId = $inventoryService->locationIdFromName($tenant->id, $currentStore['name'] ?? null);
+        $currentStoreLocation = Location::where('tenant_id', $tenant->id)->whereKey($currentStoreLocationId)->first();
+        $locationStockTable = (new ItemLocationStock())->getTable();
         $selectedInventoryItem = $inventoryItemId > 0
             ? $tenant->items()
                 ->with(['category', 'brand', 'unit'])
+                ->select('items.*')
+                ->leftJoin($locationStockTable.' as selected_location_stock', function ($join) use ($tenant, $currentStoreLocationId): void {
+                    $join->on('selected_location_stock.item_id', '=', 'items.id')
+                        ->where('selected_location_stock.tenant_id', '=', $tenant->id)
+                        ->where('selected_location_stock.location_id', '=', $currentStoreLocationId)
+                        ->whereNull('selected_location_stock.variant_id');
+                })
+                ->selectRaw('coalesce(selected_location_stock.quantity, 0) as store_stock_quantity')
+                ->selectRaw('coalesce(selected_location_stock.reserved_quantity, 0) as store_reserved_quantity')
                 ->where('type', '!=', 'service')
                 ->whereKey($inventoryItemId)
                 ->first()
@@ -611,37 +628,49 @@ class LibraireProController extends Controller
         $selectedInventoryItemStockValue = $selectedInventoryItem
             ? (float) ItemLocationStock::where('tenant_id', $tenant->id)
                 ->where('item_id', $selectedInventoryItem->id)
+                ->where('location_id', $currentStoreLocationId)
                 ->selectRaw('SUM(quantity * average_cost) as value')
                 ->value('value') ?? 0
             : 0;
         $selectedInventoryItemReserved = $selectedInventoryItem
             ? (int) ItemLocationStock::where('tenant_id', $tenant->id)
                 ->where('item_id', $selectedInventoryItem->id)
+                ->where('location_id', $currentStoreLocationId)
                 ->sum('reserved_quantity')
             : 0;
         $stockInventoryItems = $tenant->items()
             ->with(['category', 'brand', 'unit'])
             ->select('items.*')
-            ->selectSub(function ($builder) use ($tenant): void {
+            ->leftJoin($locationStockTable.' as inventory_location_stock', function ($join) use ($tenant, $currentStoreLocationId): void {
+                $join->on('inventory_location_stock.item_id', '=', 'items.id')
+                    ->where('inventory_location_stock.tenant_id', '=', $tenant->id)
+                    ->where('inventory_location_stock.location_id', '=', $currentStoreLocationId)
+                    ->whereNull('inventory_location_stock.variant_id');
+            })
+            ->selectRaw('coalesce(inventory_location_stock.quantity, 0) as store_stock_quantity')
+            ->selectRaw('coalesce(inventory_location_stock.reserved_quantity, 0) as store_reserved_quantity')
+            ->selectRaw('coalesce(inventory_location_stock.average_cost, items.purchase_price, 0) as store_average_cost')
+            ->selectSub(function ($builder) use ($tenant, $currentStoreLocationId): void {
                 $builder->from('stock_movements')
                     ->selectRaw('count(*)')
                     ->whereColumn('stock_movements.item_id', 'items.id')
-                    ->where('stock_movements.tenant_id', $tenant->id);
+                    ->where('stock_movements.tenant_id', $tenant->id)
+                    ->where('stock_movements.location_id', $currentStoreLocationId);
             }, 'stock_movements_count')
-            ->where('type', '!=', 'service')
+            ->where('items.type', '!=', 'service')
             ->when($stockInventoryQuery !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($stockInventoryQuery): void {
-                $builder->where('title', 'like', "%{$stockInventoryQuery}%")
-                    ->orWhere('item_code', 'like', "%{$stockInventoryQuery}%")
-                    ->orWhere('sku', 'like', "%{$stockInventoryQuery}%")
-                    ->orWhere('isbn', 'like', "%{$stockInventoryQuery}%")
-                    ->orWhere('barcode', 'like', "%{$stockInventoryQuery}%")
-                    ->orWhere('location', 'like', "%{$stockInventoryQuery}%");
+                $builder->where('items.title', 'like', "%{$stockInventoryQuery}%")
+                    ->orWhere('items.item_code', 'like', "%{$stockInventoryQuery}%")
+                    ->orWhere('items.sku', 'like', "%{$stockInventoryQuery}%")
+                    ->orWhere('items.isbn', 'like', "%{$stockInventoryQuery}%")
+                    ->orWhere('items.barcode', 'like', "%{$stockInventoryQuery}%")
+                    ->orWhere('items.location', 'like', "%{$stockInventoryQuery}%");
             }))
-            ->when($stockInventoryState === 'low', fn (Builder $builder) => $builder->whereColumn('stock_quantity', '<=', 'min_stock_threshold')->where('stock_quantity', '>', 0))
-            ->when($stockInventoryState === 'out', fn (Builder $builder) => $builder->where('stock_quantity', '<=', 0))
-            ->when($stockInventoryState === 'available', fn (Builder $builder) => $builder->where('stock_quantity', '>', 0))
-            ->orderByRaw('case when stock_quantity <= min_stock_threshold then 0 else 1 end')
-            ->orderBy('title')
+            ->when($stockInventoryState === 'low', fn (Builder $builder) => $builder->whereRaw('coalesce(inventory_location_stock.quantity, 0) <= items.min_stock_threshold')->whereRaw('coalesce(inventory_location_stock.quantity, 0) > 0'))
+            ->when($stockInventoryState === 'out', fn (Builder $builder) => $builder->whereRaw('coalesce(inventory_location_stock.quantity, 0) <= 0'))
+            ->when($stockInventoryState === 'available', fn (Builder $builder) => $builder->whereRaw('coalesce(inventory_location_stock.quantity, 0) > 0'))
+            ->orderByRaw('case when coalesce(inventory_location_stock.quantity, 0) <= items.min_stock_threshold then 0 else 1 end')
+            ->orderBy('items.title')
             ->paginate(15, ['*'], 'inventory_page')
             ->withQueryString();
         $stockAdjustments = $this->stockAdjustmentsQuery($tenant, $request)->paginate($perPage, ['*'], 'adjustments_page')->withQueryString();
@@ -665,7 +694,7 @@ class LibraireProController extends Controller
                 });
             })
             ->when($movementType !== 'all' && $movementType !== '', fn ($builder) => $builder->where('stock_movements.type', $movementType))
-            ->when($movementLocation > 0, fn ($builder) => $builder->where('stock_movements.location_id', $movementLocation));
+            ->where('stock_movements.location_id', $movementLocation > 0 ? $movementLocation : $currentStoreLocationId);
 
         $stockMovementCount = (clone $stockMovementsQuery)->count('stock_movements.id');
         $stockMovementPerPage = min(max((int) $request->query('movement_per_page', 50), 20), 100);
@@ -784,17 +813,25 @@ class LibraireProController extends Controller
                 ->get(),
             'variantOptions' => VariantOption::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'stockItems' => $tenant->items()
+                ->select('items.*')
+                ->leftJoin($locationStockTable.' as stock_item_location_stock', function ($join) use ($tenant, $currentStoreLocationId): void {
+                    $join->on('stock_item_location_stock.item_id', '=', 'items.id')
+                        ->where('stock_item_location_stock.tenant_id', '=', $tenant->id)
+                        ->where('stock_item_location_stock.location_id', '=', $currentStoreLocationId)
+                        ->whereNull('stock_item_location_stock.variant_id');
+                })
+                ->selectRaw('coalesce(stock_item_location_stock.quantity, 0) as store_stock_quantity')
                 ->with(['category', 'brand'])
-                ->where('type', '!=', 'service')
+                ->where('items.type', '!=', 'service')
                 ->when($stockItemSearch !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($stockItemSearch): void {
-                    $builder->where('title', 'like', "%{$stockItemSearch}%")
-                        ->orWhere('item_code', 'like', "%{$stockItemSearch}%")
-                        ->orWhere('sku', 'like', "%{$stockItemSearch}%")
-                        ->orWhere('isbn', 'like', "%{$stockItemSearch}%")
-                        ->orWhere('barcode', 'like', "%{$stockItemSearch}%")
-                        ->orWhere('custom_barcode1', 'like', "%{$stockItemSearch}%");
+                    $builder->where('items.title', 'like', "%{$stockItemSearch}%")
+                        ->orWhere('items.item_code', 'like', "%{$stockItemSearch}%")
+                        ->orWhere('items.sku', 'like', "%{$stockItemSearch}%")
+                        ->orWhere('items.isbn', 'like', "%{$stockItemSearch}%")
+                        ->orWhere('items.barcode', 'like', "%{$stockItemSearch}%")
+                        ->orWhere('items.custom_barcode1', 'like', "%{$stockItemSearch}%");
                 }))
-                ->orderBy('title')
+                ->orderBy('items.title')
                 ->take($stockItemSearch !== '' ? 80 : 500)
                 ->get(),
             'stockAdjustments' => $stockAdjustments,
@@ -811,7 +848,8 @@ class LibraireProController extends Controller
             'movementType' => $movementType,
             'movementLocation' => $movementLocation,
             'stores' => $this->storeCatalog($tenant),
-            'currentStore' => $this->currentStore($tenant),
+            'currentStore' => $currentStore,
+            'currentStoreLocation' => $currentStoreLocation,
             'suggestedItemCode' => $this->nextItemCode($tenant->id),
             'stockStats' => [
                 'adjustments' => StockAdjustment::where('tenant_id', $tenant->id)->count(),
@@ -820,10 +858,22 @@ class LibraireProController extends Controller
                 'locations' => Location::where('tenant_id', $tenant->id)->where('is_active', true)->count(),
                 'adjusted_month' => StockAdjustment::where('tenant_id', $tenant->id)->whereDate('adjusted_at', '>=', now()->startOfMonth())->sum('total_quantity'),
                 'transferred_month' => StockTransfer::where('tenant_id', $tenant->id)->whereDate('transferred_at', '>=', now()->startOfMonth())->sum('total_quantity'),
-                'stock_units' => (int) $tenant->items()->where('type', '!=', 'service')->sum('stock_quantity'),
-                'reserved_units' => (int) ItemLocationStock::where('tenant_id', $tenant->id)->sum('reserved_quantity'),
-                'stock_purchase_value' => (float) $tenant->items()->where('type', '!=', 'service')->selectRaw('sum(stock_quantity * purchase_price) as value')->value('value'),
-                'stock_sale_value' => (float) $tenant->items()->where('type', '!=', 'service')->selectRaw('sum(stock_quantity * sale_price) as value')->value('value'),
+                'stock_units' => (int) ItemLocationStock::where('tenant_id', $tenant->id)->where('location_id', $currentStoreLocationId)->sum('quantity'),
+                'reserved_units' => (int) ItemLocationStock::where('tenant_id', $tenant->id)->where('location_id', $currentStoreLocationId)->sum('reserved_quantity'),
+                'stock_purchase_value' => (float) DB::table($locationStockTable.' as store_stock')
+                    ->join('items', 'store_stock.item_id', '=', 'items.id')
+                    ->where('store_stock.tenant_id', $tenant->id)
+                    ->where('store_stock.location_id', $currentStoreLocationId)
+                    ->where('items.type', '!=', 'service')
+                    ->selectRaw('sum(store_stock.quantity * coalesce(store_stock.average_cost, items.purchase_price, 0)) as value')
+                    ->value('value'),
+                'stock_sale_value' => (float) DB::table($locationStockTable.' as store_stock')
+                    ->join('items', 'store_stock.item_id', '=', 'items.id')
+                    ->where('store_stock.tenant_id', $tenant->id)
+                    ->where('store_stock.location_id', $currentStoreLocationId)
+                    ->where('items.type', '!=', 'service')
+                    ->selectRaw('sum(store_stock.quantity * items.sale_price) as value')
+                    ->value('value'),
                 'movement_count' => $stockMovementCount,
             ],
             'editItem' => $editItem,
@@ -831,8 +881,19 @@ class LibraireProController extends Controller
             'catalogStats' => [
                 'items' => $tenant->items()->where('type', '!=', 'service')->count(),
                 'services' => $tenant->items()->where('type', 'service')->count(),
-                'low' => $tenant->items()->whereColumn('stock_quantity', '<=', 'min_stock_threshold')->count(),
-                'value' => $tenant->items()->selectRaw('sum(stock_quantity * purchase_price) as value')->value('value') ?? 0,
+                'low' => DB::table($locationStockTable.' as store_stock')
+                    ->join('items', 'store_stock.item_id', '=', 'items.id')
+                    ->where('store_stock.tenant_id', $tenant->id)
+                    ->where('store_stock.location_id', $currentStoreLocationId)
+                    ->where('items.type', '!=', 'service')
+                    ->whereRaw('store_stock.quantity <= items.min_stock_threshold')
+                    ->count(),
+                'value' => DB::table($locationStockTable.' as store_stock')
+                    ->join('items', 'store_stock.item_id', '=', 'items.id')
+                    ->where('store_stock.tenant_id', $tenant->id)
+                    ->where('store_stock.location_id', $currentStoreLocationId)
+                    ->selectRaw('sum(store_stock.quantity * coalesce(store_stock.average_cost, items.purchase_price, 0)) as value')
+                    ->value('value') ?? 0,
             ],
             'query' => $query,
             'status' => $status,
@@ -876,19 +937,19 @@ class LibraireProController extends Controller
                 }
 
                 $builder->where(function (Builder $builder) use ($search): void {
-                    $builder->where('title', 'like', "%{$search}%")
-                        ->orWhere('item_code', 'like', "%{$search}%")
-                        ->orWhere('sku', 'like', "%{$search}%")
-                        ->orWhere('isbn', 'like', "%{$search}%")
-                        ->orWhere('barcode', 'like', "%{$search}%")
-                        ->orWhere('custom_barcode1', 'like', "%{$search}%")
-                        ->orWhere('author', 'like', "%{$search}%")
-                        ->orWhere('editor', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%")
-                        ->orWhereHas('category', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"))
-                        ->orWhereHas('brand', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"))
-                        ->orWhereHas('unit', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"))
-                        ->orWhereHas('tax', fn (Builder $query) => $query->where('name', 'like', "%{$search}%"));
+                    $builder->where('items.title', 'like', "%{$search}%")
+                        ->orWhere('items.item_code', 'like', "%{$search}%")
+                        ->orWhere('items.sku', 'like', "%{$search}%")
+                        ->orWhere('items.isbn', 'like', "%{$search}%")
+                        ->orWhere('items.barcode', 'like', "%{$search}%")
+                        ->orWhere('items.custom_barcode1', 'like', "%{$search}%")
+                        ->orWhere('items.author', 'like', "%{$search}%")
+                        ->orWhere('items.editor', 'like', "%{$search}%")
+                        ->orWhere('items.description', 'like', "%{$search}%")
+                        ->orWhere('catalog_categories.name', 'like', "%{$search}%")
+                        ->orWhere('catalog_brands.name', 'like', "%{$search}%")
+                        ->orWhere('catalog_units.name', 'like', "%{$search}%")
+                        ->orWhere('catalog_taxes.name', 'like', "%{$search}%");
                 });
             })
             ->addColumn('checkbox', fn (Item $item): string => '<input class="catalog-item-check rounded border-slate-300" value="'.$item->id.'" type="checkbox">')
@@ -901,22 +962,23 @@ class LibraireProController extends Controller
 
                 return '<div class="grid size-11 place-items-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">'.e(mb_substr($item->title, 0, 2)).'</div>';
             })
-            ->editColumn('barcode', fn (Item $item): string => e($item->barcode ?? $item->isbn ?? $item->sku ?? '—'))
+            ->editColumn('barcode', fn (Item $item): string => '<span class="catalog-code-cell">'.e($item->barcode ?? $item->isbn ?? $item->sku ?? '—').'</span>')
             ->editColumn('title', function (Item $item): string {
                 $brand = $item->brand?->name ? ' · '.$item->brand->name : '';
                 $variants = $item->variants->isNotEmpty() ? '<p class="mt-1 text-xs font-medium text-brand">'.$item->variants->count().' variante(s)</p>' : '';
 
-                return '<div class="max-w-[320px]"><p class="font-semibold">'.e($item->title).'</p><p class="mt-1 text-xs text-slate-500">'.e($item->item_code ?? 'Sans code interne').e($brand).'</p>'.$variants.'</div>';
+                return '<div class="catalog-item-title-cell"><p>'.e($item->title).'</p><small>'.e($item->item_code ?? 'Sans code interne').e($brand).'</small>'.$variants.'</div>';
             })
-            ->addColumn('category_type', fn (Item $item): string => '<span class="font-medium">'.e($item->category?->name ?? 'Sans catégorie').'</span><span class="mt-1 block text-xs text-slate-500">'.e($this->typeLabel($item->type)).'</span>')
+            ->addColumn('category_type', fn (Item $item): string => '<span class="catalog-main-text">'.e($item->category?->name ?? 'Sans catégorie').'</span><span class="catalog-sub-text">'.e($this->typeLabel($item->type)).'</span>')
             ->addColumn('unit_label', fn (Item $item): string => e($item->unit?->name ?? '—'))
-            ->editColumn('stock_quantity', fn (Item $item): string => '<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.($item->is_low_stock && $item->type !== 'service' ? 'bg-amber-50 text-amber-700 ring-amber-200' : 'bg-emerald-50 text-emerald-700 ring-emerald-200').'">'.($item->type === 'service' ? 'Illimité' : number_format($item->stock_quantity, 0, ',', ' ')).'</span>')
+            ->editColumn('stock_quantity', fn (Item $item): string => '<span class="catalog-stock-badge '.($item->is_low_stock && $item->type !== 'service' ? 'is-warning' : 'is-ok').'">'.($item->type === 'service' ? 'Illimité' : number_format($item->stock_quantity, 0, ',', ' ')).'</span>')
             ->editColumn('min_stock_threshold', fn (Item $item): string => $item->type === 'service' ? '—' : number_format($item->min_stock_threshold, 0, ',', ' '))
             ->editColumn('sale_price', fn (Item $item): string => '<strong>'.$this->money($item->sale_price).'</strong>')
             ->addColumn('tax_label', fn (Item $item): string => e($item->tax ? $item->tax->name.' ('.number_format((float) $item->tax->rate, 2, ',', ' ').'%)' : '—'))
             ->editColumn('status', function (Item $item): string {
                 $isEnabled = (bool) $item->is_enabled && $item->status !== 'archived';
                 $checkoutVisible = (bool) $item->checkout_visible;
+                $onlineVisible = (bool) $item->online_store_visible;
                 $enabledTone = $isEnabled
                     ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
                     : 'bg-slate-100 text-slate-700 ring-slate-200';
@@ -932,19 +994,24 @@ class LibraireProController extends Controller
                     ? 'bg-blue-50 text-blue-700 ring-blue-200'
                     : 'bg-amber-50 text-amber-700 ring-amber-200';
                 $checkoutLabel = $checkoutVisible && $isEnabled ? 'Visible caisse' : 'Caché caisse';
+                $onlineTone = $onlineVisible && $isEnabled
+                    ? 'bg-indigo-50 text-indigo-700 ring-indigo-200'
+                    : 'bg-slate-100 text-slate-700 ring-slate-200';
+                $onlineLabel = $onlineVisible && $isEnabled ? 'Visible boutique' : 'Caché boutique';
 
-                return '<div class="flex min-w-[145px] flex-col items-start gap-1">'
+                return '<div class="catalog-status-stack">'
                     .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$enabledTone.'">'.e($isEnabled ? 'Activé' : 'Désactivé').'</span>'
                     .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$stateTone.'">'.e($stateLabel).'</span>'
                     .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$checkoutTone.'">'.e($checkoutLabel).'</span>'
+                    .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$onlineTone.'">'.e($onlineLabel).'</span>'
                     .'</div>';
             })
-            ->addColumn('action', fn (Item $item): string => '<div class="flex min-w-[190px] justify-end gap-2">'
-                .'<a href="'.e(route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $item->id])).'#inventory-history" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:text-slate-200">Historique</a>'
-                .'<a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-500/20">Modifier</a>'
+            ->addColumn('action', fn (Item $item): string => '<div class="catalog-row-actions">'
+                .'<a href="'.e(route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $item->id])).'#inventory-history" class="catalog-row-button is-muted">Historique</a>'
+                .'<a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" data-row-primary-action class="catalog-row-button is-primary">Modifier</a>'
                 .'</div>')
             ->addColumn('row_url', fn (Item $item): string => route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id]).'#edit-item')
-            ->rawColumns(['checkbox', 'image', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'action', 'row_url'])
+            ->rawColumns(['checkbox', 'image', 'barcode', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'action', 'row_url'])
             ->toJson();
     }
 
@@ -1074,7 +1141,7 @@ class LibraireProController extends Controller
         $query = trim((string) $request->query('q'));
 
         $items = $tenant->items()
-            ->with(['category', 'brand'])
+            ->with(['category', 'brand', 'tax', 'unit'])
             ->where('type', '!=', 'service')
             ->where('is_enabled', true)
             ->when($query !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($query): void {
@@ -1106,7 +1173,7 @@ class LibraireProController extends Controller
         $context = (string) $request->query('context', 'default');
 
         $items = $tenant->items()
-            ->with(['category', 'brand'])
+            ->with(['category', 'brand', 'tax', 'unit'])
             ->when($context === 'variants', fn (Builder $builder) => $builder->where('type', '!=', 'service'))
             ->when($query !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($query): void {
                 $builder->where('title', 'like', "%{$query}%")
@@ -1137,11 +1204,15 @@ class LibraireProController extends Controller
                 'code' => $item->barcode ?: ($item->isbn ?: ($item->sku ?: $item->item_code)),
                 'category' => $item->category?->name,
                 'brand' => $item->brand?->name,
+                'unit' => $item->unit?->name,
                 'stock' => $item->type === 'service' ? null : (int) $item->stock_quantity,
                 'status' => $item->status,
                 'is_enabled' => (bool) $item->is_enabled,
                 'checkout_visible' => (bool) $item->checkout_visible,
                 'price' => $this->money($item->sale_price),
+                'raw_price' => (float) $item->sale_price,
+                'tax_rate' => (float) ($item->tax?->rate ?? 0),
+                'tax_inclusive' => ($item->tax_type ?? 'Exclusive') === 'Inclusive',
                 'url' => route('catalog', [
                     'panel' => $item->type === 'service' ? 'services' : 'articles',
                     'edit' => $item->id,
@@ -1549,6 +1620,76 @@ class LibraireProController extends Controller
             ->toJson();
     }
 
+    public function purchasesData(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $tenant = $this->tenant();
+
+        $search = trim((string) data_get($request->input('search', []), 'value'));
+        if (! $request->filled('q') && $search !== '') {
+            $request->merge(['q' => $search]);
+        }
+
+        return DataTables::eloquent($this->purchasesQuery($tenant, $request))
+            ->addColumn('number_display', function (Purchase $purchase): string {
+                $url = route('module', ['module' => 'purchases', 'section' => 'list', 'detail_purchase' => $purchase->id]);
+                $warehouse = data_get($purchase->metadata, 'warehouse', 'Magasin principal') ?: 'Magasin principal';
+
+                return '<a href="'.e($url).'" class="font-semibold text-slate-950 hover:text-brand dark:text-white">'.e($purchase->number).'</a>'
+                    .'<p class="mt-1 text-xs text-slate-500">'.e($warehouse).'</p>';
+            })
+            ->addColumn('date_display', function (Purchase $purchase): string {
+                $orderedAt = $purchase->ordered_at?->format('d/m/Y') ?? '—';
+                $expectedAt = $purchase->expected_at?->format('d/m/Y') ?? '—';
+
+                return '<span class="font-medium">'.e($orderedAt).'</span>'
+                    .'<p class="mt-1 text-xs text-slate-500">Prévu '.e($expectedAt).'</p>';
+            })
+            ->addColumn('supplier_display', function (Purchase $purchase): string {
+                $phone = $purchase->supplier?->phone
+                    ? '<p class="mt-1 text-xs text-slate-500">'.e($purchase->supplier->phone).'</p>'
+                    : '';
+
+                return '<span class="font-semibold">'.e($purchase->supplier?->name ?? '—').'</span>'.$phone;
+            })
+            ->addColumn('reference_display', function (Purchase $purchase): string {
+                $invoice = data_get($purchase->metadata, 'supplier_invoice', '—') ?: '—';
+                $reference = data_get($purchase->metadata, 'reference', 'Sans référence') ?: 'Sans référence';
+
+                return '<span class="font-medium">'.e($invoice).'</span>'
+                    .'<p class="mt-1 text-xs text-slate-500">'.e($reference).'</p>';
+            })
+            ->addColumn('created_by_display', function (Purchase $purchase): string {
+                $createdBy = data_get($purchase->metadata, 'created_by_name') ?: $purchase->user?->name ?: 'Utilisateur inconnu';
+                $createdAt = data_get($purchase->metadata, 'created_by_at') ?: $purchase->created_at?->toIso8601String();
+                $date = $createdAt ? Carbon::parse($createdAt)->format('d/m/Y H:i') : '—';
+
+                return '<span class="font-semibold">'.e($createdBy).'</span>'
+                    .'<p class="mt-1 text-xs text-slate-500">'.e($date).'</p>';
+            })
+            ->addColumn('items_display', function (Purchase $purchase): string {
+                $orderedQuantity = (int) $purchase->items->sum('quantity_ordered');
+                $receivedQuantity = (int) $purchase->items->sum('quantity_received');
+
+                return '<span class="font-semibold">'.e((string) $purchase->items->count()).' ligne(s)</span>'
+                    .'<p class="mt-1 text-xs text-slate-500">'.e((string) $orderedQuantity).' commandé(s), '.e((string) $receivedQuantity).' reçu(s)</p>';
+            })
+            ->addColumn('receipt_display', function (Purchase $purchase): string {
+                $orderedQuantity = (int) $purchase->items->sum('quantity_ordered');
+                $receivedQuantity = (int) $purchase->items->sum('quantity_received');
+                $remainingQuantity = max(0, $orderedQuantity - $receivedQuantity);
+                $remaining = $remainingQuantity > 0
+                    ? '<p class="mt-1 text-xs font-semibold text-amber-600">'.e((string) $remainingQuantity).' restant(s)</p>'
+                    : '';
+
+                return $this->purchaseStatusBadge($purchase->status).$remaining;
+            })
+            ->editColumn('total_amount', fn (Purchase $purchase): string => '<span class="font-semibold">'.$this->money($purchase->total_amount).'</span>')
+            ->addColumn('action', fn (Purchase $purchase): string => $this->purchaseActionMenu($purchase))
+            ->addColumn('row_url', fn (Purchase $purchase): string => route('module', ['module' => 'purchases', 'section' => 'list', 'detail_purchase' => $purchase->id]))
+            ->rawColumns(['number_display', 'date_display', 'supplier_display', 'reference_display', 'created_by_display', 'items_display', 'receipt_display', 'total_amount', 'action', 'row_url'])
+            ->toJson();
+    }
+
     public function storeContact(Request $request): RedirectResponse|JsonResponse
     {
         $tenant = $this->tenant();
@@ -1703,35 +1844,45 @@ class LibraireProController extends Controller
         $maxPrice = $request->query('max_price');
 
         return Item::query()
-            ->where('tenant_id', $tenant->id)
+            ->select('items.*')
+            ->selectRaw('coalesce(catalog_categories.name, ?) as category_sort', ['Sans catégorie'])
+            ->selectRaw('coalesce(catalog_brands.name, ?) as brand_sort', [''])
+            ->selectRaw('coalesce(catalog_units.name, ?) as unit_sort', [''])
+            ->selectRaw('coalesce(catalog_taxes.name, ?) as tax_sort', [''])
+            ->leftJoin('categories as catalog_categories', 'catalog_categories.id', '=', 'items.category_id')
+            ->leftJoin('brands as catalog_brands', 'catalog_brands.id', '=', 'items.brand_id')
+            ->leftJoin('units as catalog_units', 'catalog_units.id', '=', 'items.unit_id')
+            ->leftJoin('taxes as catalog_taxes', 'catalog_taxes.id', '=', 'items.tax_id')
+            ->where('items.tenant_id', $tenant->id)
             ->with(['category', 'brand', 'unit', 'tax', 'variants'])
             ->when($quickSearch !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($quickSearch): void {
-                $builder->where('title', 'like', "%{$quickSearch}%")
-                    ->orWhere('item_code', 'like', "%{$quickSearch}%")
-                    ->orWhere('sku', 'like', "%{$quickSearch}%")
-                    ->orWhere('isbn', 'like', "%{$quickSearch}%")
-                    ->orWhere('barcode', 'like', "%{$quickSearch}%")
-                    ->orWhere('custom_barcode1', 'like', "%{$quickSearch}%")
-                    ->orWhere('author', 'like', "%{$quickSearch}%")
-                    ->orWhere('editor', 'like', "%{$quickSearch}%")
-                    ->orWhere('description', 'like', "%{$quickSearch}%")
-                    ->orWhereHas('category', fn (Builder $categoryQuery) => $categoryQuery->where('name', 'like', "%{$quickSearch}%"))
-                    ->orWhereHas('brand', fn (Builder $brandQuery) => $brandQuery->where('name', 'like', "%{$quickSearch}%"))
-                    ->orWhereHas('unit', fn (Builder $unitQuery) => $unitQuery->where('name', 'like', "%{$quickSearch}%"));
+                $builder->where('items.title', 'like', "%{$quickSearch}%")
+                    ->orWhere('items.item_code', 'like', "%{$quickSearch}%")
+                    ->orWhere('items.sku', 'like', "%{$quickSearch}%")
+                    ->orWhere('items.isbn', 'like', "%{$quickSearch}%")
+                    ->orWhere('items.barcode', 'like', "%{$quickSearch}%")
+                    ->orWhere('items.custom_barcode1', 'like', "%{$quickSearch}%")
+                    ->orWhere('items.author', 'like', "%{$quickSearch}%")
+                    ->orWhere('items.editor', 'like', "%{$quickSearch}%")
+                    ->orWhere('items.description', 'like', "%{$quickSearch}%")
+                    ->orWhere('catalog_categories.name', 'like', "%{$quickSearch}%")
+                    ->orWhere('catalog_brands.name', 'like', "%{$quickSearch}%")
+                    ->orWhere('catalog_units.name', 'like', "%{$quickSearch}%")
+                    ->orWhere('catalog_taxes.name', 'like', "%{$quickSearch}%");
             }))
-            ->when($status !== 'all', fn (Builder $builder) => $builder->where('status', $status))
-            ->when($category === 'uncategorized', fn (Builder $builder) => $builder->whereNull('category_id'))
-            ->when($category !== 'all' && $category !== 'uncategorized', fn (Builder $builder) => $builder->where('category_id', $category))
-            ->when($brand !== 'all', fn (Builder $builder) => $builder->where('brand_id', $brand))
-            ->when($unit !== 'all', fn (Builder $builder) => $builder->where('unit_id', $unit))
-            ->when($tax !== 'all', fn (Builder $builder) => $builder->where('tax_id', $tax))
-            ->when($stock === 'low', fn (Builder $builder) => $builder->whereColumn('stock_quantity', '<=', 'min_stock_threshold'))
-            ->when($stock === 'out', fn (Builder $builder) => $builder->where('stock_quantity', '<=', 0))
-            ->when(is_numeric($minPrice), fn (Builder $builder) => $builder->where('sale_price', '>=', (float) $minPrice))
-            ->when(is_numeric($maxPrice), fn (Builder $builder) => $builder->where('sale_price', '<=', (float) $maxPrice))
-            ->when(in_array($panel, ['services', 'ajouter-service'], true), fn (Builder $builder) => $builder->where('type', 'service'))
-            ->when(! in_array($panel, ['services', 'ajouter-service', 'all'], true) && $type !== 'all', fn (Builder $builder) => $builder->where('type', $type))
-            ->when(! in_array($panel, ['services', 'ajouter-service', 'all'], true) && $type === 'all' && ! $hasSearch, fn (Builder $builder) => $builder->where('type', '!=', 'service'));
+            ->when($status !== 'all', fn (Builder $builder) => $builder->where('items.status', $status))
+            ->when($category === 'uncategorized', fn (Builder $builder) => $builder->whereNull('items.category_id'))
+            ->when($category !== 'all' && $category !== 'uncategorized', fn (Builder $builder) => $builder->where('items.category_id', $category))
+            ->when($brand !== 'all', fn (Builder $builder) => $builder->where('items.brand_id', $brand))
+            ->when($unit !== 'all', fn (Builder $builder) => $builder->where('items.unit_id', $unit))
+            ->when($tax !== 'all', fn (Builder $builder) => $builder->where('items.tax_id', $tax))
+            ->when($stock === 'low', fn (Builder $builder) => $builder->whereColumn('items.stock_quantity', '<=', 'items.min_stock_threshold'))
+            ->when($stock === 'out', fn (Builder $builder) => $builder->where('items.stock_quantity', '<=', 0))
+            ->when(is_numeric($minPrice), fn (Builder $builder) => $builder->where('items.sale_price', '>=', (float) $minPrice))
+            ->when(is_numeric($maxPrice), fn (Builder $builder) => $builder->where('items.sale_price', '<=', (float) $maxPrice))
+            ->when(in_array($panel, ['services', 'ajouter-service'], true), fn (Builder $builder) => $builder->where('items.type', 'service'))
+            ->when(! in_array($panel, ['services', 'ajouter-service', 'all'], true) && $type !== 'all', fn (Builder $builder) => $builder->where('items.type', $type))
+            ->when(! in_array($panel, ['services', 'ajouter-service', 'all'], true) && $type === 'all' && ! $hasSearch, fn (Builder $builder) => $builder->where('items.type', '!=', 'service'));
     }
 
     public function storeItem(Request $request): RedirectResponse
@@ -2150,6 +2301,7 @@ class LibraireProController extends Controller
                 'editor' => $this->rowValue($row, ['editor', 'editeur_texte']),
                 'edition_year' => $this->rowValue($row, ['edition_year', 'annee_edition']),
                 'theme' => $this->rowValue($row, ['theme']),
+                'tags' => $this->normalizeTagsInput($this->rowValue($row, ['tags', 'tag', 'etiquettes', 'mots_cles', 'mots-cles'])),
                 'description' => $this->rowValue($row, ['description', 'item_desciption', 'item_description']),
                 'price' => $priceBeforeTax,
                 'purchase_price' => $purchasePrice,
@@ -2637,9 +2789,11 @@ class LibraireProController extends Controller
     public function updatePosSettings(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();
+        $storeKeys = collect($this->storeCatalog($tenant))->pluck('key')->all();
         $data = $request->validate([
             'inventory_cycle_days' => ['nullable', 'integer', 'in:7,15,30,90'],
             'default_min_stock_threshold' => ['nullable', 'integer', 'min:0', 'max:9999'],
+            'online_pickup_store' => ['nullable', Rule::in($storeKeys)],
         ]);
         $settings = $tenant->settings ?? [];
         $settings['pos'] = array_merge($settings['pos'] ?? [], [
@@ -2654,6 +2808,10 @@ class LibraireProController extends Controller
             'auto_reorder_draft' => $request->boolean('auto_reorder_draft'),
             'inventory_cycle_days' => (int) ($data['inventory_cycle_days'] ?? 30),
             'default_min_stock_threshold' => (int) ($data['default_min_stock_threshold'] ?? 3),
+        ]);
+        $settings['online_store'] = array_merge($settings['online_store'] ?? [], [
+            'enabled' => $request->boolean('online_store_enabled', true),
+            'pickup_store' => $data['online_pickup_store'] ?? data_get($settings, 'current_store'),
         ]);
         $tenant->update(['settings' => $settings]);
 
@@ -3247,7 +3405,7 @@ class LibraireProController extends Controller
         return back()->with('status', 'Rôle supprimé.');
     }
 
-    public function pos(Request $request): Response
+    public function pos(Request $request): Response|RedirectResponse
     {
         $tenant = $this->tenant();
         abort_unless(AppModules::enabled($tenant, 'sales'), 404);
@@ -3256,13 +3414,60 @@ class LibraireProController extends Controller
         $stock = $request->query('stock', 'available');
         $allowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
         $showOutOfStock = (bool) data_get($tenant->settings, 'pos.show_out_of_stock', false);
+        $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+        $posLocationId = $inventoryService->locationIdFromName($tenant->id, null);
+        $locationStockTable = (new ItemLocationStock())->getTable();
         $lastSaleId = $request->query('sale', session('last_pos_sale_id'));
         $resumeTicket = null;
+        $sourceInvoice = null;
+        $sourceOnlineOrder = null;
+        $sourceCart = collect();
+        $sourceContactId = null;
         if ($request->filled('ticket')) {
             $resumeTicket = PosTicket::where('tenant_id', $tenant->id)
                 ->where('status', 'held')
                 ->whereKey((int) $request->query('ticket'))
                 ->first();
+        }
+
+        if ($request->filled('source_online_order')) {
+            $sourceOnlineOrder = OnlineOrder::with(['contact', 'items', 'convertedSale'])
+                ->where('tenant_id', $tenant->id)->whereKey((int) $request->query('source_online_order'))->firstOrFail();
+            if ($sourceOnlineOrder->convertedSale) {
+                return redirect()->route('pos', ['sale' => $sourceOnlineOrder->convertedSale->id]);
+            }
+            if (! $this->onlineOrderCanCreateSale($sourceOnlineOrder)) {
+                return redirect()->route('module', ['module' => 'online-orders', 'section' => 'list', 'order' => $sourceOnlineOrder->id])
+                    ->withErrors(['sale' => $this->onlineOrderSaleBlockReason($sourceOnlineOrder)]);
+            }
+            if ($sourceOnlineOrder->items->contains(fn (OnlineOrderItem $line) => ! $line->item_id)) {
+                return redirect()->route('module', ['module' => 'online-orders', 'section' => 'list', 'order' => $sourceOnlineOrder->id])
+                    ->withErrors(['sale' => 'Une ligne de la précommande n’est plus liée au catalogue.']);
+            }
+            $sourceCart = $sourceOnlineOrder->items->map(fn (OnlineOrderItem $line) => [
+                'item_id' => $line->item_id, 'quantity' => (int) $line->quantity,
+                'price' => (float) $line->unit_price, 'note' => $line->note,
+            ]);
+            $sourceContactId = $sourceOnlineOrder->contact_id;
+        } elseif ($request->filled('source_invoice')) {
+            $sourceInvoice = Invoice::with(['customer', 'items', 'sourceSale'])
+                ->where('tenant_id', $tenant->id)->whereKey((int) $request->query('source_invoice'))->firstOrFail();
+            if ($sourceInvoice->sourceSale) {
+                return redirect()->route('pos', ['sale' => $sourceInvoice->sourceSale->id]);
+            }
+            if (! $this->invoiceCanCreateSale($sourceInvoice)) {
+                return redirect()->route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $sourceInvoice->id])
+                    ->withErrors(['invoice' => $this->invoiceCreateSaleBlockReason($sourceInvoice)]);
+            }
+            if ($sourceInvoice->items->contains(fn ($line) => ! $line->item_id)) {
+                return redirect()->route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $sourceInvoice->id])
+                    ->withErrors(['invoice' => 'Une ligne de la facture n’est plus liée au catalogue.']);
+            }
+            $sourceCart = $sourceInvoice->items->map(fn ($line) => [
+                'item_id' => $line->item_id, 'quantity' => (int) $line->quantity,
+                'price' => (float) $line->unit_price, 'note' => $line->description,
+            ]);
+            $sourceContactId = $sourceInvoice->customer_id;
         }
 
         $topSold = DB::table('sale_items')
@@ -3274,6 +3479,14 @@ class LibraireProController extends Controller
             ->pluck('sold_quantity', 'item_id');
 
         $items = $tenant->items()
+            ->select('items.*')
+            ->leftJoin($locationStockTable.' as pos_stock', function ($join) use ($tenant, $posLocationId): void {
+                $join->on('pos_stock.item_id', '=', 'items.id')
+                    ->where('pos_stock.tenant_id', '=', $tenant->id)
+                    ->where('pos_stock.location_id', '=', $posLocationId)
+                    ->whereNull('pos_stock.variant_id');
+            })
+            ->selectRaw('coalesce(pos_stock.quantity, 0) as pos_stock_quantity')
             ->with(['category', 'brand', 'unit', 'tax'])
             ->when(
                 $showOutOfStock,
@@ -3301,15 +3514,15 @@ class LibraireProController extends Controller
             ->when($type !== 'all' && !$query, fn (Builder $builder) => $builder->where('type', $type))
             // Stock filter - handle services specially
             ->when($stock === 'available' && ! $allowOversell && ! $showOutOfStock, fn (Builder $builder) => $builder->where(function (Builder $builder): void {
-                $builder->where('type', 'service')->orWhereRaw('stock_quantity > 0');
+                $builder->where('items.type', 'service')->orWhereRaw('coalesce(pos_stock.quantity, 0) > 0');
             }))
-            ->when($stock === 'low' && ! $allowOversell, fn (Builder $builder) => $builder->where('type', '!=', 'service')->whereColumn('stock_quantity', '<=', 'min_stock_threshold'))
+            ->when($stock === 'low' && ! $allowOversell, fn (Builder $builder) => $builder->where('items.type', '!=', 'service')->whereRaw('coalesce(pos_stock.quantity, 0) <= items.min_stock_threshold'))
             ->when($stock === 'all', function (Builder $builder) {
                 // Show everything when "all" is selected
             })
             // Order by: services first, then by stock status, then by title
-            ->orderByRaw("case when type = 'service' then 0 when stock_quantity <= 0 then 2 when stock_quantity <= min_stock_threshold then 1 else 0 end")
-            ->orderBy('title')
+            ->orderByRaw("case when items.type = 'service' then 0 when coalesce(pos_stock.quantity, 0) <= 0 then 2 when coalesce(pos_stock.quantity, 0) <= items.min_stock_threshold then 1 else 0 end")
+            ->orderBy('items.title')
             // Fetch enough items to ensure services are included (frontend search filters from these)
             ->take($query !== '' ? 90 : 240)
             ->get()
@@ -3333,6 +3546,10 @@ class LibraireProController extends Controller
             'heldTickets' => $heldTickets,
             'heldTicketItems' => $heldTicketItems,
             'resumeTicket' => $resumeTicket,
+            'sourceInvoice' => $sourceInvoice,
+            'sourceOnlineOrder' => $sourceOnlineOrder,
+            'sourceCart' => $sourceCart,
+            'sourceContactId' => $sourceContactId,
             'nextSaleNumber' => $this->nextSaleNumber($tenant),
             'nextTicketNumber' => $this->nextTicketNumber($tenant),
             'categories' => Category::where('tenant_id', $tenant->id)->orderBy('name')->get(),
@@ -3368,6 +3585,9 @@ class LibraireProController extends Controller
         $unit = $request->query('unit', 'all');
         $allowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
         $showOutOfStock = (bool) data_get($tenant->settings, 'pos.show_out_of_stock', false);
+        $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+        $posLocationId = $inventoryService->locationIdFromName($tenant->id, null);
+        $locationStockTable = (new ItemLocationStock())->getTable();
 
         $topSold = DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
@@ -3378,6 +3598,14 @@ class LibraireProController extends Controller
             ->pluck('sold_quantity', 'item_id');
 
         $items = $tenant->items()
+            ->select('items.*')
+            ->leftJoin($locationStockTable.' as pos_stock', function ($join) use ($tenant, $posLocationId): void {
+                $join->on('pos_stock.item_id', '=', 'items.id')
+                    ->where('pos_stock.tenant_id', '=', $tenant->id)
+                    ->where('pos_stock.location_id', '=', $posLocationId)
+                    ->whereNull('pos_stock.variant_id');
+            })
+            ->selectRaw('coalesce(pos_stock.quantity, 0) as pos_stock_quantity')
             ->with(['category', 'brand', 'unit'])
             ->when(
                 $showOutOfStock,
@@ -3411,11 +3639,11 @@ class LibraireProController extends Controller
             ->when($brand !== 'all', fn (Builder $builder) => $builder->where('brand_id', $brand))
             ->when($unit !== 'all', fn (Builder $builder) => $builder->where('unit_id', $unit))
             ->when($stock === 'available' && ! $allowOversell && ! $showOutOfStock, fn (Builder $builder) => $builder->where(function (Builder $builder): void {
-                $builder->where('type', 'service')->orWhereRaw('stock_quantity > 0');
+                $builder->where('items.type', 'service')->orWhereRaw('coalesce(pos_stock.quantity, 0) > 0');
             }))
-            ->when($stock === 'low' && ! $allowOversell, fn (Builder $builder) => $builder->where('type', '!=', 'service')->whereColumn('stock_quantity', '<=', 'min_stock_threshold'))
-            ->orderByRaw("case when type = 'service' then 0 when stock_quantity <= 0 then 2 when stock_quantity <= min_stock_threshold then 1 else 0 end")
-            ->orderBy('title')
+            ->when($stock === 'low' && ! $allowOversell, fn (Builder $builder) => $builder->where('items.type', '!=', 'service')->whereRaw('coalesce(pos_stock.quantity, 0) <= items.min_stock_threshold'))
+            ->orderByRaw("case when items.type = 'service' then 0 when coalesce(pos_stock.quantity, 0) <= 0 then 2 when coalesce(pos_stock.quantity, 0) <= items.min_stock_threshold then 1 else 0 end")
+            ->orderBy('items.title')
             ->limit($query === '' ? 240 : 80)
             ->get()
             ->sortByDesc(fn (Item $item) => (int) ($topSold[$item->id] ?? 0))
@@ -3556,7 +3784,23 @@ class LibraireProController extends Controller
             'receipt_channel' => ['nullable', 'in:print,email,whatsapp,none'],
             'note' => ['nullable', 'string', 'max:500'],
             'ticket_id' => ['nullable', 'integer', Rule::exists('pos_tickets', 'id')->where('tenant_id', $tenant->id)->where('status', 'held')],
+            'source_invoice_id' => ['nullable', 'integer', Rule::exists('invoices', 'id')->where('tenant_id', $tenant->id)],
+            'source_online_order_id' => ['nullable', 'integer', Rule::exists('online_orders', 'id')->where('tenant_id', $tenant->id)],
         ]);
+
+        if (! empty($data['source_invoice_id']) && ! empty($data['source_online_order_id'])) {
+            return back()->withErrors(['cart' => 'Une caisse ne peut provenir que d’un seul document source.'])->withInput();
+        }
+
+        $existingSourceSale = Sale::where('tenant_id', $tenant->id)
+            ->when(! empty($data['source_invoice_id']), fn (Builder $query) => $query->where('source_invoice_id', $data['source_invoice_id']))
+            ->when(! empty($data['source_online_order_id']), fn (Builder $query) => $query->where('source_online_order_id', $data['source_online_order_id']))
+            ->when(empty($data['source_invoice_id']) && empty($data['source_online_order_id']), fn (Builder $query) => $query->whereRaw('1 = 0'))
+            ->first();
+        if ($existingSourceSale) {
+            return redirect()->route('pos', ['sale' => $existingSourceSale->id])
+                ->with('status', 'La vente '.$existingSourceSale->number.' existe déjà.');
+        }
 
         $priceEditable = (bool) data_get($tenant->settings, 'pos.editable_price', true);
         $allowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
@@ -3605,8 +3849,31 @@ class LibraireProController extends Controller
                     return $existing;
                 }
 
+                $sourceInvoice = ! empty($data['source_invoice_id'])
+                    ? Invoice::where('tenant_id', $tenant->id)->whereKey($data['source_invoice_id'])->lockForUpdate()->firstOrFail()
+                    : null;
+                $sourceOnlineOrder = ! empty($data['source_online_order_id'])
+                    ? OnlineOrder::where('tenant_id', $tenant->id)->whereKey($data['source_online_order_id'])->lockForUpdate()->firstOrFail()
+                    : null;
+                if ($sourceInvoice && ! $this->invoiceCanCreateSale($sourceInvoice)) {
+                    throw new \RuntimeException($this->invoiceCreateSaleBlockReason($sourceInvoice));
+                }
+                if ($sourceOnlineOrder && ! $this->onlineOrderCanCreateSale($sourceOnlineOrder)) {
+                    throw new \RuntimeException($this->onlineOrderSaleBlockReason($sourceOnlineOrder));
+                }
+                $existingSourceSale = Sale::where('tenant_id', $tenant->id)
+                    ->when($sourceInvoice, fn (Builder $query) => $query->where('source_invoice_id', $sourceInvoice->id))
+                    ->when($sourceOnlineOrder, fn (Builder $query) => $query->where('source_online_order_id', $sourceOnlineOrder->id))
+                    ->when(! $sourceInvoice && ! $sourceOnlineOrder, fn (Builder $query) => $query->whereRaw('1 = 0'))
+                    ->lockForUpdate()->first();
+                if ($existingSourceSale) {
+                    return $existingSourceSale;
+                }
+
                 $inventoryService = app(\App\Services\Inventory\InventoryService::class);
                 $saleLocationId = $inventoryService->locationIdFromName($tenant->id, null);
+                $saleLocationName = Location::where('tenant_id', $tenant->id)->whereKey($saleLocationId)->value('name') ?: 'magasin courant';
+                $saleLocationName = Location::where('tenant_id', $tenant->id)->whereKey($saleLocationId)->value('name') ?: 'magasin courant';
 
                 $contact = null;
                 if (! empty($data['contact_id'])) {
@@ -3636,8 +3903,11 @@ class LibraireProController extends Controller
                         throw new \RuntimeException('Un article du panier est indisponible.');
                     }
 
-                    if (! $allowOversell && $item->type !== 'service' && $item->stock_quantity < $line['quantity']) {
-                        throw new \RuntimeException("Stock insuffisant pour {$item->title}.");
+                    if (! $allowOversell && $item->type !== 'service') {
+                        $availableAtLocation = $inventoryService->quantity($tenant->id, $item->id, null, $saleLocationId);
+                        if ($availableAtLocation < $line['quantity']) {
+                            throw new \RuntimeException($this->saleStockUnavailableMessage($item, $availableAtLocation, $line['quantity'], $saleLocationName));
+                        }
                     }
 
                     $catalogPrice = (float) $item->sale_price;
@@ -3662,7 +3932,7 @@ class LibraireProController extends Controller
 
                 $couponDetail = $this->couponDiscountForSubtotal($tenant, $data['coupon_code'] ?? null, $subtotal, $contact);
                 $afterCoupon = max(0, $subtotal - $couponDetail['amount']);
-                $ruleDetail = $this->discountRuleDiscountForCart($tenant, (int) ($data['discount_rule_id'] ?? 0), $lineItems, $items->all(), $selectedPaymentMethods, $afterCoupon);
+                $ruleDetail = $this->discountRuleDiscountForCart($tenant, (int) ($data['discount_rule_id'] ?? 0), $lineItems, collect($items)->all(), $selectedPaymentMethods, $afterCoupon);
                 $manualDiscountDetail = $ruleDetail['valid']
                     ? $this->discountForSubtotal($afterCoupon, 'fixed', 0)
                     : $this->discountForSubtotal($afterCoupon, $discountInput['type'], $discountInput['value']);
@@ -3695,6 +3965,8 @@ class LibraireProController extends Controller
                     'tenant_id' => $tenant->id,
                     'contact_id' => $contact?->id,
                     'user_id' => auth()->id(),
+                    'source_invoice_id' => $sourceInvoice?->id,
+                    'source_online_order_id' => $sourceOnlineOrder?->id,
                     'number' => $saleNumber,
                     'status' => 'paid',
                     'payment_method' => $paymentMethod,
@@ -3706,6 +3978,11 @@ class LibraireProController extends Controller
                     'idempotency_key' => $idempotencyKey,
                     'metadata' => [
                         ...$this->creationActorMetadata(),
+                        'source_invoice_id' => $sourceInvoice?->id,
+                        'source_invoice_number' => $sourceInvoice?->number,
+                        'source_online_order_id' => $sourceOnlineOrder?->id,
+                        'source_online_order_number' => $sourceOnlineOrder?->number,
+                        'document_flow' => $sourceInvoice ? 'invoice_then_sale' : ($sourceOnlineOrder ? 'online_order_then_sale' : 'sale_first'),
                         'reference_number' => $saleReference,
                         'payments' => $payments,
                         'paid_amount' => $paid,
@@ -3850,8 +4127,25 @@ class LibraireProController extends Controller
                         ]);
                 }
 
+                if ($sourceOnlineOrder) {
+                    $sourceOnlineOrder->update([
+                        'converted_sale_id' => $sale->id,
+                        'converted_by' => auth()->id(),
+                        'converted_at' => now(),
+                        'status' => 'fulfilled',
+                        'payment_status' => 'paid',
+                    ]);
+                }
+
                 return $sale;
             });
+        } catch (\App\Services\Inventory\InsufficientStockException $exception) {
+            $item = Item::where('tenant_id', $tenant->id)->find($exception->itemId);
+            $locationName = Location::where('tenant_id', $tenant->id)->whereKey($exception->locationId)->value('name') ?: 'magasin courant';
+
+            return back()->withErrors([
+                'cart' => $this->saleStockUnavailableMessage($item, $exception->available, $exception->requested, $locationName),
+            ])->withInput();
         } catch (\RuntimeException $exception) {
             return back()->withErrors(['cart' => $exception->getMessage()])->withInput();
         }
@@ -3978,6 +4272,8 @@ class LibraireProController extends Controller
             'sold_at' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
             'reference_number' => ['nullable', 'string', 'max:120'],
+            'source_invoice_id' => ['nullable', 'integer', Rule::exists('invoices', 'id')->where('tenant_id', $tenant->id)],
+            'source_online_order_id' => ['nullable', 'integer', Rule::exists('online_orders', 'id')->where('tenant_id', $tenant->id)],
             'sale_status' => ['required', 'in:paid,partial,unpaid'],
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'other_charges' => ['nullable', 'numeric', 'min:0'],
@@ -4022,12 +4318,53 @@ class LibraireProController extends Controller
         ];
 
         $idempotencyKey = $this->idempotencyKey($request);
+        $sourceInvoiceId = (int) ($data['source_invoice_id'] ?? 0);
+        $sourceOnlineOrderId = (int) ($data['source_online_order_id'] ?? 0);
+        $sourceInvoiceSaleReused = false;
+        $sourceOnlineOrderSaleReused = false;
 
         try {
-            $sale = DB::transaction(function () use ($tenant, $data, $lines, $payments, $allowOversell, $idempotencyKey): Sale {
+            $sale = DB::transaction(function () use ($tenant, $data, $lines, $payments, $allowOversell, $idempotencyKey, $sourceInvoiceId, $sourceOnlineOrderId, &$sourceInvoiceSaleReused, &$sourceOnlineOrderSaleReused): Sale {
                 $existing = $this->findByIdempotencyKey(Sale::class, $tenant->id, $idempotencyKey);
                 if ($existing instanceof Sale) {
                     return $existing;
+                }
+
+                $sourceInvoice = null;
+                $sourceOnlineOrder = null;
+                if ($sourceInvoiceId > 0) {
+                    $sourceInvoice = Invoice::where('tenant_id', $tenant->id)->whereKey($sourceInvoiceId)->lockForUpdate()->firstOrFail();
+                    if (! $this->invoiceCanCreateSale($sourceInvoice)) {
+                        throw new \RuntimeException($this->invoiceCreateSaleBlockReason($sourceInvoice));
+                    }
+                    $existingInvoiceSale = Sale::where('tenant_id', $tenant->id)
+                        ->where('source_invoice_id', $sourceInvoice->id)
+                        ->lockForUpdate()
+                        ->first();
+                    if ($existingInvoiceSale) {
+                        $sourceInvoiceSaleReused = true;
+
+                        return $existingInvoiceSale;
+                    }
+                }
+                if ($sourceOnlineOrderId > 0) {
+                    $sourceOnlineOrder = OnlineOrder::where('tenant_id', $tenant->id)
+                        ->with('items')
+                        ->whereKey($sourceOnlineOrderId)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+                    $existingOnlineOrderSale = Sale::where('tenant_id', $tenant->id)
+                        ->where('source_online_order_id', $sourceOnlineOrder->id)
+                        ->lockForUpdate()
+                        ->first();
+                    if ($existingOnlineOrderSale) {
+                        $sourceOnlineOrderSaleReused = true;
+
+                        return $existingOnlineOrderSale;
+                    }
+                    if (! $this->onlineOrderCanCreateSale($sourceOnlineOrder)) {
+                        throw new \RuntimeException($this->onlineOrderSaleBlockReason($sourceOnlineOrder));
+                    }
                 }
 
                 $inventoryService = app(\App\Services\Inventory\InventoryService::class);
@@ -4067,8 +4404,11 @@ class LibraireProController extends Controller
                         throw new \RuntimeException('Un article de la vente est indisponible.');
                     }
 
-                    if (! $allowOversell && $item->type !== 'service' && $item->stock_quantity < $line['quantity']) {
-                        throw new \RuntimeException("Stock insuffisant pour {$item->title}.");
+                    if (! $allowOversell && $item->type !== 'service') {
+                        $availableAtLocation = $inventoryService->quantity($tenant->id, $item->id, null, $saleLocationId);
+                        if ($availableAtLocation < $line['quantity']) {
+                            throw new \RuntimeException($this->saleStockUnavailableMessage($item, $availableAtLocation, $line['quantity'], $saleLocationName));
+                        }
                     }
 
                     $unitPrice = $line['unit_price'] ?? (float) $item->sale_price;
@@ -4130,6 +4470,8 @@ class LibraireProController extends Controller
                     'tenant_id' => $tenant->id,
                     'contact_id' => $contact?->id,
                     'user_id' => auth()->id(),
+                    'source_invoice_id' => $sourceInvoice?->id,
+                    'source_online_order_id' => $sourceOnlineOrder?->id,
                     'number' => $saleNumber,
                     'status' => $status,
                     'payment_method' => $paymentMethod,
@@ -4142,6 +4484,12 @@ class LibraireProController extends Controller
                     'metadata' => [
                         ...$this->creationActorMetadata(),
                         'reference_number' => $data['reference_number'] ?? null,
+                        'source_invoice_id' => $sourceInvoice?->id,
+                        'source_invoice_number' => $sourceInvoice?->number,
+                        'source_online_order_id' => $sourceOnlineOrder?->id,
+                        'source_online_order_number' => $sourceOnlineOrder?->number,
+                        'document_flow' => $sourceInvoice ? 'invoice_then_sale' : ($sourceOnlineOrder ? 'online_order_then_sale' : 'sale_first'),
+                        'document_origin' => $sourceInvoice ? 'commercial_invoice' : ($sourceOnlineOrder ? 'online_order' : 'manual_sale'),
                         'paid_amount' => $paid,
                         'due_date' => $data['due_date'] ?? null,
                         'source' => 'manual_sale',
@@ -4245,15 +4593,54 @@ class LibraireProController extends Controller
                     ]);
                 }
 
+                if ($sourceOnlineOrder) {
+                    $orderMetadata = $sourceOnlineOrder->metadata ?? [];
+                    $orderMetadata['status_history'] = collect($orderMetadata['status_history'] ?? [])
+                        ->push([
+                            'from' => $sourceOnlineOrder->status,
+                            'to' => 'fulfilled',
+                            'payment_status' => $status === 'paid' ? 'paid' : ($status === 'partial' ? 'deposit' : $sourceOnlineOrder->payment_status),
+                            'user_id' => auth()->id(),
+                            'user_name' => auth()->user()?->name,
+                            'at' => now()->toIso8601String(),
+                            'note' => 'Conversion en vente '.$sale->number,
+                        ])
+                        ->take(-30)
+                        ->values()
+                        ->all();
+                    $orderMetadata['converted_sale_number'] = $sale->number;
+                    $orderMetadata = array_merge($orderMetadata, $this->actorMetadata('updated'));
+
+                    $sourceOnlineOrder->update([
+                        'converted_sale_id' => $sale->id,
+                        'converted_by' => auth()->id(),
+                        'converted_at' => now(),
+                        'status' => 'fulfilled',
+                        'payment_status' => $status === 'paid' ? 'paid' : ($status === 'partial' ? 'deposit' : $sourceOnlineOrder->payment_status),
+                        'metadata' => $orderMetadata,
+                    ]);
+                }
+
                 return $sale;
             });
+        } catch (\App\Services\Inventory\InsufficientStockException $exception) {
+            $item = Item::where('tenant_id', $tenant->id)->find($exception->itemId);
+            $locationName = Location::where('tenant_id', $tenant->id)->whereKey($exception->locationId)->value('name') ?: 'magasin courant';
+
+            return back()->withErrors([
+                'sale' => $this->saleStockUnavailableMessage($item, $exception->available, $exception->requested, $locationName),
+            ])->withInput();
         } catch (\RuntimeException $exception) {
             return back()->withErrors(['sale' => $exception->getMessage()])->withInput();
         }
 
         return redirect()
             ->route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $sale->id])
-            ->with('status', 'Vente '.$sale->number.' enregistrée.');
+            ->with('status', $sourceInvoiceSaleReused
+                ? 'Une vente existe déjà pour cette facture: '.$sale->number.'.'
+                : ($sourceOnlineOrderSaleReused
+                    ? 'Une vente existe déjà pour cette précommande: '.$sale->number.'.'
+                    : 'Vente '.$sale->number.' enregistrée.'));
     }
 
     public function updateSale(Request $request, Sale $sale): RedirectResponse
@@ -4538,8 +4925,13 @@ class LibraireProController extends Controller
 
         $data = $request->validate([
             'refund_method' => ['required', 'in:cash,card,transfer,credit'],
-            'refund_reason' => ['nullable', 'string', 'max:500'],
+            'refund_reason' => ['required', 'string', 'max:500'],
             'restock' => ['nullable', 'boolean'],
+            'return_lines' => ['nullable', 'array'],
+            'return_lines.*.sale_item_id' => ['required_with:return_lines', 'integer'],
+            'return_lines.*.quantity' => ['nullable', 'integer', 'min:0'],
+            'return_lines.*.stock_action' => ['nullable', 'in:restock,no_restock,damaged,lost,waste'],
+            'return_lines.*.reason' => ['nullable', 'string', 'max:240'],
         ]);
 
         $sale = DB::transaction(function () use ($tenant, $sale, $data, $idempotencyKey): Sale {
@@ -4549,61 +4941,92 @@ class LibraireProController extends Controller
             }
 
             $sale = Sale::where('tenant_id', $tenant->id)->whereKey($sale->id)->lockForUpdate()->firstOrFail();
+            if (in_array($sale->status, ['refunded', 'cancelled'], true)) {
+                throw new \RuntimeException('Cette vente est déjà clôturée.');
+            }
 
             $inventoryService = app(\App\Services\Inventory\InventoryService::class);
             $returnLocationId = $inventoryService->locationIdFromName($tenant->id, null);
 
-            $sale->load('items');
-            $lines = [];
-
-            if ($data['restock'] ?? true) {
-                foreach ($sale->items as $line) {
-                    $lines[] = [
-                        'sale_item_id' => $line->id,
-                        'item_id' => $line->item_id,
-                        'name' => $line->name,
-                        'quantity' => $line->quantity,
-                        'unit_price' => (float) $line->unit_price,
-                        'total_price' => (float) $line->total_price,
-                    ];
-
-                    if (! $line->item_id) {
-                        continue;
-                    }
-
-                    $item = Item::whereKey($line->item_id)->lockForUpdate()->first();
-                    if ($item && $item->type !== 'service') {
-                        $inventoryService->move(new \App\Services\Inventory\MovementDTO(
-                            tenantId: $tenant->id,
-                            itemId: $item->id,
-                            variantId: null,
-                            locationId: $returnLocationId,
-                            type: \App\Services\Inventory\InventoryMovementType::RETURN,
-                            quantityChanged: (int) $line->quantity,
-                            unitCost: null,
-                            referenceType: SaleReturn::class,
-                            referenceId: null,
-                            referenceNumber: null,
-                            note: 'Retour vente · vente '.$sale->number,
-                        ));
-
-                        $item->increment('stock_quantity', $line->quantity);
-                        $item->refresh();
-                        if ($item->status === 'out_of_stock' && $item->stock_quantity > 0) {
-                            $item->update(['status' => 'active']);
-                        }
-                    }
+            $sale->load(['items.item', 'returns']);
+            $soldLines = $sale->items->keyBy('id');
+            $alreadyReturned = [];
+            foreach ($sale->returns as $previousReturn) {
+                foreach (($previousReturn->lines ?? []) as $previousLine) {
+                    $saleItemId = (int) ($previousLine['sale_item_id'] ?? 0);
+                    $alreadyReturned[$saleItemId] = ($alreadyReturned[$saleItemId] ?? 0) + (int) ($previousLine['quantity'] ?? 0);
                 }
-            } else {
-                $lines = $sale->items->map(fn ($line) => [
+            }
+
+            $requestedLines = collect($data['return_lines'] ?? [])
+                ->mapWithKeys(fn (array $line, int|string $key) => [(int) ($line['sale_item_id'] ?? $key) => $line]);
+            if ($requestedLines->isEmpty()) {
+                $requestedLines = $soldLines->mapWithKeys(fn ($line) => [$line->id => [
+                    'sale_item_id' => $line->id,
+                    'quantity' => max(0, (int) $line->quantity - (int) ($alreadyReturned[$line->id] ?? 0)),
+                    'stock_action' => ($data['restock'] ?? true) ? 'restock' : 'no_restock',
+                    'reason' => null,
+                ]]);
+            }
+
+            $lines = [];
+            $stockActions = [];
+            $returnTotal = 0.0;
+
+            foreach ($requestedLines as $saleItemId => $requestedLine) {
+                $line = $soldLines->get((int) $saleItemId);
+                if (! $line) {
+                    throw new \RuntimeException('Une ligne de retour ne correspond pas à cette vente.');
+                }
+
+                $remainingQuantity = max(0, (int) $line->quantity - (int) ($alreadyReturned[$line->id] ?? 0));
+                $quantity = min($remainingQuantity, max(0, (int) ($requestedLine['quantity'] ?? 0)));
+                if ($quantity <= 0) {
+                    continue;
+                }
+
+                $stockAction = (string) ($requestedLine['stock_action'] ?? (($data['restock'] ?? true) ? 'restock' : 'no_restock'));
+                $stockAction = in_array($stockAction, ['restock', 'no_restock', 'damaged', 'lost', 'waste'], true) ? $stockAction : 'no_restock';
+                $lineReason = trim((string) ($requestedLine['reason'] ?? ''));
+                if (in_array($stockAction, ['damaged', 'lost', 'waste'], true) && $lineReason === '') {
+                    throw new \RuntimeException('Indiquez un motif pour les articles perdus, abîmés ou mis au rebut.');
+                }
+
+                $lineTotal = round(((float) $line->total_price / max(1, (int) $line->quantity)) * $quantity, 2);
+                $returnTotal = round($returnTotal + $lineTotal, 2);
+                $stockActions[] = $stockAction;
+
+                $lines[] = [
                     'sale_item_id' => $line->id,
                     'item_id' => $line->item_id,
                     'name' => $line->name,
-                    'quantity' => $line->quantity,
+                    'quantity' => $quantity,
+                    'max_quantity' => $remainingQuantity,
                     'unit_price' => (float) $line->unit_price,
-                    'total_price' => (float) $line->total_price,
-                ])->values()->all();
+                    'total_price' => $lineTotal,
+                    'stock_action' => $stockAction,
+                    'reason' => $lineReason,
+                ];
             }
+
+            if ($returnTotal <= 0.001 || empty($lines)) {
+                throw new \RuntimeException('Sélectionnez au moins un article et une quantité à retourner.');
+            }
+            $alreadyReturnedAmount = (float) $sale->returns->sum('total_amount');
+            if ($returnTotal - max(0, (float) $sale->total_amount - $alreadyReturnedAmount) > 0.001) {
+                throw new \RuntimeException('Le montant du retour dépasse le montant encore remboursable.');
+            }
+            $stockDisposition = count(array_unique($stockActions)) === 1 ? $stockActions[0] : 'mixed';
+            $allLinesFullyReturned = collect($lines)->every(function (array $returnLine) use ($alreadyReturned, $soldLines): bool {
+                $soldLine = $soldLines->get((int) $returnLine['sale_item_id']);
+
+                return ((int) ($alreadyReturned[$soldLine->id] ?? 0) + (int) $returnLine['quantity']) >= (int) $soldLine->quantity;
+            }) && collect($soldLines)->every(function ($soldLine) use ($alreadyReturned, $lines): bool {
+                $currentQuantity = collect($lines)->firstWhere('sale_item_id', $soldLine->id)['quantity'] ?? 0;
+
+                return ((int) ($alreadyReturned[$soldLine->id] ?? 0) + (int) $currentQuantity) >= (int) $soldLine->quantity;
+            });
+            $isFullRefund = ($alreadyReturnedAmount + $returnTotal) + 0.001 >= (float) $sale->total_amount || $allLinesFullyReturned;
 
             $saleReturn = SaleReturn::create([
                 'tenant_id' => $tenant->id,
@@ -4613,47 +5036,146 @@ class LibraireProController extends Controller
                 'number' => $this->nextReturnNumber($tenant),
                 'status' => 'approved',
                 'refund_method' => $data['refund_method'],
-                'total_amount' => $sale->total_amount,
+                'refund_scope' => $isFullRefund ? 'full' : 'partial',
+                'total_amount' => $returnTotal,
                 'lines' => $lines,
                 'reason' => $data['refund_reason'] ?? null,
-                'restock' => (bool) ($data['restock'] ?? true),
+                'restock' => in_array('restock', $stockActions, true),
+                'stock_disposition' => $stockDisposition,
                 'returned_at' => now(),
                 'idempotency_key' => $idempotencyKey,
+                'metadata' => [
+                    'already_returned_amount_before' => round($alreadyReturnedAmount, 2),
+                    'refundable_amount_before' => round(max(0, (float) $sale->total_amount - $alreadyReturnedAmount), 2),
+                ],
             ]);
 
-            \App\Models\InventoryMovement::query()
-                ->where('tenant_id', $tenant->id)
-                ->where('reference_type', SaleReturn::class)
-                ->whereNull('reference_id')
-                ->where('note', 'like', 'Retour vente · vente '.$sale->number.'%')
-                ->update([
-                    'reference_id' => $saleReturn->id,
-                    'reference_number' => $saleReturn->number,
-                    'updated_at' => now(),
+            foreach ($lines as $returnLine) {
+                if (! $returnLine['item_id']) {
+                    continue;
+                }
+
+                $item = Item::whereKey($returnLine['item_id'])->lockForUpdate()->first();
+                if (! $item || $item->type === 'service') {
+                    continue;
+                }
+
+                $quantity = (int) $returnLine['quantity'];
+                if ($returnLine['stock_action'] === 'restock') {
+                    $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                        tenantId: $tenant->id,
+                        itemId: $item->id,
+                        variantId: null,
+                        locationId: $returnLocationId,
+                        type: \App\Services\Inventory\InventoryMovementType::RETURN,
+                        quantityChanged: $quantity,
+                        unitCost: null,
+                        referenceType: SaleReturn::class,
+                        referenceId: $saleReturn->id,
+                        referenceNumber: $saleReturn->number,
+                        note: 'Retour vente '.$saleReturn->number.' · vente '.$sale->number,
+                        reason: $returnLine['reason'] ?: $data['refund_reason'],
+                        idempotencyKey: 'sale-return-'.$saleReturn->id.'-line-'.$returnLine['sale_item_id'].'-restock',
+                    ));
+
+                    $item->increment('stock_quantity', $quantity);
+                    $item->refresh();
+                    if ($item->status === 'out_of_stock' && $item->stock_quantity > 0) {
+                        $item->update(['status' => 'active']);
+                    }
+                } else {
+                    $stock = ItemLocationStock::query()
+                        ->where('tenant_id', $tenant->id)
+                        ->where('item_id', $item->id)
+                        ->whereNull('variant_id')
+                        ->where('location_id', $returnLocationId)
+                        ->lockForUpdate()
+                        ->first();
+                    $quantitySnapshot = (int) ($stock?->quantity ?? $item->stock_quantity);
+                    if ($stock && in_array($returnLine['stock_action'], ['damaged', 'lost', 'waste'], true)) {
+                        $stock->increment('damaged_quantity', $quantity);
+                    }
+
+                    \App\Models\InventoryMovement::query()->create([
+                        'tenant_id' => $tenant->id,
+                        'item_id' => $item->id,
+                        'variant_id' => null,
+                        'location_id' => $returnLocationId,
+                        'user_id' => auth()->id(),
+                        'type' => match ($returnLine['stock_action']) {
+                            'damaged', 'waste' => \App\Services\Inventory\InventoryMovementType::DAMAGE,
+                            'lost' => \App\Services\Inventory\InventoryMovementType::LOSS,
+                            default => \App\Services\Inventory\InventoryMovementType::REFUND_WITHOUT_RETURN,
+                        },
+                        'quantity_before' => $quantitySnapshot,
+                        'quantity_delta' => 0,
+                        'quantity_after' => $quantitySnapshot,
+                        'reference_type' => SaleReturn::class,
+                        'reference_id' => $saleReturn->id,
+                        'reference_number' => $saleReturn->number,
+                        'note' => 'Retour vente non restocké '.$saleReturn->number.' · vente '.$sale->number,
+                        'reason' => $returnLine['reason'] ?: $data['refund_reason'],
+                        'idempotency_key' => 'sale-return-'.$saleReturn->id.'-line-'.$returnLine['sale_item_id'].'-'.$returnLine['stock_action'],
+                    ]);
+                }
+            }
+
+            if ($data['refund_method'] === 'cash' && $session = app(CashRegisterService::class)->openSession($tenant, true)) {
+                $movement = app(CashRegisterService::class)->recordMovement($tenant, $session, 'sale_refund_cash', 'out', $returnTotal, [
+                    'sale_id' => $sale->id,
+                    'reference' => $saleReturn->number,
+                    'payment_method' => 'cash',
+                    'note' => 'Remboursement espèces retour '.$saleReturn->number,
+                    'metadata' => [
+                        'sale_return_id' => $saleReturn->id,
+                        'sale_return_number' => $saleReturn->number,
+                        'sale_number' => $sale->number,
+                    ],
                 ]);
+                $saleReturn->forceFill(['metadata' => array_merge($saleReturn->metadata ?? [], [
+                    'cash_register' => [
+                        'session_id' => $session->id,
+                        'session_number' => $session->number,
+                        'movement_id' => $movement->id,
+                        'movement_number' => $movement->number,
+                    ],
+                ])])->save();
+            }
 
             $metadata = $sale->metadata ?? [];
             $metadata['refund'] = [
                 'method' => $data['refund_method'],
                 'reason' => $data['refund_reason'] ?? null,
-                'restock' => (bool) ($data['restock'] ?? true),
-                'amount' => (float) $sale->total_amount,
+                'restock' => in_array('restock', $stockActions, true),
+                'stock_disposition' => $stockDisposition,
+                'scope' => $isFullRefund ? 'full' : 'partial',
+                'amount' => $returnTotal,
+                'total_refunded' => round($alreadyReturnedAmount + $returnTotal, 2),
                 'refunded_at' => now()->toIso8601String(),
                 'refunded_by' => auth()->id(),
                 'refunded_by_name' => auth()->user()?->name,
             ];
+            $metadata['return_history'][] = [
+                'return_id' => $saleReturn->id,
+                'return_number' => $saleReturn->number,
+                'amount' => $returnTotal,
+                'scope' => $isFullRefund ? 'full' : 'partial',
+                'created_at' => now()->toIso8601String(),
+            ];
             $metadata = array_merge($metadata, $this->actorMetadata('updated'));
 
             $sale->update([
-                'status' => 'refunded',
+                'status' => $isFullRefund ? 'refunded' : 'partially_refunded',
                 'metadata' => $metadata,
             ]);
-            $this->syncSaleInvoiceStatus($sale->fresh('invoice'));
+            if ($isFullRefund) {
+                $this->syncSaleInvoiceStatus($sale->fresh('invoice'));
+            }
 
             return $sale;
         });
 
-        return back()->with('status', 'Vente '.$sale->number.' remboursée.');
+        return back()->with('status', 'Retour enregistré pour la vente '.$sale->number.'.');
     }
 
     public function storeSalePayment(Request $request): RedirectResponse
@@ -4839,6 +5361,196 @@ class LibraireProController extends Controller
         $delivery->update($data + $timestamps);
 
         return back()->with('status', 'Livraison '.$delivery->number.' mise à jour.');
+    }
+
+    public function storeOnlineOrder(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless(AppModules::enabled($tenant, 'online_orders'), 404);
+
+        $data = $request->validate([
+            'contact_id' => ['nullable', 'integer', Rule::exists('contacts', 'id')->where('tenant_id', $tenant->id)->where('kind', 'client')],
+            'customer_name' => ['nullable', 'string', 'max:180'],
+            'customer_phone' => ['nullable', 'string', 'max:60'],
+            'customer_email' => ['nullable', 'email', 'max:180'],
+            'channel' => ['required', 'in:online,whatsapp,phone,in_store,marketplace,other'],
+            'status' => ['required', 'in:pending,confirmed,preparing,ready,fulfilled,cancelled'],
+            'ordered_at' => ['nullable', 'date'],
+            'expected_at' => ['nullable', 'date'],
+            'delivery_address' => ['nullable', 'string', 'max:1000'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'deposit_amount' => ['nullable', 'numeric', 'min:0'],
+            'customer_note' => ['nullable', 'string', 'max:1000'],
+            'internal_note' => ['nullable', 'string', 'max:1000'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.item_id' => ['nullable', 'integer', Rule::exists('items', 'id')->where('tenant_id', $tenant->id)],
+            'items.*.name' => ['nullable', 'string', 'max:220'],
+            'items.*.quantity' => ['nullable', 'numeric', 'min:0.01'],
+            'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
+            'items.*.discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'items.*.note' => ['nullable', 'string', 'max:300'],
+        ]);
+
+        $contact = null;
+        if (! empty($data['contact_id'])) {
+            $contact = Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->whereKey($data['contact_id'])->firstOrFail();
+        }
+
+        if (! $contact && blank($data['customer_name'] ?? null)) {
+            return back()->withErrors(['customer_name' => 'Choisissez un client ou saisissez le nom du client.'])->withInput();
+        }
+
+        $catalogItems = Item::where('tenant_id', $tenant->id)
+            ->whereIn('id', collect($data['items'])->pluck('item_id')->filter()->unique())
+            ->get()
+            ->keyBy('id');
+
+        $lines = collect($data['items'])
+            ->map(function (array $line, int $index) use ($catalogItems): array {
+                $itemId = (int) ($line['item_id'] ?? 0);
+                $item = $itemId > 0 ? $catalogItems->get($itemId) : null;
+                $name = trim((string) ($line['name'] ?? ''));
+                $quantity = round(max(0, (float) ($line['quantity'] ?? 0)), 2);
+                $unitPrice = round(max(0, (float) ($line['unit_price'] ?? ($item?->sale_price ?? 0))), 2);
+                $discount = round(max(0, (float) ($line['discount_amount'] ?? 0)), 2);
+                $lineSubtotal = round($quantity * $unitPrice, 2);
+                $lineDiscount = min($discount, $lineSubtotal);
+
+                return [
+                    'item_id' => $item?->id,
+                    'name' => $item?->title ?? $name,
+                    'code' => $item?->barcode ?? $item?->isbn ?? $item?->sku ?? $item?->item_code,
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'discount_amount' => $lineDiscount,
+                    'total_amount' => round($lineSubtotal - $lineDiscount, 2),
+                    'note' => trim((string) ($line['note'] ?? '')) ?: null,
+                    'display_order' => $index + 1,
+                ];
+            })
+            ->filter(fn (array $line) => $line['quantity'] > 0 && $line['name'] !== '')
+            ->values();
+
+        if ($lines->isEmpty()) {
+            return back()->withErrors(['items' => 'Ajoutez au moins une ligne valide à la précommande.'])->withInput();
+        }
+
+        $subtotal = round($lines->sum(fn (array $line) => $line['quantity'] * $line['unit_price']), 2);
+        $lineDiscount = round($lines->sum('discount_amount'), 2);
+        $documentDiscount = min(round(max(0, (float) ($data['discount_amount'] ?? 0)), 2), max(0, $subtotal - $lineDiscount));
+        $total = round(max(0, $subtotal - $lineDiscount - $documentDiscount), 2);
+        $deposit = min(round(max(0, (float) ($data['deposit_amount'] ?? 0)), 2), $total);
+
+        $order = DB::transaction(function () use ($tenant, $data, $contact, $lines, $subtotal, $lineDiscount, $documentDiscount, $total, $deposit): OnlineOrder {
+            $order = OnlineOrder::create([
+                'tenant_id' => $tenant->id,
+                'contact_id' => $contact?->id,
+                'user_id' => auth()->id(),
+                'number' => $this->nextOnlineOrderNumber($tenant),
+                'channel' => $data['channel'],
+                'status' => $data['status'],
+                'payment_status' => 'unpaid',
+                'customer_name' => $contact?->name ?? $data['customer_name'],
+                'customer_phone' => $data['customer_phone'] ?? $contact?->phone,
+                'customer_email' => $data['customer_email'] ?? $contact?->email,
+                'delivery_address' => $data['delivery_address'] ?? $contact?->address,
+                'ordered_at' => ! empty($data['ordered_at']) ? Carbon::parse($data['ordered_at']) : now(),
+                'expected_at' => $data['expected_at'] ?? null,
+                'subtotal_amount' => $subtotal,
+                'discount_amount' => round($lineDiscount + $documentDiscount, 2),
+                'deposit_amount' => $deposit,
+                'total_amount' => $total,
+                'customer_note' => $data['customer_note'] ?? null,
+                'internal_note' => $data['internal_note'] ?? null,
+                'metadata' => [
+                    ...$this->creationActorMetadata(),
+                    'document_discount_amount' => $documentDiscount,
+                    'line_discount_amount' => $lineDiscount,
+                ],
+            ]);
+
+            foreach ($lines as $line) {
+                $order->items()->create($line);
+            }
+
+            return $order;
+        });
+
+        return redirect()
+            ->route('module', ['module' => 'online-orders', 'section' => 'list', 'order' => $order->id])
+            ->with('status', 'Précommande '.$order->number.' créée.');
+    }
+
+    public function updateOnlineOrderStatus(Request $request, OnlineOrder $onlineOrder): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless(AppModules::enabled($tenant, 'online_orders'), 404);
+        abort_unless($onlineOrder->tenant_id === $tenant->id, 404);
+
+        $data = $request->validate([
+            'status' => ['required', 'in:pending,confirmed,preparing,ready,fulfilled,cancelled'],
+            'internal_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        if (! in_array($data['status'], $this->onlineOrderAllowedStatuses($onlineOrder), true)) {
+            return back()->withErrors([
+                'status' => 'Le passage de « '.$onlineOrder->status.' » vers « '.$data['status'].' » n’est pas autorisé. Choisissez l’étape suivante proposée.',
+            ]);
+        }
+
+        $metadata = $onlineOrder->metadata ?? [];
+        $metadata['status_history'] = collect($metadata['status_history'] ?? [])
+            ->push([
+                'from' => $onlineOrder->status,
+                'to' => $data['status'],
+                'payment_status' => $onlineOrder->payment_status,
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user()?->name,
+                'at' => now()->toIso8601String(),
+                'note' => $data['internal_note'] ?? null,
+            ])
+            ->take(-30)
+            ->values()
+            ->all();
+        $metadata = array_merge($metadata, $this->actorMetadata('updated'));
+
+        $onlineOrder->update([
+            'status' => $data['status'],
+            'internal_note' => $data['internal_note'] ?? $onlineOrder->internal_note,
+            'metadata' => $metadata,
+        ]);
+
+        return back()->with('status', 'Précommande '.$onlineOrder->number.' mise à jour.');
+    }
+
+    public function prepareOnlineOrderSale(OnlineOrder $onlineOrder): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless(AppModules::enabled($tenant, 'online_orders'), 404);
+        abort_unless($onlineOrder->tenant_id === $tenant->id, 404);
+
+        $existingSale = $onlineOrder->convertedSale
+            ?? Sale::where('tenant_id', $tenant->id)->where('source_online_order_id', $onlineOrder->id)->first();
+
+        if ($existingSale) {
+            return redirect()
+                ->route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $existingSale->id])
+                ->with('status', 'La vente '.$existingSale->number.' existe déjà pour la précommande '.$onlineOrder->number.'.');
+        }
+
+        if (! $this->onlineOrderCanCreateSale($onlineOrder)) {
+            return redirect()
+                ->route('module', ['module' => 'online-orders', 'section' => 'list', 'order' => $onlineOrder->id])
+                ->withErrors(['sale' => $this->onlineOrderSaleBlockReason($onlineOrder)]);
+        }
+
+        if ($onlineOrder->items()->whereNull('item_id')->exists()) {
+            return redirect()
+                ->route('module', ['module' => 'online-orders', 'section' => 'list', 'order' => $onlineOrder->id])
+                ->withErrors(['sale' => 'Une ligne personnalisée n’est plus liée au catalogue. Associez-la à un article avant l’encaissement.']);
+        }
+
+        return redirect()->route('pos', ['source_online_order' => $onlineOrder->id]);
     }
 
     public function storeQuotation(Request $request): RedirectResponse
@@ -5865,7 +6577,7 @@ class LibraireProController extends Controller
             ->with('status', 'Retour achat '.$return->number.' enregistré.');
     }
 
-    public function module(Request $request, string $module): View
+    public function module(Request $request, string $module): View|RedirectResponse
     {
         $tenant = $this->tenant();
         $businessMode = BusinessMode::current($tenant);
@@ -5873,6 +6585,7 @@ class LibraireProController extends Controller
         $modules = [
             'sales' => ['title' => 'Ventes', 'subtitle' => 'Historique, paiements, retours, livraisons et crédits client.', 'active' => 'sales'],
             'invoices' => ['title' => 'Facturation', 'subtitle' => 'Factures clients, devis, pro-forma, impressions PDF et relances.', 'active' => 'invoices'],
+            'online-orders' => ['title' => 'Précommandes', 'subtitle' => 'Commandes en ligne, réservations WhatsApp, acompte et suivi de préparation.', 'active' => 'online_orders'],
             'purchases' => ['title' => 'Achats', 'subtitle' => 'Commandes fournisseurs, réception de stock et planification rentrée.', 'active' => 'purchases'],
             'loans' => ['title' => 'Emprunts', 'subtitle' => 'Prêts, retours, pénalités, réservations et cartes membre.', 'active' => 'loans'],
             'contacts' => ['title' => 'Contacts', 'subtitle' => 'Clients, écoles, fournisseurs, segmentation et communication.', 'active' => 'contacts'],
@@ -5885,6 +6598,12 @@ class LibraireProController extends Controller
         abort_unless(isset($modules[$module]), 404);
 
         $section = $request->query('section', 'list');
+        if ($module === 'sales' && $section === 'add') {
+            return redirect()->route('pos', array_filter([
+                'source_invoice' => $request->query('from_invoice'),
+                'source_online_order' => $request->query('from_order'),
+            ]));
+        }
         abort_unless(AppModules::enabled($tenant, AppModules::keyForModulePage($module, $section) ?? $module), 404);
         $sales = $this->salesListQuery($tenant, $request)->paginate(25)->withQueryString();
         $saleInvoices = SaleInvoice::query()
@@ -5902,7 +6621,7 @@ class LibraireProController extends Controller
             ->paginate(25, ['*'], 'invoices_page')
             ->withQueryString();
         $commercialInvoices = Invoice::query()
-            ->with(['customer', 'creator', 'payments'])
+            ->with(['customer', 'creator', 'payments', 'sourceSale'])
             ->where('tenant_id', $tenant->id)
             ->when($request->query('archived') !== 'with', fn (Builder $builder) => $builder->whereNull('archived_at'))
             ->when(trim((string) $request->query('q')) !== '', function (Builder $builder) use ($request): void {
@@ -5919,6 +6638,81 @@ class LibraireProController extends Controller
             ->latest('id')
             ->paginate(25, ['*'], 'commercial_invoices_page')
             ->withQueryString();
+        $selectedCommercialInvoice = null;
+        if ($module === 'invoices' && $request->filled('invoice')) {
+            $selectedCommercialInvoice = Invoice::query()
+                ->with(['customer', 'creator', 'updater', 'items', 'payments.user', 'sourceEstimate', 'duplicatedFrom', 'sourceSale'])
+                ->where('tenant_id', $tenant->id)
+                ->whereKey((int) $request->query('invoice'))
+                ->first();
+        }
+        $salePrefillInvoice = null;
+        $salePrefillOnlineOrder = null;
+        if ($module === 'sales' && $section === 'add' && $request->filled('from_invoice')) {
+            $salePrefillInvoice = Invoice::query()
+                ->with(['customer', 'items', 'sourceSale'])
+                ->where('tenant_id', $tenant->id)
+                ->whereKey((int) $request->query('from_invoice'))
+                ->first();
+            if ($salePrefillInvoice?->sourceSale) {
+                return redirect()
+                    ->route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $salePrefillInvoice->sourceSale->id])
+                    ->with('status', 'Une vente existe déjà pour la facture '.$salePrefillInvoice->number.'.');
+            }
+            if ($salePrefillInvoice && ! $this->invoiceCanCreateSale($salePrefillInvoice)) {
+                return redirect()
+                    ->route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $salePrefillInvoice->id])
+                ->withErrors(['invoice' => $this->invoiceCreateSaleBlockReason($salePrefillInvoice)]);
+            }
+        }
+        if ($module === 'sales' && $section === 'add' && $request->filled('from_order')) {
+            $salePrefillOnlineOrder = OnlineOrder::query()
+                ->with(['contact', 'items.item.tax', 'convertedSale'])
+                ->where('tenant_id', $tenant->id)
+                ->whereKey((int) $request->query('from_order'))
+                ->first();
+
+            if ($salePrefillOnlineOrder?->convertedSale) {
+                return redirect()
+                    ->route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $salePrefillOnlineOrder->convertedSale->id])
+                    ->with('status', 'Une vente existe déjà pour la précommande '.$salePrefillOnlineOrder->number.'.');
+            }
+            if ($salePrefillOnlineOrder && ! $this->onlineOrderCanCreateSale($salePrefillOnlineOrder)) {
+                return redirect()
+                    ->route('module', ['module' => 'online-orders', 'section' => 'list', 'order' => $salePrefillOnlineOrder->id])
+                    ->withErrors(['sale' => $this->onlineOrderSaleBlockReason($salePrefillOnlineOrder)]);
+            }
+            if ($salePrefillOnlineOrder?->items->contains(fn (OnlineOrderItem $line) => ! $line->item_id)) {
+                return redirect()
+                    ->route('module', ['module' => 'online-orders', 'section' => 'list', 'order' => $salePrefillOnlineOrder->id])
+                    ->withErrors(['sale' => 'Une ligne de la précommande n’est plus liée au catalogue.']);
+            }
+        }
+        $quoteItems = Item::where('tenant_id', $tenant->id)
+            ->with('tax')
+            ->where('status', 'active')
+            ->orderBy('title')
+            ->take(350)
+            ->get();
+        if ($salePrefillInvoice || $salePrefillOnlineOrder) {
+            $prefillItemIds = ($salePrefillInvoice?->items ?? $salePrefillOnlineOrder->items)
+                ->pluck('item_id')
+                ->filter()
+                ->unique()
+                ->values();
+            $missingPrefillItemIds = $prefillItemIds->diff($quoteItems->pluck('id'))->values();
+
+            if ($missingPrefillItemIds->isNotEmpty()) {
+                $quoteItems = Item::where('tenant_id', $tenant->id)
+                    ->with('tax')
+                    ->whereIn('id', $missingPrefillItemIds)
+                    ->orderBy('title')
+                    ->get()
+                    ->concat($quoteItems)
+                    ->unique('id')
+                    ->values();
+            }
+        }
         $commercialEstimates = Estimate::query()
             ->with(['customer', 'creator', 'convertedInvoice'])
             ->where('tenant_id', $tenant->id)
@@ -5949,6 +6743,15 @@ class LibraireProController extends Controller
                 return $carry;
             }, ['total' => 0.0, 'paid' => 0.0, 'due' => 0.0]);
         $purchaseList = $this->purchasesQuery($tenant, $request)->paginate(25, ['*'], 'purchases_page')->withQueryString();
+        $onlineOrders = $this->onlineOrdersQuery($tenant, $request)->paginate(25, ['*'], 'online_orders_page')->withQueryString();
+        $selectedOnlineOrder = null;
+        if ($module === 'online-orders' && $request->filled('order')) {
+            $selectedOnlineOrder = OnlineOrder::query()
+                ->with(['contact', 'user', 'items.item', 'convertedSale', 'converter'])
+                ->where('tenant_id', $tenant->id)
+                ->whereKey((int) $request->query('order'))
+                ->first();
+        }
         $purchaseReturns = $this->purchaseReturnsQuery($tenant, $request)->paginate(25, ['*'], 'purchase_returns_page')->withQueryString();
         $expenses = $this->expensesQuery($tenant, $request)->paginate(25, ['*'], 'expenses_page')->withQueryString();
         $expenseCategories = $this->expenseCategoriesQuery($tenant, $request)->get();
@@ -5991,17 +6794,24 @@ class LibraireProController extends Controller
             'sales' => $module === 'sales' ? $sales : $tenant->sales()->with('contact')->latest('sold_at')->take(8)->get(),
             'saleInvoices' => $saleInvoices,
             'commercialInvoices' => $commercialInvoices,
+            'selectedCommercialInvoice' => $selectedCommercialInvoice,
+            'salePrefillInvoice' => $salePrefillInvoice,
+            'salePrefillOnlineOrder' => $salePrefillOnlineOrder,
             'commercialEstimates' => $commercialEstimates,
             'salesTotals' => $salesTotals,
             'nextSaleNumber' => $module === 'sales' ? $this->nextSaleNumber($tenant) : null,
             'salesClients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
             'quotations' => $quotations,
-            'quoteItems' => Item::where('tenant_id', $tenant->id)->with('tax')->where('status', 'active')->orderBy('title')->take(350)->get(),
+            'quoteItems' => $quoteItems,
             'paymentSales' => $tenant->sales()->with('contact')->latest('sold_at')->take(80)->get(),
             'salePayments' => $this->salePaymentsQuery($tenant, $request)->paginate(25, ['*'], 'payments_page')->withQueryString(),
             'saleReturns' => $this->saleReturnsQuery($tenant, $request)->paginate(25, ['*'], 'returns_page')->withQueryString(),
             'deliveryOrders' => $this->deliveryOrdersQuery($tenant, $request)->paginate(25, ['*'], 'deliveries_page')->withQueryString(),
             'deliverySales' => $tenant->sales()->with('contact')->whereDoesntHave('deliveryOrders')->latest('sold_at')->take(80)->get(),
+            'onlineOrders' => $onlineOrders,
+            'selectedOnlineOrder' => $selectedOnlineOrder,
+            'onlineOrderItems' => Item::where('tenant_id', $tenant->id)->where('is_enabled', true)->orderBy('title')->take(600)->get(),
+            'nextOnlineOrderNumber' => $module === 'online-orders' ? $this->nextOnlineOrderNumber($tenant) : null,
             'purchases' => $module === 'purchases' ? $purchaseList : Purchase::where('tenant_id', $tenant->id)->with('supplier')->latest()->take(8)->get(),
             'purchaseReturns' => $purchaseReturns,
             'purchaseSuppliers' => Contact::where('tenant_id', $tenant->id)->where('kind', 'supplier')->orderBy('name')->get(),
@@ -6106,7 +6916,8 @@ class LibraireProController extends Controller
     private function posItemPayload(Item $item, \Illuminate\Support\Collection $topSold, bool $allowOversell): array
     {
         $image = collect($item->images)->first();
-        $isOutOfStock = $item->type !== 'service' && (int) $item->stock_quantity <= 0;
+        $posStock = $item->type === 'service' ? 999999 : (int) ($item->pos_stock_quantity ?? $item->stock_quantity);
+        $isOutOfStock = $item->type !== 'service' && $posStock <= 0;
         $isSellable = $allowOversell || $item->type === 'service' || ! $isOutOfStock;
         $primaryCode = $item->barcode ?? $item->isbn ?? $item->sku ?? $item->custom_barcode1 ?? $item->item_code;
         $searchText = collect([
@@ -6128,7 +6939,8 @@ class LibraireProController extends Controller
             'id' => $item->id,
             'name' => $item->title,
             'price' => (float) $item->sale_price,
-            'stock' => $item->type === 'service' ? 999999 : (int) $item->stock_quantity,
+            'stock' => $posStock,
+            'global_stock' => $item->type === 'service' ? 999999 : (int) $item->stock_quantity,
             'sellable' => $isSellable,
             'out_of_stock' => $isOutOfStock,
             'type' => $item->type,
@@ -6861,6 +7673,61 @@ class LibraireProController extends Controller
         return 'LIV'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
     }
 
+    private function nextOnlineOrderNumber(Tenant $tenant): string
+    {
+        $max = OnlineOrder::where('tenant_id', $tenant->id)
+            ->where('number', 'like', 'PRE%')
+            ->pluck('number')
+            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
+            ->max() ?? 0;
+
+        return 'PRE'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
+    }
+
+    private function onlineOrderAllowedStatuses(OnlineOrder $onlineOrder): array
+    {
+        return match ($onlineOrder->status) {
+            'pending' => ['pending', 'confirmed', 'cancelled'],
+            'confirmed' => ['confirmed', 'preparing', 'ready', 'cancelled'],
+            'preparing' => ['preparing', 'ready', 'cancelled'],
+            'ready' => ['ready', 'cancelled'],
+            'fulfilled' => ['fulfilled'],
+            'cancelled' => ['cancelled'],
+            default => [$onlineOrder->status],
+        };
+    }
+
+    private function onlineOrderAllowedPaymentStatuses(OnlineOrder $onlineOrder): array
+    {
+        return match ($onlineOrder->payment_status) {
+            'unpaid' => ['unpaid', 'deposit', 'paid'],
+            'deposit' => ['deposit', 'paid', 'refunded'],
+            'paid' => ['paid', 'refunded'],
+            'refunded' => ['refunded'],
+            default => [$onlineOrder->payment_status],
+        };
+    }
+
+    private function onlineOrderCanCreateSale(OnlineOrder $onlineOrder): bool
+    {
+        return ! $onlineOrder->converted_sale_id
+            && in_array($onlineOrder->status, ['confirmed', 'preparing', 'ready'], true);
+    }
+
+    private function onlineOrderSaleBlockReason(OnlineOrder $onlineOrder): string
+    {
+        if ($onlineOrder->converted_sale_id) {
+            return 'Une vente existe déjà pour cette précommande.';
+        }
+
+        return match ($onlineOrder->status) {
+            'pending' => 'Confirmez d’abord la précommande avant de créer la vente.',
+            'fulfilled' => 'Cette précommande est déjà traitée.',
+            'cancelled' => 'Une précommande annulée ne peut pas être convertie en vente.',
+            default => 'Cette précommande ne peut pas être convertie dans son état actuel.',
+        };
+    }
+
     private function nextPurchaseNumber(Tenant $tenant): string
     {
         $max = Purchase::where('tenant_id', $tenant->id)
@@ -6962,46 +7829,12 @@ class LibraireProController extends Controller
 
     private function openCashRegisterSession(Tenant $tenant, bool $lock = false, ?string $storeKey = null): ?CashRegisterSession
     {
-        $query = CashRegisterSession::where('tenant_id', $tenant->id)
-            ->where('status', 'open')
-            ->where('store_key', $storeKey ?? $this->currentStore($tenant)['key'])
-            ->latest('opened_at');
-
-        if ($lock) {
-            $query->lockForUpdate();
-        }
-
-        return $query->first();
+        return app(CashRegisterService::class)->openSession($tenant, $lock, $storeKey ?? $this->currentStore($tenant)['key']);
     }
 
     private function recordCashRegisterMovement(Tenant $tenant, CashRegisterSession $session, string $type, string $direction, float $amount, array $data = []): CashRegisterMovement
     {
-        $amount = round(abs($amount), 2);
-        $delta = match ($direction) {
-            'out' => -$amount,
-            'neutral' => 0.0,
-            default => $amount,
-        };
-        $balance = round((float) $session->expected_cash_amount + $delta, 2);
-        $session->forceFill(['expected_cash_amount' => $balance])->save();
-
-        return CashRegisterMovement::create([
-            'tenant_id' => $tenant->id,
-            'cash_register_session_id' => $session->id,
-            'user_id' => auth()->id(),
-            'sale_id' => $data['sale_id'] ?? null,
-            'account_transaction_id' => $data['account_transaction_id'] ?? null,
-            'number' => $this->nextCashRegisterMovementNumber($tenant),
-            'type' => $type,
-            'direction' => $direction,
-            'amount' => $amount,
-            'balance_after' => $balance,
-            'payment_method' => $data['payment_method'] ?? null,
-            'reference' => $data['reference'] ?? null,
-            'note' => $data['note'] ?? null,
-            'moved_at' => $data['moved_at'] ?? now(),
-            'metadata' => $data['metadata'] ?? null,
-        ]);
+        return app(CashRegisterService::class)->recordMovement($tenant, $session, $type, $direction, $amount, $data);
     }
 
     private function recordAccountTransaction(Tenant $tenant, FinancialAccount $account, string $type, string $direction, float $amount, array $data = []): AccountTransaction
@@ -7096,6 +7929,25 @@ class LibraireProController extends Controller
         return $key !== '' ? $key : (string) Str::uuid();
     }
 
+    private function invoiceCanCreateSale(Invoice $invoice): bool
+    {
+        return $invoice->archived_at === null
+            && in_array($invoice->status, ['sent', 'viewed', 'partially_paid', 'paid', 'overdue'], true);
+    }
+
+    private function invoiceCreateSaleBlockReason(Invoice $invoice): string
+    {
+        if ($invoice->archived_at !== null) {
+            return 'Cette facture est archivée. Restaurez-la avant de créer une vente.';
+        }
+
+        return match ($invoice->status) {
+            'draft' => 'Cette facture est encore en brouillon. Marquez-la comme envoyée avant de créer une vente.',
+            'cancelled' => 'Cette facture est annulée et ne peut pas créer de vente.',
+            default => 'Cette facture ne peut pas créer de vente avec son statut actuel.',
+        };
+    }
+
     /**
      * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
      */
@@ -7182,15 +8034,19 @@ class LibraireProController extends Controller
         $maxTotal = $request->query('max_total');
 
         return Sale::query()
-            ->with(['contact', 'items', 'payments', 'deliveryOrders', 'returns', 'user', 'invoice.user'])
+            ->with(['contact', 'items', 'payments', 'deliveryOrders', 'returns', 'user', 'invoice.user', 'sourceInvoice.creator', 'sourceOnlineOrder'])
             ->where('tenant_id', $tenant->id)
             ->when($detailSale > 0, fn (Builder $builder) => $builder->whereKey($detailSale))
-            ->when($detailInvoice > 0, fn (Builder $builder) => $builder->whereHas('invoice', fn (Builder $invoice) => $invoice->whereKey($detailInvoice)))
+            ->when($detailInvoice > 0, fn (Builder $builder) => $builder->where(function (Builder $builder) use ($detailInvoice): void {
+                $builder->whereHas('invoice', fn (Builder $invoice) => $invoice->whereKey($detailInvoice))
+                    ->orWhere('source_invoice_id', $detailInvoice);
+            }))
             ->when($query !== '', function (Builder $builder) use ($query): void {
                 $builder->where(function (Builder $builder) use ($query): void {
                     $builder->where('number', 'like', "%{$query}%")
                         ->orWhere('payment_method', 'like', "%{$query}%")
                         ->orWhere('metadata->reference_number', 'like', "%{$query}%")
+                        ->orWhereHas('sourceOnlineOrder', fn (Builder $orderQuery) => $orderQuery->where('number', 'like', "%{$query}%"))
                         ->orWhereHas('invoice', fn (Builder $invoiceQuery) => $invoiceQuery->where('number', 'like', "%{$query}%"))
                         ->orWhereHas('contact', fn (Builder $contactQuery) => $contactQuery->where('name', 'like', "%{$query}%"));
                 });
@@ -7207,11 +8063,13 @@ class LibraireProController extends Controller
             })
             ->when(is_numeric($minTotal), fn (Builder $builder) => $builder->where('total_amount', '>=', (float) $minTotal))
             ->when(is_numeric($maxTotal), fn (Builder $builder) => $builder->where('total_amount', '<=', (float) $maxTotal))
-            ->when(in_array($paymentStatus, ['paid', 'partial', 'unpaid', 'refunded', 'cancelled'], true), function (Builder $builder) use ($paymentStatus): void {
+            ->when(in_array($paymentStatus, ['paid', 'partial', 'unpaid', 'partially_refunded', 'refunded', 'cancelled'], true), function (Builder $builder) use ($paymentStatus): void {
                 if ($paymentStatus === 'paid') {
                     $builder->where('status', 'paid');
                 } elseif ($paymentStatus === 'unpaid') {
                     $builder->where('status', 'unpaid');
+                } elseif ($paymentStatus === 'partially_refunded') {
+                    $builder->where('status', 'partially_refunded');
                 } elseif ($paymentStatus === 'refunded') {
                     $builder->where('status', 'refunded');
                 } elseif ($paymentStatus === 'cancelled') {
@@ -7289,6 +8147,33 @@ class LibraireProController extends Controller
             ->when($request->query('from'), fn (Builder $builder, $from) => $builder->whereDate('scheduled_at', '>=', $from))
             ->when($request->query('to'), fn (Builder $builder, $to) => $builder->whereDate('scheduled_at', '<=', $to))
             ->latest();
+    }
+
+    private function onlineOrdersQuery(Tenant $tenant, Request $request): Builder
+    {
+        $query = trim((string) $request->query('q'));
+
+        return OnlineOrder::query()
+            ->with(['contact', 'user', 'items'])
+            ->where('tenant_id', $tenant->id)
+            ->when($query !== '', function (Builder $builder) use ($query): void {
+                $builder->where(function (Builder $builder) use ($query): void {
+                    $builder->where('number', 'like', "%{$query}%")
+                        ->orWhere('customer_name', 'like', "%{$query}%")
+                        ->orWhere('customer_phone', 'like', "%{$query}%")
+                        ->orWhere('customer_email', 'like', "%{$query}%")
+                        ->orWhere('channel', 'like', "%{$query}%")
+                        ->orWhereHas('contact', fn (Builder $contactQuery) => $contactQuery->where('name', 'like', "%{$query}%"))
+                        ->orWhereHas('items', fn (Builder $itemQuery) => $itemQuery->where('name', 'like', "%{$query}%")->orWhere('code', 'like', "%{$query}%"));
+                });
+            })
+            ->when($request->query('order_status'), fn (Builder $builder, $status) => $builder->where('status', $status))
+            ->when($request->query('payment_status'), fn (Builder $builder, $status) => $builder->where('payment_status', $status))
+            ->when($request->query('channel'), fn (Builder $builder, $channel) => $builder->where('channel', $channel))
+            ->when($request->query('from'), fn (Builder $builder, $from) => $builder->whereDate('ordered_at', '>=', $from))
+            ->when($request->query('to'), fn (Builder $builder, $to) => $builder->whereDate('ordered_at', '<=', $to))
+            ->latest('ordered_at')
+            ->latest('id');
     }
 
     private function quotationsQuery(Tenant $tenant, Request $request): Builder
@@ -7757,6 +8642,7 @@ class LibraireProController extends Controller
             'paid' => 'payée',
             'partial' => 'partielle',
             'unpaid' => 'impayée',
+            'partially_refunded' => 'retour partiel',
             'refunded' => 'remboursée',
             'cancelled' => 'annulée',
             default => $status,
@@ -8083,6 +8969,9 @@ class LibraireProController extends Controller
             'sales.delete' => 'Ventes: annuler',
             'sales.refund' => 'Ventes: rembourser',
             'sales.payments' => 'Ventes: paiements',
+            'online_orders.view' => 'Précommandes: voir',
+            'online_orders.create' => 'Précommandes: créer',
+            'online_orders.edit' => 'Précommandes: changer statut',
             'invoices.view' => 'Factures: voir',
             'invoices.create' => 'Factures: créer',
             'invoices.edit_draft' => 'Factures: modifier brouillon',
@@ -8516,6 +9405,7 @@ class LibraireProController extends Controller
             'edition_year' => ['nullable', 'string', 'max:32'],
             'edition_number' => ['nullable', 'string', 'max:64'],
             'theme' => ['nullable', 'string', 'max:255'],
+            'tags' => ['nullable', 'string', 'max:1000'],
             'paper_type' => ['nullable', 'string', 'max:255'],
             'cover_type' => ['nullable', 'string', 'max:255'],
             'collection' => ['nullable', 'string', 'max:255'],
@@ -8543,6 +9433,7 @@ class LibraireProController extends Controller
             'status' => ['nullable', 'in:active,archived,out_of_stock'],
             'is_enabled' => ['nullable', 'boolean'],
             'checkout_visible' => ['nullable', 'boolean'],
+            'online_store_visible' => ['nullable', 'boolean'],
             'remove_item_image' => ['nullable', 'boolean'],
             'item_image' => ['nullable', 'image', 'max:1024'],
         ]);
@@ -8580,6 +9471,8 @@ class LibraireProController extends Controller
         $data['opening_stock'] = $data['opening_stock'] ?? ($item?->opening_stock ?? 0);
         $data['is_enabled'] = $request->boolean('is_enabled', true);
         $data['checkout_visible'] = $request->boolean('checkout_visible', true);
+        $data['online_store_visible'] = $request->boolean('online_store_visible', true);
+        $data['tags'] = $this->normalizeTagsInput($request->input('tags'));
 
         if ($request->hasFile('item_image')) {
             $path = $request->file('item_image')->store('catalogue/items', 'public');
@@ -8599,6 +9492,22 @@ class LibraireProController extends Controller
         }
 
         return $data;
+    }
+
+    private function normalizeTagsInput(mixed $value): array
+    {
+        $parts = is_array($value)
+            ? $value
+            : (preg_split('/[,;\\n]+/', (string) $value) ?: []);
+
+        return collect($parts)
+            ->map(fn ($tag) => trim((string) $tag))
+            ->filter()
+            ->map(fn (string $tag) => Str::of($tag)->squish()->limit(40, '')->toString())
+            ->unique(fn (string $tag) => mb_strtolower($tag))
+            ->values()
+            ->take(20)
+            ->all();
     }
 
     private function normalizeMoneyInput(mixed $value): ?string
@@ -9100,19 +10009,19 @@ class LibraireProController extends Controller
             'services' => [
                 'title' => 'Liste des services',
                 'filename' => 'exemple-import-services.xlsx',
-                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Prix de vente', 'Impôt', 'Statut', "Type d'élément"],
+                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Prix de vente', 'Impôt', 'Statut', 'Tags', "Type d'élément"],
                 'rows' => [
-                    ['', 'Photocopie A4 noir et blanc', 'Services[SERVICE]', 'Service', '0.50', 'Sans TVA(0.00%)', 'Active', 'Service'],
-                    ['', 'Adhésion annuelle', 'Services[SERVICE]', 'Service', '100.00', 'Sans TVA(0.00%)', 'Active', 'Service'],
+                    ['', 'Photocopie A4 noir et blanc', 'Services[SERVICE]', 'Service', '0.50', 'Sans TVA(0.00%)', 'Active', 'impression, rapide', 'Service'],
+                    ['', 'Adhésion annuelle', 'Services[SERVICE]', 'Service', '100.00', 'Sans TVA(0.00%)', 'Active', 'adhésion, bibliothèque', 'Service'],
                 ],
             ],
             default => [
                 'title' => "Liste d'articles",
                 'filename' => 'exemple-import-articles.xlsx',
-                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Stock', "Quantité d'alerte", 'Prix de vente', 'Impôt', 'Statut', 'Action', "Type d'élément"],
+                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Stock', "Quantité d'alerte", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Action', "Type d'élément"],
                 'rows' => [
-                    ['9780000000001', 'Cahier 96 pages grand format', 'FOURNITURE SCOLAIRE[ITEM]', 'Pièce', '50', '5', '12.00', 'Sans TVA(0.00%)', 'Active', '', 'Article'],
-                    ['9780000000002', 'Roman exemple relié', 'ROMANS[ITEM]', 'Pièce', '8', '2', '85.00', 'TVA 7%(7.00%)', 'Active', '', 'Livre'],
+                    ['9780000000001', 'Cahier 96 pages grand format', 'FOURNITURE SCOLAIRE[ITEM]', 'Pièce', '50', '5', '12.00', 'Sans TVA(0.00%)', 'Active', 'rentrée, scolaire', '', 'Article'],
+                    ['9780000000002', 'Roman exemple relié', 'ROMANS[ITEM]', 'Pièce', '8', '2', '85.00', 'TVA 7%(7.00%)', 'Active', 'roman, lecture', '', 'Livre'],
                 ],
             ],
         };
@@ -9333,6 +10242,63 @@ class LibraireProController extends Controller
     private function money(float|int|string|null $amount): string
     {
         return number_format((float) $amount, 2, ',', ' ').' DH';
+    }
+
+    private function purchaseStatusBadge(?string $status): string
+    {
+        $labels = [
+            'draft' => 'Brouillon',
+            'ordered' => 'Commandé',
+            'partially_received' => 'Partiel',
+            'received' => 'Reçu',
+            'cancelled' => 'Annulé',
+        ];
+        $tones = [
+            'draft' => 'bg-slate-100 text-slate-700 ring-slate-200 dark:bg-white/10 dark:text-slate-200 dark:ring-white/10',
+            'ordered' => 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/10 dark:text-blue-200 dark:ring-blue-500/20',
+            'partially_received' => 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/20',
+            'received' => 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-500/20',
+            'cancelled' => 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-200 dark:ring-rose-500/20',
+        ];
+        $status = $status ?: 'draft';
+
+        return '<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset '.($tones[$status] ?? $tones['draft']).'">'.e($labels[$status] ?? $status).'</span>';
+    }
+
+    private function purchaseActionMenu(Purchase $purchase): string
+    {
+        $detailUrl = route('module', ['module' => 'purchases', 'section' => 'list', 'detail_purchase' => $purchase->id]);
+        $pdfUrl = route('purchases.pdf', $purchase);
+        $receiveUrl = route('purchases.receive', $purchase);
+
+        $receiveAction = $purchase->status !== 'received' && $purchase->status !== 'cancelled'
+            ? '<form action="'.e($receiveUrl).'" method="POST"><input type="hidden" name="_token" value="'.e(csrf_token()).'"><button type="submit"><span class="sale-action-icon">RC</span><span>Recevoir le stock</span></button></form>'
+            : '<button type="button" disabled><span class="sale-action-icon">RC</span><span>Réception terminée</span></button>';
+
+        return '<details class="sale-action-menu" data-sale-action-menu>'
+            .'<summary>Action</summary>'
+            .'<div class="sale-action-panel">'
+            .'<a href="'.e($detailUrl).'"><span class="sale-action-icon">VO</span><span>Voir détail</span></a>'
+            .'<a href="'.e($pdfUrl).'"><span class="sale-action-icon">PDF</span><span>Télécharger PDF</span></a>'
+            .$receiveAction
+            .'</div>'
+            .'</details>';
+    }
+
+    private function saleStockUnavailableMessage(?Item $item, int $available, int $requested, string $locationName): string
+    {
+        $name = $item?->title ?: 'cet article';
+        $code = $item ? collect([$item->item_code, $item->barcode, $item->isbn])->filter()->first() : null;
+        $codeText = $code ? ' ('.$code.')' : '';
+
+        return sprintf(
+            'Stock insuffisant pour %s%s dans %s: disponible %d, demandé %d. Ajustez la quantité, ajoutez du stock, ou activez "Autoriser la vente hors stock" dans Paramètres > Magasin si vous voulez accepter un stock négatif.',
+            $name,
+            $codeText,
+            $locationName,
+            max(0, $available),
+            $requested,
+        );
     }
 
     private function paymentMethodLabel(?string $method): string

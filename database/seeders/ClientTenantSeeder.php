@@ -123,8 +123,8 @@ class ClientTenantSeeder extends Seeder
 
             $roles = [
                 ['Owner', 'owner', ['*']],
-                ['Manager', 'manager', ['dashboard.view', 'items.*', 'sales.*', 'purchases.*', 'contacts.*', 'finance.*', 'reports.view', 'settings.theme']],
-                ['Caissier', 'cashier', ['dashboard.view', 'sales.view', 'sales.create', 'contacts.create', 'items.view']],
+                ['Manager', 'manager', ['dashboard.view', 'items.*', 'sales.*', 'online_orders.*', 'purchases.*', 'contacts.*', 'finance.*', 'reports.view', 'settings.theme']],
+                ['Caissier', 'cashier', ['dashboard.view', 'sales.view', 'sales.create', 'online_orders.view', 'online_orders.create', 'contacts.create', 'items.view']],
                 ['Stockiste', 'stockist', ['dashboard.view', 'items.*', 'stock.adjust', 'stock.transfer', 'purchases.view', 'purchases.receive']],
             ];
 

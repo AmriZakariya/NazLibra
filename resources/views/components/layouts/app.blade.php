@@ -174,7 +174,7 @@
                 ['label' => "Services d'importation", 'icon' => '↤', 'href' => route('catalog', ['panel' => 'import', 'kind' => 'items'])],
             ];
             $quickAdds = [
-                ['module_key' => 'sales', 'label' => 'Ventes', 'href' => route('module', ['module' => 'sales', 'section' => 'add'])],
+                ['module_key' => 'sales', 'label' => 'Ventes', 'href' => route('pos')],
                 ['module_key' => 'invoices', 'label' => 'Devis', 'href' => route('module', ['module' => 'invoices', 'section' => 'estimate-add'])],
                 ['module_key' => 'purchases', 'label' => 'Achat', 'href' => route('module', ['module' => 'purchases', 'section' => 'add'])],
                 ['module_key' => 'customers', 'label' => 'Client', 'href' => route('module', ['module' => 'contacts', 'section' => 'customer-add'])],
@@ -192,10 +192,14 @@
                 ['key' => 'catalog', 'label' => 'Articles', 'icon' => '▦', 'href' => route('catalog'), 'children' => $articleLinks],
                 ['key' => 'sales', 'label' => 'Ventes', 'icon' => '₧', 'href' => route('pos'), 'children' => [
                     ['label' => 'Point de vente', 'icon' => '◉', 'href' => route('pos')],
-                    ['label' => 'Ajouter une vente', 'icon' => '+', 'href' => route('module', ['module' => 'sales', 'section' => 'add'])],
+                    ['label' => 'Ajouter une vente', 'icon' => '+', 'href' => route('pos')],
                     ['label' => 'Liste des ventes', 'icon' => '≡', 'href' => route('module', 'sales')],
                     ['label' => 'Paiements des ventes', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'payments'])],
                     ['label' => 'Liste des retours de vente', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'returns'])],
+                ]],
+                ['key' => 'online_orders', 'label' => 'Précommandes', 'icon' => '◷', 'href' => route('module', 'online-orders'), 'children' => [
+                    ['label' => 'Nouvelle précommande', 'icon' => '+', 'href' => route('module', ['module' => 'online-orders', 'section' => 'add'])],
+                    ['label' => 'Liste des précommandes', 'icon' => '≡', 'href' => route('module', ['module' => 'online-orders', 'section' => 'list'])],
                 ]],
                 ['key' => 'invoices', 'label' => 'Facturation', 'icon' => '▤', 'href' => route('module', 'invoices'), 'children' => [
                     ['label' => 'Nouvelle facture', 'icon' => '+', 'href' => route('module', ['module' => 'invoices', 'section' => 'invoice-add'])],
@@ -323,6 +327,7 @@
                 'dashboard' => 'dashboard tableau board home accueil الرئيسية لوحة القيادة kpi analytics stats statistiques اليوم today',
                 'catalog' => 'catalog catalogue articles items produits books livres خدمات services isbn barcode code barre categories catégories marques publishers éditeurs variants variantes labels etiquettes étiquettes import excel inventory مخزون منتجات كتب خدمات تصنيفات',
                 'sales' => 'sales ventes pos caisse checkout payment paiement ticket receipt reçu facture refund retour encaissement barcode scanner مبيعات صندوق تذكرة دفع',
+                'online_orders' => 'online order online orders preorder pre-order precommande précommande precommandes précommandes commande web commandes web whatsapp reservation réservation reserve client status statut pending confirmed ready fulfilled طلب مسبق طلبات مسبقة اونلاين واتساب',
                 'invoices' => 'invoice invoices facture factures facturation billing devis estimate proforma pro-forma due échéance pdf print طباعة فاتورة فواتير عرض سعر تقدير',
                 'deliveries' => 'delivery deliveries livraison livraisons bl dispatch shipping expédition توصيل شحن',
                 'purchases' => 'purchase purchases achat achats supplier fournisseur commande réception po order مشتريات موردين طلبات',
@@ -347,6 +352,8 @@
                 'Point de vente' => 'pos caisse encaisser barcode scan scanner ticket paiement payment cash carte card comptoir checkout sell sale receipt reçu بيع صندوق ماسح دفع',
                 'Ajouter une vente' => 'vente manuelle manual sale invoice facture client customer paiement payment',
                 'Liste des ventes' => 'ticket facture invoice historique history refund remboursement retour return paiement serial number numéro série',
+                'Nouvelle précommande' => 'online order preorder precommande commande web whatsapp reservation client acompte statut',
+                'Liste des précommandes' => 'online orders precommandes commandes web statut suivi pending confirmed ready fulfilled',
                 'Facturation' => 'facturation invoices factures devis estimates proforma module billing',
                 'Nouvelle facture' => 'nouvelle facture invoice create add créer commercial document',
                 'Liste des factures' => 'liste factures invoices échéance pdf billing',

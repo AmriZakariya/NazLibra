@@ -12,6 +12,7 @@ class AppModules
             'dashboard' => ['label' => 'Tableau de bord', 'description' => 'KPIs, activité du jour, rapports rapides et centre d’action.', 'locked' => true, 'default' => true],
             'catalog' => ['label' => 'Catalogue', 'description' => 'Articles, services, catégories, marques, variantes, imports et étiquettes.', 'default' => true],
             'sales' => ['label' => 'Ventes & caisse', 'description' => 'POS, ventes, paiements, retours et workflow comptoir.', 'default' => true],
+            'online_orders' => ['label' => 'Commandes en ligne', 'description' => 'Précommandes, réservations commerciales, canaux web/WhatsApp et suivi de statut.', 'default' => true],
             'invoices' => ['label' => 'Facturation', 'description' => 'Factures clients, devis, pro-forma, impressions PDF et relances.', 'default' => true],
             'quotations' => ['label' => 'Devis', 'description' => 'Pro-forma, devis client, expiration et conversion en facture.', 'default' => true],
             'deliveries' => ['label' => 'Livraisons', 'description' => 'Bons de livraison, suivi de préparation et statut de livraison.', 'default' => true],
@@ -92,6 +93,7 @@ class AppModules
                 in_array($section, ['estimates', 'estimate-add'], true) => 'quotations',
                 default => 'invoices',
             },
+            'online-orders' => 'online_orders',
             'purchases' => 'purchases',
             'loans' => 'loans',
             'contacts' => match (true) {
@@ -151,6 +153,7 @@ class AppModules
             'documents.estimates.' => 'quotations',
             'sales.deliveries.' => 'deliveries',
             'sales.' => 'sales',
+            'online-orders.' => 'online_orders',
             'quotations.' => 'quotations',
             'purchases.' => 'purchases',
             'contacts.data' => 'customers',

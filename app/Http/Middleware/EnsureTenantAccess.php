@@ -138,6 +138,9 @@ class EnsureTenantAccess
             'sales.destroy' => 'sales.delete',
             'sales.deliveries.store' => 'sales.create',
             'sales.deliveries.update' => 'sales.create',
+            'online-orders.store' => 'online_orders.create',
+            'online-orders.status.update' => 'online_orders.edit',
+            'online-orders.sale.prepare' => 'sales.create',
             'quotations.store' => 'sales.create',
             'quotations.update' => 'sales.create',
             'quotations.convert' => 'sales.create',
@@ -215,6 +218,7 @@ class EnsureTenantAccess
         return match ($module) {
             'invoices' => str_contains($section, 'estimate') ? 'estimates.view' : 'invoices.view',
             'sales' => str_contains($section, 'payment') ? 'sales.payments' : (str_contains($section, 'return') ? 'sales.refund' : 'sales.view'),
+            'online-orders' => in_array($section, ['add'], true) ? 'online_orders.create' : 'online_orders.view',
             'purchases' => in_array($section, ['add'], true) ? 'purchases.create' : 'purchases.view',
             'contacts' => in_array($section, ['customer-add', 'supplier-add', 'import-customers', 'import-suppliers'], true) ? 'contacts.create' : 'contacts.view',
             'finance' => in_array($section, ['expense-add', 'advance-add', 'account-add', 'discount-add'], true) ? 'finance.manage' : 'finance.view',

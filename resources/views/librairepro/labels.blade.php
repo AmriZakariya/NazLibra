@@ -154,7 +154,9 @@
                     </thead>
                     <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                         @forelse ($productOptions as $item)
-                            @php($checked = $selectedIds->contains($item->id))
+                            @php
+                                $checked = $selectedIds->contains($item->id);
+                            @endphp
                             <tr class="label-selection-row transition hover:bg-slate-50/80 dark:hover:bg-white/5" data-label-row data-label-search="{{ Str::lower($item->title.' '.$item->item_code.' '.$item->barcode.' '.$item->isbn.' '.$item->sku.' '.$item->author.' '.$item->editor.' '.$item->category?->name.' '.$item->brand?->name) }}">
                                 <td class="px-4 py-3">
                                     <input name="selected_items[]" value="{{ $item->id }}" type="checkbox" @checked($checked) class="label-item-check size-5 rounded border-slate-300">
@@ -210,7 +212,9 @@
             <div class="label-sheet {{ $labelClass }}">
                 @foreach ($items as $item)
                     @for ($copy = 0; $copy < $quantities->get($item->id, $defaultCopies); $copy++)
-                        @php($code = $item->barcode ?? $item->isbn ?? $item->sku ?? 'LP-'.$item->id)
+                        @php
+                            $code = $item->barcode ?? $item->isbn ?? $item->sku ?? 'LP-'.$item->id;
+                        @endphp
                         <article class="label-card">
                             <div class="label-title">{{ $item->title }}</div>
                             @if ($template !== 'small')

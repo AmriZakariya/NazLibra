@@ -53,6 +53,7 @@ class CommercialDocumentTest extends TestCase
 
         $second = app(InvoiceService::class)->create($tenant, [
             'issue_date' => '2026-06-15',
+            'due_date' => '2026-06-30',
             'lines' => [['name' => 'Ligne libre', 'quantity' => 1, 'unit_price' => '1.00']],
         ]);
         $this->assertNotSame($invoice->number, $second->number);
@@ -70,6 +71,7 @@ class CommercialDocumentTest extends TestCase
 
         $invoice = app(InvoiceService::class)->create($tenant, [
             'issue_date' => '2026-06-15',
+            'due_date' => '2026-06-30',
             'lines' => [
                 ['name' => 'Prix TTC', 'quantity' => 1, 'unit_price' => '120.00', 'tax_rate' => '20', 'tax_inclusive' => true],
             ],
@@ -80,6 +82,19 @@ class CommercialDocumentTest extends TestCase
         $this->assertSame('120.00', (string) $invoice->total);
     }
 
+    public function test_invoice_requires_due_date(): void
+    {
+        $this->seed();
+        $tenant = Tenant::firstOrFail();
+
+        $this->expectException(ValidationException::class);
+
+        app(InvoiceService::class)->create($tenant, [
+            'issue_date' => '2026-06-15',
+            'lines' => [['name' => 'Service', 'quantity' => 1, 'unit_price' => '100.00']],
+        ]);
+    }
+
     public function test_invoice_payments_are_validated_and_update_status(): void
     {
         $this->seed();
@@ -88,6 +103,7 @@ class CommercialDocumentTest extends TestCase
         $invoice = $service->create($tenant, [
             'status' => 'sent',
             'issue_date' => '2026-06-15',
+            'due_date' => '2026-06-30',
             'lines' => [['name' => 'Service', 'quantity' => 1, 'unit_price' => '100.00']],
         ]);
 
@@ -112,6 +128,7 @@ class CommercialDocumentTest extends TestCase
         $invoice = $service->create($tenant, [
             'status' => 'sent',
             'issue_date' => '2026-06-15',
+            'due_date' => '2026-06-30',
             'lines' => [['name' => 'Service', 'quantity' => 1, 'unit_price' => '50.00']],
         ]);
         $service->recordPayment($invoice, ['amount' => '50.00', 'method' => 'cash']);
@@ -185,6 +202,7 @@ class CommercialDocumentTest extends TestCase
         $invoice = $service->create($tenant, [
             'status' => 'draft',
             'issue_date' => '2026-06-15',
+            'due_date' => '2026-06-30',
             'lines' => [['name' => 'Service', 'quantity' => 1, 'unit_price' => '80.00']],
         ]);
         $service->send($invoice);

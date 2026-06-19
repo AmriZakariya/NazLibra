@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
@@ -93,5 +94,10 @@ class Invoice extends Model
     public function duplicatedFrom(): BelongsTo
     {
         return $this->belongsTo(self::class, 'duplicated_from_id');
+    }
+
+    public function sourceSale(): HasOne
+    {
+        return $this->hasOne(Sale::class, 'source_invoice_id');
     }
 }

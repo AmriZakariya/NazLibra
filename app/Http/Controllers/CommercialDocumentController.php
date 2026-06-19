@@ -8,13 +8,64 @@ use App\Services\Documents\EstimateService;
 use App\Services\Documents\InvoiceService;
 use App\Support\TenantContext;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
+use Yajra\DataTables\Facades\DataTables;
 
 class CommercialDocumentController extends Controller
 {
+    public function invoicesData(Request $request): JsonResponse
+    {
+        $tenant = TenantContext::require($request);
+        $query = trim((string) $request->query('q'));
+
+        $invoices = Invoice::query()
+            ->with(['customer', 'creator', 'sourceSale'])
+            ->where('tenant_id', $tenant->id)
+            ->when($request->query('archived') !== 'with', fn ($builder) => $builder->whereNull('archived_at'))
+            ->when($query !== '', function ($builder) use ($query): void {
+                $builder->where(function ($builder) use ($query): void {
+                    $builder->where('number', 'like', "%{$query}%")
+                        ->orWhere('status', 'like', "%{$query}%")
+                        ->orWhere('customer_snapshot', 'like', "%{$query}%")
+                        ->orWhereHas('customer', fn ($contact) => $contact->where('name', 'like', "%{$query}%"));
+                });
+            })
+            ->when($request->filled('invoice_status'), fn ($builder) => $builder->where('status', $request->query('invoice_status')));
+
+        $statusLabels = [
+            'draft' => 'Brouillon',
+            'sent' => 'Envoyée',
+            'viewed' => 'Vue',
+            'partially_paid' => 'Partiellement payée',
+            'paid' => 'Payée',
+            'overdue' => 'En retard',
+            'cancelled' => 'Annulée',
+            'archived' => 'Archivée',
+        ];
+
+        return DataTables::eloquent($invoices)
+            ->addColumn('customer_display', function (Invoice $invoice): string {
+                $name = data_get($invoice->customer_snapshot, 'name', $invoice->customer?->name ?? 'Client comptoir');
+                $contact = data_get($invoice->customer_snapshot, 'phone') ?: data_get($invoice->customer_snapshot, 'email', '—');
+
+                return '<strong>'.e($name).'</strong><p class="mt-1 text-xs text-slate-500">'.e($contact).'</p>';
+            })
+            ->editColumn('issue_date', fn (Invoice $invoice): string => $invoice->issue_date?->format('d/m/Y') ?? '—')
+            ->editColumn('due_date', fn (Invoice $invoice): string => $invoice->due_date?->format('d/m/Y') ?? '—')
+            ->editColumn('total', fn (Invoice $invoice): string => $this->money($invoice->total))
+            ->editColumn('amount_paid', fn (Invoice $invoice): string => '<span class="text-emerald-600 dark:text-emerald-300">'.$this->money($invoice->amount_paid).'</span>')
+            ->editColumn('balance_due', fn (Invoice $invoice): string => $this->money($invoice->balance_due))
+            ->addColumn('status_badge', fn (Invoice $invoice): string => $this->invoiceStatusBadge($invoice, $statusLabels[$invoice->status] ?? $invoice->status))
+            ->addColumn('creator_name', fn (Invoice $invoice): string => e($invoice->creator?->name ?? '—'))
+            ->addColumn('action', fn (Invoice $invoice): string => $this->invoiceActionMenu($invoice))
+            ->rawColumns(['customer_display', 'amount_paid', 'status_badge', 'action'])
+            ->toJson();
+    }
+
     public function storeInvoice(Request $request, InvoiceService $service): RedirectResponse
     {
         $tenant = TenantContext::require($request);
@@ -219,7 +270,7 @@ class CommercialDocumentController extends Controller
             'status' => ['nullable', 'string', 'max:32'],
             'issue_date' => [$partial ? 'nullable' : 'required', 'date'],
             'service_date' => ['nullable', 'date'],
-            $dateField => ['nullable', 'date'],
+            $dateField => [$type === 'invoice' ? 'required' : 'nullable', 'date'],
             'document_discount_type' => ['nullable', Rule::in(['fixed', 'percentage'])],
             'document_discount_value' => ['nullable', 'numeric', 'min:0'],
             'fee_total' => ['nullable', 'numeric', 'min:0'],
@@ -254,5 +305,60 @@ class CommercialDocumentController extends Controller
     {
         $tenant = TenantContext::require($request);
         abort_unless($estimate->tenant_id === $tenant->id, 404);
+    }
+
+    private function money(mixed $amount): string
+    {
+        return number_format((float) $amount, 2, ',', ' ').' DH';
+    }
+
+    private function invoiceStatusBadge(Invoice $invoice, string $label): string
+    {
+        $classes = match ($invoice->status) {
+            'paid' => 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-200',
+            'cancelled' => 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-200',
+            'overdue' => 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-200',
+            'partially_paid', 'draft' => 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-200',
+            default => 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/25 dark:bg-sky-500/10 dark:text-sky-200',
+        };
+
+        return '<span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold '.$classes.'">'.e($label).'</span>';
+    }
+
+    private function invoiceActionMenu(Invoice $invoice): string
+    {
+        $canEdit = in_array($invoice->status, ['draft', 'sent'], true) && (float) $invoice->amount_paid <= 0;
+        $canCreateSale = $invoice->archived_at === null && in_array($invoice->status, ['sent', 'viewed', 'partially_paid', 'paid', 'overdue'], true);
+        $detailUrl = route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $invoice->id]);
+        $editUrl = route('module', ['module' => 'invoices', 'section' => 'invoice-edit', 'invoice' => $invoice->id]);
+        $saleUrl = $invoice->sourceSale
+            ? route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $invoice->sourceSale->id])
+            : route('pos', ['source_invoice' => $invoice->id]);
+        $duplicateUrl = route('documents.invoices.duplicate', $invoice);
+        $pdfUrl = route('documents.invoices.pdf', $invoice);
+        $csrf = csrf_field();
+
+        $editAction = $canEdit
+            ? '<a href="'.$editUrl.'"><span>ED</span> Modifier</a>'
+            : '<button type="button" disabled><span>LK</span> Modification verrouillée</button>';
+        $saleAction = ($invoice->sourceSale || $canCreateSale)
+            ? '<a href="'.$saleUrl.'"><span>PV</span> '.($invoice->sourceSale ? 'Voir vente liée' : 'Encaisser en caisse').'</a>'
+            : '<button type="button" disabled title="Envoyez la facture avant de l\'encaisser en caisse."><span>PV</span> Encaissement verrouillé</button>';
+
+        return <<<HTML
+<details class="sale-action-menu" data-sale-action-menu>
+    <summary>Action</summary>
+    <div class="sale-action-panel">
+        <a href="{$detailUrl}"><span>VO</span> Voir détail</a>
+        {$editAction}
+        {$saleAction}
+        <form action="{$duplicateUrl}" method="POST" onsubmit="return confirm('Dupliquer cette facture en nouveau brouillon ?')">
+            {$csrf}
+            <button type="submit"><span>CP</span> Dupliquer</button>
+        </form>
+        <a href="{$pdfUrl}"><span>PDF</span> Télécharger PDF</a>
+    </div>
+</details>
+HTML;
     }
 }

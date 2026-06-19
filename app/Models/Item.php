@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'status',
     'is_enabled',
     'checkout_visible',
+    'online_store_visible',
     'item_code',
     'item_group',
     'nb_item',
@@ -57,6 +58,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'location',
     'images',
     'metadata',
+    'tags',
 ])]
 class Item extends Model
 {
@@ -65,8 +67,10 @@ class Item extends Model
         return [
             'images' => 'array',
             'metadata' => 'array',
+            'tags' => 'array',
             'is_enabled' => 'boolean',
             'checkout_visible' => 'boolean',
+            'online_store_visible' => 'boolean',
             'discount' => 'decimal:2',
             'price' => 'decimal:2',
             'purchase_price' => 'decimal:2',

@@ -1122,52 +1122,246 @@ document.querySelectorAll('[data-quote-form]').forEach((form) => {
 
 // Invoice live calculator (commercial invoices)
 document.querySelectorAll('[data-invoice-form]').forEach((form) => {
+    const invoiceScope = form.closest('[data-invoice-screen]') || form.parentElement || form;
     const linesContainer = form.querySelector('[data-invoice-lines]');
     const discountInput = form.querySelector('[data-invoice-discount]');
-    const summarySubtotal = form.querySelector('[data-invoice-summary-subtotal]');
-    const summaryDiscount = form.querySelector('[data-invoice-summary-discount]');
-    const summaryTax = form.querySelector('[data-invoice-summary-tax]');
-    const summaryTotal = form.querySelector('[data-invoice-summary-total]');
+    const feeInput = form.querySelector('[data-invoice-fee]');
+    const summarySubtotal = invoiceScope.querySelector('[data-invoice-summary-subtotal]');
+    const summaryDiscount = invoiceScope.querySelector('[data-invoice-summary-discount]');
+    const summaryTax = invoiceScope.querySelector('[data-invoice-summary-tax]');
+    const summaryFees = invoiceScope.querySelector('[data-invoice-summary-fees]');
+    const summaryTotal = invoiceScope.querySelector('[data-invoice-summary-total]');
 
     const fmt = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' DH';
+    const searchEndpoint = linesContainer?.dataset.productSearchUrl;
+    const searchCache = new Map();
+    let searchAbort;
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
+    const compactMeta = (parts) => parts.filter(Boolean).join(' · ');
+
+    const setLineDisabled = (row, disabled) => {
+        row.querySelectorAll('input, select, textarea').forEach((field) => {
+            if (field.closest('[data-invoice-item-picker]')) return;
+            field.disabled = disabled;
+        });
+        row.querySelectorAll('[data-invoice-item-id], [data-invoice-item-name], [data-invoice-item-description], [data-invoice-unit]').forEach((field) => {
+            field.disabled = disabled;
+        });
+    };
+
+    const isLineMeaningful = (row) => {
+        const itemId = row.querySelector('[data-invoice-item-id]')?.value?.trim();
+        const name = row.querySelector('[data-invoice-item-name]')?.value?.trim();
+        const price = parseFloat(row.querySelector('[data-invoice-price]')?.value || 0) || 0;
+        return Boolean(itemId || name || price > 0);
+    };
+
+    const syncLineState = (row) => {
+        setLineDisabled(row, false);
+    };
+
+    const renderSelectedItem = (row, item) => {
+        const box = row.querySelector('[data-invoice-selected-item]');
+        if (!box) return;
+
+        if (!item) {
+            box.classList.add('hidden');
+            box.innerHTML = '';
+            return;
+        }
+
+        const stock = item.type === 'service' ? 'Service sans stock' : `Stock ${item.stock ?? 0}`;
+        box.classList.remove('hidden');
+        box.innerHTML = `
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="font-semibold text-slate-800 dark:text-slate-100">${escapeHtml(item.title)}</span>
+                <span class="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-brand shadow-sm dark:bg-slate-950">${escapeHtml(item.price || '')}</span>
+            </div>
+            <div class="mt-1 text-slate-500">${escapeHtml(compactMeta([item.code, item.type_label, item.category, item.brand, stock]))}</div>
+        `;
+    };
+
+    const applyItemToLine = (row, item) => {
+        row.querySelector('[data-invoice-item-id]').value = item.id || '';
+        row.querySelector('[data-invoice-item-name]').value = item.title || '';
+        row.querySelector('[data-invoice-item-description]').value = item.title || '';
+        row.querySelector('[data-invoice-unit]').value = item.unit || '';
+        row.querySelector('[data-invoice-price]').value = Number(item.raw_price || 0).toFixed(2);
+        row.querySelector('[data-invoice-tax]').value = Number(item.tax_rate || 0);
+        row.querySelector('[data-invoice-tax-inclusive]').value = item.tax_inclusive ? '1' : '0';
+        row.querySelector('[data-invoice-item-search]').value = item.title || '';
+        renderSelectedItem(row, item);
+        syncLineState(row);
+        recalc();
+    };
+
+    const applyCustomLine = (row, label) => {
+        row.querySelector('[data-invoice-item-id]').value = '';
+        row.querySelector('[data-invoice-item-name]').value = label;
+        row.querySelector('[data-invoice-item-description]').value = label;
+        row.querySelector('[data-invoice-unit]').value = '';
+        row.querySelector('[data-invoice-item-search]').value = label;
+        renderSelectedItem(row, {
+            title: label || 'Ligne libre',
+            type: 'custom',
+            type_label: 'Ligne libre',
+            code: null,
+            price: 'Prix manuel',
+        });
+        syncLineState(row);
+        row.querySelector('[data-invoice-price]')?.focus();
+        recalc();
+    };
+
+    const fetchInvoiceItems = async (query) => {
+        if (!searchEndpoint) return [];
+        const key = query.trim().toLowerCase();
+        if (searchCache.has(key)) return searchCache.get(key);
+
+        searchAbort?.abort();
+        searchAbort = new AbortController();
+
+        const url = new URL(searchEndpoint, window.location.origin);
+        url.searchParams.set('q', query);
+        url.searchParams.set('context', 'invoice');
+        const response = await freshJsonFetch(url.toString(), { signal: searchAbort.signal });
+        const payload = await response.json();
+        const items = payload.items || [];
+        searchCache.set(key, items);
+
+        return items;
+    };
+
+    const renderSearchResults = (row, items, query, loading = false) => {
+        const panel = row.querySelector('[data-invoice-item-results]');
+        if (!panel) return;
+
+        panel.classList.remove('hidden');
+
+        if (loading) {
+            panel.innerHTML = '<div class="invoice-item-empty">Recherche en cours...</div>';
+            return;
+        }
+
+        const customAction = query.trim()
+            ? `<button type="button" class="invoice-item-result invoice-item-result-custom" data-invoice-custom-line="${escapeHtml(query.trim())}">
+                    <span class="font-semibold">Utiliser "${escapeHtml(query.trim())}" comme ligne libre</span>
+                    <small>Renseignez ensuite prix, quantité et TVA.</small>
+                </button>`
+            : '';
+
+        if (!items.length) {
+            panel.innerHTML = `${customAction || ''}<div class="invoice-item-empty">Aucun article trouvé.</div>`;
+            return;
+        }
+
+        panel.innerHTML = `
+            <div class="invoice-item-results-list">
+                ${items.map((item) => {
+                    const disabled = !item.is_enabled || !item.checkout_visible;
+                    const stock = item.type === 'service' ? 'Service' : `Stock ${item.stock ?? 0}`;
+                    return `<button type="button" class="invoice-item-result ${disabled ? 'is-muted' : ''}" data-invoice-item-choice="${escapeHtml(JSON.stringify(item))}">
+                        <span>
+                            <strong>${escapeHtml(item.title)}</strong>
+                            <small>${escapeHtml(compactMeta([item.code, item.type_label, item.category, item.brand, stock]))}</small>
+                        </span>
+                        <em>${escapeHtml(item.price || '0,00 DH')}</em>
+                    </button>`;
+                }).join('')}
+            </div>
+            ${customAction}
+        `;
+    };
+
+    const setupInvoiceLineSearch = (row) => {
+        const input = row.querySelector('[data-invoice-item-search]');
+        if (!input || input.dataset.invoiceSearchReady === '1') return;
+        input.dataset.invoiceSearchReady = '1';
+
+        let timer;
+        const runSearch = (query) => {
+            clearTimeout(timer);
+            renderSearchResults(row, [], query, true);
+            timer = setTimeout(async () => {
+                try {
+                    const items = await fetchInvoiceItems(query);
+                    renderSearchResults(row, items, query);
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        renderSearchResults(row, [], query);
+                    }
+                }
+            }, 220);
+        };
+
+        input.addEventListener('focus', () => runSearch(input.value));
+        input.addEventListener('input', () => {
+            row.querySelector('[data-invoice-item-id]').value = '';
+            row.querySelector('[data-invoice-item-name]').value = input.value.trim();
+            row.querySelector('[data-invoice-item-description]').value = input.value.trim();
+            renderSelectedItem(row, null);
+            runSearch(input.value);
+            recalc();
+        });
+        input.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            const firstChoice = row.querySelector('[data-invoice-item-choice]');
+            if (firstChoice) {
+                firstChoice.click();
+            } else if (input.value.trim()) {
+                applyCustomLine(row, input.value.trim());
+                row.querySelector('[data-invoice-item-results]')?.classList.add('hidden');
+            }
+        });
+    };
 
     const recalc = () => {
         let subtotal = 0;
         let lineDiscountTotal = 0;
+        let taxTotal = 0;
         form.querySelectorAll('.invoice-line').forEach((row) => {
-            const itemSelect = row.querySelector('[data-invoice-item]');
             const qtyInput = row.querySelector('[data-invoice-qty]');
             const priceInput = row.querySelector('[data-invoice-price]');
             const lineDiscountInput = row.querySelector('[data-invoice-discount-line]');
+            const taxInput = row.querySelector('[data-invoice-tax]');
+            const taxInclusiveInput = row.querySelector('[data-invoice-tax-inclusive]');
             const totalCell = row.querySelector('[data-invoice-line-total]');
 
-            const qty = parseInt(qtyInput?.value || 0, 10) || 0;
+            const qty = parseFloat(qtyInput?.value || 0) || 0;
             const price = parseFloat(priceInput?.value || 0) || 0;
+            const taxRate = Math.max(0, parseFloat(taxInput?.value || 0) || 0);
+            const taxInclusive = taxInclusiveInput?.value === '1';
             const lineDiscount = Math.min(parseFloat(lineDiscountInput?.value || 0) || 0, qty * price);
-            const lineTotal = Math.max(0, qty * price - lineDiscount);
+            const taxable = Math.max(0, qty * price - lineDiscount);
+            const taxFactor = 1 + (taxRate / 100);
+            const lineTax = taxInclusive ? taxable - (taxable / taxFactor) : taxable * taxRate / 100;
+            const lineTotal = taxInclusive ? taxable : taxable + lineTax;
             subtotal += qty * price;
             lineDiscountTotal += lineDiscount;
+            taxTotal += lineTax;
 
             if (totalCell) totalCell.textContent = fmt(lineTotal);
-
-            if (itemSelect && priceInput && !priceInput.value && itemSelect.selectedOptions[0]) {
-                const optPrice = itemSelect.selectedOptions[0].dataset.price;
-                if (optPrice) {
-                    priceInput.value = optPrice;
-                    const evt = new Event('input', { bubbles: true });
-                    priceInput.dispatchEvent(evt);
-                }
-            }
         });
 
         const documentDiscount = parseFloat(discountInput?.value || 0) || 0;
-        const afterDiscount = Math.max(0, subtotal - lineDiscountTotal - documentDiscount);
-        const tax = Math.round(afterDiscount * 0.2 / 1.2 * 100) / 100;
-        const total = afterDiscount;
+        const fees = parseFloat(feeInput?.value || 0) || 0;
+        const afterDocumentDiscount = Math.max(0, subtotal - lineDiscountTotal - documentDiscount);
+        const discountRatio = subtotal - lineDiscountTotal > 0 ? afterDocumentDiscount / (subtotal - lineDiscountTotal) : 1;
+        const tax = Math.round(taxTotal * discountRatio * 100) / 100;
+        const total = Math.max(0, afterDocumentDiscount + tax + fees);
 
         if (summarySubtotal) summarySubtotal.textContent = fmt(subtotal);
         if (summaryDiscount) summaryDiscount.textContent = fmt(lineDiscountTotal + documentDiscount);
         if (summaryTax) summaryTax.textContent = fmt(tax);
+        if (summaryFees) summaryFees.textContent = fmt(fees);
         if (summaryTotal) summaryTotal.textContent = fmt(total);
     };
 
@@ -1178,25 +1372,65 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
         const clone = template.cloneNode(true);
         const idx = linesContainer.querySelectorAll('.invoice-line').length;
         clone.dataset.lineIndex = idx;
-        clone.querySelectorAll('input, select').forEach((el) => {
+        clone.querySelectorAll('input, select, textarea').forEach((el) => {
             const name = el.getAttribute('name');
             if (name) el.setAttribute('name', name.replace(/lines\[\d+\]/, `lines[${idx}]`));
-            if (el.tagName === 'INPUT' && el.type !== 'hidden') el.value = el.type === 'number' && el.dataset.invoiceQty ? '1' : '';
-            if (el.dataset.invoiceLineTotal) el.textContent = '0,00 DH';
+            if (el.type === 'hidden') {
+                if (el.name?.includes('[discount_type]')) el.value = 'fixed';
+                else if (el.name?.includes('[tax_rate]')) el.value = '0';
+                else if (el.name?.includes('[tax_inclusive]')) el.value = '0';
+                else el.value = '';
+            } else if (el.type === 'number') {
+                el.value = el.dataset.invoiceQty ? '1' : '';
+            } else {
+                el.value = '';
+            }
         });
-        clone.querySelectorAll('[data-searchable-select]').forEach((el) => el.classList.remove('choices--enabled'));
+        clone.querySelector('[data-invoice-line-total]').textContent = '0,00 DH';
+        clone.querySelector('[data-invoice-selected-item]')?.classList.add('hidden');
+        clone.querySelector('[data-invoice-item-results]')?.classList.add('hidden');
+        clone.querySelector('[data-invoice-item-search]')?.removeAttribute('data-invoice-search-ready');
         linesContainer.appendChild(clone);
+        setupInvoiceLineSearch(clone);
+        clone.querySelector('[data-invoice-item-search]')?.focus();
         recalc();
     });
 
     form.addEventListener('click', (e) => {
+        const choice = e.target.closest('[data-invoice-item-choice]');
+        if (choice) {
+            const row = choice.closest('.invoice-line');
+            try {
+                applyItemToLine(row, JSON.parse(choice.dataset.invoiceItemChoice));
+            } catch (_) {
+                // Ignore malformed transient search result.
+            }
+            row.querySelector('[data-invoice-item-results]')?.classList.add('hidden');
+            return;
+        }
+
+        const customLine = e.target.closest('[data-invoice-custom-line]');
+        if (customLine) {
+            const row = customLine.closest('.invoice-line');
+            applyCustomLine(row, customLine.dataset.invoiceCustomLine || '');
+            row.querySelector('[data-invoice-item-results]')?.classList.add('hidden');
+            return;
+        }
+
         const btn = e.target.closest('.invoice-remove-line');
         if (!btn) return;
         const lines = form.querySelectorAll('.invoice-line');
         if (lines.length <= 1) {
             const row = btn.closest('.invoice-line');
             row.querySelectorAll('input:not([type="hidden"])').forEach((el) => { el.value = ''; });
-            row.querySelectorAll('select').forEach((el) => { el.value = ''; });
+            row.querySelectorAll('input[type="hidden"]').forEach((el) => {
+                if (el.name?.includes('[discount_type]')) el.value = 'fixed';
+                else if (el.name?.includes('[tax_rate]')) el.value = '0';
+                else if (el.name?.includes('[tax_inclusive]')) el.value = '0';
+                else el.value = '';
+            });
+            renderSelectedItem(row, null);
+            row.querySelector('[data-invoice-item-results]')?.classList.add('hidden');
             row.querySelector('[data-invoice-line-total]').textContent = '0,00 DH';
         } else {
             btn.closest('.invoice-line').remove();
@@ -1204,8 +1438,24 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
         recalc();
     });
 
+    document.addEventListener('click', (event) => {
+        if (form.contains(event.target)) return;
+        form.querySelectorAll('[data-invoice-item-results]').forEach((panel) => panel.classList.add('hidden'));
+    });
+
+    form.addEventListener('submit', () => {
+        form.querySelectorAll('.invoice-line').forEach((row) => {
+            if (isLineMeaningful(row)) {
+                syncLineState(row);
+            } else if (form.querySelectorAll('.invoice-line').length > 1) {
+                setLineDisabled(row, true);
+            }
+        });
+    });
+
     form.addEventListener('input', recalc);
     form.addEventListener('change', recalc);
+    form.querySelectorAll('.invoice-line').forEach(setupInvoiceLineSearch);
     recalc();
 });
 
@@ -1243,6 +1493,15 @@ document.querySelectorAll('.sale-action-menu').forEach((menu) => {
         requestAnimationFrame(() => positionSaleActionMenu(menu));
     });
 });
+
+document.addEventListener('toggle', (event) => {
+    const menu = event.target?.closest?.('.sale-action-menu');
+    if (!menu || !menu.open) return;
+    document.querySelectorAll('.sale-action-menu[open]').forEach((other) => {
+        if (other !== menu) other.open = false;
+    });
+    requestAnimationFrame(() => positionSaleActionMenu(menu));
+}, true);
 
 document.addEventListener('click', (event) => {
     document.querySelectorAll('.sale-action-menu[open]').forEach((menu) => {
@@ -1555,6 +1814,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const cartJson = screen.querySelector('.pos-cart-json');
     const submit = screen.querySelector('.pos-submit');
     const cartCount = screen.querySelector('.pos-cart-count');
+    const posLeaveMessage = translate('Le panier contient des articles. Quitter la caisse supprimera le panier en cours. Continuer ?');
+    let posAllowCartNavigation = false;
     const discountInput = screen.querySelector('.pos-discount-value');
     const discountTypeInput = screen.querySelector('.pos-discount-type-value');
     const discountDraftInput = screen.querySelector('.pos-discount-draft');
@@ -1622,6 +1883,42 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     let appliedCoupon = { code: '', amount: 0, message: '', valid: false };
     let discountDraftDirty = false;
     let noteDraftDirty = false;
+
+    const markPosNavigationAllowed = () => {
+        posAllowCartNavigation = true;
+        window.setTimeout(() => {
+            posAllowCartNavigation = false;
+        }, 5000);
+    };
+
+    const shouldGuardPosNavigation = () => cart.length > 0 && !posAllowCartNavigation;
+
+    const confirmPosNavigation = () => !shouldGuardPosNavigation() || window.confirm(posLeaveMessage);
+
+    const isHashOnlyNavigation = (link) => {
+        const href = link.getAttribute('href') || '';
+        if (!href || href === '#') return true;
+        try {
+            const target = new URL(href, window.location.href);
+            return target.origin === window.location.origin
+                && target.pathname === window.location.pathname
+                && target.search === window.location.search
+                && target.hash;
+        } catch {
+            return true;
+        }
+    };
+
+    const shouldGuardLink = (link, event) => {
+        if (!link || event.defaultPrevented) return false;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return false;
+        if (link.matches('[data-pos-close-success], [data-pos-ignore-cart-guard]')) return false;
+        if (link.target && link.target !== '_self') return false;
+        if (link.hasAttribute('download')) return false;
+        const href = link.getAttribute('href') || '';
+        if (href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) return false;
+        return !isHashOnlyNavigation(link);
+    };
 
     const normalizeText = (value) => String(value || '')
         .normalize('NFD')
@@ -2180,6 +2477,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         if (cartJson) {
             cartJson.value = JSON.stringify(cart.map(({ id, quantity, price, originalPrice, note }) => ({ id, quantity, price, original_price: originalPrice, note })));
         }
+        screen.dataset.cartDirty = cart.length > 0 ? '1' : '0';
 
         const total = totals();
         if (discountInput && !selectedDiscountRule()) {
@@ -2687,6 +2985,41 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         renderCart();
     };
 
+    window.addEventListener('beforeunload', (event) => {
+        if (!shouldGuardPosNavigation()) return;
+        event.preventDefault();
+        event.returnValue = '';
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!screen.isConnected || !(event.target instanceof Element)) return;
+        const link = event.target.closest('a[href]');
+        if (!shouldGuardLink(link, event)) return;
+
+        if (confirmPosNavigation()) {
+            markPosNavigationAllowed();
+            return;
+        }
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+    }, true);
+
+    document.addEventListener('submit', (event) => {
+        if (!screen.isConnected) return;
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || form.closest('.pos-screen')) return;
+        if (!shouldGuardPosNavigation()) return;
+
+        if (confirmPosNavigation()) {
+            markPosNavigationAllowed();
+            return;
+        }
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+    }, true);
+
     const refreshHeldTicketsList = async () => {
         try {
             const response = await fetch(window.location.href, {
@@ -2906,6 +3239,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             return;
         }
 
+        markPosNavigationAllowed();
         setCheckoutBusy(true, submitter);
         scheduleFullscreenRestore(80);
     });
@@ -3163,27 +3497,27 @@ document.querySelectorAll('[data-yajra-table]').forEach((table) => {
     const baseColumns = [
         { data: 'checkbox', name: 'checkbox', orderable: false, searchable: false },
         { data: 'image', name: 'image', orderable: false, searchable: false },
-        { data: 'barcode', name: 'barcode', orderable: true, searchable: true },
-        { data: 'title', name: 'title', orderable: true, searchable: true },
-        { data: 'category_type', name: 'category_type', orderable: false, searchable: true },
-        { data: 'unit_label', name: 'unit_label', orderable: false, searchable: true },
-        { data: 'stock_quantity', name: 'stock_quantity', orderable: true, searchable: false },
+        { data: 'barcode', name: 'items.barcode', orderable: true, searchable: true },
+        { data: 'title', name: 'items.title', orderable: true, searchable: true },
+        { data: 'category_type', name: 'category_sort', orderable: true, searchable: true },
+        { data: 'unit_label', name: 'unit_sort', orderable: true, searchable: true },
+        { data: 'stock_quantity', name: 'items.stock_quantity', orderable: true, searchable: false },
     ];
 
     const columns = hasAlertColumn
         ? [
             ...baseColumns,
-            { data: 'min_stock_threshold', name: 'min_stock_threshold', orderable: true, searchable: false },
-            { data: 'sale_price', name: 'sale_price', orderable: true, searchable: false },
-            { data: 'tax_label', name: 'tax_label', orderable: false, searchable: true },
-            { data: 'status', name: 'status', orderable: true, searchable: false },
+            { data: 'min_stock_threshold', name: 'items.min_stock_threshold', orderable: true, searchable: false },
+            { data: 'sale_price', name: 'items.sale_price', orderable: true, searchable: false },
+            { data: 'tax_label', name: 'tax_sort', orderable: true, searchable: true },
+            { data: 'status', name: 'items.status', orderable: true, searchable: false },
             { data: 'action', name: 'action', orderable: false, searchable: false },
         ]
         : [
             ...baseColumns,
-            { data: 'sale_price', name: 'sale_price', orderable: true, searchable: false },
-            { data: 'tax_label', name: 'tax_label', orderable: false, searchable: true },
-            { data: 'status', name: 'status', orderable: true, searchable: false },
+            { data: 'sale_price', name: 'items.sale_price', orderable: true, searchable: false },
+            { data: 'tax_label', name: 'tax_sort', orderable: true, searchable: true },
+            { data: 'status', name: 'items.status', orderable: true, searchable: false },
             { data: 'action', name: 'action', orderable: false, searchable: false },
         ];
 
@@ -3199,7 +3533,8 @@ document.querySelectorAll('[data-yajra-table]').forEach((table) => {
         language: dataTableLanguage(),
         columnDefs: [
             { targets: [0, 1], className: 'dt-center' },
-            { targets: [2], className: 'font-mono text-xs' },
+            { targets: [2], className: 'catalog-code-column' },
+            { targets: hasAlertColumn ? [6, 7, 8] : [6, 7], className: 'dt-right' },
             { targets: [-1], className: 'dt-right' },
             { targets: '_all', defaultContent: '' },
         ],
@@ -3312,6 +3647,89 @@ document.querySelectorAll('[data-advance-table]').forEach((table) => {
         createdRow: (row) => {
             row.classList.add('app-row-openable');
             row.dataset.rowActionLabel = translate('Reçu');
+        },
+    });
+});
+
+document.querySelectorAll('[data-commercial-invoice-table]').forEach((table) => {
+    new DataTable(table, {
+        ajax: table.dataset.ajaxUrl,
+        columns: [
+            { data: 'number', name: 'number', orderable: true, searchable: true },
+            { data: 'customer_display', name: 'customer_snapshot', orderable: false, searchable: true },
+            { data: 'issue_date', name: 'issue_date', orderable: true, searchable: false },
+            { data: 'due_date', name: 'due_date', orderable: true, searchable: false },
+            { data: 'total', name: 'total', orderable: true, searchable: false },
+            { data: 'amount_paid', name: 'amount_paid', orderable: true, searchable: false },
+            { data: 'balance_due', name: 'balance_due', orderable: true, searchable: false },
+            { data: 'status_badge', name: 'status', orderable: true, searchable: true },
+            { data: 'creator_name', name: 'creator.name', orderable: false, searchable: true },
+            { data: 'action', name: 'action', orderable: false, searchable: false },
+        ],
+        order: [[2, 'desc']],
+        pageLength: Number(table.dataset.length || 25),
+        processing: true,
+        serverSide: true,
+        autoWidth: false,
+        scrollX: true,
+        language: dataTableLanguage({
+            infoEmpty: translate('Aucune facture'),
+            zeroRecords: translate('Aucune facture trouvée'),
+            emptyTable: translate('Aucune facture disponible'),
+        }),
+        columnDefs: [
+            { targets: [0], className: 'font-mono text-xs font-semibold' },
+            { targets: [4, 5, 6], className: 'dt-right font-semibold' },
+            { targets: [-1], className: 'dt-right' },
+            { targets: '_all', defaultContent: '' },
+        ],
+        createdRow: (row, data) => {
+            if (data?.id) {
+                row.dataset.rowHref = `/modules/invoices?section=invoices&invoice=${data.id}`;
+                row.dataset.rowActionLabel = translate('Détail');
+                row.classList.add('app-row-openable');
+            }
+        },
+    });
+});
+
+document.querySelectorAll('[data-purchase-table]').forEach((table) => {
+    new DataTable(table, {
+        ajax: table.dataset.ajaxUrl,
+        columns: [
+            { data: 'number_display', name: 'number', orderable: true, searchable: false },
+            { data: 'date_display', name: 'ordered_at', orderable: true, searchable: false },
+            { data: 'supplier_display', name: 'supplier', orderable: false, searchable: false },
+            { data: 'reference_display', name: 'reference', orderable: false, searchable: false },
+            { data: 'created_by_display', name: 'created_by', orderable: false, searchable: false },
+            { data: 'items_display', name: 'items', orderable: false, searchable: false },
+            { data: 'receipt_display', name: 'status', orderable: true, searchable: false },
+            { data: 'total_amount', name: 'total_amount', orderable: true, searchable: false },
+            { data: 'action', name: 'action', orderable: false, searchable: false },
+        ],
+        order: [[1, 'desc']],
+        pageLength: Number(table.dataset.length || 25),
+        processing: true,
+        serverSide: true,
+        autoWidth: false,
+        scrollX: true,
+        language: dataTableLanguage({
+            infoEmpty: translate('Aucun achat'),
+            zeroRecords: translate('Aucun achat trouvé'),
+            emptyTable: translate('Aucun achat disponible'),
+        }),
+        columnDefs: [
+            { targets: [0], className: 'font-mono text-xs font-semibold' },
+            { targets: [7], className: 'dt-right font-semibold' },
+            { targets: [-1], className: 'dt-right' },
+            { targets: '_all', defaultContent: '' },
+        ],
+        createdRow: (row, data) => {
+            if (data?.row_url) {
+                row.dataset.rowHref = data.row_url;
+                row.dataset.rowActionLabel = translate('Détail');
+                row.classList.add('app-row-openable');
+            }
         },
     });
 });

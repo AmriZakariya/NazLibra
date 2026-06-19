@@ -78,6 +78,38 @@ class PurchaseTest extends TestCase
         ]);
     }
 
+    public function test_purchases_datatable_endpoint_returns_searchable_rows(): void
+    {
+        $this->seed();
+
+        $supplier = Contact::where('kind', 'supplier')->firstOrFail();
+        $item = Item::where('type', '!=', 'service')->firstOrFail();
+
+        $this->post(route('purchases.store'), [
+            'supplier_id' => $supplier->id,
+            'ordered_at' => now()->toDateString(),
+            'expected_at' => now()->addDays(3)->toDateString(),
+            'supplier_invoice' => 'FA-DT-001',
+            'status' => 'ordered',
+            'items' => [
+                ['item_id' => $item->id, 'quantity' => 3, 'unit_cost' => 12],
+            ],
+        ])->assertRedirect();
+
+        $purchase = Purchase::orderByDesc('id')->firstOrFail();
+
+        $this->getJson(route('purchases.data', [
+            'draw' => 1,
+            'start' => 0,
+            'length' => 10,
+            'search' => ['value' => $purchase->number],
+        ]))
+            ->assertOk()
+            ->assertJsonPath('draw', 1)
+            ->assertJsonFragment(['row_url' => route('module', ['module' => 'purchases', 'section' => 'list', 'detail_purchase' => $purchase->id])])
+            ->assertSee($purchase->number, false);
+    }
+
     public function test_purchase_can_be_partially_received(): void
     {
         $this->seed();

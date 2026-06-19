@@ -179,13 +179,13 @@ class DemoSeeder extends Seeder
 
             $tenant->users()->sync([
                 $owner->id => ['role' => 'owner', 'permissions' => json_encode(['*']), 'store_access' => json_encode(['Oubra Store'])],
-                $cashier->id => ['role' => 'cashier', 'permissions' => json_encode(['sales.view', 'sales.create', 'items.view']), 'store_access' => json_encode(['Oubra Store'])],
+                $cashier->id => ['role' => 'cashier', 'permissions' => json_encode(['sales.view', 'sales.create', 'online_orders.view', 'online_orders.create', 'items.view']), 'store_access' => json_encode(['Oubra Store'])],
             ]);
 
             foreach ([
                 ['Owner', 'owner', ['*']],
-                ['Manager', 'manager', ['dashboard.view', 'items.*', 'sales.*', 'purchases.*', 'contacts.*', 'finance.*', 'reports.view']],
-                ['Caissier', 'cashier', ['sales.view', 'sales.create', 'contacts.create', 'items.view']],
+                ['Manager', 'manager', ['dashboard.view', 'items.*', 'sales.*', 'online_orders.*', 'purchases.*', 'contacts.*', 'finance.*', 'reports.view']],
+                ['Caissier', 'cashier', ['sales.view', 'sales.create', 'online_orders.view', 'online_orders.create', 'contacts.create', 'items.view']],
                 ['Bibliothécaire', 'librarian', ['loans.*', 'contacts.view', 'items.view']],
                 ['Stockiste', 'stockist', ['items.*', 'stock.adjust', 'stock.transfer', 'purchases.view', 'purchases.receive']],
             ] as [$name, $key, $permissions]) {

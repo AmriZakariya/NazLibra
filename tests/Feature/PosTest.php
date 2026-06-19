@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\Contact;
+use App\Models\CashRegisterMovement;
+use App\Models\CashRegisterSession;
 use App\Models\DeliveryOrder;
 use App\Models\Item;
 use App\Models\PosTicket;
@@ -347,6 +349,8 @@ class PosTest extends TestCase
             'allow_oversell' => '1',
             'show_out_of_stock' => '1',
             'show_cash_drawer_navbar' => '0',
+            'online_store_enabled' => '0',
+            'online_pickup_store' => 'magasin-principal',
         ])->assertRedirect();
 
         $settings = Tenant::firstOrFail()->fresh()->settings;
@@ -355,6 +359,8 @@ class PosTest extends TestCase
         $this->assertTrue((bool) data_get($settings, 'pos.allow_oversell'));
         $this->assertTrue((bool) data_get($settings, 'pos.show_out_of_stock'));
         $this->assertFalse((bool) data_get($settings, 'pos.show_cash_drawer_navbar'));
+        $this->assertFalse((bool) data_get($settings, 'online_store.enabled'));
+        $this->assertSame('magasin-principal', data_get($settings, 'online_store.pickup_store'));
     }
 
     public function test_settings_store_section_groups_pos_and_stock_settings(): void
@@ -368,6 +374,8 @@ class PosTest extends TestCase
             ->assertSee('Autoriser la vente hors stock')
             ->assertSee('Afficher les articles hors stock dans la caisse')
             ->assertSee('Afficher le tiroir caisse dans la barre supérieure')
+            ->assertSee('Boutique en ligne')
+            ->assertSee('Activer la boutique publique')
             ->assertSee('Préférences magasin');
     }
 
@@ -479,6 +487,82 @@ class PosTest extends TestCase
         $response->assertSessionHasErrors('cart');
     }
 
+    public function test_pos_reports_location_stock_shortage_without_technical_exception(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+        $locationId = $inventoryService->defaultLocationId($tenant->id);
+        $item = Item::where('tenant_id', $tenant->id)->where('type', '!=', 'service')->firstOrFail();
+        $item->update(['stock_quantity' => 10, 'status' => 'active']);
+        \App\Models\ItemLocationStock::updateOrCreate(
+            [
+                'tenant_id' => $tenant->id,
+                'item_id' => $item->id,
+                'variant_id' => null,
+                'location_id' => $locationId,
+            ],
+            [
+                'quantity' => 1,
+                'reserved_quantity' => 0,
+            ],
+        );
+
+        $response = $this->from(route('pos'))->post(route('pos.store'), [
+            'cart' => json_encode([
+                ['id' => $item->id, 'quantity' => 2],
+            ]),
+            'discount_amount' => 0,
+            'cash_amount' => (float) $item->sale_price * 2,
+        ]);
+
+        $response->assertRedirect(route('pos'));
+        $response->assertSessionHasErrors('cart');
+        $message = session('errors')->first('cart');
+
+        $this->assertStringContainsString('Stock insuffisant pour '.$item->title, $message);
+        $this->assertStringContainsString('disponible 1, demandé 2', $message);
+        $this->assertStringNotContainsString('Insufficient stock', $message);
+    }
+
+    public function test_pos_search_uses_current_location_stock_instead_of_global_stock(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $inventoryService = app(\App\Services\Inventory\InventoryService::class);
+        $locationId = $inventoryService->defaultLocationId($tenant->id);
+        $item = Item::where('tenant_id', $tenant->id)->where('type', '!=', 'service')->firstOrFail();
+        $item->update([
+            'title' => 'Produit stock magasin test',
+            'stock_quantity' => 10,
+            'status' => 'active',
+            'is_enabled' => true,
+            'checkout_visible' => true,
+        ]);
+        \App\Models\ItemLocationStock::updateOrCreate(
+            [
+                'tenant_id' => $tenant->id,
+                'item_id' => $item->id,
+                'variant_id' => null,
+                'location_id' => $locationId,
+            ],
+            [
+                'quantity' => 1,
+                'reserved_quantity' => 0,
+            ],
+        );
+
+        $this->getJson(route('pos.search', ['q' => 'Produit stock magasin test', 'stock' => 'all']))
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $item->id,
+                'stock' => 1,
+                'global_stock' => 10,
+            ]);
+    }
+
     public function test_pos_allows_oversell_when_setting_is_enabled(): void
     {
         $this->seed();
@@ -521,17 +605,12 @@ class PosTest extends TestCase
             ->assertSee('Créer facture');
     }
 
-    public function test_manual_sale_add_screen_renders(): void
+    public function test_manual_sale_add_screen_redirects_to_pos(): void
     {
         $this->seed();
 
         $this->get(route('module', ['module' => 'sales', 'section' => 'add']))
-            ->assertOk()
-            ->assertSee('Ajouter une vente')
-            ->assertSee('Articles de la vente')
-            ->assertSee('Paiement')
-            ->assertSee('Résumé vente')
-            ->assertSee('data-manual-sale-form', false);
+            ->assertRedirect(route('pos'));
     }
 
     public function test_manual_sale_can_be_created_with_payment_and_stock_decrement(): void
@@ -849,6 +928,69 @@ class PosTest extends TestCase
             'reference_id' => $return->id,
         ]);
         $this->assertSame('cash', $sale->fresh()->metadata['refund']['method']);
+    }
+
+    public function test_sale_can_be_partially_refunded_with_damaged_stock_and_cash_drawer_impact(): void
+    {
+        $this->seed();
+
+        $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 10)->firstOrFail();
+        $initialStock = $item->stock_quantity;
+        $unitPrice = round((float) $item->sale_price, 2);
+
+        $this->post(route('sales.store'), [
+            '_idempotency_key' => 'partial-refund-sale',
+            'sold_at' => now()->format('Y-m-d H:i:s'),
+            'sale_status' => 'paid',
+            'cash_amount' => $unitPrice * 3,
+            'items' => [
+                ['item_id' => $item->id, 'quantity' => 3, 'unit_price' => $unitPrice, 'discount_amount' => 0, 'tax_rate' => 0],
+            ],
+        ])->assertRedirect();
+
+        $sale = Sale::with('items')->latest('id')->firstOrFail();
+        $line = $sale->items->firstOrFail();
+        $this->assertSame($initialStock - 3, $item->fresh()->stock_quantity);
+
+        $this->post(route('cash-register.open'), [
+            'store_key' => 'magasin-principal',
+            'opening_amount' => 100,
+        ])->assertRedirect(route('module', 'cash-register'));
+
+        $this->post(route('sales.refund', $sale), [
+            '_idempotency_key' => 'partial-refund-return',
+            'refund_method' => 'cash',
+            'refund_reason' => 'Client retourne un exemplaire abîmé',
+            'return_lines' => [
+                $line->id => [
+                    'sale_item_id' => $line->id,
+                    'quantity' => 1,
+                    'stock_action' => 'damaged',
+                    'reason' => 'Couverture déchirée',
+                ],
+            ],
+        ])->assertRedirect();
+
+        $return = SaleReturn::firstOrFail();
+        $sale->refresh();
+
+        $this->assertSame('partially_refunded', $sale->status);
+        $this->assertSame('partial', $return->refund_scope);
+        $this->assertSame('damaged', $return->stock_disposition);
+        $this->assertSame($unitPrice, (float) $return->total_amount);
+        $this->assertSame($initialStock - 3, $item->fresh()->stock_quantity);
+        $this->assertDatabaseHas('stock_movements', [
+            'item_id' => $item->id,
+            'type' => 'damage',
+            'quantity_delta' => 0,
+            'reference_type' => SaleReturn::class,
+            'reference_id' => $return->id,
+            'reason' => 'Couverture déchirée',
+        ]);
+        $movement = CashRegisterMovement::where('type', 'sale_refund_cash')->firstOrFail();
+        $this->assertSame($sale->id, $movement->sale_id);
+        $this->assertSame($unitPrice, (float) $movement->amount);
+        $this->assertSame(100.0 - $unitPrice, (float) CashRegisterSession::firstOrFail()->expected_cash_amount);
     }
 
     public function test_can_create_and_update_delivery_order(): void

@@ -8,6 +8,7 @@ use App\Models\Invoice;
 use App\Models\InvoicePayment;
 use App\Models\Item;
 use App\Models\Tenant;
+use App\Services\CashRegisterService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -18,6 +19,7 @@ class InvoiceService
         private readonly CommercialDocumentCalculator $calculator,
         private readonly DocumentNumberGenerator $numbers,
         private readonly DocumentAuditTrail $audit,
+        private readonly CashRegisterService $cashRegister,
     ) {
     }
 
@@ -29,6 +31,9 @@ class InvoiceService
             $calculation = $this->calculator->calculate($this->payloadWithSnapshots($tenant, $data));
             $issueDate = Carbon::parse($data['issue_date'] ?? now())->toDateString();
             $dueDate = ! empty($data['due_date']) ? Carbon::parse($data['due_date'])->toDateString() : null;
+            if (! $dueDate) {
+                throw ValidationException::withMessages(['due_date' => "La date d'échéance est obligatoire."]);
+            }
             if ($dueDate && $dueDate < $issueDate) {
                 throw ValidationException::withMessages(['due_date' => "La date d'échéance doit être après la date d'émission."]);
             }
@@ -71,6 +76,9 @@ class InvoiceService
             $dueDate = array_key_exists('due_date', $data)
                 ? (! empty($data['due_date']) ? Carbon::parse($data['due_date'])->toDateString() : null)
                 : $invoice->due_date?->toDateString();
+            if (! $dueDate) {
+                throw ValidationException::withMessages(['due_date' => "La date d'échéance est obligatoire."]);
+            }
             if ($dueDate && $issueDate && $dueDate < $issueDate) {
                 throw ValidationException::withMessages(['due_date' => "La date d'échéance doit être après la date d'émission."]);
             }
@@ -167,6 +175,8 @@ class InvoiceService
             if (! empty($data['idempotency_key'])) {
                 $existing = InvoicePayment::where('tenant_id', $invoice->tenant_id)->where('idempotency_key', $data['idempotency_key'])->first();
                 if ($existing) {
+                    $this->cashRegister->recordInvoicePayment($invoice->tenant()->firstOrFail(), $invoice, $existing);
+
                     return $existing;
                 }
             }
@@ -199,6 +209,7 @@ class InvoiceService
             ]);
             $from = $invoice->status;
             $this->refreshPaymentStatus($invoice);
+            $this->cashRegister->recordInvoicePayment($tenant, $invoice->fresh(), $payment);
             $this->audit->record($tenant, $invoice->fresh(), 'payment_recorded', $from, $invoice->fresh()->status, [
                 'payment' => ['number' => $payment->number, 'amount' => $payment->amount, 'method' => $payment->method],
             ]);

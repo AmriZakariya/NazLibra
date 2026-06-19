@@ -15,11 +15,14 @@
         <div class="flex gap-2">
             <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Exporter</button>
             @if ($module === 'sales')
-                <a href="{{ route('module', ['module' => 'sales', 'section' => 'add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Ajouter vente</a>
+                <a href="{{ route('pos') }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Ajouter vente</a>
                 <a href="{{ route('pos') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Caisse</a>
             @elseif ($module === 'invoices')
                 <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoice-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouvelle facture</a>
                 <a href="{{ route('module', ['module' => 'invoices', 'section' => 'estimate-add']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Nouveau devis</a>
+            @elseif ($module === 'online-orders')
+                <a href="{{ route('module', ['module' => 'online-orders', 'section' => 'add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouvelle précommande</a>
+                <a href="{{ route('module', ['module' => 'online-orders', 'section' => 'list']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Liste</a>
             @elseif ($module === 'purchases')
                 <a href="{{ route('module', ['module' => 'purchases', 'section' => 'add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouvel achat</a>
                 <a href="{{ route('module', ['module' => 'contacts', 'section' => 'supplier-add']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Fournisseur</a>
@@ -37,7 +40,7 @@
         @php
             $salesSection = request('section', 'list');
             $salesTabs = [
-                'add' => ['label' => 'Ajouter vente', 'href' => route('module', ['module' => 'sales', 'section' => 'add'])],
+                'add' => ['label' => 'Ajouter vente', 'href' => route('pos')],
                 'list' => ['label' => 'Liste des ventes', 'href' => route('module', 'sales')],
                 'quote-add' => ['label' => 'Nouveau devis', 'href' => route('module', ['module' => 'sales', 'section' => 'quote-add'])],
                 'quotes' => ['label' => 'Liste de devis', 'href' => route('module', ['module' => 'sales', 'section' => 'quotes'])],
@@ -60,33 +63,61 @@
         </details>
 
         @if ($salesSection === 'add')
+            @php
+                $manualSaleInvoice = $salePrefillInvoice ?? null;
+                $manualSaleOrder = $salePrefillOnlineOrder ?? null;
+                $manualSaleSource = $manualSaleInvoice ?? $manualSaleOrder;
+                $manualSaleSnapshot = $manualSaleInvoice?->customer_snapshot ?? ($manualSaleOrder ? [
+                    'name' => $manualSaleOrder->customer_name,
+                    'phone' => $manualSaleOrder->customer_phone,
+                ] : []);
+                $manualSalePrefillLines = $manualSaleSource
+                    ? $manualSaleSource->items
+                        ->filter(fn ($line) => filled($line->item_id))
+                        ->values()
+                    : collect();
+                $manualSaleContactId = $manualSaleInvoice?->customer_id ?? $manualSaleOrder?->contact_id;
+                $manualSaleReference = $manualSaleSource?->number;
+                $manualSaleOrderDocumentDiscount = $manualSaleOrder
+                    ? max(0, (float) $manualSaleOrder->discount_amount - $manualSaleOrder->items->sum('discount_amount'))
+                    : 0;
+            @endphp
             <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]" data-manual-sale-form>
                 <form id="manual-sale-form" action="{{ route('sales.store') }}" method="POST" class="space-y-5">
                     @csrf
                     <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
+                    @if ($manualSaleInvoice)
+                        <input type="hidden" name="source_invoice_id" value="{{ $manualSaleInvoice->id }}">
+                    @endif
+                    @if ($manualSaleOrder)
+                        <input type="hidden" name="source_online_order_id" value="{{ $manualSaleOrder->id }}">
+                    @endif
                     <div class="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                         <div class="border-b border-slate-200 p-5 dark:border-white/10">
                             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div>
                                     <p class="text-sm font-semibold text-brand">Ventes · Ajouter/mettre à jour</p>
-                                    <h2 class="mt-1 text-xl font-semibold">Ajouter une vente</h2>
-                                    <p class="mt-1 max-w-3xl text-sm text-slate-500">Saisie complète hors caisse: client, articles, remises, taxes, paiement, échéance et livraison.</p>
+                                    <h2 class="mt-1 text-xl font-semibold">{{ $manualSaleSource ? 'Créer une vente depuis '.$manualSaleSource->number : 'Ajouter une vente' }}</h2>
+                                    <p class="mt-1 max-w-3xl text-sm text-slate-500">{{ $manualSaleSource ? 'Les articles, prix et client sont préremplis. Vérifiez le stock et saisissez le paiement avant validation définitive.' : 'Saisie complète hors caisse: client, articles, remises, taxes, paiement, échéance et livraison.' }}</p>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
                                     <x-status-pill tone="primary">{{ $nextSaleNumber ?? 'BL' }}</x-status-pill>
                                     <x-status-pill tone="info">MAD · DH</x-status-pill>
+                                    @if ($manualSaleSource)
+                                        <x-status-pill tone="warning">Source {{ $manualSaleSource->number }}</x-status-pill>
+                                    @endif
                                 </div>
                             </div>
                         </div>
 
                         <div class="grid gap-4 p-5 lg:grid-cols-4">
-                            <label class="space-y-1.5 lg:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Client existant</span><select name="contact_id" data-searchable-select data-placeholder="Rechercher client..." class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Client Grand Public / nouveau</option>@foreach ($salesClients as $client)<option value="{{ $client->id }}" @selected(old('contact_id') == $client->id)>{{ $client->name }}{{ $client->phone ? ' · '.$client->phone : '' }}{{ $client->advance_balance > 0 ? ' · avance '.$money($client->advance_balance) : '' }}</option>@endforeach</select></label>
+                            <label class="space-y-1.5 lg:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Client existant</span><select name="contact_id" data-searchable-select data-placeholder="Rechercher client..." class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Client Grand Public / nouveau</option>@foreach ($salesClients as $client)<option value="{{ $client->id }}" @selected((string) old('contact_id', $manualSaleContactId) === (string) $client->id)>{{ $client->name }}{{ $client->phone ? ' · '.$client->phone : '' }}{{ $client->advance_balance > 0 ? ' · avance '.$money($client->advance_balance) : '' }}</option>@endforeach</select></label>
                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date de vente *</span><input name="sold_at" value="{{ old('sold_at', now()->format('Y-m-d\\TH:i')) }}" type="datetime-local" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date d'échéance</span><input name="due_date" value="{{ old('due_date') }}" type="date" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nouveau client</span><input name="client_name" value="{{ old('client_name') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom client"></label>
-                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="client_phone" value="{{ old('client_phone') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212..."></label>
-                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Référence</span><input name="reference_number" value="{{ old('reference_number') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Bon, commande, école..."></label>
-                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut paiement *</span><select name="sale_status" data-manual-sale-status class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="paid" @selected(old('sale_status', 'paid') === 'paid')>Payée</option><option value="partial" @selected(old('sale_status') === 'partial')>Partielle</option><option value="unpaid" @selected(old('sale_status') === 'unpaid')>À crédit / impayée</option></select></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date d'échéance</span><input name="due_date" value="{{ old('due_date', $manualSaleInvoice?->due_date?->toDateString()) }}" type="date" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nouveau client</span><input name="client_name" value="{{ old('client_name', $manualSaleContactId ? null : data_get($manualSaleSnapshot, 'name')) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom client"></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="client_phone" value="{{ old('client_phone', data_get($manualSaleSnapshot, 'phone')) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212..."></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Référence</span><input name="reference_number" value="{{ old('reference_number', $manualSaleReference) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Bon, commande, école..."></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut paiement *</span><select name="sale_status" data-manual-sale-status class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="paid" @selected(old('sale_status', $manualSaleOrder ? 'unpaid' : 'paid') === 'paid')>Payée</option><option value="partial" @selected(old('sale_status') === 'partial')>Partielle</option><option value="unpaid" @selected(old('sale_status', $manualSaleOrder ? 'unpaid' : 'paid') === 'unpaid')>À crédit / impayée</option></select></label>
                         </div>
                     </div>
 
@@ -104,15 +135,20 @@
                                     <tr><th class="px-3 py-3">Article *</th><th class="px-3 py-3 w-24">Qté</th><th class="px-3 py-3 w-32">Prix DH</th><th class="px-3 py-3 w-32">Remise</th><th class="px-3 py-3 w-28">Taxe</th><th class="px-3 py-3">Description</th><th class="px-3 py-3 w-32 text-right">Total</th></tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-200 dark:divide-white/10">
-                                    @for ($i = 0; $i < 8; $i++)
-                                        @php $oldItem = old("items.$i.item_id"); @endphp
+                                    @for ($i = 0; $i < max(8, $manualSalePrefillLines->count()); $i++)
+                                        @php
+                                            $prefillLine = $manualSalePrefillLines->get($i);
+                                            $oldItem = old("items.$i.item_id", $prefillLine?->item_id);
+                                            $prefillTaxRate = data_get($prefillLine, 'tax_rate', $prefillLine?->item?->tax?->rate ?? 0);
+                                            $prefillDescription = data_get($prefillLine, 'description') ?: data_get($prefillLine, 'note');
+                                        @endphp
                                         <tr class="manual-sale-line">
                                             <td class="px-3 py-3"><select name="items[{{ $i }}][item_id]" data-manual-sale-item data-searchable-select data-placeholder="Rechercher article..." class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Choisir article</option>@foreach ($quoteItems as $item)<option value="{{ $item->id }}" data-price="{{ (float) $item->sale_price }}" data-tax="{{ (float) ($item->tax?->rate ?? 20) }}" data-stock="{{ $item->type === 'service' ? 999999 : (int) $item->stock_quantity }}" @selected((string) $oldItem === (string) $item->id)>{{ $item->title }} · {{ $item->barcode ?: $item->isbn ?: $item->item_code }} · {{ $money($item->sale_price) }} · stock {{ $item->type === 'service' ? '∞' : $item->stock_quantity }}</option>@endforeach</select></td>
-                                            <td class="px-3 py-3"><input name="items[{{ $i }}][quantity]" data-manual-sale-qty value="{{ old("items.$i.quantity") }}" type="number" min="1" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="1"></td>
-                                            <td class="px-3 py-3"><input name="items[{{ $i }}][unit_price]" data-manual-sale-price value="{{ old("items.$i.unit_price") }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="0.00"></td>
-                                            <td class="px-3 py-3"><input name="items[{{ $i }}][discount_amount]" data-manual-sale-line-discount value="{{ old("items.$i.discount_amount", 0) }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></td>
-                                            <td class="px-3 py-3"><input name="items[{{ $i }}][tax_rate]" data-manual-sale-tax value="{{ old("items.$i.tax_rate", 20) }}" type="number" min="0" max="100" step="0.01" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></td>
-                                            <td class="px-3 py-3"><input name="items[{{ $i }}][description]" value="{{ old("items.$i.description") }}" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Description / note ligne"></td>
+                                            <td class="px-3 py-3"><input name="items[{{ $i }}][quantity]" data-manual-sale-qty value="{{ old("items.$i.quantity", $prefillLine ? max(1, (int) ceil((float) $prefillLine->quantity)) : null) }}" type="number" min="1" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="1"></td>
+                                            <td class="px-3 py-3"><input name="items[{{ $i }}][unit_price]" data-manual-sale-price value="{{ old("items.$i.unit_price", $prefillLine?->unit_price) }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="0.00"></td>
+                                            <td class="px-3 py-3"><input name="items[{{ $i }}][discount_amount]" data-manual-sale-line-discount value="{{ old("items.$i.discount_amount", $prefillLine?->discount_amount ?? 0) }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></td>
+                                            <td class="px-3 py-3"><input name="items[{{ $i }}][tax_rate]" data-manual-sale-tax value="{{ old("items.$i.tax_rate", $prefillTaxRate) }}" type="number" min="0" max="100" step="0.01" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></td>
+                                            <td class="px-3 py-3"><input name="items[{{ $i }}][description]" value="{{ old("items.$i.description", $prefillDescription ?: ($prefillLine ? 'Depuis '.$manualSaleReference : null)) }}" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Description / note ligne"></td>
                                             <td class="px-3 py-3 text-right font-semibold" data-manual-sale-line-total>0,00 DH</td>
                                         </tr>
                                     @endfor
@@ -125,15 +161,15 @@
                         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                             <h3 class="font-semibold">Remises, charges & note</h3>
                             <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale DH</span><input name="discount_amount" data-manual-sale-discount value="{{ old('discount_amount', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Autres charges DH</span><input name="other_charges" data-manual-sale-charges value="{{ old('other_charges', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                                <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Note</span><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Conditions, commentaire, école, classe...">{{ old('note') }}</textarea></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale DH</span><input name="discount_amount" data-manual-sale-discount value="{{ old('discount_amount', $manualSaleInvoice?->document_discount_total ?? $manualSaleOrderDocumentDiscount) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Autres charges DH</span><input name="other_charges" data-manual-sale-charges value="{{ old('other_charges', $manualSaleInvoice?->fee_total ?? 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Note</span><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Conditions, commentaire, école, classe...">{{ old('note', $manualSaleSource ? 'Vente créée depuis '.$manualSaleSource->number.($manualSaleOrder?->customer_note ? ' · '.$manualSaleOrder->customer_note : '') : null) }}</textarea></label>
                             </div>
                         </div>
                         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                             <h3 class="font-semibold">Livraison optionnelle</h3>
                             <div class="mt-4 grid gap-3">
-                                <textarea name="delivery_address" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Adresse de livraison">{{ old('delivery_address') }}</textarea>
+                                <textarea name="delivery_address" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Adresse de livraison">{{ old('delivery_address', $manualSaleOrder?->delivery_address) }}</textarea>
                                 <input name="delivery_note" value="{{ old('delivery_note') }}" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note livraison / livreur">
                             </div>
                         </div>
@@ -146,12 +182,16 @@
 
                 <aside class="space-y-5 xl:sticky xl:top-24 xl:self-start">
                     <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                        <h3 class="font-semibold">Paiement</h3>
+                            <h3 class="font-semibold">Paiement</h3>
+                            @if ($manualSaleOrder && (float) $manualSaleOrder->deposit_amount > 0)
+                                <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                                    Acompte déclaré sur {{ $manualSaleOrder->number }}: <strong>{{ $money($manualSaleOrder->deposit_amount) }}</strong>. Choisissez ci-dessous la méthode réellement encaissée.
+                                </div>
+                            @endif
                         <div class="mt-4 grid gap-3">
                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Espèces</span><input form="manual-sale-form" name="cash_amount" data-manual-sale-payment value="{{ old('cash_amount', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Carte</span><input form="manual-sale-form" name="card_amount" data-manual-sale-payment value="{{ old('card_amount', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Virement</span><input form="manual-sale-form" name="transfer_amount" data-manual-sale-payment value="{{ old('transfer_amount', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Avance client</span><input form="manual-sale-form" name="advance_amount" data-manual-sale-payment value="{{ old('advance_amount', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                         </div>
                         <p class="mt-3 text-xs text-slate-500">Les champs paiement sont synchronisés dans le formulaire de vente.</p>
                     </div>
@@ -263,7 +303,7 @@
                     </form>
                 </article>
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[1120px] text-left text-sm">
+                        <table data-commercial-invoice-table data-ajax-url="{{ route('documents.invoices.data', request()->only(['q', 'invoice_status', 'archived'])) }}" class="w-full min-w-[1120px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
                                 <tr>
                                     <th class="px-3 py-3">N° devis</th>
@@ -428,6 +468,8 @@
                                 @forelse ($commercialInvoices as $invoice)
                                     @php
                                         $statusTone = $invoiceStatusTones[$invoice->status] ?? 'info';
+                                        $canEditListInvoice = in_array($invoice->status, $invoiceEditableStatuses, true) && (float) $invoice->amount_paid <= 0;
+                                        $canCreateListSale = $invoice->archived_at === null && in_array($invoice->status, ['sent', 'viewed', 'partially_paid', 'paid', 'overdue'], true);
                                     @endphp
                                     <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5">
                                         <td class="px-3 py-3 font-mono text-xs font-semibold">{{ $invoice->number }}</td>
@@ -440,9 +482,27 @@
                                         <td class="px-3 py-3"><x-status-pill :tone="$statusTone">{{ $invoiceStatusLabels[$invoice->status] ?? $invoice->status }}</x-status-pill></td>
                                         <td class="px-3 py-3">{{ $invoice->creator?->name ?? '—' }}</td>
                                         <td class="px-3 py-3 text-right">
-                                            <div class="flex justify-end gap-2">
-                                                <a href="{{ route('documents.invoices.pdf', $invoice) }}" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">PDF</a>
-                                            </div>
+                                            <details class="sale-action-menu" data-sale-action-menu>
+                                                <summary>Action</summary>
+                                                <div class="sale-action-panel">
+                                                    <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $invoice->id]) }}"><span>VO</span> Voir détail</a>
+                                                    @if ($canEditListInvoice)
+                                                        <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoice-edit', 'invoice' => $invoice->id]) }}"><span>ED</span> Modifier</a>
+                                                    @else
+                                                        <button type="button" disabled><span>LK</span> Modification verrouillée</button>
+                                                    @endif
+                                                    @if ($invoice->sourceSale || $canCreateListSale)
+                                                        <a href="{{ $invoice->sourceSale ? route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $invoice->sourceSale->id]) : route('pos', ['source_invoice' => $invoice->id]) }}"><span>PV</span> {{ $invoice->sourceSale ? 'Voir vente liée' : 'Encaisser en caisse' }}</a>
+                                                    @else
+                                                        <button type="button" disabled title="Envoyez la facture avant de l'encaisser en caisse."><span>PV</span> Encaissement verrouillé</button>
+                                                    @endif
+                                                    <form action="{{ route('documents.invoices.duplicate', $invoice) }}" method="POST" onsubmit="return confirm('Dupliquer cette facture en nouveau brouillon ?')">
+                                                        @csrf
+                                                        <button type="submit"><span>CP</span> Dupliquer</button>
+                                                    </form>
+                                                    <a href="{{ route('documents.invoices.pdf', $invoice) }}"><span>PDF</span> Télécharger PDF</a>
+                                                </div>
+                                            </details>
                                         </td>
                                     </tr>
                                 @empty
@@ -451,7 +511,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $commercialInvoices->links() }}</div>
+                    <div class="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-white/10">Recherche, tri et pagination gérés par le tableau.</div>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="border-b border-slate-200 p-4 dark:border-white/10">
@@ -563,7 +623,71 @@
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <div class="overflow-x-auto"><table class="w-full min-w-[1040px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N° retour</th><th class="px-3 py-3">Vente</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Méthode</th><th class="px-3 py-3">Stock</th><th class="px-3 py-3 text-right">Montant</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($saleReturns as $return)<tr><td class="px-3 py-3 font-semibold">{{ $return->number }}</td><td class="px-3 py-3">{{ $return->sale?->number }}</td><td class="px-3 py-3">{{ $return->contact?->name ?? 'Client comptoir' }}</td><td class="px-3 py-3">{{ $return->returned_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3">{{ $return->refund_method }}</td><td class="px-3 py-3"><x-status-pill :tone="$return->restock ? 'success' : 'warning'">{{ $return->restock ? 'Restocké' : 'Sans restock' }}</x-status-pill></td><td class="px-3 py-3 text-right font-semibold">{{ $money($return->total_amount) }}</td><td class="px-3 py-3 text-right"><button class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white" type="button" onclick="document.getElementById('return-detail-{{ $return->id }}').showModal()">Détail</button></td></tr><dialog id="return-detail-{{ $return->id }}" class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"><div class="border-b border-slate-200 p-5 dark:border-white/10"><div class="flex justify-between gap-4"><div><p class="text-sm font-semibold text-brand">Détail retour</p><h3 class="mt-1 text-xl font-semibold">{{ $return->number }} · {{ $money($return->total_amount) }}</h3><p class="mt-1 text-sm text-slate-500">{{ $return->reason ?? 'Sans motif' }}</p></div><button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 dark:border-white/10" type="button">×</button></div></div><div class="p-5 space-y-2">@foreach ($return->lines as $line)<div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-white/5"><span>{{ $line['quantity'] }} x {{ $line['name'] }}</span><strong>{{ $money($line['total_price']) }}</strong></div>@endforeach</div></dialog>@empty<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun retour trouvé.</td></tr>@endforelse</tbody></table></div><div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $saleReturns->links() }}</div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[1040px] text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                                <tr><th class="px-3 py-3">N° retour</th><th class="px-3 py-3">Vente</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Méthode</th><th class="px-3 py-3">Stock</th><th class="px-3 py-3">Portée</th><th class="px-3 py-3 text-right">Montant</th><th class="px-3 py-3 text-right">Action</th></tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                @forelse ($saleReturns as $return)
+                                    @php
+                                        $returnDispositionLabel = [
+                                            'restock' => 'Restocké',
+                                            'restocked' => 'Restocké',
+                                            'damaged' => 'Abîmé',
+                                            'lost' => 'Perdu',
+                                            'waste' => 'Rebut',
+                                            'no_restock' => 'Sans restock',
+                                            'mixed' => 'Mixte',
+                                        ][$return->stock_disposition ?? ($return->restock ? 'restock' : 'no_restock')] ?? 'Sans restock';
+                                        $returnDispositionTone = in_array($return->stock_disposition, ['restock', 'restocked'], true) || ($return->restock && ! $return->stock_disposition) ? 'success' : (($return->stock_disposition ?? null) === 'mixed' ? 'warning' : 'danger');
+                                    @endphp
+                                    <tr>
+                                        <td class="px-3 py-3 font-semibold">{{ $return->number }}</td>
+                                        <td class="px-3 py-3">{{ $return->sale?->number }}</td>
+                                        <td class="px-3 py-3">{{ $return->contact?->name ?? 'Client comptoir' }}</td>
+                                        <td class="px-3 py-3">{{ $return->returned_at?->format('d/m/Y H:i') }}</td>
+                                        <td class="px-3 py-3">{{ $return->refund_method }}</td>
+                                        <td class="px-3 py-3"><x-status-pill :tone="$returnDispositionTone">{{ $returnDispositionLabel }}</x-status-pill></td>
+                                        <td class="px-3 py-3"><x-status-pill :tone="$return->refund_scope === 'partial' ? 'warning' : 'info'">{{ $return->refund_scope === 'partial' ? 'Partiel' : 'Total' }}</x-status-pill></td>
+                                        <td class="px-3 py-3 text-right font-semibold">{{ $money($return->total_amount) }}</td>
+                                        <td class="px-3 py-3 text-right"><button class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white" type="button" onclick="document.getElementById('return-detail-{{ $return->id }}').showModal()">Détail</button></td>
+                                    </tr>
+                                    <dialog id="return-detail-{{ $return->id }}" class="app-dialog w-[min(760px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                        <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                                            <div class="flex justify-between gap-4">
+                                                <div>
+                                                    <p class="text-sm font-semibold text-brand">Détail retour</p>
+                                                    <h3 class="mt-1 text-xl font-semibold">{{ $return->number }} · {{ $money($return->total_amount) }}</h3>
+                                                    <p class="mt-1 text-sm text-slate-500">{{ $return->reason ?? 'Sans motif' }}</p>
+                                                </div>
+                                                <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 dark:border-white/10" type="button">×</button>
+                                            </div>
+                                        </div>
+                                        <div class="max-h-[60vh] space-y-2 overflow-y-auto p-5">
+                                            @foreach ($return->lines as $line)
+                                                @php
+                                                    $lineAction = $line['stock_action'] ?? ($return->restock ? 'restock' : 'no_restock');
+                                                    $lineActionLabel = ['restock' => 'Restocké', 'damaged' => 'Abîmé', 'lost' => 'Perdu', 'waste' => 'Rebut', 'no_restock' => 'Sans restock'][$lineAction] ?? $lineAction;
+                                                @endphp
+                                                <div class="grid gap-3 rounded-lg bg-slate-50 px-3 py-3 text-sm dark:bg-white/5 sm:grid-cols-[minmax(0,1fr)_90px_120px] sm:items-center">
+                                                    <div class="min-w-0">
+                                                        <strong class="block truncate">{{ $line['quantity'] }} x {{ $line['name'] }}</strong>
+                                                        <span class="mt-1 block text-xs text-slate-500">{{ $lineActionLabel }}{{ ! empty($line['reason']) ? ' · '.$line['reason'] : '' }}</span>
+                                                    </div>
+                                                    <span class="text-xs font-semibold uppercase text-slate-500 sm:text-center">{{ $return->refund_scope === 'partial' ? 'Partiel' : 'Total' }}</span>
+                                                    <strong class="sm:text-right">{{ $money($line['total_price']) }}</strong>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </dialog>
+                                @empty
+                                    <tr><td colspan="9" class="px-4 py-12 text-center text-sm text-slate-500">Aucun retour trouvé.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $saleReturns->links() }}</div>
                 </article>
             </section>
         @elseif ($salesSection === 'delivery')
@@ -615,6 +739,7 @@
                         <option value="paid" @selected(request('payment_status') === 'paid')>payé</option>
                         <option value="partial" @selected(request('payment_status') === 'partial')>Partiel</option>
                         <option value="unpaid" @selected(request('payment_status') === 'unpaid')>Impayé</option>
+                        <option value="partially_refunded" @selected(request('payment_status') === 'partially_refunded')>Retour partiel</option>
                         <option value="refunded" @selected(request('payment_status') === 'refunded')>Remboursé</option>
                         <option value="cancelled" @selected(request('payment_status') === 'cancelled')>Annulé</option>
                     </select>
@@ -664,22 +789,45 @@
                                     $due = max(0, (float) $sale->total_amount - (float) $paid);
                                     $paymentStatus = match ($sale->status) {
                                         'refunded' => 'Remboursé',
+                                        'partially_refunded' => 'Retour partiel',
                                         'cancelled' => 'Annulé',
                                         default => $due <= 0.001 ? 'payé' : ((float) $paid > 0 ? 'Partiel' : 'Impayé'),
                                     };
-                                    $statusTone = $paymentStatus === 'payé' ? 'success' : ($paymentStatus === 'Partiel' ? 'warning' : (in_array($paymentStatus, ['Remboursé', 'Annulé'], true) ? 'info' : 'danger'));
+                                    $statusTone = $paymentStatus === 'payé' ? 'success' : (in_array($paymentStatus, ['Partiel', 'Retour partiel'], true) ? 'warning' : (in_array($paymentStatus, ['Remboursé', 'Annulé'], true) ? 'info' : 'danger'));
                                     $canReceivePayment = $due > 0.001 && ! in_array($sale->status, ['paid', 'refunded', 'cancelled'], true);
+                                    $saleReturnedQuantities = [];
+                                    foreach ($sale->returns as $existingReturn) {
+                                        foreach (($existingReturn->lines ?? []) as $existingReturnLine) {
+                                            $existingSaleItemId = (int) ($existingReturnLine['sale_item_id'] ?? 0);
+                                            $saleReturnedQuantities[$existingSaleItemId] = ($saleReturnedQuantities[$existingSaleItemId] ?? 0) + (int) ($existingReturnLine['quantity'] ?? 0);
+                                        }
+                                    }
                                     $invoice = $sale->invoice;
-                                    $invoiceNumber = $invoice?->number;
-                                    $invoiceDueDate = $invoice?->due_date?->toDateString();
+                                    $sourceInvoice = $sale->sourceInvoice;
+                                    $sourceOnlineOrder = $sale->sourceOnlineOrder;
+                                    $documentInvoice = $sourceInvoice ?: $invoice;
+                                    $invoiceNumber = $sourceInvoice?->number ?? $invoice?->number;
+                                    $invoiceDueDate = $sourceInvoice?->due_date?->toDateString() ?? $invoice?->due_date?->toDateString();
                                     $paymentDueDate = data_get($sale->metadata, 'due_date');
                                     $displayDueDate = $invoiceDueDate ?: ($due > 0.001 ? $paymentDueDate : null);
-                                    $dueContext = $invoiceDueDate ? 'Facture' : ($displayDueDate ? 'Paiement' : null);
-                                    $invoiceGenerated = (bool) $invoice;
-                                    $effectiveSaleInvoiceStatus = $invoice ? (in_array($invoice->status, ['paid', 'cancelled', 'refunded'], true)
+                                    $dueContext = $sourceInvoice ? 'Facture source' : ($invoiceDueDate ? 'Facture' : ($displayDueDate ? 'Paiement' : null));
+                                    $invoiceGenerated = (bool) $documentInvoice;
+                                    $saleHasSourceInvoice = (bool) $sourceInvoice;
+                                    $effectiveSaleInvoiceStatus = $documentInvoice ? (in_array($documentInvoice->status, ['paid', 'cancelled', 'refunded', 'draft', 'sent', 'viewed', 'partially_paid', 'overdue', 'archived'], true)
+                                        ? $documentInvoice->status
+                                        : ($documentInvoice->due_date && $documentInvoice->due_date->toDateString() < now()->toDateString() ? 'overdue' : $documentInvoice->status)) : null;
+                                    if ($sourceInvoice && ! in_array($effectiveSaleInvoiceStatus, ['paid', 'cancelled', 'draft', 'archived'], true) && $sourceInvoice->due_date && $sourceInvoice->due_date->toDateString() < now()->toDateString() && (float) $sourceInvoice->balance_due > 0) {
+                                        $effectiveSaleInvoiceStatus = 'overdue';
+                                    } elseif ($invoice && ! $sourceInvoice) {
+                                        $effectiveSaleInvoiceStatus = in_array($invoice->status, ['paid', 'cancelled', 'refunded'], true)
                                         ? $invoice->status
-                                        : ($invoice->due_date && $invoice->due_date->toDateString() < now()->toDateString() ? 'overdue' : $invoice->status)) : null;
-                                    $invoiceStatusLabelForSale = $invoice ? ([
+                                        : ($invoice->due_date && $invoice->due_date->toDateString() < now()->toDateString() ? 'overdue' : $invoice->status);
+                                    }
+                                    $invoiceStatusLabelForSale = $documentInvoice ? ([
+                                        'draft' => 'Facture brouillon',
+                                        'sent' => 'Facture envoyée',
+                                        'viewed' => 'Facture vue',
+                                        'partially_paid' => 'Facture partielle',
                                         'paid' => 'Facture payée',
                                         'partial' => 'Facture partielle',
                                         'unpaid' => 'Facture impayée',
@@ -687,12 +835,19 @@
                                         'issued' => 'Facture émise',
                                         'cancelled' => 'Facture annulée',
                                         'refunded' => 'Facture remboursée',
+                                        'archived' => 'Facture archivée',
                                     ][$effectiveSaleInvoiceStatus] ?? $effectiveSaleInvoiceStatus) : 'Non facturé';
+                                    $documentFlowLabel = $sourceOnlineOrder
+                                        ? 'Précommande convertie en vente'
+                                        : ($sourceInvoice
+                                            ? 'Facture créée avant la vente'
+                                            : ($invoice ? 'Vente créée puis facture générée' : 'Vente sans facture'));
                                     $saleCreatedBy = data_get($sale->metadata, 'created_by_name') ?: $sale->user?->name ?: 'Utilisateur inconnu';
                                     $saleCreatedAt = data_get($sale->metadata, 'created_by_at') ?: $sale->created_at?->toIso8601String();
                                     $saleUpdatedBy = data_get($sale->metadata, 'updated_by_name') ?: data_get($sale->metadata, 'edited_by_name') ?: '—';
                                     $saleUpdatedAt = data_get($sale->metadata, 'updated_by_at') ?: data_get($sale->metadata, 'edited_at');
                                     $invoiceCreatedBy = $invoice ? (data_get($invoice->metadata, 'created_by_name') ?: $invoice->user?->name ?: 'Utilisateur inconnu') : null;
+                                    $sourceInvoiceCreatedBy = $sourceInvoice ? ($sourceInvoice->creator?->name ?? 'Utilisateur inconnu') : null;
                                     $invoiceUpdatedBy = $invoice ? (data_get($invoice->metadata, 'updated_by_name') ?: '—') : null;
                                     $systemNoteDate = $sale->sold_at?->format('d/m/Y H:i') ?? '—';
                                     $systemNote = data_get($sale->metadata, 'system_note')
@@ -765,10 +920,16 @@
                                                 @else
                                                     <button type="button" disabled><span>OK</span> Paiement soldé</button>
                                                 @endif
-                                                <form action="{{ route('sales.invoice.store', $sale) }}" method="POST">@csrf<button type="submit"><span>FA</span> {{ $invoiceGenerated ? 'Mettre à jour facture' : 'Créer facture' }}</button></form>
-                                                <button type="button" onclick="document.getElementById('sale-invoice-{{ $sale->id }}').showModal()"><span>{{ $invoiceGenerated ? 'FA' : 'BL' }}</span> {{ $invoiceGenerated ? 'Voir facture' : 'Préparer facture / BL' }}</button>
+                                                @if ($sourceInvoice)
+                                                    <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $sourceInvoice->id]) }}"><span>FI</span> Voir facture source</a>
+                                                @else
+                                                    <form action="{{ route('sales.invoice.store', $sale) }}" method="POST">@csrf<button type="submit"><span>FA</span> {{ $invoiceGenerated ? 'Mettre à jour facture' : 'Créer facture' }}</button></form>
+                                                @endif
+                                                <button type="button" onclick="document.getElementById('sale-invoice-{{ $sale->id }}').showModal()"><span>{{ $sourceInvoice ? 'FI' : ($invoiceGenerated ? 'FA' : 'BL') }}</span> {{ $sourceInvoice ? 'Document source' : ($invoiceGenerated ? 'Voir facture' : 'Préparer facture / BL') }}</button>
                                                 <a href="{{ route('sales.pdf', $sale) }}"><span>PDF</span> Télécharger vente</a>
-                                                @if ($invoiceGenerated)
+                                                @if ($sourceInvoice)
+                                                    <a href="{{ route('documents.invoices.pdf', $sourceInvoice) }}"><span>PDF</span> PDF facture source</a>
+                                                @elseif ($invoiceGenerated)
                                                     <a href="{{ route('sales.invoices.pdf', $invoice) }}"><span>FA</span> Télécharger facture</a>
                                                 @endif
                                                 <button type="button" onclick="document.getElementById('sale-detail-{{ $sale->id }}').showModal()"><span>TP</span> Voir ticket POS</button>
@@ -902,11 +1063,17 @@
                                                     <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                                         <h4 class="text-sm font-semibold">Documents</h4>
                                                         <div class="mt-3 grid gap-2 text-sm">
-                                                            <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Facture</span><strong>{{ $invoiceNumber ?? 'Non créée' }}</strong></div>
+                                                            <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Origine</span><strong class="text-right">{{ $documentFlowLabel }}</strong></div>
+                                                            @if ($sourceOnlineOrder)
+                                                                <a href="{{ route('module', ['module' => 'online-orders', 'section' => 'list', 'order' => $sourceOnlineOrder->id]) }}" class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 transition hover:text-brand dark:bg-white/5"><span class="text-slate-500">Précommande source</span><strong>{{ $sourceOnlineOrder->number }}</strong></a>
+                                                            @endif
+                                                            <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">{{ $saleHasSourceInvoice ? 'Facture source' : 'Facture' }}</span><strong>{{ $invoiceNumber ?? 'Non créée' }}</strong></div>
                                                             @if ($invoiceGenerated)
                                                                 <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Statut facture</span><strong>{{ $invoiceStatusLabelForSale }}</strong></div>
-                                                                <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Facture créée par</span><strong>{{ $invoiceCreatedBy }}</strong></div>
-                                                                <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Facture mise à jour</span><strong>{{ $invoiceUpdatedBy }}</strong></div>
+                                                                <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Facture créée par</span><strong>{{ $sourceInvoiceCreatedBy ?? $invoiceCreatedBy }}</strong></div>
+                                                                @if (! $saleHasSourceInvoice)
+                                                                    <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Facture mise à jour</span><strong>{{ $invoiceUpdatedBy }}</strong></div>
+                                                                @endif
                                                             @endif
                                                             <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Date vente</span><strong>{{ $sale->sold_at?->format('d/m/Y') }}</strong></div>
                                                             <div class="flex justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span class="text-slate-500">Magasin</span><strong>{{ $currentStore['name'] ?? $tenant->name }}</strong></div>
@@ -931,7 +1098,10 @@
                                                 <script type="application/json" id="sale-receipt-data-{{ $sale->id }}">@json($receiptPayload)</script>
                                                 <button class="sale-thermal-print rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950" type="button" data-receipt-source="sale-receipt-data-{{ $sale->id }}">Imprimer ticket</button>
                                                 <a href="{{ route('sales.pdf', $sale) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950">PDF vente</a>
-                                                @if ($invoiceGenerated)
+                                                @if ($sourceInvoice)
+                                                    <a href="{{ route('documents.invoices.pdf', $sourceInvoice) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950">PDF facture source</a>
+                                                    <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $sourceInvoice->id]) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950">Voir facture</a>
+                                                @elseif ($invoiceGenerated)
                                                     <a href="{{ route('sales.invoices.pdf', $invoice) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950">PDF facture</a>
                                                 @else
                                                     <form action="{{ route('sales.invoice.store', $sale) }}" method="POST">@csrf<button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950" type="submit">Créer facture</button></form>
@@ -1107,15 +1277,20 @@
                                 <dialog id="sale-invoice-{{ $sale->id }}" class="app-dialog w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
                                     <div class="border-b border-slate-200 p-5 dark:border-white/10">
                                         <div class="flex items-start justify-between gap-4">
-                                            <div><p class="text-sm font-semibold text-brand">{{ $invoiceGenerated ? 'Facture client' : 'Création facture' }}</p><h3 class="mt-1 text-xl font-semibold">{{ $invoiceNumber ?? 'Facture à créer' }}</h3></div>
+                                            <div><p class="text-sm font-semibold text-brand">{{ $sourceInvoice ? 'Facture source' : ($invoiceGenerated ? 'Facture client' : 'Création facture') }}</p><h3 class="mt-1 text-xl font-semibold">{{ $invoiceNumber ?? 'Facture à créer' }}</h3></div>
                                             <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
                                         </div>
                                     </div>
                                     <div class="p-5">
+                                        @if ($sourceInvoice)
+                                            <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-100">
+                                                Cette vente a été créée depuis la facture {{ $sourceInvoice->number }}. Le document source reste la référence fiscale; aucune facture doublon ne sera générée depuis cette vente.
+                                            </div>
+                                        @endif
                                         <div class="sale-invoice-sheet rounded-2xl border border-slate-200 bg-white p-6 text-slate-950 dark:border-white/10">
                                             <div class="flex flex-wrap items-start justify-between gap-6 border-b border-slate-200 pb-5">
                                                 <div><strong class="text-lg">{{ $tenant->name }}</strong><p class="mt-1 text-sm text-slate-500">{{ $tenant->phone }} · ICE {{ $tenant->ice }}</p></div>
-                                                <div class="text-right"><p class="text-xs font-semibold uppercase text-slate-500">{{ $invoiceGenerated ? 'Facture' : 'Pro forma' }}</p><h4 class="text-2xl font-bold">{{ $invoiceNumber ?? 'Non créée' }}</h4><p class="text-sm text-slate-500">{{ $sale->sold_at?->format('d/m/Y') }}{{ $displayDueDate ? ' · échéance '.\Illuminate\Support\Carbon::parse($displayDueDate)->format('d/m/Y') : '' }}</p></div>
+                                                <div class="text-right"><p class="text-xs font-semibold uppercase text-slate-500">{{ $sourceInvoice ? 'Facture source' : ($invoiceGenerated ? 'Facture' : 'Pro forma') }}</p><h4 class="text-2xl font-bold">{{ $invoiceNumber ?? 'Non créée' }}</h4><p class="text-sm text-slate-500">{{ $sale->sold_at?->format('d/m/Y') }}{{ $displayDueDate ? ' · échéance '.\Illuminate\Support\Carbon::parse($displayDueDate)->format('d/m/Y') : '' }}</p></div>
                                             </div>
                                             <div class="mt-5 grid gap-4 sm:grid-cols-2">
                                                 <div class="rounded-xl bg-slate-50 p-4"><span class="text-xs font-semibold uppercase text-slate-500">Client</span><p class="mt-1 font-semibold">{{ $sale->contact?->name ?? 'Client Grand Public' }}</p><p class="text-sm text-slate-500">{{ $sale->contact?->phone ?? '' }}</p></div>
@@ -1134,42 +1309,148 @@
                                                 <div class="flex justify-between"><span class="text-slate-500">TVA incluse</span><strong>{{ $money($sale->tax_amount) }}</strong></div>
                                                 <div class="flex justify-between border-t border-slate-200 pt-2 text-lg"><span>Total</span><strong>{{ $money($sale->total_amount) }}</strong></div>
                                             </div>
-                                            @if ($invoice?->note)
-                                                <p class="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{{ $invoice->note }}</p>
+                                            @if ($sourceInvoice?->customer_message || $invoice?->note)
+                                                <p class="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{{ $sourceInvoice?->customer_message ?: $invoice->note }}</p>
                                             @endif
                                         </div>
-                                        <form action="{{ route('sales.invoice.store', $sale) }}" method="POST" class="mt-4 grid gap-3 sm:grid-cols-[180px_1fr_auto_auto]">
-                                            @csrf
-                                            <input name="due_date" value="{{ $invoiceDueDate ?: $paymentDueDate }}" type="date" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                            <input name="invoice_note" value="{{ $invoice?->note }}" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note facture">
-                                            <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">{{ $invoiceGenerated ? 'Mettre à jour' : 'Créer facture' }}</button>
-                                            @if ($invoiceGenerated)
-                                                <a href="{{ route('sales.invoices.pdf', $invoice) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Télécharger PDF</a>
-                                            @endif
-                                        </form>
+                                        @if ($sourceInvoice)
+                                            <div class="mt-4 flex flex-wrap justify-end gap-2">
+                                                <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $sourceInvoice->id]) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Ouvrir la facture source</a>
+                                                <a href="{{ route('documents.invoices.pdf', $sourceInvoice) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Télécharger PDF</a>
+                                            </div>
+                                        @else
+                                            <form action="{{ route('sales.invoice.store', $sale) }}" method="POST" class="mt-4 grid gap-3 sm:grid-cols-[180px_1fr_auto_auto]">
+                                                @csrf
+                                                <input name="due_date" value="{{ $invoiceDueDate ?: $paymentDueDate }}" type="date" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                                <input name="invoice_note" value="{{ $invoice?->note }}" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note facture">
+                                                <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">{{ $invoiceGenerated ? 'Mettre à jour' : 'Créer facture' }}</button>
+                                                @if ($invoiceGenerated)
+                                                    <a href="{{ route('sales.invoices.pdf', $invoice) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Télécharger PDF</a>
+                                                @endif
+                                            </form>
+                                        @endif
                                     </div>
                                 </dialog>
                                 @if ((string) request('detail_sale') === (string) $sale->id)
                                     <script>window.addEventListener('DOMContentLoaded', () => document.getElementById('sale-detail-{{ $sale->id }}')?.showModal());</script>
                                 @endif
-                                @if (($invoice && (string) request('invoice') === (string) $invoice->id) || (string) request('ticket') === (string) $sale->id)
+                                @if (($invoice && (string) request('invoice') === (string) $invoice->id) || ($sourceInvoice && (string) request('invoice') === (string) $sourceInvoice->id) || (string) request('ticket') === (string) $sale->id)
                                     <script>window.addEventListener('DOMContentLoaded', () => document.getElementById('sale-invoice-{{ $sale->id }}')?.showModal());</script>
                                 @endif
                                 @if ($sale->status !== 'refunded' && $sale->status !== 'cancelled')
-                                    <dialog id="sale-refund-{{ $sale->id }}" class="app-dialog w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
-                                        <form action="{{ route('sales.refund', $sale) }}" method="POST" class="p-5">
+                                    <dialog id="sale-refund-{{ $sale->id }}" class="app-dialog w-[min(860px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                        <form action="{{ route('sales.refund', $sale) }}" method="POST" class="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
                                             @csrf
                                             <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
-                                            <div class="flex items-start justify-between gap-4">
-                                                <div><p class="text-sm font-semibold text-rose-600">Retour de vente</p><h3 class="mt-1 text-xl font-semibold">{{ $sale->number }} · {{ $money($sale->total_amount) }}</h3></div>
-                                                <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                                            <div class="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50/80 p-5 dark:border-white/10 dark:bg-white/[0.04]">
+                                                <div class="min-w-0">
+                                                    <p class="text-sm font-semibold text-rose-600 dark:text-rose-300">Retour de vente</p>
+                                                    <div class="mt-1 flex flex-wrap items-center gap-2">
+                                                        <h3 class="text-2xl font-semibold tracking-tight">{{ $sale->number }}</h3>
+                                                        <x-status-pill tone="danger">{{ $money($sale->total_amount) }}</x-status-pill>
+                                                    </div>
+                                                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ $sale->contact?->name ?? 'Client Grand Public' }} · {{ $sale->sold_at?->format('d/m/Y H:i') }} · {{ $sale->items->count() }} article(s)</p>
+                                                </div>
+                                                <button class="dialog-close grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button">×</button>
                                             </div>
-                                            <div class="mt-5 grid gap-3">
-                                                <select name="refund_method" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="cash">Espèces</option><option value="card">Carte</option><option value="transfer">Virement</option><option value="credit">Avoir client</option></select>
-                                                <textarea name="refund_reason" class="min-h-24 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Motif du retour"></textarea>
-                                                <label class="flex items-center gap-2 text-sm font-medium"><input name="restock" value="1" type="checkbox" checked class="rounded border-slate-300"> Remettre les articles en stock</label>
+
+                                            <div class="min-h-0 overflow-y-auto p-5">
+                                                <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+                                                    <div class="space-y-4">
+                                                        <div class="grid gap-3 sm:grid-cols-2">
+                                                            <label class="space-y-1.5">
+                                                                <span class="text-xs font-semibold uppercase text-slate-500">Mode de remboursement</span>
+                                                                <select name="refund_method" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium dark:border-white/10 dark:bg-slate-900">
+                                                                    <option value="cash">Espèces</option>
+                                                                    <option value="card">Carte</option>
+                                                                    <option value="transfer">Virement</option>
+                                                                    <option value="credit">Avoir client</option>
+                                                                </select>
+                                                            </label>
+                                                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                                                                <span class="text-xs font-semibold uppercase text-slate-500">Montant maximum</span>
+                                                                <strong class="mt-1 block text-2xl">{{ $money(max(0, (float) $sale->total_amount - (float) $sale->returns->sum('total_amount'))) }}</strong>
+                                                                <span class="mt-1 block text-xs text-slate-500">Le montant réel suit les quantités sélectionnées.</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <label class="space-y-1.5">
+                                                            <span class="text-xs font-semibold uppercase text-slate-500">Motif général du retour *</span>
+                                                            <textarea name="refund_reason" required class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm leading-6 dark:border-white/10 dark:bg-slate-900" placeholder="Ex: article échangé, erreur de commande, produit endommagé...">{{ old('refund_reason') }}</textarea>
+                                                        </label>
+
+                                                        <section class="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-white/[0.03]">
+                                                            <div class="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/[0.04]">
+                                                                <div>
+                                                                    <h4 class="text-sm font-semibold">Lignes à retourner</h4>
+                                                                    <p class="mt-0.5 text-xs text-slate-500">Saisissez 0 pour ignorer une ligne. Le stock est traité ligne par ligne.</p>
+                                                                </div>
+                                                                <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">{{ $sale->items->count() }} ligne(s)</span>
+                                                            </div>
+                                                            <div class="max-h-80 overflow-y-auto">
+                                                                @foreach ($sale->items as $line)
+                                                                    @php
+                                                                        $lineReturned = (int) ($saleReturnedQuantities[$line->id] ?? 0);
+                                                                        $lineRemaining = max(0, (int) $line->quantity - $lineReturned);
+                                                                        $lineIsService = $line->item?->type === 'service';
+                                                                        $lineUnitRefund = (float) $line->quantity > 0 ? (float) $line->total_price / (float) $line->quantity : 0;
+                                                                    @endphp
+                                                                    <div class="grid gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0 dark:border-white/10 xl:grid-cols-[minmax(0,1fr)_88px_170px_minmax(180px,1fr)] xl:items-start">
+                                                                        <div class="min-w-0">
+                                                                            <strong class="block truncate">{{ $line->name }}</strong>
+                                                                            <span class="mt-1 block text-xs text-slate-500">{{ $lineIsService ? 'Service' : ($line->item?->item_code ?? $line->item?->barcode ?? 'Article') }} · vendu x{{ (int) $line->quantity }} · déjà retourné x{{ $lineReturned }} · {{ $money($lineUnitRefund) }}/unité</span>
+                                                                        </div>
+                                                                        <label class="space-y-1">
+                                                                            <span class="text-[11px] font-semibold uppercase text-slate-500">Quantité</span>
+                                                                            <input type="hidden" name="return_lines[{{ $line->id }}][sale_item_id]" value="{{ $line->id }}">
+                                                                            <input name="return_lines[{{ $line->id }}][quantity]" value="{{ $lineRemaining }}" min="0" max="{{ $lineRemaining }}" type="number" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-center text-sm font-semibold dark:border-white/10 dark:bg-slate-900" @disabled($lineRemaining <= 0)>
+                                                                        </label>
+                                                                        <label class="space-y-1">
+                                                                            <span class="text-[11px] font-semibold uppercase text-slate-500">Stock</span>
+                                                                            <select name="return_lines[{{ $line->id }}][stock_action]" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" @disabled($lineRemaining <= 0)>
+                                                                                @if ($lineIsService)
+                                                                                    <option value="no_restock">Service · sans stock</option>
+                                                                                @else
+                                                                                    <option value="restock">Retour en stock vendable</option>
+                                                                                    <option value="damaged">Abîmé / casse</option>
+                                                                                    <option value="lost">Perdu / non récupéré</option>
+                                                                                    <option value="waste">Mis au rebut</option>
+                                                                                    <option value="no_restock">Sans mouvement stock</option>
+                                                                                @endif
+                                                                            </select>
+                                                                        </label>
+                                                                        <label class="space-y-1">
+                                                                            <span class="text-[11px] font-semibold uppercase text-slate-500">Motif ligne</span>
+                                                                            <input name="return_lines[{{ $line->id }}][reason]" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Obligatoire si perte/casse/rebut" @disabled($lineRemaining <= 0)>
+                                                                        </label>
+                                                                    </div>
+                                                                @endforeach
+                                                            </div>
+                                                        </section>
+                                                    </div>
+
+                                                    <aside class="space-y-3">
+                                                        <div class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-100">
+                                                            <strong class="block">Action sensible</strong>
+                                                            <p class="mt-2 leading-6">Un retour partiel garde la vente ouverte comme “Retour partiel”. Un retour total passe la vente en “Remboursé”.</p>
+                                                        </div>
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                            <h4 class="text-sm font-semibold">Résumé</h4>
+                                                            <dl class="mt-3 space-y-2 text-sm">
+                                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Vente</dt><dd class="font-semibold">{{ $sale->number }}</dd></div>
+                                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Client</dt><dd class="max-w-36 truncate font-semibold">{{ $sale->contact?->name ?? 'Comptoir' }}</dd></div>
+                                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Payé</dt><dd class="font-semibold">{{ $money($paid) }}</dd></div>
+                                                                <div class="flex justify-between gap-3 border-t border-slate-200 pt-3 dark:border-white/10"><dt class="font-semibold">À rembourser</dt><dd class="font-bold text-rose-600 dark:text-rose-300">{{ $money($sale->total_amount) }}</dd></div>
+                                                            </dl>
+                                                        </div>
+                                                    </aside>
+                                                </div>
                                             </div>
-                                            <div class="mt-5 flex justify-end gap-2"><button class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button">Annuler</button><button class="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white" type="submit">Valider le retour</button></div>
+
+                                            <div class="flex flex-col-reverse gap-2 border-t border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-950 sm:flex-row sm:items-center sm:justify-end">
+                                                <button class="dialog-close rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button">Annuler</button>
+                                                <button class="rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-rose-500/20 transition hover:bg-rose-700" type="submit">Valider le retour</button>
+                                            </div>
                                         </form>
                                     </dialog>
                                     <dialog id="sale-delivery-{{ $sale->id }}" class="app-dialog w-[min(780px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
@@ -1284,6 +1565,9 @@
                 'invoice-add' => ['label' => 'Nouvelle facture', 'href' => route('module', ['module' => 'invoices', 'section' => 'invoice-add'])],
                 'estimate-add' => ['label' => 'Nouveau devis', 'href' => route('module', ['module' => 'invoices', 'section' => 'estimate-add'])],
             ];
+            $detailInvoice = $selectedCommercialInvoice ?? null;
+            $editInvoice = $invoiceSection === 'invoice-edit' ? $detailInvoice : null;
+            $invoiceEditableStatuses = ['draft', 'sent'];
             $invoiceStatusLabels = [
                 'draft' => 'Brouillon',
                 'sent' => 'Envoyée',
@@ -1312,27 +1596,122 @@
             </summary>
             <nav class="app-tab-nav">
                 @foreach ($invoiceTabs as $key => $tab)
-                    <a href="{{ $tab['href'] }}" class="app-tab-link {{ $invoiceSection === $key || ($key === 'invoices' && ! in_array($invoiceSection, ['estimates', 'invoice-add', 'estimate-add'], true)) ? 'is-active' : '' }}">{{ $tab['label'] }}</a>
+                    <a href="{{ $tab['href'] }}" class="app-tab-link {{ $invoiceSection === $key || ($key === 'invoices' && ! in_array($invoiceSection, ['estimates', 'invoice-add', 'estimate-add', 'invoice-edit'], true)) ? 'is-active' : '' }}">{{ $tab['label'] }}</a>
                 @endforeach
             </nav>
         </details>
 
         @if ($invoiceSection === 'invoices')
-            @php $detailInvoice = request()->query('invoice') ? $commercialInvoices->firstWhere('id', (int) request()->query('invoice')) : null; @endphp
             <section class="mt-6 space-y-4">
                 @if ($detailInvoice)
-                    <article class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
-                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Facture enregistrée</p>
-                                <p class="text-sm text-emerald-700 dark:text-emerald-300">{{ $detailInvoice->number }} · {{ $money($detailInvoice->total) }} · {{ $invoiceStatusLabels[$detailInvoice->status] ?? $detailInvoice->status }}</p>
+                    @php
+                        $snapshot = $detailInvoice->customer_snapshot ?? [];
+                        $canEditInvoice = in_array($detailInvoice->status, $invoiceEditableStatuses, true) && (float) $detailInvoice->amount_paid <= 0;
+                        $canCreateDetailSale = $detailInvoice->archived_at === null && in_array($detailInvoice->status, ['sent', 'viewed', 'partially_paid', 'paid', 'overdue'], true);
+                    @endphp
+                    <article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <div class="flex flex-col gap-4 border-b border-slate-200 p-5 dark:border-white/10 lg:flex-row lg:items-start lg:justify-between">
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <p class="text-xs font-bold uppercase tracking-wide text-brand">Facture commerciale</p>
+                                    <x-status-pill :tone="$invoiceStatusTones[$detailInvoice->status] ?? 'info'">{{ $invoiceStatusLabels[$detailInvoice->status] ?? $detailInvoice->status }}</x-status-pill>
+                                </div>
+                                <h3 class="mt-2 text-2xl font-bold text-slate-950 dark:text-slate-50">{{ $detailInvoice->number }}</h3>
+                                <p class="mt-1 text-sm text-slate-500">Créée par {{ $detailInvoice->creator?->name ?? '—' }} · version {{ $detailInvoice->version }}</p>
                             </div>
-                            <div class="flex gap-2">
-                                <a href="{{ route('documents.invoices.pdf', $detailInvoice) }}" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">PDF</a>
-                                <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices']) }}" class="rounded-lg border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-slate-950 dark:text-emerald-300">Fermer</a>
+                            <div class="flex flex-wrap gap-2">
+                                <a href="{{ route('documents.invoices.pdf', $detailInvoice) }}" class="inline-flex h-10 items-center gap-2 rounded-lg bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20">
+                                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6"/><path d="M9 18h6"/><path d="M9 12h1"/></svg>
+                                    PDF
+                                </a>
+                                @if ($canEditInvoice)
+                                    <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoice-edit', 'invoice' => $detailInvoice->id]) }}" class="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950">
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                        Modifier
+                                    </a>
+                                @endif
+                                <form action="{{ route('documents.invoices.duplicate', $detailInvoice) }}" method="POST" onsubmit="return confirm('Dupliquer cette facture en nouveau brouillon ?')">@csrf<button class="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950" type="submit">
+                                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                                    Dupliquer
+                                </button></form>
+                                @if ($detailInvoice->sourceSale || $canCreateDetailSale)
+                                    <a href="{{ $detailInvoice->sourceSale ? route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $detailInvoice->sourceSale->id]) : route('pos', ['source_invoice' => $detailInvoice->id]) }}" class="inline-flex h-10 items-center gap-2 rounded-lg {{ $detailInvoice->sourceSale ? 'border border-slate-200 bg-white text-slate-900 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100' : 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/20' }} px-4 text-sm font-semibold transition hover:border-brand hover:text-brand">
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v20"/><path d="M18 2v20"/><path d="M6 8h12"/><path d="M6 16h12"/></svg>
+                                        {{ $detailInvoice->sourceSale ? 'Voir vente liée' : 'Encaisser en caisse' }}
+                                    </a>
+                                @else
+                                    <button type="button" title="Envoyez la facture avant de créer une vente." class="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-slate-200 bg-slate-100 px-4 text-sm font-semibold text-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-slate-500">
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v20"/><path d="M18 2v20"/><path d="M6 8h12"/><path d="M6 16h12"/></svg>
+                                        Encaissement verrouillé
+                                    </button>
+                                @endif
+                                @if (in_array($detailInvoice->status, ['draft', 'sent'], true))
+                                    <form action="{{ route('documents.invoices.send', $detailInvoice) }}" method="POST">@csrf<button class="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950" type="submit">Marquer envoyée</button></form>
+                                @endif
+                                <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices']) }}" class="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold dark:border-white/10 dark:bg-slate-950">Fermer</a>
                             </div>
                         </div>
+                        <div class="grid gap-4 p-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+                            <div class="space-y-4">
+                                <div class="grid gap-3 md:grid-cols-3">
+                                    <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10"><span class="text-xs font-semibold uppercase text-slate-500">Client</span><p class="mt-2 font-semibold">{{ data_get($snapshot, 'name', $detailInvoice->customer?->name ?? 'Client comptoir') }}</p><p class="mt-1 text-xs text-slate-500">{{ data_get($snapshot, 'phone') ?: data_get($snapshot, 'email', '—') }}</p></div>
+                                    <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10"><span class="text-xs font-semibold uppercase text-slate-500">Dates</span><p class="mt-2 text-sm">Émission: <strong>{{ $detailInvoice->issue_date?->format('d/m/Y') ?? '—' }}</strong></p><p class="mt-1 text-sm">Échéance: <strong>{{ $detailInvoice->due_date?->format('d/m/Y') ?? '—' }}</strong></p></div>
+                                    <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10"><span class="text-xs font-semibold uppercase text-slate-500">Référence</span><p class="mt-2 font-semibold">{{ $detailInvoice->customer_reference ?: '—' }}</p><p class="mt-1 text-xs text-slate-500">{{ $detailInvoice->currency }}</p></div>
+                                </div>
+                                <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
+                                    <table class="w-full min-w-[760px] text-left text-sm">
+                                        <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">Ligne</th><th class="px-3 py-3 text-right">Qté</th><th class="px-3 py-3 text-right">Prix</th><th class="px-3 py-3 text-right">Remise</th><th class="px-3 py-3 text-right">TVA</th><th class="px-3 py-3 text-right">Total</th></tr></thead>
+                                        <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                            @foreach ($detailInvoice->items as $line)
+                                                <tr><td class="px-3 py-3"><strong>{{ $line->name }}</strong><p class="mt-1 text-xs text-slate-500">{{ $line->barcode ?: $line->sku ?: $line->description }}</p></td><td class="px-3 py-3 text-right">{{ number_format((float) $line->quantity, 2, ',', ' ') }} {{ $line->unit }}</td><td class="px-3 py-3 text-right">{{ $money($line->unit_price) }}</td><td class="px-3 py-3 text-right">{{ $money($line->discount_amount) }}</td><td class="px-3 py-3 text-right">{{ $money($line->tax_amount) }}</td><td class="px-3 py-3 text-right font-semibold">{{ $money($line->total) }}</td></tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                                @if ($detailInvoice->customer_message || $detailInvoice->internal_note || $detailInvoice->terms)
+                                    <div class="grid gap-3 md:grid-cols-3">
+                                        @if($detailInvoice->customer_message)<div class="rounded-xl bg-slate-50 p-4 text-sm dark:bg-white/5"><span class="text-xs font-semibold uppercase text-slate-500">Message client</span><p class="mt-2">{{ $detailInvoice->customer_message }}</p></div>@endif
+                                        @if($detailInvoice->internal_note)<div class="rounded-xl bg-slate-50 p-4 text-sm dark:bg-white/5"><span class="text-xs font-semibold uppercase text-slate-500">Note interne</span><p class="mt-2">{{ $detailInvoice->internal_note }}</p></div>@endif
+                                        @if($detailInvoice->terms)<div class="rounded-xl bg-slate-50 p-4 text-sm dark:bg-white/5"><span class="text-xs font-semibold uppercase text-slate-500">Conditions</span><p class="mt-2">{{ $detailInvoice->terms }}</p></div>@endif
+                                    </div>
+                                @endif
+                            </div>
+                            <aside class="space-y-3">
+                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                    <h4 class="font-semibold">Totaux</h4>
+                                    <dl class="mt-4 space-y-2 text-sm">
+                                        <div class="flex justify-between"><dt class="text-slate-500">Sous-total HT</dt><dd class="font-semibold">{{ $money($detailInvoice->subtotal) }}</dd></div>
+                                        <div class="flex justify-between"><dt class="text-slate-500">Remises</dt><dd class="font-semibold text-rose-600">{{ $money($detailInvoice->line_discount_total + $detailInvoice->document_discount_total) }}</dd></div>
+                                        <div class="flex justify-between"><dt class="text-slate-500">TVA</dt><dd class="font-semibold">{{ $money($detailInvoice->tax_total) }}</dd></div>
+                                        <div class="flex justify-between"><dt class="text-slate-500">Frais</dt><dd class="font-semibold">{{ $money($detailInvoice->fee_total) }}</dd></div>
+                                        <div class="flex justify-between border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-bold">Total TTC</dt><dd class="font-black text-brand">{{ $money($detailInvoice->total) }}</dd></div>
+                                        <div class="flex justify-between"><dt class="text-slate-500">Payé</dt><dd class="font-semibold text-emerald-600">{{ $money($detailInvoice->amount_paid) }}</dd></div>
+                                        <div class="flex justify-between"><dt class="text-slate-500">Reste</dt><dd class="font-semibold">{{ $money($detailInvoice->balance_due) }}</dd></div>
+                                    </dl>
+                                </div>
+                                <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                    <h4 class="font-semibold">Paiements</h4>
+                                    <div class="mt-3 space-y-2 text-sm">
+                                        @forelse ($detailInvoice->payments as $payment)
+                                            <div class="flex justify-between rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/5"><span>{{ $payment->paid_at?->format('d/m/Y') }} · {{ $payment->method }}</span><strong>{{ $money($payment->amount) }}</strong></div>
+                                        @empty
+                                            <p class="text-slate-500">Aucun paiement enregistré.</p>
+                                        @endforelse
+                                    </div>
+                                    @if (! in_array($detailInvoice->status, ['draft', 'cancelled', 'paid'], true) && (float) $detailInvoice->balance_due > 0)
+                                        <form action="{{ route('documents.invoices.payments.store', $detailInvoice) }}" method="POST" class="mt-4 grid gap-2">@csrf
+                                            <input type="hidden" name="idempotency_key" value="{{ (string) \Illuminate\Support\Str::uuid() }}">
+                                            <input name="amount" type="number" min="0.01" max="{{ $detailInvoice->balance_due }}" step="0.01" required value="{{ $detailInvoice->balance_due }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                            <select name="method" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="cash">Espèces</option><option value="card">Carte</option><option value="transfer">Virement</option><option value="cheque">Chèque</option></select>
+                                            <button class="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">Encaisser</button>
+                                        </form>
+                                    @endif
+                                </div>
+                            </aside>
+                        </div>
                     </article>
+                @elseif (request()->filled('invoice'))
+                    <article class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">Facture introuvable ou non accessible.</article>
                 @endif
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <form method="GET" action="{{ route('module', ['module' => 'invoices', 'section' => 'invoices']) }}" class="flex flex-wrap items-end gap-3">
@@ -1353,14 +1732,18 @@
                         <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-white/10 dark:text-slate-200">{{ $commercialInvoices->total() }} facture(s)</span>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[1120px] text-left text-sm">
+                        <table data-commercial-invoice-table data-ajax-url="{{ route('documents.invoices.data', request()->only(['q', 'invoice_status', 'archived'])) }}" class="w-full min-w-[1120px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
                                 <tr><th class="px-3 py-3">N°</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Émission</th><th class="px-3 py-3">Échéance</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Payé</th><th class="px-3 py-3 text-right">Reste</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3">Créée par</th><th class="px-3 py-3 text-right">Action</th></tr>
                             </thead>
                             <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                                 @forelse ($commercialInvoices as $invoice)
-                                    @php $statusTone = $invoiceStatusTones[$invoice->status] ?? 'info'; @endphp
-                                    <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5">
+                                    @php
+                                        $statusTone = $invoiceStatusTones[$invoice->status] ?? 'info';
+                                        $canEditListInvoice = in_array($invoice->status, $invoiceEditableStatuses, true) && (float) $invoice->amount_paid <= 0;
+                                        $canCreateListSale = $invoice->archived_at === null && in_array($invoice->status, ['sent', 'viewed', 'partially_paid', 'paid', 'overdue'], true);
+                                    @endphp
+                                    <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5" data-row-url="{{ route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $invoice->id]) }}">
                                         <td class="px-3 py-3 font-mono text-xs font-semibold">{{ $invoice->number }}</td>
                                         <td class="px-3 py-3"><strong>{{ data_get($invoice->customer_snapshot, 'name', $invoice->customer?->name ?? 'Client comptoir') }}</strong><p class="mt-1 text-xs text-slate-500">{{ data_get($invoice->customer_snapshot, 'phone') ?: data_get($invoice->customer_snapshot, 'email', '—') }}</p></td>
                                         <td class="px-3 py-3">{{ $invoice->issue_date?->format('d/m/Y') ?? '—' }}</td>
@@ -1371,10 +1754,27 @@
                                         <td class="px-3 py-3"><x-status-pill :tone="$statusTone">{{ $invoiceStatusLabels[$invoice->status] ?? $invoice->status }}</x-status-pill></td>
                                         <td class="px-3 py-3">{{ $invoice->creator?->name ?? '—' }}</td>
                                         <td class="px-3 py-3 text-right">
-                                            <div class="flex justify-end gap-2">
-                                                <a href="{{ route('documents.invoices.pdf', $invoice) }}" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">PDF</a>
-                                                <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $invoice->id]) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</a>
-                                            </div>
+                                            <details class="sale-action-menu" data-sale-action-menu>
+                                                <summary>Action</summary>
+                                                <div class="sale-action-panel">
+                                                    <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $invoice->id]) }}"><span>VO</span> Voir détail</a>
+                                                    @if ($canEditListInvoice)
+                                                        <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoice-edit', 'invoice' => $invoice->id]) }}"><span>ED</span> Modifier</a>
+                                                    @else
+                                                        <button type="button" disabled><span>LK</span> Modification verrouillée</button>
+                                                    @endif
+                                                    @if ($invoice->sourceSale || $canCreateListSale)
+                                                        <a href="{{ $invoice->sourceSale ? route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $invoice->sourceSale->id]) : route('pos', ['source_invoice' => $invoice->id]) }}"><span>PV</span> {{ $invoice->sourceSale ? 'Voir vente liée' : 'Encaisser en caisse' }}</a>
+                                                    @else
+                                                        <button type="button" disabled title="Envoyez la facture avant de l'encaisser en caisse."><span>PV</span> Encaissement verrouillé</button>
+                                                    @endif
+                                                    <form action="{{ route('documents.invoices.duplicate', $invoice) }}" method="POST" onsubmit="return confirm('Dupliquer cette facture en nouveau brouillon ?')">
+                                                        @csrf
+                                                        <button type="submit"><span>CP</span> Dupliquer</button>
+                                                    </form>
+                                                    <a href="{{ route('documents.invoices.pdf', $invoice) }}"><span>PDF</span> Télécharger PDF</a>
+                                                </div>
+                                            </details>
                                         </td>
                                     </tr>
                                 @empty
@@ -1383,7 +1783,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $commercialInvoices->links() }}</div>
+                    <div class="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-white/10">Recherche, tri et pagination gérés par le tableau.</div>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="border-b border-slate-200 p-4 dark:border-white/10">
@@ -1623,73 +2023,137 @@
                     </article>
                 </aside>
             </section>
-        @elseif ($invoiceSection === 'invoice-add')
-            <section class="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
-                <form action="{{ route('documents.invoices.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]" data-invoice-form>
+        @elseif ($invoiceSection === 'invoice-add' || ($invoiceSection === 'invoice-edit' && $editInvoice))
+            @php
+                $isEditingInvoice = $invoiceSection === 'invoice-edit' && $editInvoice;
+                $invoiceFormAction = $isEditingInvoice ? route('documents.invoices.update', $editInvoice) : route('documents.invoices.store');
+                $invoiceFormTitle = $isEditingInvoice ? 'Modifier la facture '.$editInvoice->number : 'Nouvelle facture';
+                $invoiceFormSubtitle = $isEditingInvoice ? 'Ajustez une facture brouillon ou envoyée sans paiement.' : 'Créez une facture commerciale autonome.';
+                $invoiceCustomerSnapshot = $isEditingInvoice ? ($editInvoice->customer_snapshot ?? []) : [];
+                $invoiceExistingLines = $isEditingInvoice
+                    ? $editInvoice->items->map(fn ($line) => [
+                        'item_id' => $line->item_id,
+                        'name' => $line->name,
+                        'description' => $line->description,
+                        'quantity' => $line->quantity,
+                        'unit' => $line->unit,
+                        'unit_price' => $line->unit_price,
+                        'discount_type' => $line->discount_type,
+                        'discount_value' => $line->discount_value,
+                        'tax_rate' => $line->tax_rate,
+                        'tax_inclusive' => $line->tax_inclusive,
+                        'note' => $line->note,
+                    ])->all()
+                    : [['quantity' => 1, 'discount_type' => 'fixed', 'tax_rate' => 0]];
+            @endphp
+            <section class="mt-6 grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_340px]" data-invoice-screen>
+                <form action="{{ $invoiceFormAction }}" method="POST" class="min-w-0 space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]" data-invoice-form>
                     @csrf
+                    @if ($isEditingInvoice)
+                        @method('PUT')
+                        <input type="hidden" name="version" value="{{ $editInvoice->version }}">
+                    @endif
                     <div class="flex flex-col gap-2 border-b border-slate-200 pb-4 dark:border-white/10 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <h2 class="text-lg font-semibold">Nouvelle facture</h2>
-                            <p class="mt-1 text-sm text-slate-500">Créez une facture commerciale autonome.</p>
+                            <h2 class="text-lg font-semibold">{{ $invoiceFormTitle }}</h2>
+                            <p class="mt-1 text-sm text-slate-500">{{ $invoiceFormSubtitle }}</p>
                         </div>
-                        <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white">Enregistrer la facture</button>
+                        <div class="flex flex-wrap gap-2">
+                            @if ($isEditingInvoice)
+                                <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $editInvoice->id]) }}" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold dark:border-white/10">Annuler</a>
+                            @endif
+                            <button data-invoice-submit class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white">{{ $isEditingInvoice ? 'Enregistrer les modifications' : 'Enregistrer la facture' }}</button>
+                        </div>
                     </div>
                     <div class="grid gap-4 lg:grid-cols-4">
-                        <label class="space-y-1.5 lg:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Client existant</span><select name="customer_id" data-searchable-select data-placeholder="Client..." class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Client comptoir / nouveau</option>@foreach ($salesClients as $client)<option value="{{ $client->id }}" @selected(old('customer_id') == $client->id)>{{ $client->name }} · {{ $client->phone }}</option>@endforeach</select></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date d'émission *</span><input name="issue_date" value="{{ old('issue_date', now()->toDateString()) }}" type="date" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Échéance</span><input name="due_date" value="{{ old('due_date') }}" type="date" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nom client</span><input name="customer_name" value="{{ old('customer_name') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom client"></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" value="{{ old('phone') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212..."></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email</span><input name="email" value="{{ old('email') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="client@example.com"></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Référence client</span><input name="customer_reference" value="{{ old('customer_reference') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Bon, école..."></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="status" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="draft" @selected(old('status', 'draft') === 'draft')>Brouillon</option><option value="sent" @selected(old('status') === 'sent')>Envoyée</option></select></label>
-                        <label class="space-y-1.5 lg:col-span-4"><span class="text-xs font-semibold uppercase text-slate-500">Adresse de facturation</span><textarea name="billing_address" class="min-h-16 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Adresse...">{{ old('billing_address') }}</textarea></label>
+                        <label class="space-y-1.5 lg:col-span-2">
+                            <span class="text-xs font-semibold uppercase text-slate-500">Client</span>
+                            <select name="customer_id" data-searchable-select data-placeholder="Rechercher un client existant..." class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                <option value="">Aucun client sélectionné</option>
+                                @foreach ($salesClients as $client)<option value="{{ $client->id }}" @selected((string) old('customer_id', $editInvoice?->customer_id) === (string) $client->id)>{{ $client->name }} · {{ $client->phone }}</option>@endforeach
+                            </select>
+                            <span class="block text-xs text-slate-500">Sélectionnez un client existant ou laissez vide pour saisir un nouveau client ci-dessous.</span>
+                        </label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date d'émission *</span><input name="issue_date" value="{{ old('issue_date', $editInvoice?->issue_date?->toDateString() ?? now()->toDateString()) }}" type="date" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Échéance *</span><input name="due_date" value="{{ old('due_date', $editInvoice?->due_date?->toDateString() ?? now()->addDays(15)->toDateString()) }}" type="date" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nouveau client</span><input name="customer_name" value="{{ old('customer_name', data_get($invoiceCustomerSnapshot, 'name')) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom client si non sélectionné"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" value="{{ old('phone', data_get($invoiceCustomerSnapshot, 'phone')) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212..."></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email</span><input name="email" value="{{ old('email', data_get($invoiceCustomerSnapshot, 'email')) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="client@example.com"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Référence client</span><input name="customer_reference" value="{{ old('customer_reference', $editInvoice?->customer_reference) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Bon, école..."></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="status" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="draft" @selected(old('status', $editInvoice?->status ?? 'draft') === 'draft')>Brouillon</option><option value="sent" @selected(old('status', $editInvoice?->status) === 'sent')>Envoyée</option></select></label>
+                        <label class="space-y-1.5 lg:col-span-4"><span class="text-xs font-semibold uppercase text-slate-500">Adresse de facturation</span><textarea name="billing_address" class="min-h-16 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Adresse...">{{ old('billing_address', data_get($invoiceCustomerSnapshot, 'billing_address')) }}</textarea></label>
                     </div>
-                    <div>
-                        <div class="flex items-center justify-between pb-2">
-                            <h3 class="text-sm font-semibold">Lignes facture</h3>
-                            <button type="button" class="invoice-add-line inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold dark:border-white/10 dark:bg-white/5">
+                    <div class="invoice-lines-panel">
+                        <div class="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h3 class="text-base font-semibold">Lignes facture</h3>
+                                <p class="mt-1 text-sm text-slate-500">Recherchez par titre, code, ISBN, code-barres, catégorie ou marque. Une ligne libre reste possible si l'article n'est pas encore au catalogue.</p>
+                            </div>
+                            <button type="button" class="invoice-add-line inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold shadow-sm transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-white/5">
                                 <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
                                 Ajouter une ligne
                             </button>
                         </div>
-                        <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10" data-invoice-lines>
-                            <div class="grid gap-2 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500 dark:bg-white/5 lg:grid-cols-[1fr_90px_120px_120px_120px_40px]"><span>Article</span><span class="text-center">Qté</span><span class="text-right">Prix</span><span class="text-right">Remise</span><span class="text-right">Total</span><span></span></div>
-                            @for ($i = 0; $i < 5; $i++)
-                                <div class="invoice-line grid gap-2 border-t border-slate-200 p-2 dark:border-white/10 lg:grid-cols-[1fr_90px_120px_120px_120px_40px]" data-line-index="{{ $i }}">
-                                    <select name="lines[{{ $i }}][item_id]" data-invoice-item data-searchable-select data-placeholder="Rechercher article..." class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value=""></option>@foreach ($quoteItems as $item)<option value="{{ $item->id }}" data-price="{{ $item->sale_price }}">{{ $item->title }} · {{ $money($item->sale_price) }} · stock {{ $item->type === 'service' ? '∞' : $item->stock_quantity }}</option>@endforeach</select>
-                                    <input name="lines[{{ $i }}][quantity]" data-invoice-qty type="number" min="1" value="1" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-center dark:border-white/10 dark:bg-slate-900">
-                                    <input name="lines[{{ $i }}][unit_price]" data-invoice-price type="number" min="0" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900">
-                                    <input name="lines[{{ $i }}][discount_value]" data-invoice-discount-line type="number" min="0" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900" placeholder="DH">
-                                    <div class="flex h-10 items-center justify-end rounded-lg bg-slate-50 px-3 text-sm font-semibold dark:bg-white/5" data-invoice-line-total>0,00 DH</div>
-                                    <button type="button" class="invoice-remove-line grid size-10 place-items-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Retirer"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
-                                    <input type="hidden" name="lines[{{ $i }}][discount_type]" value="fixed">
-                                    <input type="hidden" name="lines[{{ $i }}][tax_rate]" value="20">
-                                    <input type="hidden" name="lines[{{ $i }}][note]" value="">
+                        <div class="overflow-visible rounded-xl border border-slate-200 bg-slate-50/60 p-2 dark:border-white/10 dark:bg-white/[0.03]" data-invoice-lines data-product-search-url="{{ route('catalog.quick-search') }}">
+                            <div class="hidden gap-2 px-3 py-2 text-xs font-semibold uppercase text-slate-500 lg:grid lg:grid-cols-[minmax(280px,1fr)_86px_118px_118px_82px_132px_40px]"><span>Article / service</span><span class="text-center">Qté</span><span class="text-right">Prix HT</span><span class="text-right">Remise</span><span class="text-right">TVA</span><span class="text-right">Total</span><span></span></div>
+                            @php
+                                $initialInvoiceLines = collect(old('lines', $invoiceExistingLines))->values();
+                            @endphp
+                            @foreach ($initialInvoiceLines as $i => $line)
+                                <div class="invoice-line relative grid gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-950/60 lg:grid-cols-[minmax(280px,1fr)_86px_118px_118px_82px_132px_40px] lg:items-start" data-line-index="{{ $i }}">
+                                    <div class="invoice-item-picker" data-invoice-item-picker>
+                                        <label class="block text-xs font-semibold uppercase text-slate-500 lg:hidden">Article / service</label>
+                                        <div class="relative mt-1 lg:mt-0">
+                                            <input type="search" data-invoice-item-search autocomplete="off" placeholder="Rechercher article, service, ISBN, code-barres..." value="{{ old("lines.$i.name") }}" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 pr-10 text-sm font-medium outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900">
+                                            <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                                            </span>
+                                            <div class="invoice-item-results hidden" data-invoice-item-results></div>
+                                        </div>
+                                        <div class="mt-2 hidden rounded-lg border border-brand/20 bg-brand/5 px-3 py-2 text-xs text-slate-600 dark:text-slate-300" data-invoice-selected-item></div>
+                                        <input type="hidden" name="lines[{{ $i }}][item_id]" data-invoice-item-id value="{{ data_get($line, 'item_id') }}">
+                                        <input type="hidden" name="lines[{{ $i }}][name]" data-invoice-item-name value="{{ data_get($line, 'name') }}">
+                                        <input type="hidden" name="lines[{{ $i }}][description]" data-invoice-item-description value="{{ data_get($line, 'description') }}">
+                                        <input type="hidden" name="lines[{{ $i }}][unit]" data-invoice-unit value="{{ data_get($line, 'unit') }}">
+                                    </div>
+                                    <label class="block"><span class="block text-xs font-semibold uppercase text-slate-500 lg:hidden">Qté</span><input name="lines[{{ $i }}][quantity]" data-invoice-qty type="number" min="0.01" step="0.01" value="{{ data_get($line, 'quantity', 1) }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm text-center dark:border-white/10 dark:bg-slate-900 lg:mt-0"></label>
+                                    <label class="block"><span class="block text-xs font-semibold uppercase text-slate-500 lg:hidden">Prix HT</span><input name="lines[{{ $i }}][unit_price]" data-invoice-price type="number" min="0" step="0.01" value="{{ data_get($line, 'unit_price') }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900 lg:mt-0" placeholder="0,00"></label>
+                                    <label class="block"><span class="block text-xs font-semibold uppercase text-slate-500 lg:hidden">Remise</span><input name="lines[{{ $i }}][discount_value]" data-invoice-discount-line type="number" min="0" step="0.01" value="{{ data_get($line, 'discount_value') }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900 lg:mt-0" placeholder="DH"></label>
+                                    <label class="block"><span class="block text-xs font-semibold uppercase text-slate-500 lg:hidden">TVA</span><input name="lines[{{ $i }}][tax_rate]" data-invoice-tax type="number" min="0" max="100" step="0.01" value="{{ data_get($line, 'tax_rate', 0) }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900 lg:mt-0"></label>
+                                    <div class="flex h-11 items-center justify-between gap-3 rounded-lg bg-slate-100 px-3 text-sm font-semibold text-slate-900 dark:bg-white/10 dark:text-slate-100"><span class="text-xs uppercase text-slate-500 lg:hidden">Total</span><span data-invoice-line-total>0,00 DH</span></div>
+                                    <button type="button" class="invoice-remove-line grid size-11 place-items-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10" title="Retirer"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+                                    <input type="hidden" name="lines[{{ $i }}][discount_type]" value="{{ data_get($line, 'discount_type', 'fixed') }}">
+                                    <input type="hidden" name="lines[{{ $i }}][tax_inclusive]" data-invoice-tax-inclusive value="{{ data_get($line, 'tax_inclusive', 0) ? 1 : 0 }}">
+                                    <input type="hidden" name="lines[{{ $i }}][note]" value="{{ data_get($line, 'note') }}">
                                 </div>
-                            @endfor
+                            @endforeach
                         </div>
                     </div>
                     <div class="grid gap-4 lg:grid-cols-[1fr_200px_200px]">
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Message client</span><textarea name="customer_message" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Message...">{{ old('customer_message') }}</textarea></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale (DH)</span><input name="document_discount_value" data-invoice-discount value="{{ old('document_discount_value', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Frais (DH)</span><input name="fee_total" value="{{ old('fee_total', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Message client</span><textarea name="customer_message" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Message...">{{ old('customer_message', $editInvoice?->customer_message) }}</textarea></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale (DH)</span><input name="document_discount_value" data-invoice-discount value="{{ old('document_discount_value', $editInvoice?->document_discount_value ?? 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Frais (DH)</span><input name="fee_total" data-invoice-fee value="{{ old('fee_total', $editInvoice?->fee_total ?? 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                     </div>
                     <input type="hidden" name="document_discount_type" value="fixed">
                     <div class="grid gap-4 lg:grid-cols-2">
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note interne</span><textarea name="internal_note" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note interne...">{{ old('internal_note') }}</textarea></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Conditions / Footer</span><textarea name="terms" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Conditions...">{{ old('terms') }}</textarea></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note interne</span><textarea name="internal_note" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note interne...">{{ old('internal_note', $editInvoice?->internal_note) }}</textarea></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Conditions / Footer</span><textarea name="terms" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Conditions...">{{ old('terms', $editInvoice?->terms) }}</textarea></label>
                     </div>
                 </form>
-                <aside class="space-y-4">
+                <aside class="min-w-0 space-y-4 2xl:sticky 2xl:top-24 2xl:self-start">
                     <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                        <h3 class="font-semibold">Récapitulatif</h3>
+                        <div class="flex items-center justify-between gap-3">
+                            <h3 class="font-semibold">Récapitulatif</h3>
+                            <span class="rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-bold text-brand">Live</span>
+                        </div>
                         <dl class="mt-4 space-y-3 text-sm">
                             <div class="flex justify-between"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold" data-invoice-summary-subtotal>0,00 DH</dd></div>
                             <div class="flex justify-between"><dt class="text-slate-500">Remise</dt><dd class="font-semibold text-rose-600" data-invoice-summary-discount>0,00 DH</dd></div>
-                            <div class="flex justify-between"><dt class="text-slate-500">TVA (20%)</dt><dd class="font-semibold" data-invoice-summary-tax>0,00 DH</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">TVA</dt><dd class="font-semibold" data-invoice-summary-tax>0,00 DH</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Frais</dt><dd class="font-semibold" data-invoice-summary-fees>0,00 DH</dd></div>
                             <div class="flex justify-between border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-semibold">Total TTC</dt><dd class="font-bold text-brand" data-invoice-summary-total>0,00 DH</dd></div>
                         </dl>
+                        <button type="button" onclick="this.closest('[data-invoice-screen]').querySelector('[data-invoice-submit]')?.click()" class="mt-5 w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">{{ $isEditingInvoice ? 'Enregistrer' : 'Créer la facture' }}</button>
                     </article>
                     <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                         <h3 class="font-semibold">Raccourcis</h3>
@@ -1700,6 +2164,260 @@
                         </div>
                     </article>
                 </aside>
+            </section>
+        @elseif ($invoiceSection === 'invoice-edit')
+            <section class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                <h2 class="text-lg font-semibold">Facture non modifiable</h2>
+                <p class="mt-1 text-sm">La facture demandée est introuvable, déjà payée, annulée ou verrouillée par les règles métier.</p>
+                <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices']) }}" class="mt-4 inline-flex rounded-lg bg-white px-4 py-2 text-sm font-semibold text-amber-800 shadow-sm dark:bg-slate-950 dark:text-amber-100">Retour aux factures</a>
+            </section>
+        @endif
+    @elseif ($module === 'online-orders')
+        @php
+            $onlineOrderSection = request('section', 'list');
+            $onlineOrderTabs = [
+                'add' => ['label' => 'Nouvelle précommande', 'href' => route('module', ['module' => 'online-orders', 'section' => 'add'])],
+                'list' => ['label' => 'Liste des précommandes', 'href' => route('module', ['module' => 'online-orders', 'section' => 'list'])],
+            ];
+            $onlineOrderStatusLabels = [
+                'pending' => 'En attente',
+                'confirmed' => 'Confirmée',
+                'preparing' => 'Préparation',
+                'ready' => 'Prête',
+                'fulfilled' => 'Traitée',
+                'cancelled' => 'Annulée',
+            ];
+            $onlineOrderPaymentLabels = [
+                'unpaid' => 'Non payée',
+                'deposit' => 'Acompte',
+                'paid' => 'Payée',
+                'refunded' => 'Remboursée',
+            ];
+            $onlineOrderAllowedStatusMap = [
+                'pending' => ['pending', 'confirmed', 'cancelled'],
+                'confirmed' => ['confirmed', 'preparing', 'ready', 'cancelled'],
+                'preparing' => ['preparing', 'ready', 'cancelled'],
+                'ready' => ['ready', 'cancelled'],
+                'fulfilled' => ['fulfilled'],
+                'cancelled' => ['cancelled'],
+            ];
+            $onlineOrderAllowedPaymentMap = [
+                'unpaid' => ['unpaid', 'deposit', 'paid'],
+                'deposit' => ['deposit', 'paid', 'refunded'],
+                'paid' => ['paid', 'refunded'],
+                'refunded' => ['refunded'],
+            ];
+            $onlineOrderStatusTone = fn (string $status): string => match ($status) {
+                'confirmed', 'ready' => 'info',
+                'preparing' => 'warning',
+                'fulfilled' => 'success',
+                'cancelled' => 'danger',
+                default => 'neutral',
+            };
+            $onlineOrderChannels = [
+                'online' => 'Site web',
+                'whatsapp' => 'WhatsApp',
+                'phone' => 'Téléphone',
+                'in_store' => 'Comptoir',
+                'marketplace' => 'Marketplace',
+                'other' => 'Autre',
+            ];
+            $onlineOrderStats = [
+                'total' => $onlineOrders->total(),
+                'pending' => $onlineOrders->getCollection()->where('status', 'pending')->count(),
+                'ready' => $onlineOrders->getCollection()->where('status', 'ready')->count(),
+                'amount' => $onlineOrders->getCollection()->sum('total_amount'),
+            ];
+        @endphp
+        <details class="app-collapsible-menu mt-6" data-collapsible-menu data-menu-key="module-online-orders-menu">
+            <summary class="app-collapsible-menu-summary">
+                <span><strong>Menu précommandes</strong><small>{{ $onlineOrderTabs[$onlineOrderSection]['label'] ?? 'Liste des précommandes' }}</small></span>
+                <em data-collapsible-menu-state>Afficher</em>
+            </summary>
+            <nav class="app-tab-nav">
+                @foreach ($onlineOrderTabs as $key => $tab)
+                    <a href="{{ $tab['href'] }}" class="app-tab-link {{ $onlineOrderSection === $key || ($key === 'list' && ! in_array($onlineOrderSection, ['add'], true)) ? 'is-active' : '' }}">{{ $tab['label'] }}</a>
+                @endforeach
+            </nav>
+        </details>
+
+        @if ($onlineOrderSection === 'add')
+            <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+                <form action="{{ route('online-orders.store') }}" method="POST" class="space-y-5">
+                    @csrf
+                    <article class="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <p class="text-sm font-semibold text-brand">Précommande · création</p>
+                                    <h2 class="mt-1 text-xl font-semibold">Nouvelle commande en ligne</h2>
+                                    <p class="mt-1 max-w-3xl text-sm text-slate-500">Suivez les demandes reçues depuis site web, WhatsApp, téléphone ou comptoir sans impacter le stock ni le chiffre d'affaires tant qu'elles ne sont pas traitées.</p>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <x-status-pill tone="primary">{{ $nextOnlineOrderNumber ?? 'PRE' }}</x-status-pill>
+                                    <x-status-pill tone="info">Précommande</x-status-pill>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid gap-4 p-5 lg:grid-cols-4">
+                            <label class="space-y-1.5 lg:col-span-2">
+                                <span class="text-xs font-semibold uppercase text-slate-500">Client existant</span>
+                                <select name="contact_id" data-searchable-select data-placeholder="Rechercher client..." class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                    <option value="">Client nouveau / non enregistré</option>
+                                    @foreach ($salesClients as $client)
+                                        <option value="{{ $client->id }}" @selected((string) old('contact_id') === (string) $client->id)>{{ $client->name }}{{ $client->phone ? ' · '.$client->phone : '' }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Canal *</span><select name="channel" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($onlineOrderChannels as $value => $label)<option value="{{ $value }}" @selected(old('channel', 'online') === $value)>{{ $label }}</option>@endforeach</select></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date commande</span><input name="ordered_at" value="{{ old('ordered_at', now()->format('Y-m-d\TH:i')) }}" type="datetime-local" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nom client *</span><input name="customer_name" value="{{ old('customer_name') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Si aucun client existant"></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="customer_phone" value="{{ old('customer_phone') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212..."></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email</span><input name="customer_email" value="{{ old('customer_email') }}" type="email" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="client@email.com"></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date prévue</span><input name="expected_at" value="{{ old('expected_at') }}" type="date" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut *</span><select name="status" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($onlineOrderStatusLabels as $value => $label)<option value="{{ $value }}" @selected(old('status', 'pending') === $value)>{{ $label }}</option>@endforeach</select></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Acompte</span><input name="deposit_amount" value="{{ old('deposit_amount', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale</span><input name="discount_amount" value="{{ old('discount_amount', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                            <label class="space-y-1.5 lg:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Adresse / retrait</span><input name="delivery_address" value="{{ old('delivery_address') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Adresse livraison, retrait magasin..."></label>
+                        </div>
+                    </article>
+
+                    <article class="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                            <h3 class="font-semibold">Articles demandés</h3>
+                            <p class="mt-1 text-sm text-slate-500">Sélectionnez un article existant ou saisissez une ligne libre pour un article non encore référencé.</p>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[980px] text-left text-sm">
+                                <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">Article / demande</th><th class="px-3 py-3 w-28">Qté</th><th class="px-3 py-3 w-32">Prix</th><th class="px-3 py-3 w-32">Remise</th><th class="px-3 py-3">Note</th><th class="px-3 py-3 w-10">#</th></tr></thead>
+                                <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                    @for ($i = 0; $i < 8; $i++)
+                                        <tr>
+                                            <td class="px-3 py-3">
+                                                <select name="items[{{ $i }}][item_id]" data-searchable-select data-placeholder="Rechercher article..." class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                                    <option value="">Ligne libre / article non référencé</option>
+                                                    @foreach ($onlineOrderItems as $item)
+                                                        <option value="{{ $item->id }}" @selected(old("items.$i.item_id") == $item->id)>{{ $item->title }} · {{ $money($item->sale_price) }} · {{ $item->barcode ?? $item->item_code ?? 'sans code' }}</option>
+                                                    @endforeach
+                                                </select>
+                                                <input name="items[{{ $i }}][name]" value="{{ old("items.$i.name") }}" class="mt-2 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom si ligne libre">
+                                            </td>
+                                            <td class="px-3 py-3"><input name="items[{{ $i }}][quantity]" value="{{ old("items.$i.quantity", $i === 0 ? 1 : null) }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></td>
+                                            <td class="px-3 py-3"><input name="items[{{ $i }}][unit_price]" value="{{ old("items.$i.unit_price") }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="auto"></td>
+                                            <td class="px-3 py-3"><input name="items[{{ $i }}][discount_amount]" value="{{ old("items.$i.discount_amount", 0) }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></td>
+                                            <td class="px-3 py-3"><input name="items[{{ $i }}][note]" value="{{ old("items.$i.note") }}" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Couleur, taille, édition..."></td>
+                                            <td class="px-3 py-3 text-xs font-semibold text-slate-400">{{ $i + 1 }}</td>
+                                        </tr>
+                                    @endfor
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="grid gap-4 border-t border-slate-200 p-5 dark:border-white/10 md:grid-cols-2">
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Message client</span><textarea name="customer_note" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Message visible / demande client...">{{ old('customer_note') }}</textarea></label>
+                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note interne</span><textarea name="internal_note" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Suivi équipe, fournisseur, disponibilité...">{{ old('internal_note') }}</textarea></label>
+                        </div>
+                    </article>
+                    <div class="flex justify-end gap-2">
+                        <a href="{{ route('module', ['module' => 'online-orders', 'section' => 'list']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Annuler</a>
+                        <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20">Créer la précommande</button>
+                    </div>
+                </form>
+                <aside class="space-y-4">
+                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">Flux recommandé</h3><div class="mt-4 space-y-3 text-sm text-slate-500"><p><strong class="text-slate-900 dark:text-white">1.</strong> Enregistrer la demande client.</p><p><strong class="text-slate-900 dark:text-white">2.</strong> Confirmer disponibilité et acompte.</p><p><strong class="text-slate-900 dark:text-white">3.</strong> Passer à prête puis traiter en vente.</p></div></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">Règle stock</h3><p class="mt-2 text-sm text-slate-500">La précommande ne décrémente pas le stock. Le mouvement stock doit passer par la vente, l’achat ou l’ajustement officiel.</p></article>
+                </aside>
+            </section>
+        @else
+            <section class="mt-6 space-y-5">
+                <div class="grid gap-3 md:grid-cols-4">
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Précommandes filtrées</span><p class="mt-2 text-2xl font-semibold">{{ $onlineOrderStats['total'] }}</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">En attente</span><p class="mt-2 text-2xl font-semibold">{{ $onlineOrderStats['pending'] }}</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Prêtes</span><p class="mt-2 text-2xl font-semibold">{{ $onlineOrderStats['ready'] }}</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Montant page</span><p class="mt-2 text-2xl font-semibold">{{ $money($onlineOrderStats['amount']) }}</p></article>
+                </div>
+
+                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <form action="{{ route('module', ['module' => 'online-orders', 'section' => 'list']) }}" class="app-action-form">
+                        <input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="N°, client, téléphone, article...">
+                        <select name="order_status" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous statuts</option>@foreach ($onlineOrderStatusLabels as $value => $label)<option value="{{ $value }}" @selected(request('order_status') === $value)>{{ $label }}</option>@endforeach</select>
+                        <select name="channel" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous canaux</option>@foreach ($onlineOrderChannels as $value => $label)<option value="{{ $value }}" @selected(request('channel') === $value)>{{ $label }}</option>@endforeach</select>
+                        <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                        <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'online-orders', 'section' => 'list']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+                    </form>
+                </article>
+
+                <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="flex flex-col gap-3 border-b border-slate-200 p-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between"><div><h2 class="font-semibold">Liste des précommandes</h2><p class="mt-1 text-sm text-slate-500">Suivi des commandes web, WhatsApp et demandes réservées.</p></div><a href="{{ route('module', ['module' => 'online-orders', 'section' => 'add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouvelle précommande</a></div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-[1120px] text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N°</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Canal</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Prévu</th><th class="px-3 py-3">Articles</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3 text-right">Action</th></tr></thead>
+                            <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                @forelse ($onlineOrders as $order)
+                                    <tr class="app-row-openable" data-row-href="{{ route('module', ['module' => 'online-orders', 'section' => 'list', 'order' => $order->id]) }}">
+                                        <td class="px-3 py-3 font-semibold">{{ $order->number }}</td>
+                                        <td class="px-3 py-3"><p class="font-semibold">{{ $order->customer_name }}</p><p class="mt-1 text-xs text-slate-500">{{ $order->customer_phone ?? $order->customer_email ?? 'Sans contact' }}</p></td>
+                                        <td class="px-3 py-3">{{ $onlineOrderChannels[$order->channel] ?? $order->channel }}</td>
+                                        <td class="px-3 py-3">{{ $order->ordered_at?->format('d/m/Y H:i') }}</td>
+                                        <td class="px-3 py-3">{{ $order->expected_at?->format('d/m/Y') ?? '—' }}</td>
+                                        <td class="px-3 py-3 text-slate-500">{{ $order->items->pluck('name')->take(2)->implode(', ') }}{{ $order->items->count() > 2 ? '…' : '' }}</td>
+                                        <td class="px-3 py-3 text-right font-semibold">{{ $money($order->total_amount) }}<p class="mt-1 text-xs text-slate-500">Acompte {{ $money($order->deposit_amount) }}</p></td>
+                                        <td class="px-3 py-3"><x-status-pill :tone="$onlineOrderStatusTone($order->status)">{{ $onlineOrderStatusLabels[$order->status] ?? $order->status }}</x-status-pill></td>
+                                        <td class="px-3 py-3 text-right"><a href="{{ route('module', ['module' => 'online-orders', 'section' => 'list', 'order' => $order->id]) }}" class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Détail</a></td>
+                                    </tr>
+                                @empty
+                                    <tr><td colspan="9" class="px-4 py-12 text-center text-sm text-slate-500">Aucune précommande trouvée.</td></tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $onlineOrders->links() }}</div>
+                </article>
+
+                @if ($selectedOnlineOrder)
+                    @php
+                        $allowedOrderStatuses = $onlineOrderAllowedStatusMap[$selectedOnlineOrder->status] ?? [$selectedOnlineOrder->status];
+                        $orderCanCreateSale = ! $selectedOnlineOrder->converted_sale_id && in_array($selectedOnlineOrder->status, ['confirmed', 'preparing', 'ready'], true);
+                    @endphp
+                    <article class="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                <div><p class="text-sm font-semibold text-brand">Détail précommande</p><h2 class="mt-1 text-xl font-semibold">{{ $selectedOnlineOrder->number }} · {{ $selectedOnlineOrder->customer_name }}</h2><p class="mt-1 text-sm text-slate-500">{{ $onlineOrderChannels[$selectedOnlineOrder->channel] ?? $selectedOnlineOrder->channel }} · {{ $selectedOnlineOrder->ordered_at?->format('d/m/Y H:i') }}</p></div>
+                                <div class="flex flex-wrap gap-2"><x-status-pill :tone="$onlineOrderStatusTone($selectedOnlineOrder->status)">{{ $onlineOrderStatusLabels[$selectedOnlineOrder->status] ?? $selectedOnlineOrder->status }}</x-status-pill><x-status-pill tone="info">{{ $money($selectedOnlineOrder->total_amount) }}</x-status-pill></div>
+                            </div>
+                        </div>
+                        <div class="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+                            <div class="space-y-4">
+                                <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10"><table class="w-full text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">Article</th><th class="px-3 py-3 text-right">Qté</th><th class="px-3 py-3 text-right">Prix</th><th class="px-3 py-3 text-right">Total</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@foreach ($selectedOnlineOrder->items as $line)<tr><td class="px-3 py-3"><p class="font-semibold">{{ $line->name }}</p><p class="mt-1 text-xs text-slate-500">{{ $line->code ?? 'Sans code' }}{{ $line->note ? ' · '.$line->note : '' }}</p></td><td class="px-3 py-3 text-right">{{ number_format((float) $line->quantity, 2, ',', ' ') }}</td><td class="px-3 py-3 text-right">{{ $money($line->unit_price) }}</td><td class="px-3 py-3 text-right font-semibold">{{ $money($line->total_amount) }}</td></tr>@endforeach</tbody></table></div>
+                                <div class="grid gap-3 md:grid-cols-2"><div class="rounded-xl bg-slate-50 p-4 text-sm dark:bg-white/5"><span class="text-xs font-semibold uppercase text-slate-500">Message client</span><p class="mt-2">{{ $selectedOnlineOrder->customer_note ?: '—' }}</p></div><div class="rounded-xl bg-slate-50 p-4 text-sm dark:bg-white/5"><span class="text-xs font-semibold uppercase text-slate-500">Note interne</span><p class="mt-2">{{ $selectedOnlineOrder->internal_note ?: '—' }}</p></div></div>
+                            </div>
+                            <aside class="space-y-4">
+                                <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10"><h3 class="font-semibold">Totaux</h3><dl class="mt-3 space-y-2 text-sm"><div class="flex justify-between"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold">{{ $money($selectedOnlineOrder->subtotal_amount) }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Remises</dt><dd class="font-semibold">{{ $money($selectedOnlineOrder->discount_amount) }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Acompte</dt><dd class="font-semibold">{{ $money($selectedOnlineOrder->deposit_amount) }}</dd></div><div class="flex justify-between border-t border-slate-200 pt-2 dark:border-white/10"><dt class="font-semibold">Total</dt><dd class="font-bold text-brand">{{ $money($selectedOnlineOrder->total_amount) }}</dd></div></dl></div>
+                                <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                    <h3 class="font-semibold">Vente associée</h3>
+                                    @if ($selectedOnlineOrder->convertedSale)
+                                        <p class="mt-2 text-sm text-slate-500">Cette précommande a généré la vente {{ $selectedOnlineOrder->convertedSale->number }}.</p>
+                                        <a href="{{ route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $selectedOnlineOrder->convertedSale->id]) }}" class="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white dark:bg-white dark:text-slate-950">Voir la vente</a>
+                                    @elseif ($orderCanCreateSale)
+                                        <p class="mt-2 text-sm text-slate-500">Ouvre la vente préremplie. Le stock et le paiement seront validés avant enregistrement.</p>
+                                        <a href="{{ route('online-orders.sale.prepare', $selectedOnlineOrder) }}" class="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white">Encaisser / créer la vente</a>
+                                    @elseif ($selectedOnlineOrder->status === 'pending')
+                                        <p class="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">Confirmez la précommande avant de l’encaisser.</p>
+                                    @else
+                                        <p class="mt-2 text-sm text-slate-500">Aucune création de vente possible dans cet état.</p>
+                                    @endif
+                                </div>
+                                <form action="{{ route('online-orders.status.update', $selectedOnlineOrder) }}" method="POST" class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                    @csrf @method('PATCH')
+                                    <h3 class="font-semibold">Mettre à jour</h3>
+                                    <label class="mt-3 block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Étape suivante</span><select name="status" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($allowedOrderStatuses as $value)<option value="{{ $value }}" @selected($selectedOnlineOrder->status === $value)>{{ $onlineOrderStatusLabels[$value] ?? $value }}</option>@endforeach</select></label>
+                                    <label class="mt-3 block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note interne</span><textarea name="internal_note" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900">{{ $selectedOnlineOrder->internal_note }}</textarea></label>
+                                    <button class="mt-3 w-full rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer statut</button>
+                                </form>
+                            </aside>
+                        </div>
+                    </article>
+                @endif
             </section>
         @endif
     @elseif ($module === 'purchases')
@@ -1969,7 +2687,7 @@
                         </div>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[1240px] text-left text-sm">
+                        <table data-purchase-table data-ajax-url="{{ route('purchases.data', request()->only(['q', 'supplier_id', 'purchase_status', 'from', 'to'])) }}" class="w-full min-w-[1240px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
                                 <tr>
                                     <th class="px-4 py-3">N° achat</th>
@@ -2330,8 +3048,184 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $purchases->links() }}</div>
+                    <div class="border-t border-slate-200 px-4 py-3 text-xs font-medium text-slate-500 dark:border-white/10">Recherche, tri et pagination gérés par le tableau.</div>
                 </article>
+
+                @php
+                    $activePurchaseDetail = request('detail_purchase') ? $purchases->getCollection()->firstWhere('id', (int) request('detail_purchase')) : null;
+                @endphp
+                @if ($activePurchaseDetail)
+                    @php
+                        $detailOrderedQuantity = (int) $activePurchaseDetail->items->sum('quantity_ordered');
+                        $detailReceivedQuantity = (int) $activePurchaseDetail->items->sum('quantity_received');
+                        $detailRemainingQuantity = max(0, $detailOrderedQuantity - $detailReceivedQuantity);
+                        $detailPaidAmount = (float) $activePurchaseDetail->payments->sum('amount');
+                        $detailDueAmount = max(0, round((float) $activePurchaseDetail->total_amount - $detailPaidAmount, 2));
+                        $detailReceiptPercent = $detailOrderedQuantity > 0 ? round(min(100, ($detailReceivedQuantity / $detailOrderedQuantity) * 100)) : 0;
+                        $detailStatusTone = $activePurchaseDetail->status === 'received' ? 'success' : ($activePurchaseDetail->status === 'cancelled' ? 'danger' : 'warning');
+                        $detailStatusLabel = [
+                            'draft' => 'Brouillon',
+                            'ordered' => 'Commandé',
+                            'partially_received' => 'Partiel',
+                            'received' => 'Reçu',
+                            'cancelled' => 'Annulé',
+                        ][$activePurchaseDetail->status] ?? $activePurchaseDetail->status;
+                        $detailCreatedBy = data_get($activePurchaseDetail->metadata, 'created_by_name') ?: $activePurchaseDetail->user?->name ?: 'Utilisateur inconnu';
+                    @endphp
+                    <dialog id="purchase-detail-active" class="app-dialog w-[min(1120px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                        <div class="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden">
+                            <header class="border-b border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-950">
+                                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                    <div class="flex min-w-0 items-start gap-3">
+                                        <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-sm font-bold text-white">AC</span>
+                                        <div class="min-w-0">
+                                            <p class="text-xs font-semibold uppercase tracking-wide text-brand">Détail achat</p>
+                                            <h3 class="mt-1 text-2xl font-semibold tracking-tight">{{ $activePurchaseDetail->number }}</h3>
+                                            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                                {{ $activePurchaseDetail->supplier?->name ?? 'Sans fournisseur' }} · {{ $activePurchaseDetail->ordered_at?->format('d/m/Y') ?? 'Date non définie' }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div class="flex shrink-0 items-center gap-2">
+                                        <x-status-pill :tone="$detailStatusTone">{{ $detailStatusLabel }}</x-status-pill>
+                                        <a href="{{ route('purchases.pdf', $activePurchaseDetail) }}" class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">PDF</a>
+                                        <button class="dialog-close grid size-10 place-items-center rounded-lg border border-slate-200 bg-white text-lg font-semibold text-slate-500 transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200" type="button">×</button>
+                                    </div>
+                                </div>
+                            </header>
+
+                            <div class="min-h-0 flex-1 overflow-y-auto p-5">
+                                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+                                        <span class="text-xs font-semibold uppercase text-slate-500">Total achat</span>
+                                        <strong class="mt-2 block text-2xl">{{ $money($activePurchaseDetail->total_amount) }}</strong>
+                                    </div>
+                                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+                                        <span class="text-xs font-semibold uppercase text-slate-500">Articles commandés</span>
+                                        <strong class="mt-2 block text-2xl">{{ number_format($detailOrderedQuantity, 0, ',', ' ') }}</strong>
+                                    </div>
+                                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+                                        <span class="text-xs font-semibold uppercase text-slate-500">Articles reçus</span>
+                                        <strong class="mt-2 block text-2xl {{ $detailReceivedQuantity >= $detailOrderedQuantity ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300' }}">{{ number_format($detailReceivedQuantity, 0, ',', ' ') }}</strong>
+                                    </div>
+                                    <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
+                                        <span class="text-xs font-semibold uppercase text-slate-500">Reste dû</span>
+                                        <strong class="mt-2 block text-2xl {{ $detailDueAmount > 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300' }}">{{ $money($detailDueAmount) }}</strong>
+                                    </div>
+                                </div>
+
+                                <div class="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+                                    <section class="min-w-0 space-y-4">
+                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                                <div>
+                                                    <h4 class="text-base font-semibold">Articles de l'achat</h4>
+                                                    <p class="mt-1 text-sm text-slate-500">{{ $activePurchaseDetail->items->count() }} ligne(s), {{ $detailRemainingQuantity }} unité(s) restante(s).</p>
+                                                </div>
+                                                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">{{ $detailReceiptPercent }}% reçu</span>
+                                            </div>
+                                            <div class="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                                                <div class="h-full rounded-full bg-emerald-500" style="width: {{ $detailReceiptPercent }}%"></div>
+                                            </div>
+                                        </div>
+
+                                        <div class="max-h-[44vh] space-y-3 overflow-y-auto pr-1">
+                                            @forelse ($activePurchaseDetail->items as $line)
+                                                @php
+                                                    $lineRemaining = max(0, (int) $line->quantity_ordered - (int) $line->quantity_received);
+                                                    $lineTotal = (float) $line->quantity_ordered * (float) $line->unit_cost;
+                                                    $linePercent = $line->quantity_ordered > 0 ? round(min(100, ($line->quantity_received / $line->quantity_ordered) * 100)) : 0;
+                                                @endphp
+                                                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                                                    <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
+                                                        <div class="min-w-0">
+                                                            <div class="flex items-start justify-between gap-3">
+                                                                <div class="min-w-0">
+                                                                    <h5 class="truncate text-sm font-semibold">{{ $line->item?->title ?? 'Article supprimé' }}</h5>
+                                                                    <p class="mt-1 truncate text-xs text-slate-500">
+                                                                        {{ $line->item?->item_code ?? $line->item?->barcode ?? $line->item?->isbn ?? 'Sans code' }}
+                                                                        @if ($line->item?->category?->name)
+                                                                            · {{ $line->item->category->name }}
+                                                                        @endif
+                                                                    </p>
+                                                                </div>
+                                                                @if ($lineRemaining > 0)
+                                                                    <span class="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-200 dark:ring-amber-500/20">{{ $lineRemaining }} restant</span>
+                                                                @else
+                                                                    <span class="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-500/20">Reçu</span>
+                                                                @endif
+                                                            </div>
+                                                            <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
+                                                                <div class="h-full rounded-full {{ $lineRemaining > 0 ? 'bg-amber-500' : 'bg-emerald-500' }}" style="width: {{ $linePercent }}%"></div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="grid grid-cols-4 gap-2 text-center text-sm">
+                                                            <div class="rounded-lg bg-slate-50 p-2 dark:bg-white/[0.05]"><span class="block text-[10px] font-semibold uppercase text-slate-500">Cmd</span><strong>{{ $line->quantity_ordered }}</strong></div>
+                                                            <div class="rounded-lg bg-slate-50 p-2 dark:bg-white/[0.05]"><span class="block text-[10px] font-semibold uppercase text-slate-500">Reçu</span><strong>{{ $line->quantity_received }}</strong></div>
+                                                            <div class="rounded-lg bg-slate-50 p-2 dark:bg-white/[0.05]"><span class="block text-[10px] font-semibold uppercase text-slate-500">Coût</span><strong>{{ $money($line->unit_cost) }}</strong></div>
+                                                            <div class="rounded-lg bg-slate-50 p-2 dark:bg-white/[0.05]"><span class="block text-[10px] font-semibold uppercase text-slate-500">Total</span><strong>{{ $money($lineTotal) }}</strong></div>
+                                                        </div>
+                                                    </div>
+                                                </article>
+                                            @empty
+                                                <div class="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-white/10">
+                                                    Aucun article n'est lié à cet achat.
+                                                </div>
+                                            @endforelse
+                                        </div>
+                                    </section>
+
+                                    <aside class="space-y-4">
+                                        <section class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                            <h4 class="text-sm font-semibold">Fournisseur</h4>
+                                            <div class="mt-3 space-y-2 text-sm">
+                                                <p class="font-semibold">{{ $activePurchaseDetail->supplier?->name ?? '—' }}</p>
+                                                <p class="text-slate-500">{{ $activePurchaseDetail->supplier?->phone ?? 'Sans téléphone' }}</p>
+                                                <p class="text-slate-500">{{ $activePurchaseDetail->supplier?->email ?? 'Sans email' }}</p>
+                                            </div>
+                                        </section>
+                                        <section class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                            <h4 class="text-sm font-semibold">Informations</h4>
+                                            <dl class="mt-3 space-y-2 text-sm">
+                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Facture</dt><dd class="text-right font-medium">{{ data_get($activePurchaseDetail->metadata, 'supplier_invoice', '—') ?: '—' }}</dd></div>
+                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Référence</dt><dd class="text-right font-medium">{{ data_get($activePurchaseDetail->metadata, 'reference', '—') ?: '—' }}</dd></div>
+                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Magasin</dt><dd class="text-right font-medium">{{ data_get($activePurchaseDetail->metadata, 'warehouse', 'Magasin principal') ?: 'Magasin principal' }}</dd></div>
+                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Prévu</dt><dd class="text-right font-medium">{{ $activePurchaseDetail->expected_at?->format('d/m/Y') ?? '—' }}</dd></div>
+                                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Créé par</dt><dd class="text-right font-medium">{{ $detailCreatedBy }}</dd></div>
+                                            </dl>
+                                        </section>
+                                        @if ($activePurchaseDetail->payments->isNotEmpty())
+                                            <section class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                                <h4 class="text-sm font-semibold">Paiements</h4>
+                                                <div class="mt-3 space-y-2">
+                                                    @foreach ($activePurchaseDetail->payments as $payment)
+                                                        <div class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-white/[0.05]">
+                                                            <span>{{ $payment->method }} · {{ $payment->paid_at?->format('d/m/Y') }}</span>
+                                                            <strong>{{ $money($payment->amount) }}</strong>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </section>
+                                        @endif
+                                    </aside>
+                                </div>
+                            </div>
+
+                            <footer class="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04] sm:flex-row sm:items-center sm:justify-between">
+                                <a href="{{ route('module', ['module' => 'purchases', 'section' => 'list']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-center text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">Retour à la liste</a>
+                                <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+                                    <button type="button" class="dialog-close rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">Fermer</button>
+                                    @if ($activePurchaseDetail->status !== 'received' && $activePurchaseDetail->status !== 'cancelled' && $detailRemainingQuantity > 0)
+                                        <form action="{{ route('purchases.receive', $activePurchaseDetail) }}" method="POST">
+                                            @csrf
+                                            <button class="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 sm:w-auto">Recevoir tout le restant</button>
+                                        </form>
+                                    @endif
+                                </div>
+                            </footer>
+                        </div>
+                    </dialog>
+                @endif
             </section>
         @endif
     @elseif ($module === 'loans')
@@ -2906,6 +3800,8 @@
             $posUpdateCostOnPurchase = (bool) data_get($tenant->settings, 'pos.update_cost_on_purchase', true);
             $posLowStockDashboard = (bool) data_get($tenant->settings, 'pos.low_stock_dashboard', true);
             $posAutoReorderDraft = (bool) data_get($tenant->settings, 'pos.auto_reorder_draft', false);
+            $onlineStoreEnabled = (bool) data_get($tenant->settings, 'online_store.enabled', true);
+            $onlinePickupStoreKey = (string) data_get($tenant->settings, 'online_store.pickup_store', data_get($tenant->settings, 'current_store'));
             $virtualDevicesEnabled = (bool) data_get($tenant->settings, 'features.virtual_devices', false);
             $posInventoryCycleDays = (int) data_get($tenant->settings, 'pos.inventory_cycle_days', 30);
             $posDefaultMinStock = (int) data_get($tenant->settings, 'pos.default_min_stock_threshold', 3);
@@ -3095,6 +3991,7 @@
                                 <x-status-pill :tone="$posAllowOversell ? 'warning' : 'success'">{{ $posAllowOversell ? 'Hors stock autorisé' : 'Stock bloquant' }}</x-status-pill>
                                 <x-status-pill :tone="$posShowOutOfStock ? 'warning' : 'info'">{{ $posShowOutOfStock ? 'Ruptures visibles' : 'Ruptures masquées' }}</x-status-pill>
                                 <x-status-pill :tone="$posShowCashDrawerNavbar ? 'success' : 'neutral'">{{ $posShowCashDrawerNavbar ? 'Tiroir navbar' : 'Tiroir masqué' }}</x-status-pill>
+                                <x-status-pill :tone="$onlineStoreEnabled ? 'success' : 'neutral'">{{ $onlineStoreEnabled ? 'Boutique active' : 'Boutique masquée' }}</x-status-pill>
                             </div>
                         </div>
                     </div>
@@ -3111,6 +4008,7 @@
                             <input type="hidden" name="update_cost_on_purchase" value="0">
                             <input type="hidden" name="low_stock_dashboard" value="0">
                             <input type="hidden" name="auto_reorder_draft" value="0">
+                            <input type="hidden" name="online_store_enabled" value="0">
                             <div>
                                 <h3 class="text-sm font-black uppercase tracking-wide text-slate-600 dark:text-slate-300">Règles caisse</h3>
                                 <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Ces options changent directement le comportement du POS.</p>
@@ -3194,6 +4092,27 @@
                                 <div class="mt-3 grid gap-3 md:grid-cols-2">
                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Seuil stock faible par défaut</span><input name="default_min_stock_threshold" type="number" min="0" max="9999" value="{{ old('default_min_stock_threshold', $posDefaultMinStock) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Cycle inventaire conseillé</span><select name="inventory_cycle_days" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="7" @selected($posInventoryCycleDays === 7)>Chaque semaine</option><option value="15" @selected($posInventoryCycleDays === 15)>Tous les 15 jours</option><option value="30" @selected($posInventoryCycleDays === 30)>Chaque mois</option><option value="90" @selected($posInventoryCycleDays === 90)>Chaque trimestre</option></select></label>
+                                </div>
+                            </div>
+                            <div class="border-t border-slate-200 pt-4 dark:border-white/10">
+                                <h3 class="text-sm font-black uppercase tracking-wide text-slate-600 dark:text-slate-300">Boutique en ligne</h3>
+                                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Contrôle l’accès public à /boutique et le magasin utilisé pour calculer le stock visible en ligne.</p>
+                                <div class="mt-3 grid gap-3 md:grid-cols-2">
+                                    <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                        <span class="flex items-start gap-3">
+                                            <input name="online_store_enabled" value="1" type="checkbox" @checked($onlineStoreEnabled) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                            <span><span class="block text-sm font-semibold">Activer la boutique publique</span><span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Si désactivée, la page boutique renvoie une page introuvable et aucune commande web ne peut être créée.</span></span>
+                                        </span>
+                                    </label>
+                                    <label class="space-y-1.5">
+                                        <span class="text-xs font-semibold uppercase text-slate-500">Magasin de stock par défaut</span>
+                                        <select name="online_pickup_store" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                            @foreach ($stores as $store)
+                                                <option value="{{ $store['key'] }}" @selected($onlinePickupStoreKey === $store['key'])>{{ $store['name'] }}</option>
+                                            @endforeach
+                                        </select>
+                                        <span class="block text-xs text-slate-500 dark:text-slate-400">Le client pourra choisir un autre magasin uniquement si plusieurs magasins actifs existent.</span>
+                                    </label>
                                 </div>
                             </div>
                             <div class="flex flex-col gap-2 border-t border-slate-200 pt-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
@@ -4211,7 +5130,7 @@
         if ($module === 'sales' && request('detail_return')) {
             $autoOpenDialogId = 'return-detail-'.request('detail_return');
         } elseif ($module === 'purchases' && request('detail_purchase')) {
-            $autoOpenDialogId = 'purchase-detail-'.request('detail_purchase');
+            $autoOpenDialogId = 'purchase-detail-active';
         } elseif ($module === 'purchases' && request('detail_purchase_return')) {
             $autoOpenDialogId = 'purchase-return-detail-'.request('detail_purchase_return');
         }

@@ -171,7 +171,18 @@
                             @foreach ($adjustmentLines as $i => $line)
                                 <div data-stock-adjustment-row class="grid gap-3 bg-white p-4 transition focus-within:bg-brand/5 dark:bg-transparent lg:grid-cols-[44px_minmax(260px,1.7fr)_150px_130px_minmax(180px,1fr)_42px] lg:items-end">
                                     <span data-stock-adjustment-index class="hidden h-10 place-items-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-white/5 lg:grid">{{ str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT) }}</span>
-                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Article <span class="text-rose-500">*</span></span><select name="items[{{ $i }}][item_id]" data-stock-adjustment-item-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900"><option value="">Choisir un article</option>@foreach ($stockItems as $item)<option value="{{ $item->id }}" data-title="{{ $item->title }}" data-stock="{{ $item->stock_quantity }}" data-threshold="{{ $item->min_stock_threshold }}" data-code="{{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code }}" data-category="{{ $item->category?->name }}" data-brand="{{ $item->brand?->name }}" @selected(data_get($line, 'item_id') == $item->id)>{{ $item->title }} · stock {{ $item->stock_quantity }} · {{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code }}{{ $item->category?->name ? ' · '.$item->category->name : '' }}</option>@endforeach</select></label>
+                                    <label class="space-y-1.5">
+                                        <span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Article <span class="text-rose-500">*</span></span>
+                                        <select name="items[{{ $i }}][item_id]" data-stock-adjustment-item-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900">
+                                            <option value="">Choisir un article</option>
+                                            @foreach ($stockItems as $item)
+                                                @php
+                                                    $storeStock = (int) ($item->store_stock_quantity ?? $item->stock_quantity);
+                                                @endphp
+                                                <option value="{{ $item->id }}" data-title="{{ $item->title }}" data-stock="{{ $storeStock }}" data-threshold="{{ $item->min_stock_threshold }}" data-code="{{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code }}" data-category="{{ $item->category?->name }}" data-brand="{{ $item->brand?->name }}" @selected(data_get($line, 'item_id') == $item->id)>{{ $item->title }} · stock {{ $storeStock }} · {{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code }}{{ $item->category?->name ? ' · '.$item->category->name : '' }}</option>
+                                            @endforeach
+                                        </select>
+                                    </label>
                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Action</span><select name="items[{{ $i }}][direction]" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900"><option value="add" @selected(data_get($line, 'direction', 'add') === 'add')>Ajouter</option><option value="remove" @selected(data_get($line, 'direction') === 'remove')>Retirer</option><option value="set" @selected(data_get($line, 'direction') === 'set')>Définir stock</option></select></label>
                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Quantité <span class="text-rose-500">*</span></span><input name="items[{{ $i }}][quantity]" value="{{ data_get($line, 'quantity') }}" data-stock-adjustment-quantity type="number" min="0" step="1" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="0"></label>
                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Note ligne</span><input name="items[{{ $i }}][note]" value="{{ data_get($line, 'note') }}" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Motif ligne"></label>
@@ -184,7 +195,18 @@
                     <template data-stock-adjustment-row-template>
                         <div data-stock-adjustment-row class="grid gap-3 bg-white p-4 transition focus-within:bg-brand/5 dark:bg-transparent lg:grid-cols-[44px_minmax(260px,1.7fr)_150px_130px_minmax(180px,1fr)_42px] lg:items-end">
                             <span data-stock-adjustment-index class="hidden h-10 place-items-center rounded-lg bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-white/5 lg:grid">01</span>
-                            <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Article <span class="text-rose-500">*</span></span><select name="items[__INDEX__][item_id]" data-stock-adjustment-item-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900"><option value="">Choisir un article</option>@foreach ($stockItems as $item)<option value="{{ $item->id }}" data-title="{{ $item->title }}" data-stock="{{ $item->stock_quantity }}" data-threshold="{{ $item->min_stock_threshold }}" data-code="{{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code }}" data-category="{{ $item->category?->name }}" data-brand="{{ $item->brand?->name }}">{{ $item->title }} · stock {{ $item->stock_quantity }} · {{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code }}{{ $item->category?->name ? ' · '.$item->category->name : '' }}</option>@endforeach</select></label>
+                            <label class="space-y-1.5">
+                                <span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Article <span class="text-rose-500">*</span></span>
+                                <select name="items[__INDEX__][item_id]" data-stock-adjustment-item-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900">
+                                    <option value="">Choisir un article</option>
+                                    @foreach ($stockItems as $item)
+                                        @php
+                                            $storeStock = (int) ($item->store_stock_quantity ?? $item->stock_quantity);
+                                        @endphp
+                                        <option value="{{ $item->id }}" data-title="{{ $item->title }}" data-stock="{{ $storeStock }}" data-threshold="{{ $item->min_stock_threshold }}" data-code="{{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code }}" data-category="{{ $item->category?->name }}" data-brand="{{ $item->brand?->name }}">{{ $item->title }} · stock {{ $storeStock }} · {{ $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code }}{{ $item->category?->name ? ' · '.$item->category->name : '' }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Action</span><select name="items[__INDEX__][direction]" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900"><option value="add">Ajouter</option><option value="remove">Retirer</option><option value="set">Définir stock</option></select></label>
                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Quantité <span class="text-rose-500">*</span></span><input name="items[__INDEX__][quantity]" value="1" data-stock-adjustment-quantity type="number" min="0" step="1" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="0"></label>
                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500 lg:hidden">Note ligne</span><input name="items[__INDEX__][note]" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Motif ligne"></label>
@@ -222,7 +244,15 @@
                     <div class="grid gap-2 text-xs font-semibold uppercase text-slate-500 lg:grid-cols-[2fr_120px_1fr_40px]"><span>Article</span><span>Quantité</span><span>Note ligne</span><span></span></div>
                     @for ($i = 0; $i < 8; $i++)
                         <div class="stock-line grid gap-2 lg:grid-cols-[2fr_120px_1fr_40px]">
-                            <select name="items[{{ $i }}][item_id]" data-searchable-select data-placeholder="Rechercher article..." class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Article</option>@foreach ($stockItems as $item)<option value="{{ $item->id }}" @selected(old("items.$i.item_id") == $item->id)>{{ $item->title }} · stock {{ $item->stock_quantity }} · {{ $item->barcode ?? $item->item_code }}</option>@endforeach</select>
+                            <select name="items[{{ $i }}][item_id]" data-searchable-select data-placeholder="Rechercher article..." class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                <option value="">Article</option>
+                                @foreach ($stockItems as $item)
+                                    @php
+                                        $storeStock = (int) ($item->store_stock_quantity ?? $item->stock_quantity);
+                                    @endphp
+                                    <option value="{{ $item->id }}" @selected(old("items.$i.item_id") == $item->id)>{{ $item->title }} · stock {{ $storeStock }} · {{ $item->barcode ?? $item->item_code }}</option>
+                                @endforeach
+                            </select>
                             <input name="items[{{ $i }}][quantity]" value="{{ old("items.$i.quantity") }}" type="number" min="1" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="0">
                             <input name="items[{{ $i }}][note]" value="{{ old("items.$i.note") }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Carton, rayon...">
                             <span class="grid h-10 place-items-center rounded-lg bg-slate-50 text-xs font-semibold text-slate-400 dark:bg-white/5">{{ $i + 1 }}</span>
@@ -279,6 +309,16 @@
                     <p class="stock-kpi-value is-warning">{{ number_format($catalogStats['low'], 0, ',', ' ') }}</p>
                     <p class="stock-kpi-hint is-warning">À vérifier avant vente</p>
                 </article>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wide text-brand">Stock filtré par magasin courant</p>
+                        <h2 class="mt-1 text-lg font-semibold text-slate-950 dark:text-white">{{ $currentStore['name'] ?? 'Magasin principal' }}</h2>
+                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">La liste, les volumes, les ruptures et les valeurs affichent uniquement le stock de {{ $currentStoreLocation?->name ?? ($currentStore['name'] ?? 'ce magasin') }}.</p>
+                    </div>
+                    <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:text-slate-200">Changer magasin</a>
+                </div>
             </div>
             <div class="stock-kpi-grid grid gap-3 grid-cols-2 lg:grid-cols-4">
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -359,10 +399,12 @@
                         <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                             @forelse ($stockInventoryItems as $stockItem)
                                 @php
-                                    $purchaseValue = (float) $stockItem->purchase_price * (int) $stockItem->stock_quantity;
-                                    $saleValue = (float) $stockItem->sale_price * (int) $stockItem->stock_quantity;
-                                    $isOut = (int) $stockItem->stock_quantity <= 0;
-                                    $isLow = ! $isOut && (int) $stockItem->stock_quantity <= (int) $stockItem->min_stock_threshold;
+                                    $storeStock = (int) ($stockItem->store_stock_quantity ?? 0);
+                                    $storeAverageCost = (float) ($stockItem->store_average_cost ?? $stockItem->purchase_price);
+                                    $purchaseValue = $storeAverageCost * $storeStock;
+                                    $saleValue = (float) $stockItem->sale_price * $storeStock;
+                                    $isOut = $storeStock <= 0;
+                                    $isLow = ! $isOut && $storeStock <= (int) $stockItem->min_stock_threshold;
                                     $historyUrl = route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $stockItem->id]).'#inventory-history';
                                     $adjustUrl = route('stock', ['panel' => 'stock-adjustment-add', 'stock_q' => $stockItem->item_code ?? $stockItem->barcode ?? $stockItem->title]);
                                 @endphp
@@ -380,9 +422,12 @@
                                         <span class="block font-semibold text-slate-700 dark:text-slate-200">{{ $stockItem->item_code ?? 'Sans code' }}</span>
                                         <span>{{ $stockItem->barcode ?? $stockItem->isbn ?? 'Sans code-barres' }}</span>
                                     </td>
-                                    <td class="px-3 py-3 text-sm text-slate-500">{{ $stockItem->location ?: $stockItem->warehouse ?: 'Principal' }}</td>
+                                    <td class="px-3 py-3 text-sm text-slate-500">
+                                        <span class="font-medium text-slate-700 dark:text-slate-200">{{ $currentStoreLocation?->name ?? ($currentStore['name'] ?? 'Magasin principal') }}</span>
+                                        <span class="block text-xs">Global: {{ number_format((int) $stockItem->stock_quantity, 0, ',', ' ') }}</span>
+                                    </td>
                                     <td class="px-3 py-3 text-right">
-                                        <span class="stock-table-number is-volume">{{ number_format((int) $stockItem->stock_quantity, 0, ',', ' ') }}</span>
+                                        <span class="stock-table-number is-volume">{{ number_format($storeStock, 0, ',', ' ') }}</span>
                                         <span class="block text-xs text-slate-500">{{ $stockItem->unit?->name ?? 'unité(s)' }}</span>
                                     </td>
                                     <td class="px-3 py-3 text-right"><span class="stock-table-number">{{ $money($purchaseValue) }}</span></td>
@@ -557,7 +602,8 @@
                                     <span class="block truncate font-semibold text-slate-950 dark:text-white">{{ $selectedInventoryItem->title }}</span>
                                     <small class="mt-1 block truncate text-slate-600 dark:text-slate-300">
                                         {{ $selectedInventoryItem->item_code ?? 'Sans code' }}
-                                        · Stock {{ number_format((int) $selectedInventoryItem->stock_quantity, 0, ',', ' ') }}
+                                        · Stock magasin {{ number_format((int) ($selectedInventoryItem->store_stock_quantity ?? 0), 0, ',', ' ') }}
+                                        · Global {{ number_format((int) $selectedInventoryItem->stock_quantity, 0, ',', ' ') }}
                                         @if ($selectedInventoryItemReserved > 0)
                                             · Réservé {{ number_format($selectedInventoryItemReserved, 0, ',', ' ') }}
                                         @endif
@@ -763,7 +809,10 @@
                                 <select name="items[{{ $index }}][item_id]" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                                     <option value="">Article…</option>
                                     @foreach ($stockItems as $stockItem)
-                                        <option value="{{ $stockItem->id }}" @selected($line['item_id'] == $stockItem->id)>{{ $stockItem->title }} ({{ $stockItem->item_code ?? $stockItem->barcode ?? '—' }})</option>
+                                        @php
+                                            $storeStock = (int) ($stockItem->store_stock_quantity ?? $stockItem->stock_quantity);
+                                        @endphp
+                                        <option value="{{ $stockItem->id }}" @selected($line['item_id'] == $stockItem->id)>{{ $stockItem->title }} · stock {{ $storeStock }} ({{ $stockItem->item_code ?? $stockItem->barcode ?? '—' }})</option>
                                     @endforeach
                                 </select>
                                 <input type="number" name="items[{{ $index }}][counted_quantity]" min="0" value="{{ $line['counted_quantity'] }}" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Comptage">
@@ -771,7 +820,16 @@
                             </div>
                         @endforeach
                     </div>
-                    <button type="button" class="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-900" onclick="const c = document.getElementById('stocktake-lines'); const i = c.children.length; c.insertAdjacentHTML('beforeend', `<div class='stocktake-line grid items-end gap-3 sm:grid-cols-[1fr_140px_auto]'><select name='items[\${i}][item_id]' class='h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900'><option value=''>Article…</option>@foreach ($stockItems as $stockItem)<option value='{{ $stockItem->id }}'>{{ $stockItem->title }} ({{ $stockItem->item_code ?? $stockItem->barcode ?? '—' }})</option>@endforeach</select><input type='number' name='items[\${i}][counted_quantity]' min='0' class='h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900' placeholder='Comptage'><button type='button' class='remove-stocktake-line rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600' onclick='this.closest(\".stocktake-line\").remove()'>×</button></div>`)">+ Ajouter une ligne</button>
+                    <template id="stocktake-item-options">
+                        <option value="">Article…</option>
+                        @foreach ($stockItems as $stockItem)
+                            @php
+                                $storeStock = (int) ($stockItem->store_stock_quantity ?? $stockItem->stock_quantity);
+                            @endphp
+                            <option value="{{ $stockItem->id }}">{{ $stockItem->title }} · stock {{ $storeStock }} ({{ $stockItem->item_code ?? $stockItem->barcode ?? '—' }})</option>
+                        @endforeach
+                    </template>
+                    <button type="button" class="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-900" onclick="const c = document.getElementById('stocktake-lines'); const t = document.getElementById('stocktake-item-options'); const i = c.children.length; const row = document.createElement('div'); row.className = 'stocktake-line grid items-end gap-3 sm:grid-cols-[1fr_140px_auto]'; row.innerHTML = `<select name='items[${i}][item_id]' class='h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900'>${t.innerHTML}</select><input type='number' name='items[${i}][counted_quantity]' min='0' class='h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900' placeholder='Comptage'><button type='button' class='remove-stocktake-line rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-600' onclick='this.closest(&quot;.stocktake-line&quot;).remove()'>×</button>`; c.appendChild(row);">+ Ajouter une ligne</button>
                 </div>
                 <div class="flex gap-2">
                     <a href="{{ route('stock', ['panel' => 'stocktakes']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">Annuler</a>
