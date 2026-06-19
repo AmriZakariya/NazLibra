@@ -328,7 +328,7 @@ Ne placez jamais de secrets, mots de passe clients ou identifiants SMTP réels d
 
 ## État du projet
 
-Le projet est actuellement en version bêta (`1.0.0-beta.3`). Les parcours métier principaux sont couverts par des tests Feature, mais une validation sur environnement de préproduction reste recommandée avant toute mise en service : impression, matériel POS, emails, permissions, sauvegardes et comportement multi-magasin.
+Le projet est actuellement en version bêta (`1.0.0-beta.4`). Les parcours métier principaux sont couverts par des tests Feature, mais une validation sur environnement de préproduction reste recommandée avant toute mise en service : impression, matériel POS, emails, permissions, sauvegardes et comportement multi-magasin.
 
 ## Licence
 
