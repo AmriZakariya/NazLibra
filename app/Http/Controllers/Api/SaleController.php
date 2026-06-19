@@ -129,7 +129,7 @@ class SaleController extends Controller
             'discount.type'           => ['nullable', 'in:percent,fixed'],
             'discount.value'          => ['nullable', 'numeric', 'min:0'],
             'note'                    => ['nullable', 'string', 'max:1000'],
-            'sold_at'                 => ['nullable', 'date'],
+            'sold_at'                 => ['nullable', 'date', 'after:-24 hours', 'before:+5 minutes'],
         ]);
 
         /** @var Tenant $tenant */

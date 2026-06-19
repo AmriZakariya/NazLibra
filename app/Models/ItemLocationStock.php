@@ -12,6 +12,8 @@ class ItemLocationStock extends Model
 
     protected $table = 'item_location_stock';
 
+    protected $touches = ['item'];
+
     protected $fillable = [
         'tenant_id',
         'item_id',

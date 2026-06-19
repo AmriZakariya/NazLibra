@@ -95,7 +95,7 @@ class SyncController extends Controller
 
         $page = $request->query('page', 1);
 
-        $query = Item::query()
+        $query = Item::withTrashed()
             ->where('tenant_id', $tenant->id)
             ->with([
                 'category:id,name,slug',
@@ -111,7 +111,7 @@ class SyncController extends Controller
             'title', 'isbn', 'barcode', 'sku', 'custom_barcode1',
             'sale_price', 'purchase_price', 'min_stock_threshold',
             'stock_quantity', 'images', 'description', 'tags',
-            'updated_at', 'created_at',
+            'updated_at', 'created_at', 'deleted_at',
         ], 'page', $page);
 
         return response()->json([
@@ -248,6 +248,7 @@ class SyncController extends Controller
         /** @var Tenant $tenant */
         $tenant     = $request->attributes->get('api_tenant');
         $locationId = $request->attributes->get('api_location_id');
+        $since      = $this->parseSince($request);
 
         if (! $locationId) {
             return response()->json(['ok' => false, 'message' => 'Aucun emplacement.'], 422);
@@ -256,6 +257,7 @@ class SyncController extends Controller
         $stocks = ItemLocationStock::query()
             ->where('tenant_id', $tenant->id)
             ->where('location_id', $locationId)
+            ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
             ->get([
                 'item_id', 'variant_id',
                 'quantity', 'reserved_quantity',
@@ -322,14 +324,14 @@ class SyncController extends Controller
         $since   = $this->parseSince($request);
         $perPage = $this->perPage($request, self::DEFAULT_CONTACT_PER_PAGE, self::MAX_CONTACT_PER_PAGE);
 
-        $paginated = Contact::query()
+        $paginated = Contact::withTrashed()
             ->where('tenant_id', $tenant->id)
             ->where('type', 'customer')
             ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
             ->paginate($perPage, [
                 'id', 'type', 'name', 'email', 'phone', 'address',
                 'advance_balance', 'credit_balance',
-                'updated_at', 'created_at',
+                'updated_at', 'created_at', 'deleted_at',
             ]);
 
         return response()->json([
@@ -388,19 +390,19 @@ class SyncController extends Controller
         $since   = $this->parseSince($request);
         $perPage = $this->perPage($request, 100, 200);
 
-        $paginated = \App\Models\Sale::query()
+        $paginated = \App\Models\Sale::withTrashed()
             ->where('tenant_id', $tenant->id)
-            ->where('status', 'paid')
             ->with([
                 'items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost',
                 'contact:id,name,phone',
             ])
             ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
-            ->latest('sold_at')
+            ->latest('updated_at')
+            ->latest('id')
             ->paginate($perPage, [
                 'id', 'contact_id', 'number', 'status', 'payment_method',
                 'subtotal_amount', 'discount_amount', 'total_amount',
-                'sold_at', 'updated_at',
+                'sold_at', 'updated_at', 'deleted_at',
             ]);
 
         return response()->json([
@@ -411,6 +413,70 @@ class SyncController extends Controller
             'total'    => $paginated->total(),
             'has_more' => $paginated->hasMorePages(),
             'sales'    => $paginated->items(),
+        ]);
+    }
+
+    // ── Settings ──────────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/v1/sync/settings
+     *
+     * Returns tenant-level settings the mobile app needs to stay in sync with
+     * the back-office: timezone, currency, locale, POS behaviour flags, and the
+     * current location name. Call on first launch and on every delta sync so the
+     * app always reflects admin changes without requiring a re-login.
+     */
+    #[OA\Get(
+        path: '/api/v1/sync/settings',
+        operationId: 'syncSettings',
+        summary: 'Tenant settings (timezone, currency, locale, POS flags)',
+        security: [['bearerAuth' => []]],
+        tags: ['Sync'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Tenant settings',
+                content: new OA\JsonContent(properties: [
+                    new OA\Property(property: 'ok', type: 'boolean'),
+                    new OA\Property(property: 'sync_at', type: 'string', format: 'date-time'),
+                    new OA\Property(property: 'timezone', type: 'string', example: 'Africa/Casablanca'),
+                    new OA\Property(property: 'currency', type: 'string', example: 'MAD'),
+                    new OA\Property(property: 'locale', type: 'string', example: 'fr'),
+                    new OA\Property(property: 'tenant_name', type: 'string'),
+                    new OA\Property(property: 'location_name', type: 'string', nullable: true),
+                    new OA\Property(property: 'allow_oversell', type: 'boolean'),
+                    new OA\Property(property: 'receipt_footer', type: 'string', nullable: true),
+                    new OA\Property(property: 'receipt_header', type: 'string', nullable: true),
+                ])
+            ),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
+    public function settings(Request $request): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant     = $request->attributes->get('api_tenant');
+        $locationId = $request->attributes->get('api_location_id');
+
+        $location = $locationId
+            ? \App\Models\Location::find($locationId)
+            : null;
+
+        return response()->json([
+            'ok'             => true,
+            'sync_at'        => now()->toISOString(),
+            'timezone'       => $tenant->timezone ?? 'Africa/Casablanca',
+            'currency'       => $tenant->currency ?? 'MAD',
+            'locale'         => $tenant->locale   ?? 'fr',
+            'tenant_name'    => $tenant->name,
+            'location_name'  => $location?->name,
+            'allow_oversell' => (bool) data_get($tenant->settings, 'pos.allow_oversell', false),
+            'receipt_header' => data_get($tenant->settings, 'receipt.header'),
+            'receipt_footer' => data_get($tenant->settings, 'receipt.footer'),
         ]);
     }
 

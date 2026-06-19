@@ -47,6 +47,7 @@ use App\Models\Unit;
 use App\Models\VariantOption;
 use App\Models\VirtualDeviceSession;
 use App\Services\CashRegisterService;
+use App\Services\Documents\DocumentNumberGenerator;
 use App\Services\Documents\InvoiceService;
 use App\Support\AppModules;
 use App\Support\BusinessMode;
@@ -73,6 +74,8 @@ use ZipArchive;
 
 class LibraireProController extends Controller
 {
+    public function __construct(private readonly DocumentNumberGenerator $numbers) {}
+
     private function noStoreJson(array $payload): JsonResponse
     {
         return response()
@@ -7655,61 +7658,27 @@ class LibraireProController extends Controller
 
     private function nextSaleNumber(Tenant $tenant): string
     {
-        $max = Sale::where('tenant_id', $tenant->id)
-            ->where('number', 'like', 'BL%')
-            ->pluck('number')
-            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
-            ->max();
-
-        if (! $max) {
-            $max = Sale::where('tenant_id', $tenant->id)->count();
-        }
-
-        return 'BL'.($max + 1);
+        return $this->numbers->next($tenant, 'sale', 'BL')['number'];
     }
 
     private function nextTicketNumber(Tenant $tenant): string
     {
-        $max = PosTicket::where('tenant_id', $tenant->id)
-            ->where('number', 'like', 'ATT%')
-            ->pluck('number')
-            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
-            ->max() ?? 0;
-
-        return 'ATT'.str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
+        return $this->numbers->next($tenant, 'ticket', 'ATT')['number'];
     }
 
     private function nextPaymentNumber(Tenant $tenant): string
     {
-        $max = SalePayment::where('tenant_id', $tenant->id)
-            ->where('number', 'like', 'PAY%')
-            ->pluck('number')
-            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
-            ->max() ?? 0;
-
-        return 'PAY'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
+        return $this->numbers->next($tenant, 'payment', 'PAY')['number'];
     }
 
     private function nextReturnNumber(Tenant $tenant): string
     {
-        $max = SaleReturn::where('tenant_id', $tenant->id)
-            ->where('number', 'like', 'RET%')
-            ->pluck('number')
-            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
-            ->max() ?? 0;
-
-        return 'RET'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
+        return $this->numbers->next($tenant, 'return', 'RET')['number'];
     }
 
     private function nextDeliveryNumber(Tenant $tenant): string
     {
-        $max = DeliveryOrder::where('tenant_id', $tenant->id)
-            ->where('number', 'like', 'LIV%')
-            ->pluck('number')
-            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
-            ->max() ?? 0;
-
-        return 'LIV'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
+        return $this->numbers->next($tenant, 'delivery', 'LIV')['number'];
     }
 
     private function nextOnlineOrderNumber(Tenant $tenant): string
@@ -8117,7 +8086,8 @@ class LibraireProController extends Controller
                     $builder->where('status', 'partial');
                 }
             })
-            ->latest('sold_at');
+            ->latest('sold_at')
+            ->latest('id');
     }
 
     private function salePaymentsQuery(Tenant $tenant, Request $request): Builder
