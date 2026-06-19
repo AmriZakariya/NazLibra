@@ -194,11 +194,9 @@ class LibraireProController extends Controller
             ->sum('sale_items.quantity');
         $purchaseCost = (float) DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
-            ->leftJoin('items', 'sale_items.item_id', '=', 'items.id')
             ->where('sales.tenant_id', $tenant->id)
             ->whereBetween('sales.sold_at', [$from, $to])
-            ->selectRaw('sum(coalesce(items.purchase_price, 0) * sale_items.quantity) as value')
-            ->value('value');
+            ->sum('sale_items.total_cost');
         $netRevenue = max(0, $periodRevenue - $periodSaleReturns);
         $grossProfit = $netRevenue - $purchaseCost;
         $netProfit = $grossProfit - $periodExpenses;
@@ -4023,11 +4021,13 @@ class LibraireProController extends Controller
 
                 foreach ($saleLines as $line) {
                     $sale->items()->create([
-                        'item_id' => $line['item']->id,
-                        'name' => $line['item']->title,
-                        'quantity' => $line['quantity'],
+                        'item_id'    => $line['item']->id,
+                        'name'       => $line['item']->title,
+                        'quantity'   => $line['quantity'],
                         'unit_price' => $line['unit_price'],
                         'total_price' => $line['total_price'],
+                        'unit_cost'  => $line['average_cost'],
+                        'total_cost' => $line['cogs'],
                     ]);
 
                     if ($line['item']->type !== 'service') {
@@ -4038,7 +4038,7 @@ class LibraireProController extends Controller
                             locationId: $saleLocationId,
                             type: \App\Services\Inventory\InventoryMovementType::SALE,
                             quantityChanged: -$line['quantity'],
-                            unitCost: null,
+                            unitCost: $line['average_cost'] > 0 ? $line['average_cost'] : null,
                             allowNegative: $allowOversell,
                             referenceType: Sale::class,
                             referenceId: $sale->id,
@@ -4510,11 +4510,13 @@ class LibraireProController extends Controller
 
                 foreach ($saleLines as $line) {
                     $sale->items()->create([
-                        'item_id' => $line['item']->id,
-                        'name' => $line['item']->title,
-                        'quantity' => $line['quantity'],
+                        'item_id'    => $line['item']->id,
+                        'name'       => $line['item']->title,
+                        'quantity'   => $line['quantity'],
                         'unit_price' => $line['unit_price'],
                         'total_price' => $line['total_price'],
+                        'unit_cost'  => $line['average_cost'],
+                        'total_cost' => $line['cogs'],
                     ]);
 
                     if ($line['item']->type !== 'service') {
@@ -4541,7 +4543,7 @@ class LibraireProController extends Controller
                                 locationId: $saleLocationId,
                                 type: \App\Services\Inventory\InventoryMovementType::SALE,
                                 quantityChanged: -$line['quantity'],
-                                unitCost: null,
+                                unitCost: $line['average_cost'] > 0 ? $line['average_cost'] : null,
                                 allowNegative: $allowOversell,
                                 referenceType: Sale::class,
                                 referenceId: $sale->id,
@@ -7051,7 +7053,7 @@ class LibraireProController extends Controller
             ->orderBy('title')
             ->get();
 
-        $purchaseCost = $saleItems->sum(fn ($line) => (float) ($line->item?->purchase_price ?? 0) * (int) $line->quantity);
+        $purchaseCost = $saleItems->sum(fn ($line) => (float) $line->total_cost);
         $grossRevenue = (float) $sales->sum('total_amount');
         $returnsAmount = (float) $saleReturns->sum('total_amount');
         $netRevenue = max(0, $grossRevenue - $returnsAmount);
