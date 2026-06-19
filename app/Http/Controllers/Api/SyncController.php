@@ -54,6 +54,33 @@ class SyncController extends Controller
      *   since    ISO-8601 UTC timestamp (optional, inclusive >=)
      *   page     integer (default 1)
      *   per_page integer (default 200, max 500)
+     *
+     * @OA\Get(
+     *     path="/api/v1/sync/items",
+     *     operationId="syncItems",
+     *     tags={"Sync"},
+     *     summary="Paginated item delta sync",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="since", in="query", required=false, description="ISO-8601 UTC cursor (inclusive >=)", @OA\Schema(type="string", format="date-time")),
+     *     @OA\Parameter(name="page", in="query", required=false, @OA\Schema(type="integer", default=1)),
+     *     @OA\Parameter(name="per_page", in="query", required=false, @OA\Schema(type="integer", default=200, maximum=500)),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Paginated items",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="ok", type="boolean", example=true),
+     *             @OA\Property(property="sync_at", type="string", format="date-time"),
+     *             @OA\Property(property="page", type="integer"),
+     *             @OA\Property(property="per_page", type="integer"),
+     *             @OA\Property(property="total", type="integer"),
+     *             @OA\Property(property="has_more", type="boolean"),
+     *             @OA\Property(property="items", type="array", @OA\Items(type="object"))
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
      */
     public function items(Request $request): JsonResponse
     {
@@ -102,6 +129,30 @@ class SyncController extends Controller
      * Returns all categories, brands, units and taxes for the tenant.
      * These collections are small (rarely more than a few hundred rows)
      * so they are not paginated.  Pass `since` for delta.
+     *
+     * @OA\Get(
+     *     path="/api/v1/sync/meta",
+     *     operationId="syncMeta",
+     *     tags={"Sync"},
+     *     summary="Sync categories, brands, units and taxes",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="since", in="query", required=false, description="ISO-8601 UTC cursor", @OA\Schema(type="string", format="date-time")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Metadata collections",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="ok", type="boolean", example=true),
+     *             @OA\Property(property="sync_at", type="string", format="date-time"),
+     *             @OA\Property(property="categories", type="array", @OA\Items(type="object")),
+     *             @OA\Property(property="brands", type="array", @OA\Items(type="object")),
+     *             @OA\Property(property="units", type="array", @OA\Items(type="object")),
+     *             @OA\Property(property="taxes", type="array", @OA\Items(type="object"))
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
      */
     public function meta(Request $request): JsonResponse
     {
@@ -148,6 +199,37 @@ class SyncController extends Controller
      * each offline-sync batch to update local available quantities.
      * Not delta-paginated — always returns the complete current state for
      * the location so the device can fully refresh its local cache.
+     *
+     * @OA\Get(
+     *     path="/api/v1/sync/stock",
+     *     operationId="syncStock",
+     *     tags={"Sync"},
+     *     summary="Full stock snapshot at the current location",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="since", in="query", required=false, description="ISO-8601 UTC cursor", @OA\Schema(type="string", format="date-time")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Stock snapshot",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="ok", type="boolean", example=true),
+     *             @OA\Property(property="sync_at", type="string", format="date-time"),
+     *             @OA\Property(property="location_id", type="integer"),
+     *             @OA\Property(property="stock", type="array", @OA\Items(
+     *                 @OA\Property(property="item_id", type="integer"),
+     *                 @OA\Property(property="variant_id", type="integer", nullable=true),
+     *                 @OA\Property(property="qty", type="integer"),
+     *                 @OA\Property(property="reserved", type="integer"),
+     *                 @OA\Property(property="available", type="integer"),
+     *                 @OA\Property(property="avg_cost", type="number", format="float"),
+     *                 @OA\Property(property="updated_at", type="string", format="date-time")
+     *             ))
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated"),
+     *     @OA\Response(response=422, description="No location configured")
+     * )
      */
     public function stock(Request $request): JsonResponse
     {
@@ -192,6 +274,31 @@ class SyncController extends Controller
      * GET /api/v1/sync/contacts
      *
      * Paginated customer delta.
+     *
+     * @OA\Get(
+     *     path="/api/v1/sync/contacts",
+     *     operationId="syncContacts",
+     *     tags={"Sync"},
+     *     summary="Paginated contact (customer) delta sync",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="since", in="query", required=false, description="ISO-8601 UTC cursor", @OA\Schema(type="string", format="date-time")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Paginated contacts",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="ok", type="boolean", example=true),
+     *             @OA\Property(property="sync_at", type="string", format="date-time"),
+     *             @OA\Property(property="page", type="integer"),
+     *             @OA\Property(property="per_page", type="integer"),
+     *             @OA\Property(property="total", type="integer"),
+     *             @OA\Property(property="has_more", type="boolean"),
+     *             @OA\Property(property="contacts", type="array", @OA\Items(type="object"))
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
      */
     public function contacts(Request $request): JsonResponse
     {
@@ -228,6 +335,33 @@ class SyncController extends Controller
      *
      * Paginated sale delta for the device to rebuild its local history.
      * Only returns paid sales (status = paid).
+     *
+     * @OA\Get(
+     *     path="/api/v1/sync/sales",
+     *     operationId="syncSales",
+     *     tags={"Sync"},
+     *     summary="Paginated paid sales delta sync",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="since", in="query", required=false, description="ISO-8601 UTC cursor", @OA\Schema(type="string", format="date-time")),
+     *     @OA\Parameter(name="page", in="query", required=false, @OA\Schema(type="integer", default=1)),
+     *     @OA\Parameter(name="per_page", in="query", required=false, @OA\Schema(type="integer", default=100, maximum=200)),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Paginated sales",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="ok", type="boolean", example=true),
+     *             @OA\Property(property="sync_at", type="string", format="date-time"),
+     *             @OA\Property(property="page", type="integer"),
+     *             @OA\Property(property="per_page", type="integer"),
+     *             @OA\Property(property="total", type="integer"),
+     *             @OA\Property(property="has_more", type="boolean"),
+     *             @OA\Property(property="sales", type="array", @OA\Items(type="object"))
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
      */
     public function sales(Request $request): JsonResponse
     {
@@ -282,7 +416,24 @@ class SyncController extends Controller
         }
     }
 
-    /** GET /api/v1/sync/catalog — legacy alias for /sync/items, kept for backward compat. */
+    /**
+     * GET /api/v1/sync/catalog — legacy alias for /sync/items, kept for backward compat.
+     *
+     * @OA\Get(
+     *     path="/api/v1/sync/catalog",
+     *     operationId="syncCatalog",
+     *     tags={"Sync"},
+     *     summary="Legacy alias for /sync/items (paginated item delta)",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="since", in="query", required=false, @OA\Schema(type="string", format="date-time")),
+     *     @OA\Parameter(name="page", in="query", required=false, @OA\Schema(type="integer", default=1)),
+     *     @OA\Parameter(name="per_page", in="query", required=false, @OA\Schema(type="integer", default=200, maximum=500)),
+     *     @OA\Response(response=200, description="Paginated items (same as /sync/items)", @OA\JsonContent(type="object")),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
     public function catalog(Request $request): JsonResponse
     {
         return $this->items($request);

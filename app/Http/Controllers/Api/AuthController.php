@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
 class AuthController extends Controller
 {
@@ -22,6 +23,58 @@ class AuthController extends Controller
      *
      * Returns: token, user, tenant, permissions, location.
      */
+    #[OA\Post(
+        path: '/api/v1/auth/login',
+        operationId: 'authLogin',
+        summary: 'Login and get API token',
+        description: 'Authenticates a user and returns a Sanctum token along with tenant and location context.',
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['email', 'password', 'device_name'],
+                properties: [
+                    new OA\Property(property: 'email', type: 'string', format: 'email', example: 'cashier@example.com'),
+                    new OA\Property(property: 'password', type: 'string', format: 'password', example: 'secret'),
+                    new OA\Property(property: 'device_name', type: 'string', example: 'iPad-POS-01'),
+                    new OA\Property(property: 'tenant_slug', type: 'string', nullable: true, example: 'my-store'),
+                    new OA\Property(property: 'device_uuid', type: 'string', nullable: true, example: '550e8400-e29b-41d4-a716-446655440000'),
+                ],
+            )
+        ),
+        tags: ['Auth'],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Login successful',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'ok', type: 'boolean', example: true),
+                        new OA\Property(property: 'token', type: 'string', example: '1|abc123...'),
+                        new OA\Property(property: 'user', type: 'object', properties: [
+                            new OA\Property(property: 'id', type: 'integer'),
+                            new OA\Property(property: 'name', type: 'string'),
+                            new OA\Property(property: 'email', type: 'string'),
+                        ]),
+                        new OA\Property(property: 'tenant', type: 'object', properties: [
+                            new OA\Property(property: 'id', type: 'integer'),
+                            new OA\Property(property: 'name', type: 'string'),
+                            new OA\Property(property: 'slug', type: 'string'),
+                            new OA\Property(property: 'currency', type: 'string'),
+                            new OA\Property(property: 'locale', type: 'string'),
+                            new OA\Property(property: 'timezone', type: 'string'),
+                        ]),
+                        new OA\Property(property: 'location', type: 'object', nullable: true, properties: [
+                            new OA\Property(property: 'id', type: 'integer'),
+                            new OA\Property(property: 'name', type: 'string'),
+                        ]),
+                        new OA\Property(property: 'abilities', type: 'array', items: new OA\Items(type: 'string')),
+                    ]
+                )
+            ),
+            new OA\Response(response: 422, description: 'Validation error or invalid credentials'),
+            new OA\Response(response: 403, description: 'Account disabled or tenant access denied'),
+        ]
+    )]
     public function login(Request $request): JsonResponse
     {
         $data = $request->validate([
@@ -106,6 +159,23 @@ class AuthController extends Controller
     }
 
     /** Revoke the current token. */
+    #[OA\Post(
+        path: '/api/v1/auth/logout',
+        operationId: 'authLogout',
+        summary: 'Logout and revoke token',
+        security: [['bearerAuth' => []]],
+        tags: ['Auth'],
+        parameters: [
+            new OA\Parameter(name: 'X-Tenant-Slug', in: 'header', required: true, schema: new OA\Schema(type: 'string')),
+            new OA\Parameter(name: 'X-Location-Id', in: 'header', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Token revoked', content: new OA\JsonContent(
+                properties: [new OA\Property(property: 'ok', type: 'boolean', example: true)]
+            )),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+        ]
+    )]
     public function logout(Request $request): JsonResponse
     {
         $token = $request->user()->currentAccessToken();
@@ -118,7 +188,46 @@ class AuthController extends Controller
         return response()->json(['ok' => true]);
     }
 
-    /** Return the authenticated user + tenant context. */
+    /**
+     * Return the authenticated user + tenant context.
+     *
+     * @OA\Get(
+     *     path="/api/v1/auth/me",
+     *     operationId="authMe",
+     *     tags={"Auth"},
+     *     summary="Get current authenticated user",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Current user info",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="ok", type="boolean", example=true),
+     *             @OA\Property(property="user", type="object",
+     *                 @OA\Property(property="id", type="integer"),
+     *                 @OA\Property(property="name", type="string"),
+     *                 @OA\Property(property="email", type="string"),
+     *                 @OA\Property(property="role", type="string", nullable=true)
+     *             ),
+     *             @OA\Property(property="tenant", type="object",
+     *                 @OA\Property(property="id", type="integer"),
+     *                 @OA\Property(property="name", type="string"),
+     *                 @OA\Property(property="slug", type="string"),
+     *                 @OA\Property(property="currency", type="string"),
+     *                 @OA\Property(property="locale", type="string"),
+     *                 @OA\Property(property="timezone", type="string")
+     *             ),
+     *             @OA\Property(property="location", type="object", nullable=true,
+     *                 @OA\Property(property="id", type="integer"),
+     *                 @OA\Property(property="name", type="string")
+     *             ),
+     *             @OA\Property(property="abilities", type="array", @OA\Items(type="string"))
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
     public function me(Request $request): JsonResponse
     {
         $user   = $request->user();

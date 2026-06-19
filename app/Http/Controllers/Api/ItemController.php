@@ -28,6 +28,30 @@ class ItemController extends Controller
      *   barcode  Exact match on barcode / custom_barcode1
      *   isbn     Exact match on ISBN
      *   sku      Exact match on SKU
+     *
+     * @OA\Get(
+     *     path="/api/v1/items/search",
+     *     operationId="itemSearch",
+     *     tags={"Items"},
+     *     summary="Real-time item search by barcode, ISBN, SKU, or keyword",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="q", in="query", required=false, description="Keyword search on title/author/barcode/isbn", @OA\Schema(type="string")),
+     *     @OA\Parameter(name="barcode", in="query", required=false, description="Exact barcode match", @OA\Schema(type="string")),
+     *     @OA\Parameter(name="isbn", in="query", required=false, description="Exact ISBN match", @OA\Schema(type="string")),
+     *     @OA\Parameter(name="sku", in="query", required=false, description="Exact SKU match", @OA\Schema(type="string")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Matching items (max 30)",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="ok", type="boolean", example=true),
+     *             @OA\Property(property="items", type="array", @OA\Items(type="object"))
+     *         )
+     *     ),
+     *     @OA\Response(response=422, description="No search criteria provided"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
      */
     public function search(Request $request): JsonResponse
     {
@@ -96,7 +120,30 @@ class ItemController extends Controller
         return response()->json(['ok' => true, 'items' => $items]);
     }
 
-    /** GET /api/v1/items/{item} — single item detail with stock at location. */
+    /**
+     * GET /api/v1/items/{item} — single item detail with stock at location.
+     *
+     * @OA\Get(
+     *     path="/api/v1/items/{item}",
+     *     operationId="itemShow",
+     *     tags={"Items"},
+     *     summary="Get a single item detail with stock at current location",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="item", in="path", required=true, description="Item ID", @OA\Schema(type="integer")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Item detail",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="ok", type="boolean", example=true),
+     *             @OA\Property(property="item", type="object")
+     *         )
+     *     ),
+     *     @OA\Response(response=404, description="Item not found"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
     public function show(Request $request, Item $item): JsonResponse
     {
         /** @var Tenant $tenant */

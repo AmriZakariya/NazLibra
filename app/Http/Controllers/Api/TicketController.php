@@ -16,7 +16,28 @@ use Illuminate\Http\Request;
  */
 class TicketController extends Controller
 {
-    /** GET /api/v1/pos/tickets — list all held tickets for this tenant. */
+    /**
+     * GET /api/v1/pos/tickets — list all held tickets for this tenant.
+     *
+     * @OA\Get(
+     *     path="/api/v1/pos/tickets",
+     *     operationId="ticketIndex",
+     *     tags={"Tickets"},
+     *     summary="List all held (parked) POS tickets",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="List of held tickets",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="ok", type="boolean", example=true),
+     *             @OA\Property(property="tickets", type="array", @OA\Items(type="object"))
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
     public function index(Request $request): JsonResponse
     {
         /** @var Tenant $tenant */
@@ -41,6 +62,44 @@ class TicketController extends Controller
      *
      * The client should upsert by sending the same `number` to update.
      * If `number` is omitted a new ticket is created.
+     *
+     * @OA\Post(
+     *     path="/api/v1/pos/tickets",
+     *     operationId="ticketStore",
+     *     tags={"Tickets"},
+     *     summary="Create or update a held POS ticket (parked cart)",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"cart"},
+     *             @OA\Property(property="number", type="string", nullable=true, description="Existing ticket number to update"),
+     *             @OA\Property(property="contact_id", type="integer", nullable=true),
+     *             @OA\Property(property="cart", type="array", @OA\Items(
+     *                 required={"item_id","quantity"},
+     *                 @OA\Property(property="item_id", type="integer"),
+     *                 @OA\Property(property="quantity", type="integer", minimum=1),
+     *                 @OA\Property(property="unit_price", type="number", format="float", nullable=true),
+     *                 @OA\Property(property="note", type="string", nullable=true)
+     *             )),
+     *             @OA\Property(property="subtotal_amount", type="number", format="float", nullable=true),
+     *             @OA\Property(property="discount_amount", type="number", format="float", nullable=true),
+     *             @OA\Property(property="total_amount", type="number", format="float", nullable=true),
+     *             @OA\Property(property="note", type="string", nullable=true)
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=201,
+     *         description="Ticket created or updated",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="ok", type="boolean", example=true),
+     *             @OA\Property(property="ticket", type="object")
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
      */
     public function store(Request $request): JsonResponse
     {
@@ -102,7 +161,27 @@ class TicketController extends Controller
         return response()->json(['ok' => true, 'ticket' => $ticket], 201);
     }
 
-    /** DELETE /api/v1/pos/tickets/{ticket} — discard a held ticket. */
+    /**
+     * DELETE /api/v1/pos/tickets/{ticket} — discard a held ticket.
+     *
+     * @OA\Delete(
+     *     path="/api/v1/pos/tickets/{ticket}",
+     *     operationId="ticketDestroy",
+     *     tags={"Tickets"},
+     *     summary="Delete a held POS ticket",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="ticket", in="path", required=true, description="Ticket ID", @OA\Schema(type="integer")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Ticket deleted",
+     *         @OA\JsonContent(@OA\Property(property="ok", type="boolean", example=true))
+     *     ),
+     *     @OA\Response(response=404, description="Ticket not found"),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
+     */
     public function destroy(Request $request, PosTicket $ticket): JsonResponse
     {
         /** @var Tenant $tenant */

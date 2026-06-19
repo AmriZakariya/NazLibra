@@ -22,6 +22,47 @@ class DashboardController extends Controller
      * GET /api/v1/dashboard?from=<date>&to=<date>
      *
      * Returns KPIs for the given period (default: today in tenant timezone).
+     *
+     * @OA\Get(
+     *     path="/api/v1/dashboard",
+     *     operationId="dashboardIndex",
+     *     tags={"Dashboard"},
+     *     summary="Get POS dashboard KPIs for a date range",
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Parameter(name="X-Tenant-Slug", in="header", required=true, @OA\Schema(type="string")),
+     *     @OA\Parameter(name="X-Location-Id", in="header", required=true, @OA\Schema(type="integer")),
+     *     @OA\Parameter(name="from", in="query", required=false, description="Start date (defaults to today)", @OA\Schema(type="string", format="date")),
+     *     @OA\Parameter(name="to", in="query", required=false, description="End date (defaults to today)", @OA\Schema(type="string", format="date")),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Dashboard KPIs",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="ok", type="boolean", example=true),
+     *             @OA\Property(property="period", type="object",
+     *                 @OA\Property(property="from", type="string", format="date"),
+     *                 @OA\Property(property="to", type="string", format="date")
+     *             ),
+     *             @OA\Property(property="kpis", type="object",
+     *                 @OA\Property(property="sale_count", type="integer"),
+     *                 @OA\Property(property="items_sold", type="integer"),
+     *                 @OA\Property(property="gross_revenue", type="number"),
+     *                 @OA\Property(property="returns_total", type="number"),
+     *                 @OA\Property(property="net_revenue", type="number"),
+     *                 @OA\Property(property="cogs", type="number"),
+     *                 @OA\Property(property="gross_profit", type="number"),
+     *                 @OA\Property(property="margin_percent", type="number"),
+     *                 @OA\Property(property="avg_ticket", type="number")
+     *             ),
+     *             @OA\Property(property="stock_health", type="object",
+     *                 @OA\Property(property="low_stock", type="integer"),
+     *                 @OA\Property(property="out_of_stock", type="integer")
+     *             ),
+     *             @OA\Property(property="payment_breakdown", type="object"),
+     *             @OA\Property(property="top_items", type="array", @OA\Items(type="object"))
+     *         )
+     *     ),
+     *     @OA\Response(response=401, description="Unauthenticated")
+     * )
      */
     public function index(Request $request): JsonResponse
     {
