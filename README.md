@@ -1,58 +1,319 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# NazLibra / LibrairePro
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+NazLibra, présenté dans l’application sous le nom **LibrairePro**, est une plateforme SaaS de gestion destinée aux librairies, papeteries et commerces culturels. Elle réunit dans une même application le catalogue, la caisse, le stock multi-magasin, les précommandes web, les achats, la facturation, la relation client et le pilotage financier.
 
-## About Laravel
+Le projet est pensé pour les réalités d’une librairie marocaine : prix en MAD, interface française et arabe, gestion des ISBN et codes-barres, livres et fournitures, commandes WhatsApp/web, retrait en magasin, avances client, tiroir-caisse et documents commerciaux.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Objectifs métier
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+LibrairePro vise à fournir un parcours cohérent de bout en bout :
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- centraliser les articles, livres, services, catégories, marques, variantes et prix ;
+- vendre rapidement depuis une caisse POS avec scanner, panier, remises et paiements mixtes ;
+- suivre le stock réel par magasin ou emplacement ;
+- transformer une précommande ou une facture en vente sans double mouvement de stock ;
+- gérer les fournisseurs, achats, réceptions et retours ;
+- produire des devis, factures, tickets et PDF ;
+- suivre clients, avances, coupons, dépenses, comptes et trésorerie ;
+- contrôler les accès par tenant, rôle, magasin et appareil virtuel ;
+- fournir des tableaux de bord, rapports et traces d’audit.
 
-## Learning Laravel
+## Principes fonctionnels importants
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### La caisse est l’unique point d’encaissement
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Toute opération qui doit produire une vente passe par **`/caisse`**. Les précommandes et factures ouvrent la caisse avec le client et les articles préchargés. L’ancien écran de vente manuelle redirige également vers la caisse.
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+Cette règle garantit que le paiement, le mouvement de stock, le ticket, le tiroir-caisse et les contrôles d’idempotence utilisent le même flux.
 
-## Agentic Development
+### Le stock est géré par emplacement
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+La source opérationnelle du stock est `item_location_stocks`, identifiée par tenant, article, variante et emplacement. Les ventes, réceptions, retours, ajustements, transferts et inventaires produisent des mouvements traçables.
 
-```bash
-composer require laravel/boost --dev
+- une vente contrôle le stock du magasin courant ;
+- un service n’a pas de stock physique ;
+- le stock négatif est bloqué sauf si l’oversell est explicitement autorisé ;
+- une opération refusée ne crée ni vente ni mouvement partiel ;
+- les clés d’idempotence empêchent de rejouer une transaction ;
+- une précommande ne décrémente pas le stock avant son encaissement en caisse.
 
-php artisan boost:install
+### Les documents source restent liés à la vente
+
+Une vente issue d’une facture ou d’une précommande conserve son document source. Une contrainte métier empêche de convertir deux fois le même document. Si une vente existe déjà, l’application la rouvre au lieu de créer une seconde sortie de stock.
+
+## Modules
+
+| Domaine | Capacités principales |
+| --- | --- |
+| Tableau de bord | KPIs, activité, alertes, raccourcis et centre d’action |
+| Catalogue | Livres, produits, services, ISBN, codes-barres, catégories, marques, unités, taxes, variantes, imports et étiquettes |
+| Caisse & ventes | Recherche/scanner, panier, client, remises, coupons, paiements mixtes, tickets en attente, reçus, retours et remboursements |
+| Boutique en ligne | Catalogue public, filtres, disponibilité par magasin, panier et création de précommandes |
+| Précommandes | Commandes web, WhatsApp, téléphone ou magasin, suivi de préparation et conversion via la caisse |
+| Stock | Stock par emplacement, mouvements, réservations, ajustements, transferts, inventaires et valorisation |
+| Facturation | Devis, factures, paiements, statuts, duplication, archivage, conversion et PDF |
+| Achats | Commandes fournisseur, paiements, réception en stock, coûts et retours d’achat |
+| Contacts | Clients, fournisseurs, coordonnées, historique, crédit, avance, imports et segmentation |
+| Finance | Avances client, dépenses, catégories, comptes, dépôts, transferts et transactions |
+| Promotions | Coupons, coupons client et règles de remise conditionnelles |
+| Tiroir-caisse | Ouverture, entrées/sorties d’espèces, solde attendu et clôture |
+| Livraisons | Bons de livraison, adresses, préparation, expédition et suivi |
+| Emprunts | Prêts, retours, pénalités et réservations ; module optionnel |
+| Rapports | Ventes, achats, stock, finance et performance |
+| Administration | Société, magasins, modules, thème, rôles, utilisateurs, appareils, documents et messagerie |
+| Audit & sécurité | Historique utilisateur, appareil virtuel, terminal réel, verrouillage PIN et contrôle des permissions |
+
+Les modules activables et leur ordre sont définis dans [`app/Support/AppModules.php`](app/Support/AppModules.php).
+
+## Parcours métier
+
+### Vente comptoir
+
+```mermaid
+flowchart LR
+    A[Recherche ou scan] --> B[Panier caisse]
+    B --> C[Contrôle stock magasin]
+    C --> D[Paiement]
+    D --> E[Vente et lignes]
+    E --> F[Mouvement de stock]
+    E --> G[Paiement et tiroir-caisse]
+    E --> H[Ticket ou PDF]
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### Précommande en ligne
 
-## Contributing
+```mermaid
+flowchart LR
+    A[Boutique publique] --> B[Précommande impayée]
+    B --> C[Confirmation et préparation]
+    C --> D[Caisse préremplie]
+    D --> E[Paiement et vente]
+    E --> F[Stock décrémenté]
+    E --> G[Précommande terminée]
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### Achat et réception
 
-## Code of Conduct
+```mermaid
+flowchart LR
+    A[Commande fournisseur] --> B[Paiement achat]
+    A --> C[Réception]
+    C --> D[Entrée de stock]
+    D --> E[Mise à jour du coût moyen]
+    A --> F[Retour fournisseur]
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Architecture technique
 
-## Security Vulnerabilities
+Le projet est un **monolithe modulaire Laravel**. Les domaines partagent la même application et la même base, tout en isolant les règles sensibles dans des services dédiés.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```text
+app/
+├── Http/
+│   ├── Controllers/       Contrôleurs web, POS, boutique et documents
+│   └── Middleware/        Tenant, permissions, session, appareil et audit
+├── Models/                Modèles Eloquent du domaine
+├── Services/
+│   ├── Inventory/         Stock atomique, réservations et mouvements
+│   ├── Documents/         Calcul, numérotation, audit, devis et factures
+│   └── CashRegisterService.php
+└── Support/               Tenant, modules, langue, horloge et mode métier
 
-## License
+resources/
+├── views/librairepro/     Back-office, caisse, catalogue et modules
+├── views/storefront/      Boutique publique
+├── views/components/      Layout et composants Blade partagés
+├── css/app.css            Styles Tailwind et composants applicatifs
+└── js/app.js              Interactions POS, tableaux et interface
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+database/
+├── migrations/            Schéma et évolutions fonctionnelles
+├── seeders/               Données initiales, tenant client et démonstration
+└── factories/             Fabriques de tests
+
+routes/web.php             Routes métier et compatibilité des anciennes URLs
+tests/Feature/             Tests des parcours complets
+```
+
+### Couche HTTP
+
+- `LibraireProController` orchestre la majorité des écrans et opérations du back-office.
+- `OnlineStoreController` gère la boutique publique et la création des commandes web.
+- `CommercialDocumentController` gère les devis et factures commerciales.
+- les middlewares appliquent le contexte tenant, les permissions, le magasin/appareil courant, le verrouillage de session et l’audit.
+
+### Services métier
+
+- `InventoryService` verrouille les lignes de stock et exécute les mouvements dans des transactions atomiques ;
+- `CashRegisterService` centralise les sessions et mouvements du tiroir-caisse ;
+- `InvoiceService` et `EstimateService` gèrent le cycle de vie des documents ;
+- `CommercialDocumentCalculator` calcule lignes, remises, taxes et totaux ;
+- `DocumentNumberGenerator` et `DocumentAuditTrail` assurent numérotation et traçabilité.
+
+### Données et multi-tenant
+
+Les enregistrements métier portent un `tenant_id`. `TenantContext` détermine l’organisation courante et `EnsureTenantAccess` contrôle les modules et permissions. Les magasins sont associés à des emplacements de stock et les utilisateurs peuvent avoir un accès limité à certains magasins.
+
+Les opérations critiques utilisent des transactions SQL, des verrous de ligne et, lorsque nécessaire, des clés d’idempotence.
+
+## Stack
+
+- PHP 8.3+
+- Laravel 13
+- Blade
+- Tailwind CSS 4
+- Vite 8
+- JavaScript ES modules
+- Eloquent ORM
+- SQLite par défaut ; MySQL/MariaDB configurable
+- Yajra DataTables et DataTables.net
+- Dompdf pour les documents PDF
+- PHPUnit 12
+
+## Installation locale
+
+### Prérequis
+
+- PHP 8.3 ou supérieur avec les extensions requises par Laravel ;
+- Composer ;
+- Node.js et npm ;
+- SQLite, MySQL ou MariaDB.
+
+### Installation rapide
+
+```bash
+git clone <url-du-depot>
+cd NazLibra
+composer run setup
+php artisan db:seed
+```
+
+Le script `composer run setup` installe les dépendances PHP et JavaScript, crée `.env`, génère la clé applicative, exécute les migrations et compile les assets.
+
+Pour SQLite, créez le fichier si nécessaire :
+
+```bash
+touch database/database.sqlite
+```
+
+Vérifiez ensuite dans `.env` :
+
+```dotenv
+APP_NAME=LibrairePro
+APP_URL=http://127.0.0.1:8000
+DB_CONNECTION=sqlite
+CLIENT_BUSINESS_MODE=bookstore
+CLIENT_TIMEZONE=Africa/Casablanca
+CLIENT_CURRENCY=MAD
+CLIENT_LANGUAGE=fr
+```
+
+Pour réinitialiser une base locale avec les données de démonstration :
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+N’utilisez pas cette commande sur une base contenant des données utiles.
+
+## Développement
+
+Démarrer le serveur Laravel, Vite, la queue et les logs :
+
+```bash
+composer run dev
+```
+
+Ou lancer séparément :
+
+```bash
+php artisan serve
+npm run dev
+php artisan queue:listen
+```
+
+URLs principales :
+
+| URL | Usage |
+| --- | --- |
+| `/` | Tableau de bord après authentification |
+| `/caisse` | Point de vente et encaissement |
+| `/catalogue` | Catalogue et gestion du stock |
+| `/modules/{module}` | Modules du back-office |
+| `/boutique` | Boutique publique |
+| `/modules/settings` | Configuration de l’organisation |
+
+## Tests et qualité
+
+Exécuter toute la suite :
+
+```bash
+composer test
+```
+
+Exécuter un domaine précis :
+
+```bash
+php artisan test tests/Feature/PosTest.php
+php artisan test tests/Feature/OnlineOrderTest.php
+php artisan test tests/Feature/PurchaseTest.php
+php artisan test tests/Feature/FacturationModuleTest.php
+```
+
+Vérifier le style PHP :
+
+```bash
+./vendor/bin/pint --test
+```
+
+Compiler les assets de production :
+
+```bash
+npm run build
+```
+
+Les tests utilisent SQLite en mémoire, le cache et les sessions en mémoire, ainsi que les transports mail/queue de test configurés dans `phpunit.xml`.
+
+## Conventions de développement
+
+- toute requête métier doit être limitée au tenant courant ;
+- une vente interactive doit passer par `/caisse` ;
+- toute variation de stock doit passer par `InventoryService` et produire un mouvement ;
+- les opérations financières ou de stock doivent être transactionnelles ;
+- les conversions de documents doivent rester idempotentes ;
+- un échec de validation ou de stock ne doit laisser aucune écriture partielle ;
+- les services ne décrémentent jamais le stock ;
+- les textes visibles doivent rester compatibles avec le français et l’arabe ;
+- tout nouveau parcours critique doit avoir un test Feature.
+
+## Configuration
+
+Les principales variables sont documentées dans [`.env.example`](.env.example). Elles couvrent notamment :
+
+- l’URL, la langue et la version de l’application ;
+- la base de données, les sessions, le cache et les queues ;
+- l’identité du tenant client et du propriétaire initial ;
+- le mode métier, la devise, le pays et le fuseau horaire ;
+- le mail et les intégrations externes.
+
+Les paramètres modifiables depuis l’interface sont stockés dans les réglages du tenant : modules, thème, société, magasins, caisse, documents PDF, messagerie, rôles et références.
+
+## Sécurité et audit
+
+- authentification Laravel avec réinitialisation du mot de passe et du PIN ;
+- rôles et permissions par tenant ;
+- accès utilisateur limité aux magasins autorisés ;
+- verrouillage de session caisse ;
+- sélection et suivi d’appareils virtuels ;
+- journal d’audit avec utilisateur, action, sujet, appareil et contexte de requête ;
+- validation des identifiants de modèles dans le périmètre du tenant.
+
+Ne placez jamais de secrets, mots de passe clients ou identifiants SMTP réels dans le dépôt.
+
+## État du projet
+
+Le projet est actuellement en version bêta (`1.0.0-beta.3`). Les parcours métier principaux sont couverts par des tests Feature, mais une validation sur environnement de préproduction reste recommandée avant toute mise en service : impression, matériel POS, emails, permissions, sauvegardes et comportement multi-magasin.
+
+## Licence
+
+Ce dépôt utilise Laravel, distribué sous licence MIT. La licence applicable au code métier NazLibra/LibrairePro doit être définie par le propriétaire du projet avant distribution publique.
