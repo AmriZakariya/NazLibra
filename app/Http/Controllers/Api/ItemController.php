@@ -124,6 +124,89 @@ class ItemController extends Controller
         return response()->json(['ok' => true, 'items' => $items]);
     }
 
+    /**
+     * POST /api/v1/items — create a new item from the POS app.
+     */
+    public function store(Request $request): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant     = $request->attributes->get('api_tenant');
+        $locationId = $request->attributes->get('api_location_id');
+
+        $data = $request->validate([
+            'title'               => ['required', 'string', 'max:255'],
+            'sale_price'          => ['required', 'numeric', 'min:0'],
+            'purchase_price'      => ['nullable', 'numeric', 'min:0'],
+            'stock_quantity'      => ['nullable', 'numeric', 'min:0'],
+            'min_stock_threshold' => ['nullable', 'numeric', 'min:0'],
+            'isbn'                => ['nullable', 'string', 'max:30'],
+            'barcode'             => ['nullable', 'string', 'max:100'],
+            'sku'                 => ['nullable', 'string', 'max:100'],
+            'author'              => ['nullable', 'string', 'max:255'],
+            'category_id'         => ['nullable', 'integer'],
+            'type'                => ['nullable', 'string', 'in:product,service'],
+        ]);
+
+        $item = Item::create([
+            'tenant_id'           => $tenant->id,
+            'title'               => $data['title'],
+            'sale_price'          => $data['sale_price'],
+            'purchase_price'      => $data['purchase_price'] ?? 0,
+            'stock_quantity'      => $data['stock_quantity'] ?? 0,
+            'min_stock_threshold' => $data['min_stock_threshold'] ?? 0,
+            'isbn'                => $data['isbn'] ?? null,
+            'barcode'             => $data['barcode'] ?? null,
+            'sku'                 => $data['sku'] ?? null,
+            'author'              => $data['author'] ?? null,
+            'category_id'         => $data['category_id'] ?? null,
+            'type'                => $data['type'] ?? 'product',
+            'status'              => 'active',
+            'is_enabled'          => true,
+            'checkout_visible'    => true,
+        ]);
+
+        // Initialise stock for the current location so the item appears in stock queries.
+        if ($locationId && ($data['stock_quantity'] ?? 0) > 0) {
+            ItemLocationStock::create([
+                'tenant_id'   => $tenant->id,
+                'item_id'     => $item->id,
+                'location_id' => $locationId,
+                'quantity'    => $data['stock_quantity'],
+            ]);
+        }
+
+        return response()->json(['ok' => true, 'item' => $item->fresh()], 201);
+    }
+
+    /**
+     * PUT /api/v1/items/{item} — update an item from the POS app.
+     */
+    public function update(Request $request, Item $item): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant = $request->attributes->get('api_tenant');
+
+        if ($item->tenant_id !== $tenant->id) {
+            return response()->json(['ok' => false, 'message' => 'Article introuvable.'], 404);
+        }
+
+        $data = $request->validate([
+            'title'               => ['sometimes', 'string', 'max:255'],
+            'sale_price'          => ['sometimes', 'numeric', 'min:0'],
+            'purchase_price'      => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'stock_quantity'      => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'min_stock_threshold' => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'isbn'                => ['sometimes', 'nullable', 'string', 'max:30'],
+            'barcode'             => ['sometimes', 'nullable', 'string', 'max:100'],
+            'sku'                 => ['sometimes', 'nullable', 'string', 'max:100'],
+            'author'              => ['sometimes', 'nullable', 'string', 'max:255'],
+        ]);
+
+        $item->update($data);
+
+        return response()->json(['ok' => true, 'item' => $item->fresh()]);
+    }
+
     /** GET /api/v1/items/{item} — single item detail with stock at location. */
     #[OA\Get(
         path: '/api/v1/items/{item}',

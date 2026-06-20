@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AdjustmentController;
+use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CashRegisterController;
 use App\Http\Controllers\Api\ContactController;
@@ -91,11 +92,15 @@ Route::prefix('v1')->group(function (): void {
         Route::post('contacts',          [ContactController::class, 'store']);
         Route::get('contacts/{contact}', [ContactController::class, 'show']);
 
-        // ── Item lookup (real-time scanner / search) ───────────────────────────
+        // ── Item lookup & CRUD ────────────────────────────────────────────────
         Route::get('items/search',  [ItemController::class, 'search']);
+        Route::post('items',         [ItemController::class, 'store']);
         Route::get('items/{item}',  [ItemController::class, 'show']);
+        Route::put('items/{item}',  [ItemController::class, 'update']);
 
         // ── Inventory adjustments ─────────────────────────────────────────────
         Route::post('inventory/adjustments', [AdjustmentController::class, 'store']);
+        Route::get('inventory/summary',      [InventoryController::class, 'summary']);
+        Route::get('inventory/movements',    [InventoryController::class, 'movements']);
     });
 });
