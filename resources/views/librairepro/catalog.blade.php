@@ -368,9 +368,23 @@
                             <h2 class="mt-1 text-lg font-semibold text-slate-950 dark:text-white">Stock par article</h2>
                             <p class="mt-1 text-sm text-slate-500">Tous les articles physiques avec volume, valeur d'achat, valeur de vente et accès direct à l'historique.</p>
                         </div>
-                        <form method="GET" action="{{ route('stock') }}" class="grid w-full gap-2 sm:grid-cols-[minmax(220px,1fr)_180px_auto_auto] xl:max-w-4xl">
+                        <form method="GET" action="{{ route('stock') }}" class="grid w-full gap-2 sm:grid-cols-[minmax(220px,1fr)_180px_auto_auto] xl:max-w-4xl"
+                              data-inventory-item-picker
+                              data-inventory-item-search-url="{{ route('catalog.stock-items.search') }}"
+                              data-inventory-on-select="submit">
                             <input type="hidden" name="panel" value="stock-adjustments">
-                            <input name="stock_inventory_q" value="{{ $stockInventoryQuery }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="Rechercher article, code, ISBN, emplacement...">
+                            <input type="hidden" name="stock_inventory_item" value="{{ $selectedStockItem?->id }}" data-inventory-item-id>
+                            <div class="inventory-item-picker">
+                                <input
+                                    name="stock_inventory_q"
+                                    value="{{ $selectedStockItem ? $selectedStockItem->title : $stockInventoryQuery }}"
+                                    class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5"
+                                    placeholder="Rechercher article, code-barres, ISBN..."
+                                    autocomplete="off"
+                                    data-inventory-item-input
+                                >
+                                <div class="inventory-item-results" data-inventory-item-results hidden></div>
+                            </div>
                             <select name="stock_inventory_state" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-900">
                                 <option value="all" @selected($stockInventoryState === 'all')>Tous les stocks</option>
                                 <option value="available" @selected($stockInventoryState === 'available')>Disponible</option>

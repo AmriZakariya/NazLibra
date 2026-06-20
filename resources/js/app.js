@@ -4398,7 +4398,11 @@ document.querySelectorAll('[data-inventory-item-picker]').forEach((form) => {
         hiddenId.value = item.value;
         input.value = item.title || item.text || '';
         hideResults();
-        window.location.href = targetUrl(item.value);
+        if (form.dataset.inventoryOnSelect === 'submit') {
+            form.submit();
+        } else {
+            window.location.href = targetUrl(item.value);
+        }
     };
 
     const render = () => {

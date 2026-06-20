@@ -600,6 +600,7 @@ class LibraireProController extends Controller
         $referenceQuery = trim((string) $request->query('reference_q'));
         $stockItemSearch = trim((string) $request->query('stock_q'));
         $stockInventoryQuery = trim((string) $request->query('stock_inventory_q'));
+        $stockInventoryItemId = (int) $request->query('stock_inventory_item');
         $stockInventoryState = $request->query('stock_inventory_state', 'all');
         $inventoryQuery = trim((string) $request->query('inventory_q'));
         $inventoryItemId = (int) $request->query('inventory_item');
@@ -639,6 +640,10 @@ class LibraireProController extends Controller
                 ->where('location_id', $currentStoreLocationId)
                 ->sum('reserved_quantity')
             : 0;
+        // Selected item for the "Stock par article" ID picker (separate from the movement-history picker).
+        $selectedStockItem = $stockInventoryItemId > 0
+            ? $tenant->items()->select(['id', 'title'])->whereKey($stockInventoryItemId)->first()
+            : null;
         $stockInventoryItems = $tenant->items()
             ->with(['category', 'brand', 'unit'])
             ->select('items.*')
@@ -659,7 +664,8 @@ class LibraireProController extends Controller
                     ->where('stock_movements.location_id', $currentStoreLocationId);
             }, 'stock_movements_count')
             ->where('items.type', '!=', 'service')
-            ->when($stockInventoryQuery !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($stockInventoryQuery): void {
+            ->when($stockInventoryItemId > 0, fn (Builder $builder) => $builder->whereKey($stockInventoryItemId))
+            ->when($stockInventoryItemId === 0 && $stockInventoryQuery !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($stockInventoryQuery): void {
                 $builder->where('items.title', 'like', "%{$stockInventoryQuery}%")
                     ->orWhere('items.item_code', 'like', "%{$stockInventoryQuery}%")
                     ->orWhere('items.sku', 'like', "%{$stockInventoryQuery}%")
@@ -841,6 +847,8 @@ class LibraireProController extends Controller
             'locations' => Location::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('name')->get(),
             'stockInventoryItems' => $stockInventoryItems,
             'stockInventoryQuery' => $stockInventoryQuery,
+            'stockInventoryItemId' => $stockInventoryItemId,
+            'selectedStockItem' => $selectedStockItem,
             'stockInventoryState' => $stockInventoryState,
             'selectedInventoryItem' => $selectedInventoryItem,
             'selectedInventoryItemStockValue' => $selectedInventoryItemStockValue,
