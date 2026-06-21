@@ -62,7 +62,7 @@ class ContactController extends Controller
 
         $query = Contact::query()
             ->where('tenant_id', $tenant->id)
-            ->where('type', 'customer');
+            ->where('kind', 'client');
 
         if ($q !== '') {
             $query->where(fn ($q2) => $q2
@@ -71,9 +71,16 @@ class ContactController extends Controller
                 ->orWhere('email', 'like', "%{$q}%"));
         }
 
-        $contacts = $query->limit(30)->get([
-            'id', 'name', 'phone', 'email', 'advance_balance', 'credit_balance',
-        ]);
+        $contacts = $query->limit(30)->get(['id', 'name', 'phone', 'email', 'advance_balance', 'credit_limit', 'outstanding_balance'])
+            ->map(fn ($c) => [
+                'id'               => $c->id,
+                'name'             => $c->name,
+                'phone'            => $c->phone,
+                'email'            => $c->email,
+                'advance_balance'  => (float) $c->advance_balance,
+                'credit_limit'     => (float) $c->credit_limit,
+                'credit_balance'   => max(0, (float) $c->credit_limit - (float) $c->outstanding_balance),
+            ]);
 
         return response()->json(['ok' => true, 'contacts' => $contacts]);
     }
@@ -162,6 +169,7 @@ class ContactController extends Controller
             'phone'   => ['nullable', 'string', 'max:30'],
             'email'   => ['nullable', 'email', 'max:150'],
             'address' => ['nullable', 'string', 'max:300'],
+            'kind'    => ['nullable', 'in:client,supplier'],
         ]);
 
         /** @var Tenant $tenant */
@@ -169,7 +177,7 @@ class ContactController extends Controller
 
         $contact = Contact::create([
             'tenant_id' => $tenant->id,
-            'type'      => 'customer',
+            'kind'      => $data['kind'] ?? 'client',
             'name'      => $data['name'],
             'phone'     => $data['phone'] ?? null,
             'email'     => $data['email'] ?? null,
@@ -177,5 +185,50 @@ class ContactController extends Controller
         ]);
 
         return response()->json(['ok' => true, 'contact' => $contact], 201);
+    }
+
+    /** PUT /api/v1/contacts/{contact} */
+    public function update(Request $request, Contact $contact): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant = $request->attributes->get('api_tenant');
+
+        if ($contact->tenant_id !== $tenant->id) {
+            return response()->json(['ok' => false, 'message' => 'Contact introuvable.'], 404);
+        }
+
+        $data = $request->validate([
+            'name'    => ['sometimes', 'required', 'string', 'max:150'],
+            'phone'   => ['nullable', 'string', 'max:30'],
+            'email'   => ['nullable', 'email', 'max:150'],
+            'address' => ['nullable', 'string', 'max:300'],
+            'kind'    => ['sometimes', 'in:client,supplier'],
+            'status'  => ['sometimes', 'in:active,archived'],
+            'credit_limit' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $contact->update($data);
+
+        return response()->json(['ok' => true, 'contact' => $contact->fresh()]);
+    }
+
+    /** DELETE /api/v1/contacts/{contact} */
+    public function destroy(Request $request, Contact $contact): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant = $request->attributes->get('api_tenant');
+
+        if ($contact->tenant_id !== $tenant->id) {
+            return response()->json(['ok' => false, 'message' => 'Contact introuvable.'], 404);
+        }
+
+        if ($contact->sales()->exists() || $contact->loans()->exists()) {
+            $contact->update(['status' => 'archived']);
+            return response()->json(['ok' => true, 'archived' => true, 'message' => 'Contact archivé (historique existant).']);
+        }
+
+        $contact->delete();
+
+        return response()->json(['ok' => true, 'deleted' => true]);
     }
 }

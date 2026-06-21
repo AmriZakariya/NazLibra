@@ -325,16 +325,20 @@ class SyncController extends Controller
         $tenant  = $request->attributes->get('api_tenant');
         $since   = $this->parseSince($request);
         $perPage = $this->perPage($request, self::DEFAULT_CONTACT_PER_PAGE, self::MAX_CONTACT_PER_PAGE);
+        // Allow syncing a specific kind; default syncs both client and supplier
+        $kind    = in_array($request->query('kind'), ['client', 'supplier'], true)
+            ? $request->query('kind')
+            : null;
 
         $paginated = Contact::withTrashed()
             ->where('tenant_id', $tenant->id)
-            ->where('kind', 'customer')
+            ->when($kind, fn ($q) => $q->where('kind', $kind))
             ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
             ->orderBy('updated_at', 'asc')
             ->orderBy('id', 'asc')
             ->paginate($perPage, [
-                'id', 'kind', 'name', 'email', 'phone', 'address',
-                'advance_balance', 'outstanding_balance',
+                'id', 'kind', 'code', 'status', 'name', 'email', 'phone', 'address',
+                'advance_balance', 'outstanding_balance', 'credit_limit',
                 'updated_at', 'created_at', 'deleted_at',
             ]);
 

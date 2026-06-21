@@ -124,7 +124,7 @@ class AuthController extends Controller
         // Revoke any previous token for this device_name to avoid token accumulation.
         $user->tokens()->where('name', $data['device_name'])->delete();
 
-        $abilities = $this->abilitiesForUser($tenant, $user);
+        [$role, $abilities] = $this->resolveUserContext($tenant, $user);
 
         $token = $user->createToken($data['device_name'], $abilities);
 
@@ -140,9 +140,11 @@ class AuthController extends Controller
             'ok'    => true,
             'token' => $token->plainTextToken,
             'user'  => [
-                'id'    => $user->id,
-                'name'  => $user->name,
-                'email' => $user->email,
+                'id'           => $user->id,
+                'name'         => $user->name,
+                'email'        => $user->email,
+                'role'         => $role,
+                'avatar_color' => $user->avatar_color ?? '#0D9488',
             ],
             'tenant' => [
                 'id'       => $tenant->id,
@@ -235,16 +237,16 @@ class AuthController extends Controller
         $tenant = $request->attributes->get('api_tenant');
         $location = $request->attributes->get('api_location');
 
-        $tenantUser = $tenant->users()->whereKey($user->id)->first();
-        $role = $tenantUser?->pivot?->role;
+        [$role, $meAbilities] = $this->resolveUserContext($tenant, $user);
 
         return response()->json([
             'ok'   => true,
             'user' => [
-                'id'    => $user->id,
-                'name'  => $user->name,
-                'email' => $user->email,
-                'role'  => $role,
+                'id'           => $user->id,
+                'name'         => $user->name,
+                'email'        => $user->email,
+                'role'         => $role,
+                'avatar_color' => $user->avatar_color ?? '#0D9488',
             ],
             'tenant' => [
                 'id'       => $tenant->id,
@@ -255,19 +257,25 @@ class AuthController extends Controller
                 'timezone' => $tenant->timezone ?? 'Africa/Casablanca',
             ],
             'location'   => $location ? ['id' => $location->id, 'name' => $location->name] : null,
-            'abilities'  => $this->abilitiesForUser($tenant, $user),
+            'abilities'  => $meAbilities,
         ]);
     }
 
-    private function abilitiesForUser(Tenant $tenant, User $user): array
+    /**
+     * Returns [role, abilities] for a user in a given tenant — single DB query.
+     */
+    private function resolveUserContext(Tenant $tenant, User $user): array
     {
-        $tenantUser = $tenant->users()->whereKey($user->id)->first();
+        $tenantUser  = $tenant->users()->whereKey($user->id)->first();
+        $role        = $tenantUser?->pivot?->role;
         $permissions = json_decode((string) ($tenantUser?->pivot?->permissions ?? '[]'), true) ?: [];
 
         if (in_array('*', $permissions, true)) {
-            return ['*'];
+            return [$role, ['*']];
         }
 
-        return $permissions ?: ['pos.sales.create', 'pos.sales.view', 'catalog.view', 'stock.view'];
+        $abilities = $permissions ?: ['pos.sales.create', 'pos.sales.view', 'catalog.view', 'stock.view'];
+
+        return [$role, $abilities];
     }
 }

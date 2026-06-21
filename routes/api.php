@@ -10,7 +10,9 @@ use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\ReturnController;
 use App\Http\Controllers\Api\SaleController;
+use App\Http\Controllers\Api\SaleInvoiceController;
 use App\Http\Controllers\Api\SyncController;
+use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\TicketController;
 use Illuminate\Support\Facades\Route;
 
@@ -87,10 +89,12 @@ Route::prefix('v1')->group(function (): void {
             Route::post('movements',[CashRegisterController::class, 'movement']);
         });
 
-        // ── Contacts (customers) ──────────────────────────────────────────────
-        Route::get('contacts',           [ContactController::class, 'index']);
-        Route::post('contacts',          [ContactController::class, 'store']);
-        Route::get('contacts/{contact}', [ContactController::class, 'show']);
+        // ── Contacts (customers & suppliers) ─────────────────────────────────
+        Route::get('contacts',              [ContactController::class, 'index']);
+        Route::post('contacts',             [ContactController::class, 'store']);
+        Route::get('contacts/{contact}',    [ContactController::class, 'show']);
+        Route::put('contacts/{contact}',    [ContactController::class, 'update']);
+        Route::delete('contacts/{contact}', [ContactController::class, 'destroy']);
 
         // ── Item lookup & CRUD ────────────────────────────────────────────────
         Route::get('items/search',  [ItemController::class, 'search']);
@@ -102,5 +106,17 @@ Route::prefix('v1')->group(function (): void {
         Route::post('inventory/adjustments', [AdjustmentController::class, 'store']);
         Route::get('inventory/summary',      [InventoryController::class, 'summary']);
         Route::get('inventory/movements',    [InventoryController::class, 'movements']);
+
+        // ── Sale invoices ─────────────────────────────────────────────────────
+        Route::get('invoices',                          [SaleInvoiceController::class, 'index']);
+        Route::get('invoices/{invoice}',                [SaleInvoiceController::class, 'show']);
+        Route::post('sales/{sale}/invoice',             [SaleInvoiceController::class, 'generate']);
+
+        // ── Users & PIN ───────────────────────────────────────────────────────
+        Route::get('users',                 [UserController::class, 'index']);
+        Route::put('users/{user}',          [UserController::class, 'update']);
+        Route::post('users/set-pin',        [UserController::class, 'setPin']);
+        Route::delete('users/pin',          [UserController::class, 'removePin']);
+        Route::post('auth/pin-verify',      [UserController::class, 'pinVerify']);
     });
 });
