@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\Contact;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
+use App\Models\SaleInvoice;
 use App\Models\Tax;
 use App\Models\Tenant;
 use App\Models\Unit;
@@ -506,6 +507,41 @@ class SyncController extends Controller
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    // ── Invoices ──────────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/v1/sync/invoices
+     *
+     * Paginated delta of sale invoices updated since the cursor.
+     */
+    public function invoices(Request $request): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant  = $request->attributes->get('api_tenant');
+        $since   = $this->parseSince($request);
+        $perPage = $this->perPage($request, 100, 200);
+        $page    = $request->query('page', 1);
+
+        $query = SaleInvoice::query()
+            ->with(['sale:id,number,sold_at,status,total_amount,contact_id', 'contact:id,name,phone,email'])
+            ->where('tenant_id', $tenant->id)
+            ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
+            ->orderBy('updated_at', 'asc')
+            ->orderBy('id', 'asc');
+
+        $paginated = $query->paginate($perPage, ['*'], 'page', $page);
+
+        return response()->json([
+            'ok'       => true,
+            'sync_at'  => now()->toISOString(),
+            'page'     => $paginated->currentPage(),
+            'per_page' => $paginated->perPage(),
+            'total'    => $paginated->total(),
+            'has_more' => $paginated->hasMorePages(),
+            'invoices' => $paginated->items(),
+        ]);
     }
 
     /** GET /api/v1/sync/catalog — legacy alias for /sync/items, kept for backward compat. */

@@ -61,6 +61,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('contacts', [SyncController::class, 'contacts']); // customers
             Route::get('sales',    [SyncController::class, 'sales']);    // sales history
             Route::get('settings', [SyncController::class, 'settings']); // tenant settings (tz, currency, flags)
+            Route::get('invoices', [SyncController::class, 'invoices']); // sale invoices
             // Legacy alias kept for backward compatibility during rollout.
             Route::get('catalog',  [SyncController::class, 'catalog']);
         });
