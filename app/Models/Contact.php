@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\HasMany as HasManyRelation;
 
 #[Fillable([
     'tenant_id',
@@ -58,6 +59,11 @@ class Contact extends Model
             'fine_balance' => 'decimal:2',
             'price_level' => 'decimal:2',
         ];
+    }
+
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(ContactTransaction::class);
     }
 
     public function sales(): HasMany

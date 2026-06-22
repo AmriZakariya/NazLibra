@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Contact;
+use App\Models\ContactTransaction;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
 use App\Models\SaleInvoice;
@@ -567,6 +568,36 @@ class SyncController extends Controller
     public function catalog(Request $request): JsonResponse
     {
         return $this->items($request);
+    }
+
+    /**
+     * Delta-sync contact transactions.
+     * Returns all transactions (including soft-deleted) updated since cursor.
+     */
+    public function contactTransactions(Request $request): JsonResponse
+    {
+        $tenant  = $request->attributes->get('api_tenant');
+        $since   = $request->query('since');
+        $syncAt  = now()->toIso8601String();
+
+        $query = ContactTransaction::withTrashed()
+            ->where('tenant_id', $tenant->id)
+            ->orderBy('updated_at');
+
+        if ($since) {
+            $query->where('updated_at', '>=', Carbon::parse($since));
+        }
+
+        $transactions = $query->get([
+            'id', 'tenant_id', 'contact_id', 'type', 'amount',
+            'note', 'recorded_at', 'updated_at', 'deleted_at',
+        ]);
+
+        return response()->json([
+            'ok'           => true,
+            'transactions' => $transactions,
+            'sync_at'      => $syncAt,
+        ]);
     }
 
     private function perPage(Request $request, int $default, int $max): int

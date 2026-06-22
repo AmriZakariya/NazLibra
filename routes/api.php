@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\SaleInvoiceController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\Api\ContactTransactionController;
 use App\Http\Controllers\Api\PublicController;
 use App\Http\Controllers\Api\VirtualDeviceApiController;
 use Illuminate\Support\Facades\Route;
@@ -58,16 +59,21 @@ Route::prefix('v1')->group(function (): void {
 
         // ── Delta sync ────────────────────────────────────────────────────────
         Route::prefix('sync')->group(function (): void {
-            Route::get('items',    [SyncController::class, 'items']);    // paginated catalog
-            Route::get('meta',     [SyncController::class, 'meta']);     // categories, brands, units, taxes
-            Route::get('stock',    [SyncController::class, 'stock']);    // stock levels
-            Route::get('contacts', [SyncController::class, 'contacts']); // customers
-            Route::get('sales',    [SyncController::class, 'sales']);    // sales history
-            Route::get('settings', [SyncController::class, 'settings']); // tenant settings (tz, currency, flags)
-            Route::get('invoices', [SyncController::class, 'invoices']); // sale invoices
+            Route::get('items',                [SyncController::class, 'items']);               // paginated catalog
+            Route::get('meta',                 [SyncController::class, 'meta']);                // categories, brands, units, taxes
+            Route::get('stock',                [SyncController::class, 'stock']);               // stock levels
+            Route::get('contacts',             [SyncController::class, 'contacts']);            // customers & suppliers
+            Route::get('sales',                [SyncController::class, 'sales']);               // sales history
+            Route::get('settings',             [SyncController::class, 'settings']);            // tenant settings
+            Route::get('invoices',             [SyncController::class, 'invoices']);            // sale invoices
+            Route::get('contact-transactions', [SyncController::class, 'contactTransactions']); // manual ledger entries
             // Legacy alias kept for backward compatibility during rollout.
-            Route::get('catalog',  [SyncController::class, 'catalog']);
+            Route::get('catalog',              [SyncController::class, 'catalog']);
         });
+
+        // ── Contact transactions ───────────────────────────────────────────────
+        Route::get('contacts/{contact}/transactions',  [ContactTransactionController::class, 'index']);
+        Route::post('contacts/{contact}/transactions', [ContactTransactionController::class, 'store']);
 
         // ── POS — sales & tickets ─────────────────────────────────────────────
         Route::prefix('pos')->group(function (): void {
