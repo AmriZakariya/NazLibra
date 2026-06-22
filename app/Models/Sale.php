@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['tenant_id', 'contact_id', 'user_id', 'source_invoice_id', 'source_online_order_id', 'number', 'status', 'payment_method', 'subtotal_amount', 'discount_amount', 'tax_amount', 'total_amount', 'sold_at', 'metadata', 'idempotency_key'])]
+#[Fillable(['tenant_id', 'location_id', 'contact_id', 'user_id', 'virtual_device_id', 'actor_name_snapshot', 'terminal_name_snapshot', 'source_invoice_id', 'source_online_order_id', 'number', 'status', 'payment_method', 'subtotal_amount', 'discount_amount', 'tax_amount', 'total_amount', 'sold_at', 'metadata', 'idempotency_key'])]
 class Sale extends Model
 {
     use SoftDeletes;
@@ -30,6 +30,16 @@ class Sale extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function virtualDevice(): BelongsTo
+    {
+        return $this->belongsTo(VirtualDevice::class);
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class);
     }
 
     public function sourceInvoice(): BelongsTo

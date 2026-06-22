@@ -32,6 +32,8 @@ class InventoryMovement extends Model
         'reason',
         'idempotency_key',
         'virtual_device_id',
+        'actor_name_snapshot',
+        'terminal_name_snapshot',
         'real_device_platform',
         'real_device_browser',
         'real_device_ip',

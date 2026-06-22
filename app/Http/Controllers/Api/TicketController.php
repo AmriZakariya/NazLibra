@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PosTicket;
 use App\Models\Tenant;
+use App\Support\ApiActionContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use OpenApi\Attributes as OA;
@@ -44,6 +45,8 @@ class TicketController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
+        /** @var ApiActionContext $action */
+        $action = $request->attributes->get('api_action_context');
 
         $tickets = PosTicket::query()
             ->where('tenant_id', $tenant->id)
@@ -143,6 +146,10 @@ class TicketController extends Controller
                 'total_amount'    => $data['total_amount'] ?? 0,
                 'note'            => $data['note'] ?? $ticket->note,
                 'held_at'         => now(),
+                'user_id'         => $action->actor->id,
+                'virtual_device_id' => $action->virtualDevice?->id,
+                'actor_name_snapshot' => $action->actor->name,
+                'terminal_name_snapshot' => $action->virtualDevice?->name,
             ]);
         } else {
             // Generate ticket number.
@@ -155,7 +162,10 @@ class TicketController extends Controller
             $ticket = PosTicket::create([
                 'tenant_id'       => $tenant->id,
                 'contact_id'      => $data['contact_id'] ?? null,
-                'user_id'         => auth()->id(),
+                'user_id'         => $action->actor->id,
+                'virtual_device_id' => $action->virtualDevice?->id,
+                'actor_name_snapshot' => $action->actor->name,
+                'terminal_name_snapshot' => $action->virtualDevice?->name,
                 'number'          => 'ATT'.str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT),
                 'status'          => 'held',
                 'cart'            => $data['cart'],

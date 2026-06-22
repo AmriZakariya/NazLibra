@@ -72,6 +72,8 @@ class InventoryService
                 'reason' => $dto->reason,
                 'idempotency_key' => $dto->idempotencyKey,
                 'virtual_device_id' => $dto->virtualDeviceId,
+                'actor_name_snapshot' => $dto->actorNameSnapshot,
+                'terminal_name_snapshot' => $dto->terminalNameSnapshot,
                 'real_device_platform' => $dto->realDevicePlatform,
                 'real_device_browser' => $dto->realDeviceBrowser,
                 'real_device_ip' => $dto->realDeviceIp,

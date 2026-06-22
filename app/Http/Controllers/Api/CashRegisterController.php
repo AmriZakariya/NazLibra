@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CashRegisterSession;
 use App\Models\Tenant;
 use App\Services\CashRegisterService;
+use App\Support\ApiActionContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -108,8 +109,10 @@ class CashRegisterController extends Controller
 
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
+        /** @var ApiActionContext $action */
+        $action = $request->attributes->get('api_action_context');
 
-        $session = DB::transaction(function () use ($tenant, $data): CashRegisterSession {
+        $session = DB::transaction(function () use ($tenant, $data, $action): CashRegisterSession {
             // If already open, return existing session.
             $existing = $this->cashRegister->openSession($tenant, lock: true);
             if ($existing) {
@@ -126,7 +129,7 @@ class CashRegisterController extends Controller
 
             return CashRegisterSession::create([
                 'tenant_id'            => $tenant->id,
-                'opened_by'            => auth()->id(),
+                'opened_by'            => $action->actor->id,
                 'store_key'            => $storeKey,
                 'number'               => 'CAI'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT),
                 'status'               => 'open',
@@ -134,6 +137,7 @@ class CashRegisterController extends Controller
                 'expected_cash_amount' => round((float) $data['opening_amount'], 2),
                 'opened_at'            => now(),
                 'note'                 => $data['note'] ?? null,
+                'metadata'             => ['opened_by_name' => $action->actor->name, 'opened_virtual_device_id' => $action->virtualDevice?->id, 'opened_virtual_device_name' => $action->virtualDevice?->name],
             ]);
         });
 
@@ -188,6 +192,8 @@ class CashRegisterController extends Controller
 
         /** @var Tenant $tenant */
         $tenant  = $request->attributes->get('api_tenant');
+        /** @var ApiActionContext $action */
+        $action = $request->attributes->get('api_action_context');
         $session = $this->cashRegister->openSession($tenant, lock: false);
 
         if (! $session) {
@@ -200,11 +206,12 @@ class CashRegisterController extends Controller
 
         $session->update([
             'status'               => 'closed',
-            'closed_by'            => auth()->id(),
+            'closed_by'            => $action->actor->id,
             'counted_cash_amount'  => $counted,
             'difference_amount'    => $difference,
             'closed_at'            => now(),
             'closing_note'         => $data['closing_note'] ?? null,
+            'metadata'             => [...($session->metadata ?? []), 'closed_by_name' => $action->actor->name, 'closed_virtual_device_id' => $action->virtualDevice?->id, 'closed_virtual_device_name' => $action->virtualDevice?->name],
         ]);
 
         return response()->json([
@@ -267,6 +274,8 @@ class CashRegisterController extends Controller
 
         /** @var Tenant $tenant */
         $tenant  = $request->attributes->get('api_tenant');
+        /** @var ApiActionContext $action */
+        $action = $request->attributes->get('api_action_context');
         $session = $this->cashRegister->openSession($tenant);
 
         if (! $session) {
@@ -282,6 +291,10 @@ class CashRegisterController extends Controller
             [
                 'reference' => $data['reference'] ?? null,
                 'note'      => $data['note'] ?? null,
+                'user_id' => $action->actor->id,
+                'virtual_device_id' => $action->virtualDevice?->id,
+                'actor_name_snapshot' => $action->actor->name,
+                'terminal_name_snapshot' => $action->virtualDevice?->name,
             ]
         );
 

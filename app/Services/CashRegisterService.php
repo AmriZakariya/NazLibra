@@ -38,7 +38,10 @@ class CashRegisterService
         return CashRegisterMovement::create([
             'tenant_id' => $tenant->id,
             'cash_register_session_id' => $session->id,
-            'user_id' => auth()->id(),
+            'user_id' => $data['user_id'] ?? auth()->id(),
+            'virtual_device_id' => $data['virtual_device_id'] ?? null,
+            'actor_name_snapshot' => $data['actor_name_snapshot'] ?? null,
+            'terminal_name_snapshot' => $data['terminal_name_snapshot'] ?? null,
             'sale_id' => $data['sale_id'] ?? null,
             'account_transaction_id' => $data['account_transaction_id'] ?? null,
             'number' => $this->nextMovementNumber($tenant),

@@ -79,24 +79,24 @@ Route::prefix('v1')->group(function (): void {
         Route::prefix('pos')->group(function (): void {
             // Sales
             Route::get('sales',        [SaleController::class, 'index']);
-            Route::post('sales',       [SaleController::class, 'store']);
+            Route::post('sales',       [SaleController::class, 'store'])->middleware('api.action:sales.create');
             Route::get('sales/{sale}', [SaleController::class, 'show']);
 
             // Returns / refunds
-            Route::post('sales/{sale}/returns', [ReturnController::class, 'store']);
+            Route::post('sales/{sale}/returns', [ReturnController::class, 'store'])->middleware('api.action:sales.refund');
 
             // Held tickets (saved carts)
             Route::get('tickets',            [TicketController::class, 'index']);
-            Route::post('tickets',           [TicketController::class, 'store']);
-            Route::delete('tickets/{ticket}', [TicketController::class, 'destroy']);
+            Route::post('tickets',           [TicketController::class, 'store'])->middleware('api.action:sales.create');
+            Route::delete('tickets/{ticket}', [TicketController::class, 'destroy'])->middleware('api.action:sales.create');
         });
 
         // ── Cash register ─────────────────────────────────────────────────────
         Route::prefix('cash-register')->group(function (): void {
             Route::get('',          [CashRegisterController::class, 'status']);
-            Route::post('open',     [CashRegisterController::class, 'open']);
-            Route::post('close',    [CashRegisterController::class, 'close']);
-            Route::post('movements',[CashRegisterController::class, 'movement']);
+            Route::post('open',     [CashRegisterController::class, 'open'])->middleware('api.action:sales.create');
+            Route::post('close',    [CashRegisterController::class, 'close'])->middleware('api.action:sales.create');
+            Route::post('movements',[CashRegisterController::class, 'movement'])->middleware('api.action:sales.create');
         });
 
         // ── Contacts (customers & suppliers) ─────────────────────────────────
@@ -113,7 +113,7 @@ Route::prefix('v1')->group(function (): void {
         Route::put('items/{item}',  [ItemController::class, 'update']);
 
         // ── Inventory adjustments ─────────────────────────────────────────────
-        Route::post('inventory/adjustments', [AdjustmentController::class, 'store']);
+        Route::post('inventory/adjustments', [AdjustmentController::class, 'store'])->middleware('api.action:stock.adjust');
         Route::get('inventory/summary',      [InventoryController::class, 'summary']);
         Route::get('inventory/movements',    [InventoryController::class, 'movements']);
 

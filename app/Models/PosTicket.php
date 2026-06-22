@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['tenant_id', 'contact_id', 'user_id', 'converted_sale_id', 'number', 'status', 'cart', 'subtotal_amount', 'discount_amount', 'discount_type', 'discount_value', 'coupon_code', 'coupon_amount', 'tax_amount', 'total_amount', 'note', 'held_at'])]
+#[Fillable(['tenant_id', 'contact_id', 'user_id', 'virtual_device_id', 'actor_name_snapshot', 'terminal_name_snapshot', 'converted_sale_id', 'number', 'status', 'cart', 'subtotal_amount', 'discount_amount', 'discount_type', 'discount_value', 'coupon_code', 'coupon_amount', 'tax_amount', 'total_amount', 'note', 'held_at'])]
 class PosTicket extends Model
 {
     protected function casts(): array
@@ -30,5 +30,15 @@ class PosTicket extends Model
     public function convertedSale(): BelongsTo
     {
         return $this->belongsTo(Sale::class, 'converted_sale_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function virtualDevice(): BelongsTo
+    {
+        return $this->belongsTo(VirtualDevice::class);
     }
 }

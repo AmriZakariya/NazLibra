@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\Api\SaleResource;
 use App\Models\Contact;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
 use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Models\Tenant;
+use App\Support\ApiActionContext;
 use App\Services\Documents\DocumentNumberGenerator;
 use App\Services\Inventory\InventoryMovementType;
 use App\Services\Inventory\InventoryService;
@@ -135,6 +137,8 @@ class SaleController extends Controller
         /** @var Tenant $tenant */
         $tenant     = $request->attributes->get('api_tenant');
         $locationId = (int) ($data['location_id'] ?? $request->attributes->get('api_location_id'));
+        /** @var ApiActionContext $action */
+        $action = $request->attributes->get('api_action_context');
 
         if (! $locationId) {
             return response()->json(['ok' => false, 'message' => 'Aucun emplacement configuré.'], 422);
@@ -257,7 +261,7 @@ class SaleController extends Controller
         $sale = DB::transaction(function () use (
             $tenant, $locationId, $contact, $payments, $saleLines,
             $subtotal, $discount, $total, $paid, $data,
-            $totalCogs, $allowOversell
+            $totalCogs, $allowOversell, $action
         ): Sale {
             // Decrement advance balance atomically before the rest.
             if ($contact && $payments['advance'] > 0) {
@@ -287,8 +291,12 @@ class SaleController extends Controller
 
             $sale = Sale::create([
                 'tenant_id'       => $tenant->id,
+                'location_id'     => $locationId,
                 'contact_id'      => $contact?->id,
-                'user_id'         => auth()->id(),
+                'user_id'         => $action->actor->id,
+                'virtual_device_id' => $action->virtualDevice?->id,
+                'actor_name_snapshot' => $action->actor->name,
+                'terminal_name_snapshot' => $action->virtualDevice?->name,
                 'number'          => $saleNumber,
                 'status'          => 'paid',
                 'payment_method'  => $paymentMethod,
@@ -348,7 +356,7 @@ class SaleController extends Controller
                         locationId:     $locationId,
                         type:           InventoryMovementType::SALE,
                         quantityChanged: -$line['quantity'],
-                        userId:         auth()->id(),
+                        userId:         $action->actor->id,
                         referenceType:  Sale::class,
                         referenceId:    $sale->id,
                         referenceNumber: $sale->number,
@@ -356,6 +364,9 @@ class SaleController extends Controller
                         idempotencyKey: 'api-sale-'.$sale->id.'-item-'.$line['item']->id,
                         unitCost:       $line['avg_cost'] > 0 ? $line['avg_cost'] : null,
                         allowNegative:  $allowOversell,
+                        virtualDeviceId: $action->virtualDevice?->id,
+                        actorNameSnapshot: $action->actor->name,
+                        terminalNameSnapshot: $action->virtualDevice?->name,
                     ));
 
                     // Keep denormalised stock_quantity in sync (used for low-stock alerts).
@@ -378,7 +389,7 @@ class SaleController extends Controller
                     'tenant_id'  => $tenant->id,
                     'sale_id'    => $sale->id,
                     'contact_id' => $contact?->id,
-                    'user_id'    => auth()->id(),
+                    'user_id'    => $action->actor->id,
                     'number'     => $paymentNumber,
                     'method'     => $method,
                     'amount'     => round($allocated, 2),
@@ -430,7 +441,7 @@ class SaleController extends Controller
 
         $sales = Sale::query()
             ->where('tenant_id', $tenant->id)
-            ->with(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost', 'contact:id,name,phone'])
+            ->with(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name'])
             ->when($since, fn ($q) => $q->where('sold_at', '>', \Carbon\Carbon::parse($since)))
             ->latest('sold_at')
             ->paginate($perPage);
@@ -439,7 +450,7 @@ class SaleController extends Controller
             'ok'       => true,
             'has_more' => $sales->hasMorePages(),
             'page'     => $sales->currentPage(),
-            'sales'    => $sales->items(),
+            'sales'    => SaleResource::collection(collect($sales->items())),
         ]);
     }
 
@@ -477,9 +488,9 @@ class SaleController extends Controller
             return response()->json(['ok' => false, 'message' => 'Vente introuvable.'], 404);
         }
 
-        $sale->load(['items.item:id,title,barcode', 'contact:id,name,phone', 'payments']);
+        $sale->load(['items.item:id,title,barcode', 'contact:id,name,phone', 'payments', 'user:id,name', 'virtualDevice:id,name', 'location:id,name']);
 
-        return response()->json(['ok' => true, 'sale' => $sale]);
+        return response()->json(['ok' => true, 'sale' => SaleResource::make($sale)]);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -529,7 +540,7 @@ class SaleController extends Controller
      */
     private function saleResponse(Sale $sale, array $requestedLines, int $tenantId, int $locationId, bool $alreadyExisted = false): JsonResponse
     {
-        $sale->load(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost', 'contact:id,name,phone']);
+        $sale->load(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name']);
 
         // Post-sale stock snapshot so the client updates local stock immediately.
         $itemIds    = collect($requestedLines)->pluck('item_id')->unique()->all();
@@ -545,7 +556,7 @@ class SaleController extends Controller
         return response()->json([
             'ok'              => true,
             'already_existed' => $alreadyExisted,
-            'sale'            => $sale,
+            'sale'            => SaleResource::make($sale),
             'stock_after'     => $stockAfter,
         ], $alreadyExisted ? 200 : 201);
     }

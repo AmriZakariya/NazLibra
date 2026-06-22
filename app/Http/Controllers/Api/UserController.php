@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class UserController extends Controller
 {
@@ -68,8 +69,7 @@ class UserController extends Controller
 
     /**
      * POST /api/v1/auth/pin-verify
-     * Verify a user's PIN and return their context (user info + abilities).
-     * Does NOT issue a new token — the device token is unchanged.
+     * Verify a tenant operator's PIN and replace the current POS credential.
      */
     public function pinVerify(Request $request): JsonResponse
     {
@@ -96,8 +96,27 @@ class UserController extends Controller
 
         [$role, $abilities] = $this->roleAndAbilities($user);
 
+        $currentToken = PersonalAccessToken::findToken((string) $request->bearerToken())
+            ?? $request->user()->currentAccessToken();
+        $baseName = method_exists($currentToken, 'getAttribute')
+            ? (string) ($currentToken->getAttribute('name') ?: 'pos')
+            : 'pos';
+        $tokenName = preg_replace('/\/operator:\d+$/', '', $baseName).'/operator:'.$user->id;
+        $newToken = $user->createToken($tokenName, $abilities);
+
+        // Revoke only the credential used for this switch. Other browser/mobile
+        // sessions belonging to either user remain untouched.
+        $previousTokenRevoked = $currentToken instanceof PersonalAccessToken;
+        if ($previousTokenRevoked) {
+            $currentToken->delete();
+        }
+
+        $user->update(['current_tenant_id' => $tenant->id]);
+
         return response()->json([
             'ok'        => true,
+            'token'     => $newToken->plainTextToken,
+            'token_type'=> 'Bearer',
             'user'      => [
                 'id'           => $user->id,
                 'name'         => $user->name,
@@ -105,6 +124,7 @@ class UserController extends Controller
                 'avatar_color' => $user->avatar_color ?? '#0D9488',
             ],
             'abilities' => $abilities,
+            'previous_token_revoked' => $previousTokenRevoked,
         ]);
     }
 
@@ -165,7 +185,7 @@ class UserController extends Controller
             return [$role, ['*']];
         }
 
-        $abilities = $permissions ?: ['pos.sales.create', 'pos.sales.view', 'catalog.view', 'stock.view'];
+        $abilities = $permissions ?: ['sales.create', 'sales.view', 'items.view', 'stock.view'];
 
         return [$role, $abilities];
     }

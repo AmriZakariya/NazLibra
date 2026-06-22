@@ -13,6 +13,7 @@ use App\Services\Documents\DocumentNumberGenerator;
 use App\Services\Inventory\InventoryMovementType;
 use App\Services\Inventory\InventoryService;
 use App\Services\Inventory\MovementDTO;
+use App\Support\ApiActionContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -98,6 +99,8 @@ class ReturnController extends Controller
 
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
+        /** @var ApiActionContext $action */
+        $action = $request->attributes->get('api_action_context');
 
         if ($sale->tenant_id !== $tenant->id) {
             return response()->json(['ok' => false, 'message' => 'Vente introuvable.'], 404);
@@ -116,7 +119,7 @@ class ReturnController extends Controller
         }
 
         try {
-            $saleReturn = DB::transaction(function () use ($tenant, $sale, $data): SaleReturn {
+            $saleReturn = DB::transaction(function () use ($tenant, $sale, $data, $action): SaleReturn {
                 $sale = Sale::where('tenant_id', $tenant->id)
                     ->whereKey($sale->id)
                     ->lockForUpdate()
@@ -211,7 +214,10 @@ class ReturnController extends Controller
                     'tenant_id'        => $tenant->id,
                     'sale_id'          => $sale->id,
                     'contact_id'       => $sale->contact_id,
-                    'user_id'          => auth()->id(),
+                    'user_id'          => $action->actor->id,
+                    'virtual_device_id' => $action->virtualDevice?->id,
+                    'actor_name_snapshot' => $action->actor->name,
+                    'terminal_name_snapshot' => $action->virtualDevice?->name,
                     'number'           => $numberData['number'],
                     'status'           => 'approved',
                     'refund_method'    => $data['refund_method'],
@@ -251,13 +257,16 @@ class ReturnController extends Controller
                             locationId:     $locationId,
                             type:           InventoryMovementType::RETURN,
                             quantityChanged: $qty,
-                            userId:         auth()->id(),
+                            userId:         $action->actor->id,
                             referenceType:  SaleReturn::class,
                             referenceId:    $saleReturn->id,
                             referenceNumber: $saleReturn->number,
                             note:           'Retour mobile '.$saleReturn->number,
                             reason:         $returnLine['reason'] ?: ($data['refund_reason'] ?? null),
                             idempotencyKey: 'api-ret-'.$saleReturn->id.'-'.$returnLine['sale_item_id'].'-restock',
+                            virtualDeviceId: $action->virtualDevice?->id,
+                            actorNameSnapshot: $action->actor->name,
+                            terminalNameSnapshot: $action->virtualDevice?->name,
                         ));
                         $item->increment('stock_quantity', $qty);
                         if ($item->status === 'out_of_stock' && $item->fresh()->stock_quantity > 0) {
@@ -281,7 +290,10 @@ class ReturnController extends Controller
                             'item_id'        => $item->id,
                             'variant_id'     => null,
                             'location_id'    => $locationId,
-                            'user_id'        => auth()->id(),
+                            'user_id'        => $action->actor->id,
+                            'virtual_device_id' => $action->virtualDevice?->id,
+                            'actor_name_snapshot' => $action->actor->name,
+                            'terminal_name_snapshot' => $action->virtualDevice?->name,
                             'type'           => match ($returnLine['stock_action']) {
                                 'damaged', 'waste' => InventoryMovementType::DAMAGE,
                                 'lost'             => InventoryMovementType::LOSS,

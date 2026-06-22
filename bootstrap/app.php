@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'session.unlocked' => \App\Http\Middleware\EnsureSessionUnlocked::class,
             'device.selected' => \App\Http\Middleware\EnsureVirtualDeviceSelected::class,
             'api.context'    => \App\Http\Middleware\ResolveApiContext::class,
+            'api.action'     => \App\Http\Middleware\ResolveApiActionContext::class,
         ]);
 
         $middleware->web(append: [

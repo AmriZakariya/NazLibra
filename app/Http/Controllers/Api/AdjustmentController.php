@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Services\Inventory\InventoryMovementType;
 use App\Services\Inventory\InventoryService;
 use App\Services\Inventory\MovementDTO;
+use App\Support\ApiActionContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -98,6 +99,8 @@ class AdjustmentController extends Controller
         /** @var Tenant $tenant */
         $tenant     = $request->attributes->get('api_tenant');
         $locationId = $request->attributes->get('api_location_id');
+        /** @var ApiActionContext $action */
+        $action = $request->attributes->get('api_action_context');
 
         // Idempotency: return existing movement if the key was already processed.
         $existing = \App\Models\InventoryMovement::where('tenant_id', $tenant->id)
@@ -119,7 +122,7 @@ class AdjustmentController extends Controller
         }
 
         try {
-            $result = DB::transaction(function () use ($tenant, $locationId, $data): array {
+            $result = DB::transaction(function () use ($tenant, $locationId, $data, $action): array {
                 $item = Item::where('tenant_id', $tenant->id)
                     ->whereKey((int) $data['item_id'])
                     ->lockForUpdate()
@@ -177,11 +180,14 @@ class AdjustmentController extends Controller
                     locationId:      $effectiveLocationId,
                     type:            $movementType,
                     quantityChanged: $quantityChanged,
-                    userId:          auth()->id(),
+                    userId:          $action->actor->id,
                     note:            $data['note'] ?? null,
                     reason:          $data['reason'] ?? null,
                     idempotencyKey:  $data['idempotency_key'],
                     allowNegative:   false,
+                    virtualDeviceId: $action->virtualDevice?->id,
+                    actorNameSnapshot: $action->actor->name,
+                    terminalNameSnapshot: $action->virtualDevice?->name,
                 ));
 
                 $stock = ItemLocationStock::where('tenant_id', $tenant->id)

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-#[Fillable(['tenant_id', 'name', 'code', 'type', 'description', 'is_active'])]
+#[Fillable(['tenant_id', 'location_id', 'name', 'code', 'type', 'description', 'is_active'])]
 class VirtualDevice extends Model
 {
     protected function casts(): array
@@ -21,6 +21,11 @@ class VirtualDevice extends Model
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
+    }
+
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class);
     }
 
     public function sessions(): HasMany

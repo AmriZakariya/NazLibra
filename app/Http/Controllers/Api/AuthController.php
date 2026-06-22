@@ -274,7 +274,7 @@ class AuthController extends Controller
             return [$role, ['*']];
         }
 
-        $abilities = $permissions ?: ['pos.sales.create', 'pos.sales.view', 'catalog.view', 'stock.view'];
+        $abilities = $permissions ?: ['sales.create', 'sales.view', 'items.view', 'stock.view'];
 
         return [$role, $abilities];
     }

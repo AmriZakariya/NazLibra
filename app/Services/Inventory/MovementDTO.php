@@ -23,6 +23,8 @@ final class MovementDTO
         public readonly ?float $unitCost = null,
         public readonly bool $allowNegative = false,
         public readonly ?int $virtualDeviceId = null,
+        public readonly ?string $actorNameSnapshot = null,
+        public readonly ?string $terminalNameSnapshot = null,
         public readonly ?string $realDevicePlatform = null,
         public readonly ?string $realDeviceBrowser = null,
         public readonly ?string $realDeviceIp = null,

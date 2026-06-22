@@ -20,8 +20,12 @@ class VirtualDeviceApiController extends Controller
 
         $devices = VirtualDevice::where('tenant_id', $tenant->id)
             ->where('is_active', true)
+            ->where(function ($query) use ($request): void {
+                $query->whereNull('location_id')
+                    ->orWhere('location_id', $request->attributes->get('api_location_id'));
+            })
             ->orderBy('name')
-            ->get(['id', 'name', 'code', 'type', 'description']);
+            ->get(['id', 'location_id', 'name', 'code', 'type', 'description']);
 
         return response()->json(['ok' => true, 'devices' => $devices]);
     }

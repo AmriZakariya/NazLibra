@@ -10,6 +10,8 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\VirtualDevice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\PersonalAccessToken;
 use Tests\TestCase;
 
 class ApiTest extends TestCase
@@ -302,6 +304,114 @@ class ApiTest extends TestCase
         $this->assertEquals(99, $stock);
     }
 
+    public function test_enabled_virtual_devices_require_a_valid_terminal_and_reject_client_actor(): void
+    {
+        if (! $this->item) {
+            $this->markTestSkipped('No active product item available in seed data.');
+        }
+
+        $settings = $this->tenant->settings ?? [];
+        data_set($settings, 'features.virtual_devices', true);
+        $this->tenant->update(['settings' => $settings]);
+
+        $payload = $this->salePayload();
+        $token = $this->apiToken();
+
+        $this->withToken($token)
+            ->postJson('/api/v1/pos/sales', $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'virtual_device_required');
+
+        $device = VirtualDevice::create([
+            'tenant_id' => $this->tenant->id,
+            'location_id' => $this->location->id,
+            'name' => 'Terminal API',
+            'code' => 'API-POS-01',
+            'type' => 'mobile',
+            'is_active' => true,
+        ]);
+
+        $this->withToken($token)
+            ->withHeader('X-Virtual-Device-Id', (string) $device->id)
+            ->postJson('/api/v1/pos/sales', [...$payload, 'user_id' => 999999])
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'client_actor_forbidden');
+    }
+
+    public function test_pin_switch_replaces_credential_and_sale_uses_switched_operator_and_terminal(): void
+    {
+        if (! $this->item) {
+            $this->markTestSkipped('No active product item available in seed data.');
+        }
+
+        $settings = $this->tenant->settings ?? [];
+        data_set($settings, 'features.virtual_devices', true);
+        $this->tenant->update(['settings' => $settings]);
+
+        $device = VirtualDevice::create([
+            'tenant_id' => $this->tenant->id,
+            'location_id' => $this->location->id,
+            'name' => 'Tablette comptoir',
+            'code' => 'TABLET-01',
+            'type' => 'mobile',
+            'is_active' => true,
+        ]);
+
+        $cashier = User::where('email', 'caisse@librairie-atlas.ma')->firstOrFail();
+        $cashier->forceFill(['pin_hash' => Hash::make('2468')])->save();
+
+        $ownerToken = $this->apiToken();
+        $switch = $this->withToken($ownerToken)->postJson('/api/v1/auth/pin-verify', [
+            'user_id' => $cashier->id,
+            'pin' => '2468',
+        ]);
+
+        $switch->assertOk()
+            ->assertJsonPath('user.id', $cashier->id)
+            ->assertJsonPath('previous_token_revoked', true)
+            ->assertJsonStructure(['token', 'token_type', 'abilities']);
+
+        $operatorToken = $switch->json('token');
+
+        $this->assertNull(PersonalAccessToken::findToken($ownerToken));
+        $this->app['auth']->forgetGuards();
+
+        $response = $this->withToken($operatorToken)
+            ->withHeader('X-Virtual-Device-Id', (string) $device->id)
+            ->postJson('/api/v1/pos/sales', $this->salePayload());
+
+        $response->assertCreated()
+            ->assertJsonPath('sale.created_by.id', $cashier->id)
+            ->assertJsonPath('sale.created_by.name', $cashier->name)
+            ->assertJsonPath('sale.virtual_device.id', $device->id)
+            ->assertJsonPath('sale.virtual_device.name', $device->name);
+
+        $this->assertDatabaseHas('sales', [
+            'id' => $response->json('sale.id'),
+            'user_id' => $cashier->id,
+            'virtual_device_id' => $device->id,
+            'actor_name_snapshot' => $cashier->name,
+            'terminal_name_snapshot' => $device->name,
+        ]);
+
+        $this->withToken($operatorToken)
+            ->getJson('/api/v1/pos/sales')
+            ->assertOk()
+            ->assertJsonPath('sales.0.created_by.id', $cashier->id)
+            ->assertJsonPath('sales.0.virtual_device.id', $device->id);
+
+        $this->withToken($operatorToken)
+            ->getJson('/api/v1/sync/sales')
+            ->assertOk()
+            ->assertJsonPath('sales.0.created_by.name', $cashier->name)
+            ->assertJsonPath('sales.0.virtual_device.name', $device->name);
+
+        // The switched cashier token cannot inherit the owner's wildcard ability.
+        $this->withToken($operatorToken)
+            ->putJson('/api/v1/users/'.$this->user->id, ['role' => 'cashier'])
+            ->assertForbidden();
+    }
+
     public function test_sale_rejected_when_insufficient_stock(): void
     {
         if (! $this->item) {
@@ -397,5 +507,15 @@ class ApiTest extends TestCase
         ]);
 
         return $response->json('token');
+    }
+
+    private function salePayload(?string $key = null): array
+    {
+        return [
+            'idempotency_key' => $key ?? \Illuminate\Support\Str::uuid()->toString(),
+            'location_id' => $this->location->id,
+            'items' => [['item_id' => $this->item->id, 'quantity' => 1, 'unit_price' => 80.00]],
+            'payments' => ['cash' => 80.00, 'card' => 0, 'transfer' => 0, 'advance' => 0],
+        ];
     }
 }

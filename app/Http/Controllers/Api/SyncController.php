@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\Api\SaleResource;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Contact;
@@ -405,12 +406,15 @@ class SyncController extends Controller
             ->with([
                 'items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost',
                 'contact:id,name,phone',
+                'user:id,name',
+                'virtualDevice:id,name',
+                'location:id,name',
             ])
             ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
             ->latest('updated_at')
             ->latest('id')
             ->paginate($perPage, [
-                'id', 'contact_id', 'number', 'status', 'payment_method',
+                'id', 'location_id', 'contact_id', 'user_id', 'virtual_device_id', 'actor_name_snapshot', 'terminal_name_snapshot', 'number', 'status', 'payment_method',
                 'subtotal_amount', 'discount_amount', 'total_amount',
                 'sold_at', 'updated_at', 'deleted_at',
             ]);
@@ -422,7 +426,7 @@ class SyncController extends Controller
             'per_page' => $paginated->perPage(),
             'total'    => $paginated->total(),
             'has_more' => $paginated->hasMorePages(),
-            'sales'    => $paginated->items(),
+            'sales'    => SaleResource::collection(collect($paginated->items())),
         ]);
     }
 

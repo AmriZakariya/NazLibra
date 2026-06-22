@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['tenant_id', 'cash_register_session_id', 'user_id', 'sale_id', 'account_transaction_id', 'number', 'type', 'direction', 'amount', 'balance_after', 'payment_method', 'reference', 'note', 'moved_at', 'metadata'])]
+#[Fillable(['tenant_id', 'cash_register_session_id', 'user_id', 'virtual_device_id', 'actor_name_snapshot', 'terminal_name_snapshot', 'sale_id', 'account_transaction_id', 'number', 'type', 'direction', 'amount', 'balance_after', 'payment_method', 'reference', 'note', 'moved_at', 'metadata'])]
 class CashRegisterMovement extends Model
 {
     protected function casts(): array
@@ -32,6 +32,11 @@ class CashRegisterMovement extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    public function virtualDevice(): BelongsTo
+    {
+        return $this->belongsTo(VirtualDevice::class);
     }
 
     public function accountTransaction(): BelongsTo
