@@ -259,6 +259,21 @@ TELESCOPE_ALLOW_OWNER_ROLE=true
 
 En local, l’accès est direct pour faciliter le debug. Sur un environnement partagé, l’accès est limité aux utilisateurs `owner` du tenant courant ou aux emails listés dans `TELESCOPE_ALLOWED_EMAILS`.
 
+### Attribution sécurisée des actions POS
+
+Les mutations POS auditables utilisent l'identité du jeton Sanctum et l'en-tête `X-Virtual-Device-Id`. Quand `features.virtual_devices` est activé, cet en-tête est obligatoire. Le terminal doit être actif, appartenir au tenant authentifié et être compatible avec l'emplacement courant. Un `user_id` envoyé dans une mutation est refusé : l'opérateur est toujours dérivé du jeton.
+
+`POST /api/v1/auth/pin-verify` reçoit `user_id` et `pin` uniquement pour authentifier le changement d'opérateur. En cas de succès, la réponse contient `token`, `token_type`, `user` et `abilities`. Le client doit remplacer son ancien jeton par ce nouveau jeton avant toute action. Seul le jeton ayant servi au changement est révoqué ; les autres sessions restent actives. Pour revenir à l'opérateur précédent, effectuer un nouveau `pin-verify` avec son PIN. `POST /api/v1/auth/logout` révoque uniquement le jeton courant.
+
+Les ventes exposent l'attribution dans toutes les réponses de création, rejeu idempotent, liste, détail et synchronisation :
+
+```json
+{
+  "created_by": { "id": 2, "name": "Youssef Benali" },
+  "virtual_device": { "id": 4, "name": "Tablette comptoir" }
+}
+```
+
 ## Tests et qualité
 
 Exécuter toute la suite :

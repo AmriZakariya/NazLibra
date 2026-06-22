@@ -338,6 +338,34 @@ class ApiTest extends TestCase
             ->assertJsonPath('error', 'client_actor_forbidden');
     }
 
+    public function test_idempotent_replay_preserves_original_server_attribution(): void
+    {
+        if (! $this->item) {
+            $this->markTestSkipped('No active product item available in seed data.');
+        }
+
+        $settings = $this->tenant->settings ?? [];
+        data_set($settings, 'features.virtual_devices', true);
+        $this->tenant->update(['settings' => $settings]);
+
+        $firstDevice = VirtualDevice::create(['tenant_id' => $this->tenant->id, 'location_id' => $this->location->id, 'name' => 'Terminal A', 'code' => 'TERM-A', 'type' => 'mobile', 'is_active' => true]);
+        $secondDevice = VirtualDevice::create(['tenant_id' => $this->tenant->id, 'location_id' => $this->location->id, 'name' => 'Terminal B', 'code' => 'TERM-B', 'type' => 'mobile', 'is_active' => true]);
+        $payload = $this->salePayload();
+        $token = $this->apiToken();
+
+        $this->withToken($token)->withHeader('X-Virtual-Device-Id', (string) $firstDevice->id)
+            ->postJson('/api/v1/pos/sales', $payload)->assertCreated();
+
+        $this->withToken($token)->withHeader('X-Virtual-Device-Id', (string) $secondDevice->id)
+            ->postJson('/api/v1/pos/sales', $payload)
+            ->assertOk()
+            ->assertJsonPath('already_existed', true)
+            ->assertJsonPath('sale.virtual_device.id', $firstDevice->id)
+            ->assertJsonPath('sale.virtual_device.name', $firstDevice->name);
+
+        $this->assertSame(1, Sale::where('idempotency_key', $payload['idempotency_key'])->count());
+    }
+
     public function test_pin_switch_replaces_credential_and_sale_uses_switched_operator_and_terminal(): void
     {
         if (! $this->item) {

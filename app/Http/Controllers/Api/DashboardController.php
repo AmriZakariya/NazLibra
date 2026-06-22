@@ -86,6 +86,7 @@ class DashboardController extends Controller
         $salesData = DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->where('sales.tenant_id', $tenant->id)
+            ->whereNull('sales.deleted_at')
             ->where('sales.status', 'paid')
             ->whereBetween('sales.sold_at', [$from, $to])
             ->selectRaw('
@@ -105,6 +106,7 @@ class DashboardController extends Controller
         $returnsTotal = (float) DB::table('sale_returns')
             ->join('sales', 'sale_returns.sale_id', '=', 'sales.id')
             ->where('sales.tenant_id', $tenant->id)
+            ->whereNull('sales.deleted_at')
             ->whereBetween('sale_returns.created_at', [$from, $to])
             ->sum('sale_returns.total_amount');
 
@@ -117,6 +119,7 @@ class DashboardController extends Controller
         $paymentBreakdown = DB::table('sale_payments')
             ->join('sales', 'sale_payments.sale_id', '=', 'sales.id')
             ->where('sales.tenant_id', $tenant->id)
+            ->whereNull('sales.deleted_at')
             ->whereBetween('sales.sold_at', [$from, $to])
             ->selectRaw('sale_payments.method, SUM(sale_payments.amount) AS total')
             ->groupBy('sale_payments.method')
