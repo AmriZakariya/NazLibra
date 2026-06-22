@@ -476,16 +476,17 @@ class SyncController extends Controller
             : null;
 
         return response()->json([
-            'ok'             => true,
-            'sync_at'        => now()->toISOString(),
-            'timezone'       => $tenant->timezone ?? 'Africa/Casablanca',
-            'currency'       => $tenant->currency ?? 'MAD',
-            'locale'         => $tenant->locale   ?? 'fr',
-            'tenant_name'    => $tenant->name,
-            'location_name'  => $location?->name,
-            'allow_oversell' => (bool) data_get($tenant->settings, 'pos.allow_oversell', false),
-            'receipt_header' => data_get($tenant->settings, 'receipt.header'),
-            'receipt_footer' => data_get($tenant->settings, 'receipt.footer'),
+            'ok'                      => true,
+            'sync_at'                 => now()->toISOString(),
+            'timezone'                => $tenant->timezone ?? 'Africa/Casablanca',
+            'currency'                => $tenant->currency ?? 'MAD',
+            'locale'                  => $tenant->locale   ?? 'fr',
+            'tenant_name'             => $tenant->name,
+            'location_name'           => $location?->name,
+            'allow_oversell'          => (bool) data_get($tenant->settings, 'pos.allow_oversell', false),
+            'receipt_header'          => data_get($tenant->settings, 'receipt.header'),
+            'receipt_footer'          => data_get($tenant->settings, 'receipt.footer'),
+            'features_virtual_devices'=> (bool) data_get($tenant->settings, 'features.virtual_devices', false),
         ]);
     }
 

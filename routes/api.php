@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\SaleInvoiceController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\Api\VirtualDeviceApiController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -119,5 +120,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('users/set-pin',        [UserController::class, 'setPin']);
         Route::delete('users/pin',          [UserController::class, 'removePin']);
         Route::post('auth/pin-verify',      [UserController::class, 'pinVerify']);
+
+        // ── Virtual devices ───────────────────────────────────────────────────
+        Route::get('virtual-devices', [VirtualDeviceApiController::class, 'index']);
     });
 });
