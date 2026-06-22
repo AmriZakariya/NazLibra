@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\SaleInvoiceController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\Api\PublicController;
 use App\Http\Controllers\Api\VirtualDeviceApiController;
 use Illuminate\Support\Facades\Route;
 
@@ -40,6 +41,7 @@ Route::prefix('v1')->group(function (): void {
 
     // ── Public ──────────────────────────────────────────────────────────────
     Route::post('auth/login', [AuthController::class, 'login']);
+    Route::get('public/info', [PublicController::class, 'info']);
 
     // ── Protected (Sanctum token required) ──────────────────────────────────
     Route::middleware(['auth:sanctum', \App\Http\Middleware\ResolveApiContext::class])->group(function (): void {
