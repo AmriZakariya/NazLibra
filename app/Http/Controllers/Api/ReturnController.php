@@ -84,6 +84,37 @@ class ReturnController extends Controller
             new OA\Response(response: 401, description: 'Unauthenticated'),
         ]
     )]
+    /**
+     * GET /api/v1/pos/sales/{sale}/returns
+     *
+     * Returns the list of returns/refunds for a given sale so the mobile app
+     * can correctly compute remaining returnable quantities per item.
+     */
+    public function index(Request $request, Sale $sale): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant = $request->attributes->get('api_tenant');
+
+        if ($sale->tenant_id !== $tenant->id) {
+            return response()->json(['ok' => false, 'message' => 'Vente introuvable.'], 404);
+        }
+
+        $returns = SaleReturn::where('tenant_id', $tenant->id)
+            ->where('sale_id', $sale->id)
+            ->orderBy('returned_at', 'asc')
+            ->get([
+                'id', 'number', 'status', 'refund_method', 'refund_scope',
+                'total_amount', 'lines', 'reason', 'returned_at', 'idempotency_key',
+            ]);
+
+        return response()->json(['ok' => true, 'returns' => $returns]);
+    }
+
+    /**
+     * POST /api/v1/pos/sales/{sale}/returns
+     *
+     * Omit return_lines to return all items of the sale.
+     */
     public function store(Request $request, Sale $sale): JsonResponse
     {
         $data = $request->validate([

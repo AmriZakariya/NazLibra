@@ -134,6 +134,7 @@ class ItemController extends Controller
         $locationId = $request->attributes->get('api_location_id');
 
         $data = $request->validate([
+            'local_id'            => ['nullable', 'string', 'max:100'],
             'title'               => ['required', 'string', 'max:255'],
             'sale_price'          => ['required', 'numeric', 'min:0'],
             'purchase_price'      => ['nullable', 'numeric', 'min:0'],
@@ -144,11 +145,23 @@ class ItemController extends Controller
             'sku'                 => ['nullable', 'string', 'max:100'],
             'author'              => ['nullable', 'string', 'max:255'],
             'category_id'         => ['nullable', 'integer'],
-            'type'                => ['nullable', 'string', 'in:product,service'],
+            'type'                => ['nullable', 'string', 'in:product,service,book'],
         ]);
+
+        // Idempotency: if a local_id is provided, return the existing item if it was
+        // already created (handles retries after a lost network response).
+        if (!empty($data['local_id'])) {
+            $existing = Item::where('tenant_id', $tenant->id)
+                ->where('external_id', $data['local_id'])
+                ->first();
+            if ($existing) {
+                return response()->json(['ok' => true, 'item' => $existing->fresh()], 200);
+            }
+        }
 
         $item = Item::create([
             'tenant_id'           => $tenant->id,
+            'external_id'         => $data['local_id'] ?? null,
             'title'               => $data['title'],
             'sale_price'          => $data['sale_price'],
             'purchase_price'      => $data['purchase_price'] ?? 0,
@@ -200,6 +213,7 @@ class ItemController extends Controller
             'barcode'             => ['sometimes', 'nullable', 'string', 'max:100'],
             'sku'                 => ['sometimes', 'nullable', 'string', 'max:100'],
             'author'              => ['sometimes', 'nullable', 'string', 'max:255'],
+            'type'                => ['sometimes', 'nullable', 'string', 'in:product,service,book'],
         ]);
 
         $item->update($data);

@@ -83,6 +83,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('sales/{sale}', [SaleController::class, 'show']);
 
             // Returns / refunds
+            Route::get('sales/{sale}/returns',  [ReturnController::class, 'index']);
             Route::post('sales/{sale}/returns', [ReturnController::class, 'store'])->middleware('api.action:sales.refund');
 
             // Held tickets (saved carts)
