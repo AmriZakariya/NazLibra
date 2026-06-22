@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
 use App\Models\VirtualDevice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

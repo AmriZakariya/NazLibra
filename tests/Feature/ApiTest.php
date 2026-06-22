@@ -8,6 +8,7 @@ use App\Models\Location;
 use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\VirtualDevice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -107,6 +108,51 @@ class ApiTest extends TestCase
             ->assertOk()
             ->assertJsonStructure(['ok', 'locations'])
             ->assertJsonPath('ok', true);
+    }
+
+    // ── Virtual devices ──────────────────────────────────────────────────────
+
+    public function test_virtual_devices_returns_empty_list_when_feature_is_disabled(): void
+    {
+        $settings = $this->tenant->settings ?? [];
+        data_set($settings, 'features.virtual_devices', false);
+        $this->tenant->update(['settings' => $settings]);
+
+        $this->withToken($this->apiToken())
+            ->getJson('/api/v1/virtual-devices')
+            ->assertOk()
+            ->assertExactJson(['ok' => true, 'devices' => []]);
+    }
+
+    public function test_virtual_devices_returns_only_active_devices_for_tenant(): void
+    {
+        $settings = $this->tenant->settings ?? [];
+        data_set($settings, 'features.virtual_devices', true);
+        $this->tenant->update(['settings' => $settings]);
+
+        VirtualDevice::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Caisse principale',
+            'code' => 'POS-01',
+            'type' => 'pos',
+            'description' => 'Comptoir',
+            'is_active' => true,
+        ]);
+
+        VirtualDevice::create([
+            'tenant_id' => $this->tenant->id,
+            'name' => 'Ancienne caisse',
+            'code' => 'POS-OLD',
+            'type' => 'pos',
+            'is_active' => false,
+        ]);
+
+        $this->withToken($this->apiToken())
+            ->getJson('/api/v1/virtual-devices')
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonCount(1, 'devices')
+            ->assertJsonPath('devices.0.code', 'POS-01');
     }
 
     // ── Sync ──────────────────────────────────────────────────────────────────
