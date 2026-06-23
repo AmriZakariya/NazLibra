@@ -276,6 +276,36 @@ Les ventes exposent l'attribution dans toutes les réponses de création, rejeu 
 }
 ```
 
+### Contrat de synchronisation offline
+
+Les collections paginées (`items`, `contacts`, `sales`, `invoices`, `contact-transactions`) utilisent un curseur opaque émis par le serveur. La première requête accepte `since` et `per_page`; les suivantes transmettent uniquement `cursor=<next_cursor>`. Toutes les pages conservent le même `sync_at` et sont ordonnées par `(updated_at, id)`. Le client ne sauvegarde `sync_at` comme prochain curseur delta qu'après réception de `has_more: false`.
+
+```json
+{
+  "ok": true,
+  "sync_at": "2026-06-23T12:00:00.000000Z",
+  "page": 1,
+  "per_page": 200,
+  "total": 450,
+  "has_more": true,
+  "next_cursor": "opaque-server-cursor",
+  "items": []
+}
+```
+
+| Endpoint | Portée et contenu |
+| --- | --- |
+| `/api/v1/sync/settings` | Tenant et emplacement résolus; réponse non paginée avec `tenant_id`, `location_id`, `has_more: false`. |
+| `/api/v1/sync/meta` | Catégories, marques, unités et taxes du tenant, tombstones `deleted_at`, ordre déterministe. |
+| `/api/v1/sync/items` | Catalogue tenant, tombstones `deleted_at`, pagination par curseur. |
+| `/api/v1/sync/stock` | Snapshot complet ou delta de l'emplacement courant; `is_full_snapshot` indique la sémantique de remplacement. |
+| `/api/v1/sync/contacts` | Contacts tenant, tombstones, filtre `kind` inclus dans l'identité du curseur. |
+| `/api/v1/sync/sales` | Ventes de l'emplacement courant, attribution utilisateur/terminal et tombstones. |
+| `/api/v1/sync/invoices` | Factures de vente liées à l'emplacement courant, tombstones. |
+| `/api/v1/sync/contact-transactions` | Grand livre tenant, tombstones et pagination par curseur. |
+
+Un `since`, `cursor`, `per_page` ou emplacement invalide retourne HTTP 422. Les mutations offline doivent fournir une clé d'idempotence stable; une même clé avec un payload différent retourne HTTP 409 `idempotency_conflict` lorsqu'un hash de requête est pris en charge.
+
 ## Tests et qualité
 
 Exécuter toute la suite :

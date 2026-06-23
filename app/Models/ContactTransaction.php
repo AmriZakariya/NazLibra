@@ -17,6 +17,7 @@ class ContactTransaction extends Model
         'amount',
         'note',
         'idempotency_key',
+        'request_hash',
         'recorded_at',
     ];
 

@@ -818,10 +818,10 @@ class CatalogueTest extends TestCase
         $this->delete(route('catalog.units.destroy', $unit->fresh()))->assertRedirect();
         $this->delete(route('catalog.taxes.destroy', $tax->fresh()))->assertRedirect();
 
-        $this->assertDatabaseMissing('categories', ['id' => $category->id]);
-        $this->assertDatabaseMissing('brands', ['id' => $brand->id]);
-        $this->assertDatabaseMissing('units', ['id' => $unit->id]);
-        $this->assertDatabaseMissing('taxes', ['id' => $tax->id]);
+        $this->assertSoftDeleted('categories', ['id' => $category->id]);
+        $this->assertSoftDeleted('brands', ['id' => $brand->id]);
+        $this->assertSoftDeleted('units', ['id' => $unit->id]);
+        $this->assertSoftDeleted('taxes', ['id' => $tax->id]);
     }
 
     public function test_stock_route_opens_stock_workspace(): void

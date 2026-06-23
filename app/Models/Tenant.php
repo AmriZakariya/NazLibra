@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'slug', 'mode', 'plan', 'currency', 'locale', 'timezone', 'phone', 'email', 'ice', 'address', 'settings'])]
+#[Fillable(['name', 'slug', 'mode', 'business_mode', 'plan', 'currency', 'locale', 'timezone', 'phone', 'email', 'ice', 'address', 'settings'])]
 class Tenant extends Model
 {
     use HasFactory;

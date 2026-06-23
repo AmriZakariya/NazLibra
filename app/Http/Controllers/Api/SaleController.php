@@ -17,6 +17,7 @@ use App\Services\Inventory\InventoryService;
 use App\Services\Inventory\MovementDTO;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use OpenApi\Attributes as OA;
 
@@ -258,7 +259,8 @@ class SaleController extends Controller
             }
         }
 
-        $sale = DB::transaction(function () use (
+        try {
+            $sale = DB::transaction(function () use (
             $tenant, $locationId, $contact, $payments, $saleLines,
             $subtotal, $discount, $total, $paid, $data,
             $totalCogs, $allowOversell, $action
@@ -400,7 +402,17 @@ class SaleController extends Controller
             }
 
             return $sale;
-        });
+            });
+        } catch (QueryException $exception) {
+            $existing = Sale::where('tenant_id', $tenant->id)
+                ->where('idempotency_key', $data['idempotency_key'])
+                ->first();
+            if (! $existing) {
+                throw $exception;
+            }
+
+            return $this->saleResponse($existing, $data['items'], $tenant->id, $locationId, alreadyExisted: true);
+        }
 
         return $this->saleResponse($sale, $data['items'], $tenant->id, $locationId);
     }

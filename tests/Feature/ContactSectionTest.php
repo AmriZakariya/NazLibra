@@ -89,7 +89,7 @@ class ContactSectionTest extends TestCase
         $this->assertSame('archived', $contact->fresh()->status);
 
         $this->delete(route('contacts.destroy', $contact))->assertRedirect();
-        $this->assertDatabaseMissing('contacts', ['id' => $contact->id]);
+        $this->assertSoftDeleted('contacts', ['id' => $contact->id]);
     }
 
     public function test_supplier_can_be_created_inline_for_purchase_flow(): void

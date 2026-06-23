@@ -146,6 +146,7 @@ class ItemController extends Controller
             'author'              => ['nullable', 'string', 'max:255'],
             'category_id'         => ['nullable', 'integer'],
             'type'                => ['nullable', 'string', 'in:product,service,book'],
+            'extra_fields'        => ['nullable', 'array'],
         ]);
 
         // Idempotency: if a local_id is provided, return the existing item if it was
@@ -173,6 +174,7 @@ class ItemController extends Controller
             'author'              => $data['author'] ?? null,
             'category_id'         => $data['category_id'] ?? null,
             'type'                => $data['type'] ?? 'product',
+            'extra_fields'        => $data['extra_fields'] ?? null,
             'status'              => 'active',
             'is_enabled'          => true,
             'checkout_visible'    => true,
@@ -214,6 +216,7 @@ class ItemController extends Controller
             'sku'                 => ['sometimes', 'nullable', 'string', 'max:100'],
             'author'              => ['sometimes', 'nullable', 'string', 'max:255'],
             'type'                => ['sometimes', 'nullable', 'string', 'in:product,service,book'],
+            'extra_fields'        => ['sometimes', 'nullable', 'array'],
         ]);
 
         $item->update($data);

@@ -34,6 +34,10 @@ class ResolveApiContext
 
         $location = $this->resolveLocation($request, $tenant);
 
+        if (($request->header('X-Location-Id') ?? $request->input('location_id')) && ! $location) {
+            return response()->json(['ok' => false, 'error' => 'invalid_location', 'message' => 'Emplacement invalide pour ce tenant.'], 422);
+        }
+
         $request->attributes->set('api_tenant', $tenant);
         $request->attributes->set('api_location', $location);
         $request->attributes->set('api_location_id', $location?->id);
@@ -56,10 +60,7 @@ class ResolveApiContext
         $locationId = $request->header('X-Location-Id') ?? $request->input('location_id');
 
         if ($locationId) {
-            $loc = Location::where('tenant_id', $tenant->id)->where('id', (int) $locationId)->first();
-            if ($loc) {
-                return $loc;
-            }
+            return Location::where('tenant_id', $tenant->id)->where('id', (int) $locationId)->first();
         }
 
         return Location::where('tenant_id', $tenant->id)->where('is_default', true)->first()

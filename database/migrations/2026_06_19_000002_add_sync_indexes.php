@@ -31,32 +31,26 @@ return new class extends Migration
                 continue;
             }
             Schema::table($table, function (Blueprint $t) use ($table) {
-                $indexName = "{$table}_tenant_updated_at_index";
-                // Skip if already exists (safe re-run).
-                $existing = collect(\DB::select("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='{$table}'"))
-                    ->pluck('name')->all();
-                if (! in_array($indexName, $existing, true)) {
-                    $t->index(['tenant_id', 'updated_at'], $indexName);
-                }
+                $t->index(['tenant_id', 'updated_at'], "{$table}_tenant_updated_at_index");
             });
         }
 
         // sale_items: explicit index on sale_id for JOIN-heavy dashboard queries.
-        if (Schema::hasTable('sale_items') && ! $this->indexExists('sale_items', 'sale_items_sale_id_index')) {
+        if (Schema::hasTable('sale_items')) {
             Schema::table('sale_items', function (Blueprint $t) {
                 $t->index('sale_id', 'sale_items_sale_id_index');
             });
         }
 
-        // item_location_stocks: [item_id, location_id] for stock lookup during sale.
-        if (Schema::hasTable('item_location_stocks') && ! $this->indexExists('item_location_stocks', 'ils_item_location_index')) {
-            Schema::table('item_location_stocks', function (Blueprint $t) {
+        // item_location_stock: [item_id, location_id] for stock lookup during sale.
+        if (Schema::hasTable('item_location_stock')) {
+            Schema::table('item_location_stock', function (Blueprint $t) {
                 $t->index(['item_id', 'location_id'], 'ils_item_location_index');
             });
         }
 
         // stock_movements: [tenant_id, item_id, location_id] for movement history.
-        if (Schema::hasTable('stock_movements') && ! $this->indexExists('stock_movements', 'sm_tenant_item_location_index')) {
+        if (Schema::hasTable('stock_movements')) {
             Schema::table('stock_movements', function (Blueprint $t) {
                 $t->index(['tenant_id', 'item_id', 'location_id'], 'sm_tenant_item_location_index');
             });
@@ -77,14 +71,14 @@ return new class extends Migration
             });
         }
 
-        Schema::table('sale_items', fn (Blueprint $t) => $t->dropIndex('sale_items_sale_id_index'));
-        Schema::table('item_location_stocks', fn (Blueprint $t) => $t->dropIndex('ils_item_location_index'));
-        Schema::table('stock_movements', fn (Blueprint $t) => $t->dropIndex('sm_tenant_item_location_index'));
-    }
-
-    private function indexExists(string $table, string $indexName): bool
-    {
-        $indexes = \DB::select("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name=?", [$table]);
-        return in_array($indexName, array_column($indexes, 'name'), true);
+        if (Schema::hasTable('sale_items')) {
+            Schema::table('sale_items', fn (Blueprint $t) => $t->dropIndex('sale_items_sale_id_index'));
+        }
+        if (Schema::hasTable('item_location_stock')) {
+            Schema::table('item_location_stock', fn (Blueprint $t) => $t->dropIndex('ils_item_location_index'));
+        }
+        if (Schema::hasTable('stock_movements')) {
+            Schema::table('stock_movements', fn (Blueprint $t) => $t->dropIndex('sm_tenant_item_location_index'));
+        }
     }
 };

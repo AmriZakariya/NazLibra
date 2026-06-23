@@ -7,6 +7,7 @@ use App\Models\Contact;
 use App\Models\ContactTransaction;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 class ContactTransactionController extends Controller
@@ -54,32 +55,60 @@ class ContactTransactionController extends Controller
             'amount'           => 'required|numeric|min:0.01',
             'note'             => 'nullable|string|max:500',
             'recorded_at'      => 'nullable|date',
-            'idempotency_key'  => 'nullable|string|max:64',
+            'idempotency_key'  => 'required|string|max:64',
         ]);
 
+        $requestHash = hash('sha256', json_encode([
+            'contact_id' => $contact->id,
+            'type' => $validated['type'],
+            'amount' => number_format((float) $validated['amount'], 2, '.', ''),
+            'note' => $validated['note'] ?? null,
+            'recorded_at' => $validated['recorded_at'] ?? null,
+        ], JSON_THROW_ON_ERROR));
+
         // Idempotency — return existing if already processed.
-        if (! empty($validated['idempotency_key'])) {
-            $existing = ContactTransaction::where('idempotency_key', $validated['idempotency_key'])->first();
-            if ($existing) {
-                return response()->json(['ok' => true, 'transaction' => $existing]);
+        $existing = ContactTransaction::where('tenant_id', $tenant->id)
+            ->where('idempotency_key', $validated['idempotency_key'])
+            ->first();
+        if ($existing) {
+            if ((int) $existing->contact_id !== (int) $contact->id || ($existing->request_hash && ! hash_equals($existing->request_hash, $requestHash))) {
+                return response()->json(['ok' => false, 'error' => 'idempotency_conflict', 'message' => 'Cette clé a déjà été utilisée avec une autre opération.'], 409);
             }
+
+            return response()->json(['ok' => true, 'already_existed' => true, 'transaction' => $existing]);
         }
 
-        $tx = DB::transaction(function () use ($contact, $validated, $tenant) {
-            $tx = ContactTransaction::create([
+        try {
+            $tx = DB::transaction(function () use ($contact, $validated, $tenant, $requestHash) {
+                $contact = Contact::where('tenant_id', $tenant->id)->whereKey($contact->id)->lockForUpdate()->firstOrFail();
+                $tx = ContactTransaction::create([
                 'tenant_id'       => $tenant->id,
                 'contact_id'      => $contact->id,
                 'type'            => $validated['type'],
                 'amount'          => $validated['amount'],
                 'note'            => $validated['note'] ?? null,
                 'idempotency_key' => $validated['idempotency_key'] ?? null,
+                'request_hash'    => $requestHash,
                 'recorded_at'     => $validated['recorded_at'] ?? now(),
             ]);
 
-            $this->applyBalanceEffect($contact, $tx);
+                $this->applyBalanceEffect($contact, $tx);
 
-            return $tx;
-        });
+                return $tx;
+            });
+        } catch (QueryException $exception) {
+            $existing = ContactTransaction::where('tenant_id', $tenant->id)
+                ->where('idempotency_key', $validated['idempotency_key'])
+                ->first();
+            if (! $existing) {
+                throw $exception;
+            }
+            if ((int) $existing->contact_id !== (int) $contact->id || ($existing->request_hash && ! hash_equals($existing->request_hash, $requestHash))) {
+                return response()->json(['ok' => false, 'error' => 'idempotency_conflict', 'message' => 'Cette clé a déjà été utilisée avec une autre opération.'], 409);
+            }
+
+            return response()->json(['ok' => true, 'already_existed' => true, 'transaction' => $existing]);
+        }
 
         return response()->json(['ok' => true, 'transaction' => $tx], 201);
     }

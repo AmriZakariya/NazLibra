@@ -61,6 +61,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'images',
     'metadata',
     'tags',
+    'extra_fields',
 ])]
 class Item extends Model
 {
@@ -71,6 +72,7 @@ class Item extends Model
             'images' => 'array',
             'metadata' => 'array',
             'tags' => 'array',
+            'extra_fields' => 'array',
             'is_enabled' => 'boolean',
             'checkout_visible' => 'boolean',
             'online_store_visible' => 'boolean',

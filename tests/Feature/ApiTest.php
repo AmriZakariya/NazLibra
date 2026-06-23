@@ -422,7 +422,11 @@ class ApiTest extends TestCase
             'terminal_name_snapshot' => $device->name,
         ]);
 
+        // Sync windows close on the previous complete DB timestamp second.
+        $this->travel(2)->seconds();
+
         $listedSales = $this->withToken($operatorToken)
+            ->withHeader('X-Location-Id', (string) $this->location->id)
             ->getJson('/api/v1/pos/sales')
             ->assertOk();
         $listedSale = collect($listedSales->json('sales'))->firstWhere('id', $response->json('sale.id'));
@@ -430,6 +434,7 @@ class ApiTest extends TestCase
         $this->assertSame($device->id, data_get($listedSale, 'virtual_device.id'));
 
         $syncedSales = $this->withToken($operatorToken)
+            ->withHeader('X-Location-Id', (string) $this->location->id)
             ->getJson('/api/v1/sync/sales')
             ->assertOk();
         $syncedSale = collect($syncedSales->json('sales'))->firstWhere('id', $response->json('sale.id'));

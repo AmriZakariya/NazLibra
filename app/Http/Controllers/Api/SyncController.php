@@ -15,8 +15,11 @@ use App\Models\Tax;
 use App\Models\Tenant;
 use App\Models\Unit;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
 
 /**
@@ -24,12 +27,11 @@ use OpenApi\Attributes as OA;
  *
  * SYNC CURSOR STRATEGY
  * --------------------
- * Each endpoint returns `sync_at` (server UTC, microsecond ISO-8601).
- * The client stores this and sends it back as `?since=` on the next call.
- * Queries use `updated_at >= since` (inclusive) to avoid missing records
- * that were written at the exact same timestamp as the last cursor.
- * This means a record may appear in two consecutive syncs — that is safe
- * because all entities are identified by `id` and the client upserts.
+ * Each endpoint returns one frozen `sync_at` watermark. Paginated endpoints
+ * also return an opaque `next_cursor` that advances by (updated_at, id)
+ * inside that frozen window. The client promotes sync_at only after the final
+ * page. The lower bound is inclusive, so boundary duplicates are expected and
+ * safe because clients upsert by id.
  *
  * LARGE CATALOGS (10k+ items)
  * ----------------------------
@@ -93,11 +95,6 @@ class SyncController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant  = $request->attributes->get('api_tenant');
-        $since   = $this->parseSince($request);
-        $perPage = $this->perPage($request, self::DEFAULT_ITEMS_PER_PAGE, self::MAX_ITEMS_PER_PAGE);
-
-        $page = $request->query('page', 1);
-
         $query = Item::withTrashed()
             ->where('tenant_id', $tenant->id)
             ->with([
@@ -105,28 +102,21 @@ class SyncController extends Controller
                 'brand:id,name',
                 'unit:id,name',
                 'tax:id,name,rate',
-            ])
-            ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
-            ->orderBy('updated_at', 'asc')
-            ->orderBy('id', 'asc');
+            ]);
 
-        $paginated = $query->paginate($perPage, [
+        $page = $this->syncPage($request, $query, 'items', $tenant->id, self::DEFAULT_ITEMS_PER_PAGE, self::MAX_ITEMS_PER_PAGE, [
             'id', 'category_id', 'brand_id', 'unit_id', 'tax_id',
             'type', 'status', 'is_enabled', 'checkout_visible', 'online_store_visible',
             'title', 'isbn', 'barcode', 'sku', 'custom_barcode1',
             'sale_price', 'purchase_price', 'min_stock_threshold',
-            'stock_quantity', 'images', 'description', 'tags',
+            'stock_quantity', 'images', 'extra_fields', 'description', 'tags',
             'updated_at', 'created_at', 'deleted_at',
-        ], 'page', $page);
+        ]);
 
         return response()->json([
             'ok'       => true,
-            'sync_at'  => now()->toISOString(),
-            'page'     => $paginated->currentPage(),
-            'per_page' => $paginated->perPage(),
-            'total'    => $paginated->total(),
-            'has_more' => $paginated->hasMorePages(),
-            'items'    => $paginated->items(),
+            ...$page['meta'],
+            'items'    => $page['rows'],
         ]);
     }
 
@@ -171,30 +161,41 @@ class SyncController extends Controller
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
         $since  = $this->parseSince($request);
+        $syncAt = $this->newSnapshotAt();
 
-        $categories = Category::where('tenant_id', $tenant->id)
+        $categories = Category::withTrashed()->where('tenant_id', $tenant->id)
             ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
-            ->get(['id', 'parent_id', 'name', 'slug', 'icon', 'color', 'updated_at'])
+            ->where('updated_at', '<=', $syncAt)
+            ->orderBy('updated_at')->orderBy('id')
+            ->get(['id', 'parent_id', 'name', 'slug', 'icon', 'color', 'updated_at', 'deleted_at'])
             ->toArray();
 
-        $brands = Brand::where('tenant_id', $tenant->id)
+        $brands = Brand::withTrashed()->where('tenant_id', $tenant->id)
             ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
-            ->get(['id', 'name', 'updated_at'])
+            ->where('updated_at', '<=', $syncAt)
+            ->orderBy('updated_at')->orderBy('id')
+            ->get(['id', 'name', 'is_active', 'updated_at', 'deleted_at'])
             ->toArray();
 
-        $units = Unit::where('tenant_id', $tenant->id)
+        $units = Unit::withTrashed()->where('tenant_id', $tenant->id)
             ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
-            ->get(['id', 'name', 'updated_at'])
+            ->where('updated_at', '<=', $syncAt)
+            ->orderBy('updated_at')->orderBy('id')
+            ->get(['id', 'name', 'updated_at', 'deleted_at'])
             ->toArray();
 
-        $taxes = Tax::where('tenant_id', $tenant->id)
+        $taxes = Tax::withTrashed()->where('tenant_id', $tenant->id)
             ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
-            ->get(['id', 'name', 'rate', 'updated_at'])
+            ->where('updated_at', '<=', $syncAt)
+            ->orderBy('updated_at')->orderBy('id')
+            ->get(['id', 'name', 'rate', 'is_active', 'updated_at', 'deleted_at'])
             ->toArray();
 
         return response()->json([
             'ok'         => true,
-            'sync_at'    => now()->toISOString(),
+            'sync_at'    => $this->formatCursorTime($syncAt),
+            'has_more'   => false,
+            'next_cursor'=> null,
             'categories' => $categories,
             'brands'     => $brands,
             'units'      => $units,
@@ -254,6 +255,7 @@ class SyncController extends Controller
         $tenant     = $request->attributes->get('api_tenant');
         $locationId = $request->attributes->get('api_location_id');
         $since      = $this->parseSince($request);
+        $syncAt     = $this->newSnapshotAt();
 
         if (! $locationId) {
             return response()->json(['ok' => false, 'message' => 'Aucun emplacement.'], 422);
@@ -263,6 +265,10 @@ class SyncController extends Controller
             ->where('tenant_id', $tenant->id)
             ->where('location_id', $locationId)
             ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
+            ->where('updated_at', '<=', $syncAt)
+            ->orderBy('item_id')
+            ->orderByRaw('CASE WHEN variant_id IS NULL THEN 0 ELSE 1 END')
+            ->orderBy('variant_id')
             ->get([
                 'item_id', 'variant_id',
                 'quantity', 'reserved_quantity',
@@ -281,8 +287,11 @@ class SyncController extends Controller
 
         return response()->json([
             'ok'          => true,
-            'sync_at'     => now()->toISOString(),
+            'sync_at'     => $this->formatCursorTime($syncAt),
             'location_id' => $locationId,
+            'is_full_snapshot' => $since === null,
+            'has_more'    => false,
+            'next_cursor' => null,
             'stock'       => $stocks,
         ]);
     }
@@ -326,20 +335,17 @@ class SyncController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant  = $request->attributes->get('api_tenant');
-        $since   = $this->parseSince($request);
-        $perPage = $this->perPage($request, self::DEFAULT_CONTACT_PER_PAGE, self::MAX_CONTACT_PER_PAGE);
         // Allow syncing a specific kind; default syncs both client and supplier
-        $kind    = in_array($request->query('kind'), ['client', 'supplier'], true)
-            ? $request->query('kind')
-            : null;
+        $kind = $request->query('kind');
+        if ($kind !== null && ! in_array($kind, ['client', 'supplier'], true)) {
+            throw ValidationException::withMessages(['kind' => 'kind doit être client ou supplier.']);
+        }
 
         $paginated = Contact::withTrashed()
             ->where('tenant_id', $tenant->id)
-            ->when($kind, fn ($q) => $q->where('kind', $kind))
-            ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
-            ->orderBy('updated_at', 'asc')
-            ->orderBy('id', 'asc')
-            ->paginate($perPage, [
+            ->when($kind, fn ($q) => $q->where('kind', $kind));
+
+        $page = $this->syncPage($request, $paginated, 'contacts:'.($kind ?? 'all'), $tenant->id, self::DEFAULT_CONTACT_PER_PAGE, self::MAX_CONTACT_PER_PAGE, [
                 'id', 'kind', 'code', 'status', 'name', 'email', 'phone', 'address',
                 'advance_balance', 'outstanding_balance', 'credit_limit',
                 'updated_at', 'created_at', 'deleted_at',
@@ -347,12 +353,8 @@ class SyncController extends Controller
 
         return response()->json([
             'ok'       => true,
-            'sync_at'  => now()->toISOString(),
-            'page'     => $paginated->currentPage(),
-            'per_page' => $paginated->perPage(),
-            'total'    => $paginated->total(),
-            'has_more' => $paginated->hasMorePages(),
-            'contacts' => $paginated->items(),
+            ...$page['meta'],
+            'contacts' => $page['rows'],
         ]);
     }
 
@@ -362,12 +364,12 @@ class SyncController extends Controller
      * GET /api/v1/sync/sales
      *
      * Paginated sale delta for the device to rebuild its local history.
-     * Only returns paid sales (status = paid).
+     * Returns every status plus deletion tombstones for the current location.
      */
     #[OA\Get(
         path: '/api/v1/sync/sales',
         operationId: 'syncSales',
-        summary: 'Paginated paid sales delta sync',
+        summary: 'Paginated location-scoped sales delta sync',
         security: [['bearerAuth' => []]],
         tags: ['Sync'],
         parameters: [
@@ -398,22 +400,18 @@ class SyncController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant  = $request->attributes->get('api_tenant');
-        $since   = $this->parseSince($request);
-        $perPage = $this->perPage($request, 100, 200);
-
-        $paginated = \App\Models\Sale::withTrashed()
+        $query = \App\Models\Sale::withTrashed()
             ->where('tenant_id', $tenant->id)
+            ->where('location_id', $request->attributes->get('api_location_id'))
             ->with([
                 'items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost',
                 'contact:id,name,phone',
                 'user:id,name',
                 'virtualDevice:id,name',
                 'location:id,name',
-            ])
-            ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
-            ->latest('updated_at')
-            ->latest('id')
-            ->paginate($perPage, [
+            ]);
+
+        $page = $this->syncPage($request, $query, 'sales:location-'.$request->attributes->get('api_location_id'), $tenant->id, 100, 200, [
                 'id', 'location_id', 'contact_id', 'user_id', 'virtual_device_id', 'actor_name_snapshot', 'terminal_name_snapshot', 'number', 'status', 'payment_method',
                 'subtotal_amount', 'discount_amount', 'total_amount',
                 'sold_at', 'updated_at', 'deleted_at',
@@ -421,12 +419,8 @@ class SyncController extends Controller
 
         return response()->json([
             'ok'       => true,
-            'sync_at'  => now()->toISOString(),
-            'page'     => $paginated->currentPage(),
-            'per_page' => $paginated->perPage(),
-            'total'    => $paginated->total(),
-            'has_more' => $paginated->hasMorePages(),
-            'sales'    => SaleResource::collection(collect($paginated->items())),
+            ...$page['meta'],
+            'sales'    => SaleResource::collection($page['rows']),
         ]);
     }
 
@@ -477,12 +471,18 @@ class SyncController extends Controller
         $locationId = $request->attributes->get('api_location_id');
 
         $location = $locationId
-            ? \App\Models\Location::find($locationId)
+            ? \App\Models\Location::where('tenant_id', $tenant->id)->find($locationId)
             : null;
+
+        $syncAt = $this->newSnapshotAt();
 
         return response()->json([
             'ok'                      => true,
-            'sync_at'                 => now()->toISOString(),
+            'sync_at'                 => $this->formatCursorTime($syncAt),
+            'has_more'                => false,
+            'next_cursor'             => null,
+            'tenant_id'               => $tenant->id,
+            'location_id'             => $location?->id,
             'timezone'                => $tenant->timezone ?? 'Africa/Casablanca',
             'currency'                => $tenant->currency ?? 'MAD',
             'locale'                  => $tenant->locale   ?? 'fr',
@@ -492,6 +492,7 @@ class SyncController extends Controller
             'receipt_header'          => data_get($tenant->settings, 'receipt.header'),
             'receipt_footer'          => data_get($tenant->settings, 'receipt.footer'),
             'features_virtual_devices'=> (bool) data_get($tenant->settings, 'features.virtual_devices', false),
+            'business_mode'           => $tenant->business_mode ?? 'retail',
         ]);
     }
 
@@ -501,17 +502,16 @@ class SyncController extends Controller
      * Parse the ?since= parameter to a UTC datetime string.
      * Returns null if absent or invalid.
      */
-    private function parseSince(Request $request): ?string
+    private function parseSince(Request $request): ?Carbon
     {
         $raw = $request->query('since');
         if (! $raw) {
             return null;
         }
         try {
-            // Preserve microsecond precision if provided.
-            return Carbon::parse($raw)->utc()->format('Y-m-d H:i:s.u');
+            return Carbon::parse($raw)->utc();
         } catch (\Throwable) {
-            return null;
+            throw ValidationException::withMessages(['since' => 'Le curseur since est invalide.']);
         }
     }
 
@@ -526,27 +526,17 @@ class SyncController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant  = $request->attributes->get('api_tenant');
-        $since   = $this->parseSince($request);
-        $perPage = $this->perPage($request, 100, 200);
-        $page    = $request->query('page', 1);
-
-        $query = SaleInvoice::query()
+        $query = SaleInvoice::withTrashed()
             ->with(['sale:id,number,sold_at,status,total_amount,contact_id', 'contact:id,name,phone,email'])
             ->where('tenant_id', $tenant->id)
-            ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
-            ->orderBy('updated_at', 'asc')
-            ->orderBy('id', 'asc');
+            ->whereHas('sale', fn ($sale) => $sale->withTrashed()->where('location_id', $request->attributes->get('api_location_id')));
 
-        $paginated = $query->paginate($perPage, ['*'], 'page', $page);
+        $page = $this->syncPage($request, $query, 'invoices:location-'.$request->attributes->get('api_location_id'), $tenant->id, 100, 200, ['*']);
 
         return response()->json([
             'ok'       => true,
-            'sync_at'  => now()->toISOString(),
-            'page'     => $paginated->currentPage(),
-            'per_page' => $paginated->perPage(),
-            'total'    => $paginated->total(),
-            'has_more' => $paginated->hasMorePages(),
-            'invoices' => $paginated->items(),
+            ...$page['meta'],
+            'invoices' => $page['rows'],
         ]);
     }
 
@@ -581,31 +571,137 @@ class SyncController extends Controller
     public function contactTransactions(Request $request): JsonResponse
     {
         $tenant  = $request->attributes->get('api_tenant');
-        $since   = $request->query('since');
-        $syncAt  = now()->toIso8601String();
-
         $query = ContactTransaction::withTrashed()
-            ->where('tenant_id', $tenant->id)
-            ->orderBy('updated_at');
+            ->where('tenant_id', $tenant->id);
 
-        if ($since) {
-            $query->where('updated_at', '>=', Carbon::parse($since));
-        }
-
-        $transactions = $query->get([
+        $page = $this->syncPage($request, $query, 'contact-transactions', $tenant->id, 200, 500, [
             'id', 'tenant_id', 'contact_id', 'type', 'amount',
             'note', 'recorded_at', 'updated_at', 'deleted_at',
         ]);
 
         return response()->json([
             'ok'           => true,
-            'transactions' => $transactions,
-            'sync_at'      => $syncAt,
+            ...$page['meta'],
+            'transactions' => $page['rows'],
         ]);
     }
 
-    private function perPage(Request $request, int $default, int $max): int
+    private function syncPage(Request $request, Builder $baseQuery, string $scope, int $tenantId, int $defaultPerPage, int $maxPerPage, array $columns): array
     {
-        return min((int) ($request->query('per_page', $default)), $max);
+        $cursor = $request->query('cursor');
+        $window = $cursor
+            ? $this->decodeSyncCursor((string) $cursor, $scope, $tenantId)
+            : [
+                'since' => $this->parseSince($request),
+                'sync_at' => $this->newSnapshotAt(),
+                'after_updated_at' => null,
+                'after_id' => null,
+                'page' => 1,
+                'per_page' => $this->validatedPerPage($request, $defaultPerPage, $maxPerPage),
+                'total' => null,
+            ];
+
+        if (! $cursor && (int) $request->query('page', 1) !== 1) {
+            throw ValidationException::withMessages(['cursor' => 'Utilisez next_cursor pour charger la page suivante.']);
+        }
+
+        $bounded = (clone $baseQuery)
+            ->when($window['since'], fn (Builder $query) => $query->where('updated_at', '>=', $window['since']))
+            ->where('updated_at', '<=', $window['sync_at']);
+
+        $total = $window['total'] ?? (clone $bounded)->count();
+
+        if ($window['after_updated_at'] !== null) {
+            $bounded->where(function (Builder $query) use ($window): void {
+                $query->where('updated_at', '>', $window['after_updated_at'])
+                    ->orWhere(function (Builder $sameTimestamp) use ($window): void {
+                        $sameTimestamp->where('updated_at', '=', $window['after_updated_at'])
+                            ->where('id', '>', $window['after_id']);
+                    });
+            });
+        }
+
+        $rows = $bounded->orderBy('updated_at')->orderBy('id')
+            ->limit($window['per_page'] + 1)
+            ->get($columns);
+        $hasMore = $rows->count() > $window['per_page'];
+        $rows = $rows->take($window['per_page'])->values();
+        $last = $rows->last();
+
+        $nextCursor = $hasMore && $last
+            ? $this->encodeSyncCursor([
+                'scope' => $scope,
+                'tenant_id' => $tenantId,
+                'since' => $window['since'] ? $this->formatCursorTime($window['since']) : null,
+                'sync_at' => $this->formatCursorTime($window['sync_at']),
+                'after_updated_at' => $last->getRawOriginal('updated_at'),
+                'after_id' => $last->id,
+                'page' => $window['page'] + 1,
+                'per_page' => $window['per_page'],
+                'total' => $total,
+            ])
+            : null;
+
+        return [
+            'rows' => $rows,
+            'meta' => [
+                'sync_at' => $this->formatCursorTime($window['sync_at']),
+                'page' => $window['page'],
+                'per_page' => $window['per_page'],
+                'total' => $total,
+                'has_more' => $hasMore,
+                'next_cursor' => $nextCursor,
+            ],
+        ];
+    }
+
+    private function validatedPerPage(Request $request, int $default, int $max): int
+    {
+        $value = filter_var($request->query('per_page', $default), FILTER_VALIDATE_INT);
+        if ($value === false || $value < 1 || $value > $max) {
+            throw ValidationException::withMessages(['per_page' => "per_page doit être compris entre 1 et {$max}."]);
+        }
+
+        return $value;
+    }
+
+    private function encodeSyncCursor(array $payload): string
+    {
+        return Crypt::encryptString(json_encode(['v' => 1, ...$payload], JSON_THROW_ON_ERROR));
+    }
+
+    private function decodeSyncCursor(string $cursor, string $scope, int $tenantId): array
+    {
+        try {
+            $payload = json_decode(Crypt::decryptString($cursor), true, flags: JSON_THROW_ON_ERROR);
+            if (($payload['v'] ?? null) !== 1 || ($payload['scope'] ?? null) !== $scope || (int) ($payload['tenant_id'] ?? 0) !== $tenantId) {
+                throw new \RuntimeException('Cursor scope mismatch.');
+            }
+
+            return [
+                'since' => ! empty($payload['since']) ? Carbon::parse($payload['since'])->utc() : null,
+                'sync_at' => Carbon::parse($payload['sync_at'])->utc(),
+                'after_updated_at' => $payload['after_updated_at'] ?? null,
+                'after_id' => (int) ($payload['after_id'] ?? 0),
+                'page' => max(1, (int) ($payload['page'] ?? 1)),
+                'per_page' => max(1, (int) ($payload['per_page'] ?? 1)),
+                'total' => isset($payload['total']) ? (int) $payload['total'] : null,
+            ];
+        } catch (\Throwable) {
+            throw ValidationException::withMessages(['cursor' => 'Le curseur de synchronisation est invalide ou expiré.']);
+        }
+    }
+
+    private function formatCursorTime(Carbon $time): string
+    {
+        return $time->copy()->utc()->format('Y-m-d\TH:i:s.u\Z');
+    }
+
+    private function newSnapshotAt(): Carbon
+    {
+        // Schema timestamps currently have second precision. Close the window
+        // on the previous complete second so writes committed during this
+        // request can never slip behind the issued cursor.
+        return now()->utc()->startOfSecond()->subSecond();
     }
 }

@@ -17,7 +17,8 @@ return new class extends Migration
             $table->string('type');
             $table->decimal('amount', 14, 2);
             $table->text('note')->nullable();
-            $table->string('idempotency_key')->nullable()->unique();
+            $table->string('idempotency_key');
+            $table->string('request_hash', 64)->nullable();
             $table->timestamp('recorded_at');
             $table->timestamps();
             $table->softDeletes();
@@ -26,6 +27,7 @@ return new class extends Migration
             $table->foreign('contact_id')->references('id')->on('contacts')->onDelete('cascade');
             $table->index(['contact_id', 'recorded_at']);
             $table->index(['tenant_id', 'updated_at']);
+            $table->unique(['tenant_id', 'idempotency_key'], 'contact_transactions_tenant_idempotency_unique');
         });
     }
 
