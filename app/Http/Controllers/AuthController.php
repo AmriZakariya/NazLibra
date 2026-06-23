@@ -8,6 +8,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Notifications\ResetPasswordNotification;
 use App\Notifications\ResetPinNotification;
+use App\Rules\FourDigitPin;
 use App\Support\TenantContext;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -109,7 +110,7 @@ class AuthController extends Controller
     public function unlockSession(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'pin' => ['required', 'digits_between:4,8'],
+            'pin' => ['required', 'string', new FourDigitPin],
         ]);
 
         $currentUser = $request->user();
@@ -605,7 +606,8 @@ class AuthController extends Controller
             'remove_profile_photo' => ['nullable', 'boolean'],
             'current_password' => ['nullable', 'required_with:password', 'string'],
             'password' => ['nullable', 'confirmed', 'min:8', 'max:120'],
-            'pin' => ['nullable', 'digits_between:4,8', 'confirmed'],
+            'pin' => ['nullable', 'string', new FourDigitPin, 'confirmed'],
+            'pin_confirmation' => ['nullable', 'required_with:pin', 'string', new FourDigitPin],
             'clear_pin' => ['nullable', 'boolean'],
         ]);
 
@@ -762,7 +764,8 @@ class AuthController extends Controller
         $data = $request->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
-            'pin' => ['required', 'digits_between:4,8', 'confirmed'],
+            'pin' => ['required', 'string', new FourDigitPin, 'confirmed'],
+            'pin_confirmation' => ['required', 'string', new FourDigitPin],
         ]);
 
         $record = DB::table('pin_reset_tokens')->where('email', $data['email'])->first();

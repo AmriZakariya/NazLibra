@@ -54,11 +54,11 @@
                             name="pin"
                             type="password"
                             inputmode="numeric"
-                            pattern="[0-9]*"
+                            pattern="[0-9]{4}"
                             autocomplete="one-time-code"
                             required
                             minlength="4"
-                            maxlength="8"
+                            maxlength="4"
                             autofocus
                             placeholder="••••"
                             class="lock-input"

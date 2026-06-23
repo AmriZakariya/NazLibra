@@ -46,6 +46,7 @@ use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\VariantOption;
 use App\Models\VirtualDeviceSession;
+use App\Rules\FourDigitPin;
 use App\Services\CashRegisterService;
 use App\Services\Documents\DocumentNumberGenerator;
 use App\Services\Documents\InvoiceService;
@@ -3382,7 +3383,8 @@ class LibraireProController extends Controller
         abort_unless($this->currentUserIsOwner($tenant), 403, 'Seul le propriétaire peut définir ou réinitialiser un PIN.');
 
         $data = $request->validate([
-            'pin' => ['nullable', 'digits_between:4,8', 'confirmed'],
+            'pin' => ['nullable', 'string', new FourDigitPin, 'confirmed'],
+            'pin_confirmation' => ['nullable', 'required_with:pin', 'string', new FourDigitPin],
             'clear_pin' => ['nullable', 'boolean'],
         ]);
 
@@ -9141,7 +9143,7 @@ class LibraireProController extends Controller
             'email' => ['required', 'email', 'max:190', Rule::unique('users', 'email')->ignore($user?->id)],
             'phone' => ['nullable', 'string', 'max:60'],
             'password' => [$user ? 'nullable' : 'required', 'string', 'min:8', 'max:120'],
-            'pin' => ['nullable', 'digits_between:4,8'],
+            'pin' => ['nullable', 'string', new FourDigitPin],
             'clear_pin' => ['nullable', 'boolean'],
             'avatar_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'profile_photo' => ['nullable', 'image', 'max:2048'],

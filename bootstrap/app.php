@@ -12,6 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // PIN whitespace is significant: never normalize an invalid value into
+        // a valid four-digit credential before validation.
+        $middleware->trimStrings(except: ['pin', 'pin_confirmation']);
+
         $middleware->alias([
             'tenant.access'  => \App\Http\Middleware\EnsureTenantAccess::class,
             'session.unlocked' => \App\Http\Middleware\EnsureSessionUnlocked::class,

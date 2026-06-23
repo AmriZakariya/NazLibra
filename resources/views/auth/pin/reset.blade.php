@@ -45,7 +45,7 @@
                         <div class="mt-12 max-w-xl">
                             <p class="text-sm font-semibold uppercase text-white/60">{{ $tr('PIN caisse') }}</p>
                             <h1 class="mt-3 text-4xl font-semibold tracking-normal text-white sm:text-5xl">{{ $tr('Réinitialiser votre PIN') }}</h1>
-                            <p class="mt-5 text-base leading-7 text-white/72">{{ $tr('Choisissez un nouveau code PIN à 4-8 chiffres pour sécuriser votre session.') }}</p>
+                            <p class="mt-5 text-base leading-7 text-white/72">{{ $tr('Choisissez un nouveau code PIN à 4 chiffres pour sécuriser votre session.') }}</p>
                         </div>
                     </div>
                 </div>
@@ -54,7 +54,7 @@
                         <div class="mb-8">
                             <p class="text-sm font-semibold text-brand">{{ $tr('Sécurité') }}</p>
                             <h2 class="mt-2 text-3xl font-semibold tracking-normal text-slate-950 dark:text-white">{{ $tr('Nouveau PIN') }}</h2>
-                            <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{{ $tr('Créez un code PIN à 4-8 chiffres pour déverrouiller votre session caisse.') }}</p>
+                            <p class="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{{ $tr('Créez un code PIN à 4 chiffres pour déverrouiller votre session caisse.') }}</p>
                         </div>
                         @if ($errors->any())
                             <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">{{ $errors->first() }}</div>
@@ -65,11 +65,11 @@
                             <input type="hidden" name="email" value="{{ $email }}">
                             <label class="block space-y-1.5">
                                 <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Nouveau PIN') }}</span>
-                                <input name="pin" type="password" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="8" autocomplete="one-time-code" class="h-12 w-full rounded-xl border border-slate-200 px-3 text-lg font-bold tracking-widest text-center outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="&#xb7;&#xb7;&#xb7;&#xb7;">
+                                <input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" required minlength="4" maxlength="4" autocomplete="one-time-code" class="h-12 w-full rounded-xl border border-slate-200 px-3 text-lg font-bold tracking-widest text-center outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="&#xb7;&#xb7;&#xb7;&#xb7;">
                             </label>
                             <label class="block space-y-1.5">
                                 <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Confirmer le PIN') }}</span>
-                                <input name="pin_confirmation" type="password" inputmode="numeric" pattern="[0-9]*" required minlength="4" maxlength="8" autocomplete="one-time-code" class="h-12 w-full rounded-xl border border-slate-200 px-3 text-lg font-bold tracking-widest text-center outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="&#xb7;&#xb7;&#xb7;&#xb7;">
+                                <input name="pin_confirmation" type="password" inputmode="numeric" pattern="[0-9]{4}" required minlength="4" maxlength="4" autocomplete="one-time-code" class="h-12 w-full rounded-xl border border-slate-200 px-3 text-lg font-bold tracking-widest text-center outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="&#xb7;&#xb7;&#xb7;&#xb7;">
                             </label>
                             <button class="h-12 w-full rounded-xl bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20 transition hover:brightness-110">{{ $tr('Réinitialiser le PIN') }}</button>
                         </form>

@@ -265,6 +265,8 @@ Les mutations POS auditables utilisent l'identité du jeton Sanctum et l'en-têt
 
 `POST /api/v1/auth/pin-verify` reçoit `user_id` et `pin` uniquement pour authentifier le changement d'opérateur. En cas de succès, la réponse contient `token`, `token_type`, `user` et `abilities`. Le client doit remplacer son ancien jeton par ce nouveau jeton avant toute action. Seul le jeton ayant servi au changement est révoqué ; les autres sessions restent actives. Pour revenir à l'opérateur précédent, effectuer un nouveau `pin-verify` avec son PIN. `POST /api/v1/auth/logout` révoque uniquement le jeton courant.
 
+Tous les PIN sont exactement composés de quatre chiffres ASCII (`0000` à `9999`). Les anciens hashes correspondant à des PIN de cinq ou six chiffres ne sont plus utilisables : leur propriétaire doit demander une réinitialisation du PIN ou faire définir un nouveau PIN à quatre chiffres par un propriétaire du tenant.
+
 Les ventes exposent l'attribution dans toutes les réponses de création, rejeu idempotent, liste, détail et synchronisation :
 
 ```json

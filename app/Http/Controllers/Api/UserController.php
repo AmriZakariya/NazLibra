@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Rules\FourDigitPin;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -74,8 +75,8 @@ class UserController extends Controller
     public function pinVerify(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'user_id' => ['required'],
-            'pin'     => ['required', 'string', 'digits_between:4,8'],
+            'user_id' => ['required', 'integer'],
+            'pin'     => ['required', 'string', new FourDigitPin],
         ]);
 
         /** @var Tenant $tenant */
@@ -86,12 +87,8 @@ class UserController extends Controller
             ->where('users.id', $data['user_id'])
             ->first();
 
-        if (! $user || ! $user->is_active) {
-            return response()->json(['ok' => false, 'message' => 'Utilisateur introuvable.'], 404);
-        }
-
-        if (is_null($user->pin_hash) || ! Hash::check($data['pin'], $user->pin_hash)) {
-            return response()->json(['ok' => false, 'message' => 'PIN incorrect.'], 422);
+        if (! $user || ! $user->is_active || is_null($user->pin_hash) || ! Hash::check($data['pin'], $user->pin_hash)) {
+            return response()->json(['ok' => false, 'message' => 'PIN ou utilisateur invalide.'], 422);
         }
 
         [$role, $abilities] = $this->roleAndAbilities($user);
@@ -130,13 +127,13 @@ class UserController extends Controller
 
     /**
      * POST /api/v1/users/set-pin
-     * Set or update the calling user's own PIN (4–8 digits).
+     * Set or update the calling user's own PIN (exactly 4 ASCII digits).
      */
     public function setPin(Request $request): JsonResponse
     {
         $request->validate([
-            'pin'              => ['required', 'string', 'digits_between:4,8', 'confirmed'],
-            'pin_confirmation' => ['required', 'string'],
+            'pin'              => ['required', 'string', new FourDigitPin, 'confirmed'],
+            'pin_confirmation' => ['required', 'string', new FourDigitPin],
         ]);
 
         $request->user()->update(['pin_hash' => Hash::make($request->input('pin'))]);

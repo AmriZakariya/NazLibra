@@ -444,6 +444,7 @@ class SaleController extends Controller
             ->with(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name'])
             ->when($since, fn ($q) => $q->where('sold_at', '>', \Carbon\Carbon::parse($since)))
             ->latest('sold_at')
+            ->latest('id')
             ->paginate($perPage);
 
         return response()->json([

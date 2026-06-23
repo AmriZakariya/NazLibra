@@ -106,12 +106,12 @@
                         <p class="mt-1 text-sm text-slate-500">{{ $tr('Chaque PIN identifie un utilisateur. Sur l\'écran verrouillé, entrer un PIN bascule la session vers cet utilisateur.') }}</p>
                         <div class="mt-4 grid gap-4 lg:grid-cols-2">
                             <label class="space-y-1.5">
-                                <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Code PIN (4-8 chiffres)') }}</span>
-                                <input name="pin" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Nouveau PIN') }}">
+                                <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Code PIN (4 chiffres)') }}</span>
+                                <input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Nouveau PIN à 4 chiffres') }}">
                             </label>
                             <label class="space-y-1.5">
                                 <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Confirmer le PIN') }}</span>
-                                <input name="pin_confirmation" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Confirmer le PIN') }}">
+                                <input name="pin_confirmation" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Confirmer le PIN') }}">
                             </label>
                         </div>
                         @if ($user->pin_hash)

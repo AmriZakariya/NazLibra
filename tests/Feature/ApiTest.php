@@ -422,17 +422,19 @@ class ApiTest extends TestCase
             'terminal_name_snapshot' => $device->name,
         ]);
 
-        $this->withToken($operatorToken)
+        $listedSales = $this->withToken($operatorToken)
             ->getJson('/api/v1/pos/sales')
-            ->assertOk()
-            ->assertJsonPath('sales.0.created_by.id', $cashier->id)
-            ->assertJsonPath('sales.0.virtual_device.id', $device->id);
+            ->assertOk();
+        $listedSale = collect($listedSales->json('sales'))->firstWhere('id', $response->json('sale.id'));
+        $this->assertSame($cashier->id, data_get($listedSale, 'created_by.id'));
+        $this->assertSame($device->id, data_get($listedSale, 'virtual_device.id'));
 
-        $this->withToken($operatorToken)
+        $syncedSales = $this->withToken($operatorToken)
             ->getJson('/api/v1/sync/sales')
-            ->assertOk()
-            ->assertJsonPath('sales.0.created_by.name', $cashier->name)
-            ->assertJsonPath('sales.0.virtual_device.name', $device->name);
+            ->assertOk();
+        $syncedSale = collect($syncedSales->json('sales'))->firstWhere('id', $response->json('sale.id'));
+        $this->assertSame($cashier->name, data_get($syncedSale, 'created_by.name'));
+        $this->assertSame($device->name, data_get($syncedSale, 'virtual_device.name'));
 
         // The switched cashier token cannot inherit the owner's wildcard ability.
         $this->withToken($operatorToken)
