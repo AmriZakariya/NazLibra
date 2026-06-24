@@ -3,6 +3,11 @@
     $pageTitle = 'LibrairePro · '.$meta['title'];
     $locale = \App\Support\Locale::current($tenant);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
+    $tenantTimezone = \App\Support\TenantClock::timezone($tenant);
+    $tzDate = fn ($date, string $fmt = 'd/m/Y H:i'): string =>
+        $date instanceof \Carbon\Carbon || $date instanceof \Carbon\CarbonImmutable || $date instanceof \Carbon\CarbonInterface
+            ? $date->copy()->setTimezone($tenantTimezone)->format($fmt)
+            : ($date ? \Illuminate\Support\Carbon::parse($date)->setTimezone($tenantTimezone)->format($fmt) : '—');
 @endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" :title="$pageTitle">
@@ -554,7 +559,7 @@
                                         <td class="px-3 py-3">{{ $invoice->due_date?->format('d/m/Y') ?? '—' }}</td>
                                         <td class="px-3 py-3">{{ $invoice->contact?->name ?? $invoice->sale?->contact?->name ?? 'Client Grand Public' }}</td>
                                         <td class="px-3 py-3"><x-status-pill :tone="$invoiceStatusTone">{{ $invoiceStatusLabel }}</x-status-pill></td>
-                                        <td class="px-3 py-3 whitespace-nowrap"><span class="font-semibold">{{ $invoiceListCreatedBy }}</span><p class="mt-1 text-xs text-slate-500">{{ $invoiceListCreatedAt ? \Illuminate\Support\Carbon::parse($invoiceListCreatedAt)->format('d/m/Y H:i') : '—' }}</p></td>
+                                        <td class="px-3 py-3 whitespace-nowrap"><span class="font-semibold">{{ $invoiceListCreatedBy }}</span><p class="mt-1 text-xs text-slate-500">{{ $tzDate($invoiceListCreatedAt) }}</p></td>
                                         <td class="px-3 py-3 text-right font-semibold">{{ $money($invoice->total_amount) }}</td>
                                         <td class="px-3 py-3 text-right">
                                             <div class="flex justify-end gap-2">
@@ -896,15 +901,15 @@
                                     <td class="px-3 py-3 min-w-48 font-medium">{{ $sale->contact?->name ?? 'Client Grand Public' }}</td>
                                     <td class="px-3 py-3 whitespace-nowrap">
                                         <span class="font-semibold">{{ $saleCreatedBy }}</span>
-                                        <p class="mt-1 text-xs text-slate-500">{{ $saleCreatedAt ? \Illuminate\Support\Carbon::parse($saleCreatedAt)->format('d/m/Y H:i') : '—' }}</p>
+                                        <p class="mt-1 text-xs text-slate-500">{{ $tzDate($saleCreatedAt) }}</p>
                                     </td>
                                     <td class="px-3 py-3 whitespace-nowrap">
                                         <span class="font-semibold">{{ $saleUpdatedBy }}</span>
-                                        <p class="mt-1 text-xs text-slate-500">{{ $saleUpdatedAt ? \Illuminate\Support\Carbon::parse($saleUpdatedAt)->format('d/m/Y H:i') : '—' }}</p>
+                                        <p class="mt-1 text-xs text-slate-500">{{ $tzDate($saleUpdatedAt) }}</p>
                                     </td>
                                     <td class="px-3 py-3 whitespace-nowrap text-xs text-slate-500">
-                                        <p title="Créé le (DB)">{{ $sale->created_at?->format('d/m/Y H:i') ?? '—' }}</p>
-                                        <p class="mt-0.5" title="Modifié le (DB)">{{ $sale->updated_at?->format('d/m/Y H:i') ?? '—' }}</p>
+                                        <p title="Créé le (DB)">{{ $tzDate($sale->created_at) }}</p>
+                                        <p class="mt-0.5" title="Modifié le (DB)">{{ $tzDate($sale->updated_at) }}</p>
                                     </td>
                                     <td class="px-3 py-3 text-right font-semibold whitespace-nowrap">{{ $money($sale->total_amount) }}</td>
                                     <td class="px-3 py-3 text-right font-semibold whitespace-nowrap">{{ $money($paid) }}</td>
@@ -992,12 +997,12 @@
                                                         <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                                             <span class="text-xs font-semibold uppercase text-slate-500">Créé par</span>
                                                             <strong class="mt-1 block">{{ $saleCreatedBy }}</strong>
-                                                            <span class="mt-1 block text-xs text-slate-500">{{ $saleCreatedAt ? \Illuminate\Support\Carbon::parse($saleCreatedAt)->format('d/m/Y H:i') : 'Date inconnue' }}</span>
+                                                            <span class="mt-1 block text-xs text-slate-500">{{ $saleCreatedAt ? $tzDate($saleCreatedAt) : 'Date inconnue' }}</span>
                                                         </div>
                                                         <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                                             <span class="text-xs font-semibold uppercase text-slate-500">Dernière mise à jour</span>
                                                             <strong class="mt-1 block">{{ $saleUpdatedBy }}</strong>
-                                                            <span class="mt-1 block text-xs text-slate-500">{{ $saleUpdatedAt ? \Illuminate\Support\Carbon::parse($saleUpdatedAt)->format('d/m/Y H:i') : 'Aucune modification' }}</span>
+                                                            <span class="mt-1 block text-xs text-slate-500">{{ $saleUpdatedAt ? $tzDate($saleUpdatedAt) : 'Aucune modification' }}</span>
                                                         </div>
                                                     </div>
 
@@ -1088,9 +1093,9 @@
                                                     @if ($sale->status === 'cancelled' || $sale->status === 'refunded')
                                                         <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800 dark:border-sky-500/20 dark:bg-sky-500/10 dark:text-sky-100">
                                                             @if ($sale->status === 'cancelled')
-                                                                Vente annulée le {{ data_get($sale->metadata, 'cancelled.cancelled_at') ? \Illuminate\Support\Carbon::parse(data_get($sale->metadata, 'cancelled.cancelled_at'))->format('d/m/Y H:i') : '—' }}.
+                                                                Vente annulée le {{ $tzDate(data_get($sale->metadata, 'cancelled.cancelled_at')) }}.
                                                             @else
-                                                                Vente remboursée le {{ data_get($sale->metadata, 'refund.refunded_at') ? \Illuminate\Support\Carbon::parse(data_get($sale->metadata, 'refund.refunded_at'))->format('d/m/Y H:i') : '—' }}.
+                                                                Vente remboursée le {{ $tzDate(data_get($sale->metadata, 'refund.refunded_at')) }}.
                                                             @endif
                                                         </div>
                                                     @endif
@@ -1199,7 +1204,7 @@
                                             </aside>
                                         </div>
                                         <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/5">
-                                            <p class="text-xs text-slate-500">Dernière modification: {{ data_get($sale->metadata, 'edited_at') ? \Illuminate\Support\Carbon::parse(data_get($sale->metadata, 'edited_at'))->format('d/m/Y H:i') : '—' }}</p>
+                                            <p class="text-xs text-slate-500">Dernière modification: {{ $tzDate(data_get($sale->metadata, 'edited_at')) }}</p>
                                             <div class="flex flex-wrap justify-end gap-2">
                                             <button class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button">Annuler</button>
                                             <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">Enregistrer</button>
@@ -1831,7 +1836,7 @@
                                         <td class="px-3 py-3">{{ $invoice->due_date?->format('d/m/Y') ?? '—' }}</td>
                                         <td class="px-3 py-3">{{ $invoice->contact?->name ?? $invoice->sale?->contact?->name ?? 'Client Grand Public' }}</td>
                                         <td class="px-3 py-3"><x-status-pill :tone="$invoiceStatusTone">{{ $invoiceStatusLabel }}</x-status-pill></td>
-                                        <td class="px-3 py-3 whitespace-nowrap"><span class="font-semibold">{{ $invoiceListCreatedBy }}</span><p class="mt-1 text-xs text-slate-500">{{ $invoiceListCreatedAt ? \Illuminate\Support\Carbon::parse($invoiceListCreatedAt)->format('d/m/Y H:i') : '—' }}</p></td>
+                                        <td class="px-3 py-3 whitespace-nowrap"><span class="font-semibold">{{ $invoiceListCreatedBy }}</span><p class="mt-1 text-xs text-slate-500">{{ $tzDate($invoiceListCreatedAt) }}</p></td>
                                         <td class="px-3 py-3 text-right font-semibold">{{ $money($invoice->total_amount) }}</td>
                                         <td class="px-3 py-3 text-right">
                                             <div class="flex justify-end gap-2">
@@ -2748,7 +2753,7 @@
                                         </td>
                                         <td class="px-4 py-3 whitespace-nowrap">
                                             <span class="font-semibold">{{ $purchaseCreatedBy }}</span>
-                                            <p class="mt-1 text-xs text-slate-500">{{ $purchaseCreatedAt ? \Illuminate\Support\Carbon::parse($purchaseCreatedAt)->format('d/m/Y H:i') : '—' }}</p>
+                                            <p class="mt-1 text-xs text-slate-500">{{ $tzDate($purchaseCreatedAt) }}</p>
                                         </td>
                                         <td class="px-4 py-3">
                                             <span class="font-semibold">{{ $purchase->items->count() }} ligne(s)</span>
@@ -2898,7 +2903,7 @@
                                                                     <span class="mt-1.5 size-2 shrink-0 rounded-full bg-blue-500"></span>
                                                                     <div>
                                                                         <p class="font-medium">Commande créée</p>
-                                                                        <p class="text-xs text-slate-500">Par {{ $purchaseCreatedBy }} · {{ $purchaseCreatedAt ? \Illuminate\Support\Carbon::parse($purchaseCreatedAt)->format('d/m/Y H:i') : '—' }}</p>
+                                                                        <p class="text-xs text-slate-500">Par {{ $purchaseCreatedBy }} · {{ $tzDate($purchaseCreatedAt) }}</p>
                                                                     </div>
                                                                 </div>
                                                                 @if ($purchase->received_at || $receivedQuantity > 0)
@@ -2906,7 +2911,7 @@
                                                                         <span class="mt-1.5 size-2 shrink-0 rounded-full bg-emerald-500"></span>
                                                                         <div>
                                                                             <p class="font-medium">Réception en cours / terminée</p>
-                                                                            <p class="text-xs text-slate-500">{{ number_format($receivedQuantity, 0, ',', ' ') }} unité(s) reçue(s) · {{ $purchaseUpdatedAt ? \Illuminate\Support\Carbon::parse($purchaseUpdatedAt)->format('d/m/Y H:i') : '—' }}</p>
+                                                                            <p class="text-xs text-slate-500">{{ number_format($receivedQuantity, 0, ',', ' ') }} unité(s) reçue(s) · {{ $tzDate($purchaseUpdatedAt) }}</p>
                                                                         </div>
                                                                     </div>
                                                                 @endif
@@ -4340,14 +4345,20 @@
                                             <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $action['description'] }}</p>
                                         </div>
                                     </div>
-                                    <div class="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                                        <label class="space-y-1.5">
-                                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tapez DEMO pour confirmer</span>
-                                            <input name="confirmation" required pattern="DEMO" placeholder="DEMO" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold tracking-wide outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:border-white/10 dark:bg-slate-900 dark:focus:ring-rose-500/20" @disabled(! $currentUserIsOwner)>
+                                    <div class="mt-4 space-y-3">
+                                        <label class="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-slate-900">
+                                            <input type="checkbox" name="hard_delete" value="1" class="size-4 rounded accent-rose-600" @disabled(! $currentUserIsOwner)>
+                                            <span class="text-xs font-semibold text-rose-700 dark:text-rose-400">Suppression permanente (hard delete) — libère les codes et séquences</span>
                                         </label>
-                                        <button class="inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 {{ $buttonClass }}" @disabled(! $currentUserIsOwner)>
-                                            Exécuter
-                                        </button>
+                                        <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                                            <label class="space-y-1.5">
+                                                <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tapez DEMO pour confirmer</span>
+                                                <input name="confirmation" required pattern="DEMO" placeholder="DEMO" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold tracking-wide outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:border-white/10 dark:bg-slate-900 dark:focus:ring-rose-500/20" @disabled(! $currentUserIsOwner)>
+                                            </label>
+                                            <button class="inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 {{ $buttonClass }}" @disabled(! $currentUserIsOwner)>
+                                                Exécuter
+                                            </button>
+                                        </div>
                                     </div>
                                 </form>
                             @endforeach
@@ -5244,7 +5255,7 @@
                                             {{ $log->user?->name ?? 'Système / invité' }} · {{ data_get($log->properties, 'method') }} · {{ data_get($log->properties, 'path') }}
                                         </p>
                                     </div>
-                                    <span class="shrink-0 text-xs font-semibold text-slate-500">{{ $log->created_at->format('d/m H:i') }}</span>
+                                    <span class="shrink-0 text-xs font-semibold text-slate-500">{{ $tzDate($log->created_at, 'd/m H:i') }}</span>
                                 </div>
                             </div>
                         @empty

@@ -8,6 +8,7 @@ use App\Models\Item;
 use App\Models\ItemLocationStock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InventoryController extends Controller
 {
@@ -31,18 +32,16 @@ class InventoryController extends Controller
             ')
             ->first();
 
-        $lowStockCount = Item::where('tenant_id', $tenant->id)
+        $alertCounts = DB::table('items')
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('deleted_at')
             ->where('status', 'active')
             ->where('type', '!=', 'service')
-            ->where('min_stock_threshold', '>', 0)
-            ->whereColumn('stock_quantity', '<=', 'min_stock_threshold')
-            ->count();
-
-        $outOfStockCount = Item::where('tenant_id', $tenant->id)
-            ->where('status', 'active')
-            ->where('type', '!=', 'service')
-            ->where('stock_quantity', '<=', 0)
-            ->count();
+            ->selectRaw('
+                SUM(CASE WHEN stock_quantity <= 0 THEN 1 ELSE 0 END) AS out_of_stock,
+                SUM(CASE WHEN min_stock_threshold > 0 AND stock_quantity > 0 AND stock_quantity <= min_stock_threshold THEN 1 ELSE 0 END) AS low_stock
+            ')
+            ->first();
 
         return response()->json([
             'ok'      => true,
@@ -50,8 +49,8 @@ class InventoryController extends Controller
                 'item_count'         => (int) $stockAgg->item_count,
                 'total_volume'       => (float) $stockAgg->total_volume,
                 'total_value'        => (float) $stockAgg->total_value,
-                'low_stock_count'    => $lowStockCount,
-                'out_of_stock_count' => $outOfStockCount,
+                'low_stock_count'    => (int) ($alertCounts->low_stock ?? 0),
+                'out_of_stock_count' => (int) ($alertCounts->out_of_stock ?? 0),
             ],
         ]);
     }

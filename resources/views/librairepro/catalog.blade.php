@@ -1,6 +1,11 @@
 @php
     $money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' DH';
     $tr = fn (string $text): string => \App\Support\Locale::t($text);
+    $tenantTimezone = \App\Support\TenantClock::timezone($tenant);
+    $tzDate = fn ($date, string $fmt = 'd/m/Y H:i'): string =>
+        $date instanceof \Carbon\Carbon || $date instanceof \Carbon\CarbonImmutable || $date instanceof \Carbon\CarbonInterface
+            ? $date->copy()->setTimezone($tenantTimezone)->format($fmt)
+            : ($date ? \Illuminate\Support\Carbon::parse($date)->setTimezone($tenantTimezone)->format($fmt) : '—');
     $requiredNoticeHtml = new \Illuminate\Support\HtmlString(str_replace(
         '*',
         '<span class="font-black text-rose-500">*</span>',
@@ -725,7 +730,7 @@
                         <div class="inventory-movement-row is-{{ $movementMeta['tone'] }}">
                             <div class="inventory-movement-type">
                                 <span class="inventory-movement-badge"><span aria-hidden="true">{{ $movementMeta['icon'] }}</span>{{ $movementMeta['label'] }}</span>
-                                <time>{{ \Illuminate\Support\Carbon::parse($movement->created_at)->format('d/m/Y H:i') }}</time>
+                                <time>{{ $tzDate($movement->created_at) }}</time>
                             </div>
                             <div class="min-w-0">
                                 <p class="font-semibold text-slate-950 dark:text-white">{{ $movement->item_title }}</p>

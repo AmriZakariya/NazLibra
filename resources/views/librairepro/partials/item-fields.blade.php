@@ -26,7 +26,7 @@
 <div class="{{ $section }}">Identification</div>
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Code de l'article</span>
-    <input name="item_code" value="{{ old('item_code', $item?->item_code ?? $suggestedItemCode ?? '') }}" class="{{ $item ? $input : $readonlyInput }}" placeholder="Auto" @readonly(! $item)>
+    <input name="item_code" value="{{ old('item_code', $item?->item_code ?? '') }}" class="{{ $item ? $input : $readonlyInput }}" placeholder="{{ $item ? 'Auto' : ($suggestedItemCode ?? 'Généré automatiquement') }}" @readonly(! $item)>
 </label>
 <div class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Type d'élément {!! $required !!}</span>

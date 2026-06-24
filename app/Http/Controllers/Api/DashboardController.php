@@ -82,12 +82,15 @@ class DashboardController extends Controller
             ? Carbon::parse($request->query('to'), $timezone)->endOfDay()->utc()
             : Carbon::now($timezone)->endOfDay()->utc();
 
+        // Confirmed statuses: API POS creates 'paid', admin web creates 'completed'.
+        $confirmedStatuses = ['paid', 'completed'];
+
         // Revenue and COGS from confirmed sales (use snapshotted unit_cost — never items.purchase_price).
         $salesData = DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->where('sales.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
-            ->where('sales.status', 'paid')
+            ->whereIn('sales.status', $confirmedStatuses)
             ->whereBetween('sales.sold_at', [$from, $to])
             ->selectRaw('
                 COUNT(DISTINCT sales.id) AS sale_count,
@@ -115,32 +118,36 @@ class DashboardController extends Controller
         $margin      = $netRevenue > 0 ? round($grossProfit / $netRevenue * 100, 2) : 0;
         $avgTicket   = $saleCount > 0 ? round($netRevenue / $saleCount, 2) : 0;
 
-        // Payment method breakdown.
+        // Payment method breakdown — only from confirmed sales.
         $paymentBreakdown = DB::table('sale_payments')
             ->join('sales', 'sale_payments.sale_id', '=', 'sales.id')
             ->where('sales.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
+            ->whereIn('sales.status', $confirmedStatuses)
             ->whereBetween('sales.sold_at', [$from, $to])
             ->selectRaw('sale_payments.method, SUM(sale_payments.amount) AS total')
             ->groupBy('sale_payments.method')
             ->pluck('total', 'method');
 
-        // Stock health.
-        $lowStockCount    = Item::where('tenant_id', $tenant->id)
-            ->where('status', 'active')
-            ->whereColumn('stock_quantity', '<=', 'min_stock_threshold')
-            ->where('min_stock_threshold', '>', 0)
-            ->count();
+        // Stock health — single query with conditional aggregation.
+        $stockHealth = DB::table('items')
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('deleted_at')
+            ->where('type', '!=', 'service')
+            ->selectRaw('
+                SUM(CASE WHEN stock_quantity <= 0 THEN 1 ELSE 0 END) AS out_of_stock,
+                SUM(CASE WHEN min_stock_threshold > 0 AND stock_quantity > 0 AND stock_quantity <= min_stock_threshold THEN 1 ELSE 0 END) AS low_stock
+            ')
+            ->first();
 
-        $outOfStockCount = Item::where('tenant_id', $tenant->id)
-            ->where('status', 'out_of_stock')
-            ->count();
+        $lowStockCount   = (int) ($stockHealth->low_stock ?? 0);
+        $outOfStockCount = (int) ($stockHealth->out_of_stock ?? 0);
 
         // Top 5 items by revenue for the period.
         $topItems = DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->where('sales.tenant_id', $tenant->id)
-            ->where('sales.status', 'paid')
+            ->whereIn('sales.status', $confirmedStatuses)
             ->whereBetween('sales.sold_at', [$from, $to])
             ->selectRaw('sale_items.item_id, sale_items.name, SUM(sale_items.quantity) AS qty_sold, SUM(sale_items.total_price) AS revenue, SUM(sale_items.total_cost) AS cost')
             ->groupBy('sale_items.item_id', 'sale_items.name')
