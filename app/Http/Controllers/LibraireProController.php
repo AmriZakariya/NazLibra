@@ -7687,7 +7687,12 @@ class LibraireProController extends Controller
 
     private function nextPaymentNumber(Tenant $tenant): string
     {
-        return $this->numbers->next($tenant, 'payment', 'PAY')['number'];
+        return $this->numbers->next(
+            $tenant,
+            'payment',
+            'PAY',
+            fn (string $n) => SalePayment::where('tenant_id', $tenant->id)->where('number', $n)->exists()
+        )['number'];
     }
 
     private function nextReturnNumber(Tenant $tenant): string

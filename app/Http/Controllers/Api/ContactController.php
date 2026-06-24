@@ -212,6 +212,64 @@ class ContactController extends Controller
         return response()->json(['ok' => true, 'contact' => $contact->fresh()]);
     }
 
+     * GET /api/v1/contacts/list?kind=client&q=&filter=all&sort=name&page=1&per_page=50
+     *
+     * Full paginated contact list for the mobile contacts screen.
+     * kind: client | supplier
+     * filter: all | balance | advance
+     * sort: name | balance_desc
+     */
+    public function list(Request $request): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant  = $request->attributes->get('api_tenant');
+        $kind    = in_array($request->query('kind'), ['client', 'supplier'], true)
+            ? $request->query('kind')
+            : 'client';
+        $q       = trim((string) $request->query('q', ''));
+        $filter  = $request->query('filter', 'all');  // all | balance | advance
+        $sort    = $request->query('sort', 'name');   // name | balance_desc
+        $perPage = min((int) $request->query('per_page', 50), 200);
+
+        $query = Contact::where('tenant_id', $tenant->id)
+            ->where('kind', $kind)
+            ->when($q !== '', fn ($q2) => $q2->where(fn ($inner) => $inner
+                ->where('name', 'like', "%{$q}%")
+                ->orWhere('phone', 'like', "%{$q}%")
+                ->orWhere('email', 'like', "%{$q}%")))
+            ->when($filter === 'balance', fn ($q2) => $q2->where('outstanding_balance', '>', 0))
+            ->when($filter === 'advance',  fn ($q2) => $q2->where('advance_balance', '>', 0))
+            ->when($sort === 'balance_desc',
+                fn ($q2) => $q2->orderByRaw('(outstanding_balance + advance_balance) DESC, name ASC'),
+                fn ($q2) => $q2->orderBy('name'));
+
+        $paginator = $query->paginate($perPage, [
+            'id', 'name', 'phone', 'email', 'kind', 'code', 'status',
+            'outstanding_balance', 'advance_balance', 'credit_limit',
+        ]);
+
+        $contacts = collect($paginator->items())->map(fn (Contact $c) => [
+            'id'                  => $c->id,
+            'name'                => $c->name,
+            'phone'               => $c->phone,
+            'email'               => $c->email,
+            'kind'                => $c->kind,
+            'code'                => $c->code,
+            'status'              => $c->status,
+            'outstanding_balance' => (float) $c->outstanding_balance,
+            'advance_balance'     => (float) $c->advance_balance,
+            'credit_limit'        => (float) $c->credit_limit,
+        ]);
+
+        return response()->json([
+            'ok'       => true,
+            'contacts' => $contacts,
+            'total'    => $paginator->total(),
+            'page'     => $paginator->currentPage(),
+            'has_more' => $paginator->hasMorePages(),
+        ]);
+    }
+
     /** DELETE /api/v1/contacts/{contact} */
     public function destroy(Request $request, Contact $contact): JsonResponse
     {

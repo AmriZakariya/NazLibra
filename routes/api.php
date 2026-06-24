@@ -104,6 +104,7 @@ Route::prefix('v1')->group(function (): void {
 
         // ── Contacts (customers & suppliers) ─────────────────────────────────
         Route::get('contacts',              [ContactController::class, 'index']);
+        Route::get('contacts/list',         [ContactController::class, 'list']);   // before {contact} wildcard
         Route::post('contacts',             [ContactController::class, 'store']);
         Route::get('contacts/{contact}',    [ContactController::class, 'show']);
         Route::put('contacts/{contact}',    [ContactController::class, 'update']);
