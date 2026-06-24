@@ -26,7 +26,7 @@
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
     $timezoneLabel = \App\Support\TenantClock::label($tenant);
     $timezoneOffset = \App\Support\TenantClock::offset($tenant);
-    $appVersion = config('app.version', '1.0.0-beta.4');
+    $appVersion = config('app.version', '1.0.0-beta.5');
     $releaseLabel = app()->environment('production') ? $tr('Production') : \Illuminate\Support\Str::headline(app()->environment());
     $authUser = auth()->user();
     $isOwner = $authUser !== null && (string) ($tenant->users()->whereKey($authUser->id)->first()?->pivot?->role ?? '') === 'owner';

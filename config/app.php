@@ -15,7 +15,7 @@ return [
 
     'name' => env('APP_NAME', 'LibrairePro'),
 
-    'version' => env('APP_VERSION', '1.0.0-beta.4'),
+    'version' => env('APP_VERSION', '1.0.0-beta.5'),
 
     /*
     |--------------------------------------------------------------------------
