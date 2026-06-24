@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    private array $softDeleteTables = ['categories', 'brands', 'units', 'taxes', 'sale_invoices'];
+    private array $softDeleteTables = ['categories', 'brands', 'units', 'taxes', 'sale_invoices', 'item_location_stock'];
 
     private array $deltaTables = [
         'items', 'contacts', 'categories', 'brands', 'units', 'taxes',

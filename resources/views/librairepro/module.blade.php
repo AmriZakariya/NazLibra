@@ -774,6 +774,7 @@
                                 <th class="px-3 py-3 whitespace-nowrap">Nom du client</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Créé par</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Mis à jour par</th>
+                                <th class="px-3 py-3 whitespace-nowrap">Créé le / Modifié le</th>
                                 <th class="px-3 py-3 text-right whitespace-nowrap">Total</th>
                                 <th class="px-3 py-3 text-right whitespace-nowrap">Paiement payé</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Statut de paiement</th>
@@ -900,6 +901,10 @@
                                     <td class="px-3 py-3 whitespace-nowrap">
                                         <span class="font-semibold">{{ $saleUpdatedBy }}</span>
                                         <p class="mt-1 text-xs text-slate-500">{{ $saleUpdatedAt ? \Illuminate\Support\Carbon::parse($saleUpdatedAt)->format('d/m/Y H:i') : '—' }}</p>
+                                    </td>
+                                    <td class="px-3 py-3 whitespace-nowrap text-xs text-slate-500">
+                                        <p title="Créé le (DB)">{{ $sale->created_at?->format('d/m/Y H:i') ?? '—' }}</p>
+                                        <p class="mt-0.5" title="Modifié le (DB)">{{ $sale->updated_at?->format('d/m/Y H:i') ?? '—' }}</p>
                                     </td>
                                     <td class="px-3 py-3 text-right font-semibold whitespace-nowrap">{{ $money($sale->total_amount) }}</td>
                                     <td class="px-3 py-3 text-right font-semibold whitespace-nowrap">{{ $money($paid) }}</td>
@@ -3391,9 +3396,9 @@
                         <table data-contact-table data-kind="{{ $listKind }}" data-ajax-url="{{ route('contacts.data', ['kind' => $listKind]) }}" class="w-full min-w-[1240px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
                                 @if ($listKind === 'supplier')
-                                    <tr><th><input type="checkbox" class="rounded border-slate-300"></th><th>ID fournisseur</th><th>Nom fournisseur</th><th>Mobile</th><th>Email</th><th>Solde précédent</th><th>Achat dû</th><th>Retour d'achat dû</th><th>Total</th><th>Statut</th><th class="text-right">Action</th></tr>
+                                    <tr><th><input type="checkbox" class="rounded border-slate-300"></th><th>ID fournisseur</th><th>Nom fournisseur</th><th>Mobile</th><th>Email</th><th>Solde précédent</th><th>Achat dû</th><th>Retour d'achat dû</th><th>Total</th><th>Statut</th><th class="whitespace-nowrap">Créé / Modifié</th><th class="text-right">Action</th></tr>
                                 @else
-                                    <tr><th><input type="checkbox" class="rounded border-slate-300"></th><th>N° client</th><th>Nom client</th><th>Mobile</th><th>Email</th><th>Emplacement</th><th>Limite crédit</th><th>Solde dû</th><th>Avance</th><th>Statut</th><th class="text-right">Action</th></tr>
+                                    <tr><th><input type="checkbox" class="rounded border-slate-300"></th><th>N° client</th><th>Nom client</th><th>Mobile</th><th>Email</th><th>Emplacement</th><th>Limite crédit</th><th>Solde dû</th><th>Avance</th><th>Statut</th><th class="whitespace-nowrap">Créé / Modifié</th><th class="text-right">Action</th></tr>
                                 @endif
                             </thead>
                             <tbody></tbody>

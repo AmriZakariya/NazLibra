@@ -1029,11 +1029,12 @@
                                 <th class="px-4 py-3">Prix de vente</th>
                                 <th class="px-4 py-3">Impôt</th>
                                 <th class="px-4 py-3">Statut</th>
+                                <th class="px-4 py-3 whitespace-nowrap">Créé / Modifié</th>
                                 <th class="px-4 py-3 text-right min-w-[170px]">Action</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-200 dark:divide-white/10">
-                            <tr><td colspan="{{ $panel === 'services' ? 11 : 12 }}" class="px-4 py-12 text-center text-sm text-slate-500">Chargement de la table...</td></tr>
+                            <tr><td colspan="{{ $panel === 'services' ? 12 : 13 }}" class="px-4 py-12 text-center text-sm text-slate-500">Chargement de la table...</td></tr>
                         </tbody>
                     </table>
                 </div>

@@ -193,14 +193,15 @@ class SyncController extends Controller
             ->toArray();
 
         return response()->json([
-            'ok'         => true,
-            'sync_at'    => $this->formatCursorTime($syncAt),
-            'has_more'   => false,
-            'next_cursor'=> null,
-            'categories' => $categories,
-            'brands'     => $brands,
-            'units'      => $units,
-            'taxes'      => $taxes,
+            'ok'               => true,
+            'sync_at'          => $this->formatCursorTime($syncAt),
+            'is_full_snapshot' => $since === null,
+            'has_more'         => false,
+            'next_cursor'      => null,
+            'categories'       => $categories,
+            'brands'           => $brands,
+            'units'            => $units,
+            'taxes'            => $taxes,
         ]);
     }
 
@@ -262,7 +263,7 @@ class SyncController extends Controller
             return response()->json(['ok' => false, 'message' => 'Aucun emplacement.'], 422);
         }
 
-        $stocks = ItemLocationStock::query()
+        $stocks = ItemLocationStock::withTrashed()
             ->where('tenant_id', $tenant->id)
             ->where('location_id', $locationId)
             ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
@@ -274,7 +275,7 @@ class SyncController extends Controller
                 'item_id', 'variant_id',
                 'quantity', 'reserved_quantity',
                 'average_cost', 'last_purchase_cost',
-                'updated_at',
+                'updated_at', 'deleted_at',
             ])
             ->map(fn ($s) => [
                 'item_id'    => $s->item_id,
@@ -284,6 +285,7 @@ class SyncController extends Controller
                 'available'  => max(0, (int) $s->quantity - (int) $s->reserved_quantity),
                 'avg_cost'   => (float) $s->average_cost,
                 'updated_at' => $s->updated_at?->toISOString(),
+                'deleted_at' => $s->deleted_at?->toISOString(),
             ]);
 
         return response()->json([
@@ -662,6 +664,7 @@ class SyncController extends Controller
             'rows' => $rows,
             'meta' => [
                 'sync_at' => $this->formatCursorTime($window['sync_at']),
+                'is_full_snapshot' => $window['since'] === null,
                 'page' => $window['page'],
                 'per_page' => $window['per_page'],
                 'total' => $total,
@@ -716,8 +719,8 @@ class SyncController extends Controller
     private function newSnapshotAt(): Carbon
     {
         // Schema timestamps currently have second precision. Close the window
-        // on the previous complete second so writes committed during this
-        // request can never slip behind the issued cursor.
+        // on the previous complete second. The next delta uses >=, so writes in
+        // the open second are replayed later and can never fall behind a cursor.
         return now()->utc()->startOfSecond()->subSecond();
     }
 }

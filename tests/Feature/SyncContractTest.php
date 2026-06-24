@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Contact;
 use App\Models\ContactTransaction;
@@ -11,6 +12,8 @@ use App\Models\Location;
 use App\Models\Sale;
 use App\Models\SaleInvoice;
 use App\Models\Tenant;
+use App\Models\Tax;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -42,6 +45,14 @@ class SyncContractTest extends TestCase
             'password' => 'password',
             'device_name' => 'sync-contract-test',
         ])->assertOk()->json('token');
+
+        // The production cursor intentionally closes on the previous complete
+        // second. Keep seeded fixtures outside the open write second so full
+        // snapshot assertions are deterministic on second-precision schemas.
+        $settledAt = now()->utc()->subMinute()->startOfSecond();
+        foreach ([Item::class, Contact::class, Category::class, Brand::class, Unit::class, Tax::class, ItemLocationStock::class, Sale::class, SaleInvoice::class, ContactTransaction::class] as $model) {
+            $model::withTrashed()->where('tenant_id', $this->tenant->id)->update(['updated_at' => $settledAt]);
+        }
     }
 
     public function test_item_keyset_cursor_is_stable_with_equal_timestamps_and_concurrent_insert(): void
@@ -200,12 +211,38 @@ class SyncContractTest extends TestCase
         ])->assertJsonPath('has_more', false);
 
         $this->syncGet('/api/v1/sync/meta')->assertOk()->assertJsonStructure([
-            'ok', 'sync_at', 'has_more', 'next_cursor', 'categories', 'brands', 'units', 'taxes',
-        ]);
+            'ok', 'sync_at', 'is_full_snapshot', 'has_more', 'next_cursor', 'categories', 'brands', 'units', 'taxes',
+        ])->assertJsonPath('is_full_snapshot', true);
 
         $this->syncGet('/api/v1/sync/stock')->assertOk()->assertJsonStructure([
             'ok', 'sync_at', 'location_id', 'is_full_snapshot', 'has_more', 'next_cursor', 'stock',
         ])->assertJsonPath('is_full_snapshot', true);
+    }
+
+    public function test_missing_or_null_since_returns_full_snapshot(): void
+    {
+        $expectedItems = Item::withTrashed()->where('tenant_id', $this->tenant->id)->count();
+        $expectedContacts = Contact::withTrashed()->where('tenant_id', $this->tenant->id)->count();
+        $expectedCategories = Category::withTrashed()->where('tenant_id', $this->tenant->id)->count();
+
+        $this->syncGet('/api/v1/sync/items')->assertOk()
+            ->assertJsonPath('is_full_snapshot', true)
+            ->assertJsonPath('total', $expectedItems);
+
+        $this->syncGet('/api/v1/sync/contacts')->assertOk()
+            ->assertJsonPath('is_full_snapshot', true)
+            ->assertJsonPath('total', $expectedContacts);
+
+        $this->syncGet('/api/v1/sync/meta')->assertOk()
+            ->assertJsonPath('is_full_snapshot', true)
+            ->assertJsonCount($expectedCategories, 'categories');
+
+        $this->syncGet('/api/v1/sync/stock')->assertOk()
+            ->assertJsonPath('is_full_snapshot', true);
+
+        $this->syncGet('/api/v1/sync/items?since=')->assertOk()
+            ->assertJsonPath('is_full_snapshot', true)
+            ->assertJsonPath('total', $expectedItems);
     }
 
     public function test_non_variant_stock_identity_is_unique_per_tenant_item_and_location(): void

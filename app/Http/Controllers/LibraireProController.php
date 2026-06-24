@@ -1016,12 +1016,13 @@ class LibraireProController extends Controller
                     .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$onlineTone.'">'.e($onlineLabel).'</span>'
                     .'</div>';
             })
+            ->addColumn('timestamps', fn (Item $item): string => '<div class="text-xs text-slate-500 whitespace-nowrap"><p title="Créé le">'.e($item->created_at?->copy()->setTimezone(TenantClock::timezone($tenant))->format('d/m/Y H:i') ?? '—').'</p><p class="mt-0.5" title="Modifié le">'.e($item->updated_at?->copy()->setTimezone(TenantClock::timezone($tenant))->format('d/m/Y H:i') ?? '—').'</p></div>')
             ->addColumn('action', fn (Item $item): string => '<div class="catalog-row-actions">'
                 .'<a href="'.e(route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $item->id])).'#inventory-history" class="catalog-row-button is-muted">Historique</a>'
                 .'<a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" data-row-primary-action class="catalog-row-button is-primary">Modifier</a>'
                 .'</div>')
             ->addColumn('row_url', fn (Item $item): string => route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id]).'#edit-item')
-            ->rawColumns(['checkbox', 'image', 'barcode', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'action', 'row_url'])
+            ->rawColumns(['checkbox', 'image', 'barcode', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'timestamps', 'action', 'row_url'])
             ->toJson();
     }
 
@@ -1559,6 +1560,7 @@ class LibraireProController extends Controller
             ->editColumn('outstanding_balance', fn (Contact $contact): string => '<span class="'.((float) $contact->outstanding_balance > 0 ? 'font-semibold text-rose-600' : 'text-slate-500').'">'.$this->money($contact->outstanding_balance).'</span>')
             ->editColumn('advance_balance', fn (Contact $contact): string => '<span class="'.((float) $contact->advance_balance > 0 ? 'font-semibold text-emerald-600' : 'text-slate-500').'">'.$this->money($contact->advance_balance).'</span>')
             ->editColumn('status', fn (Contact $contact): string => '<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.($contact->status === 'active' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-slate-100 text-slate-700 ring-slate-200').'">'.e($contact->status === 'active' ? 'Actif' : 'Archivé').'</span>')
+            ->addColumn('timestamps', fn (Contact $contact): string => '<div class="text-xs text-slate-500 whitespace-nowrap"><p title="Créé le">'.e($contact->created_at?->copy()->setTimezone(TenantClock::timezone($tenant))->format('d/m/Y H:i') ?? '—').'</p><p class="mt-0.5" title="Modifié le">'.e($contact->updated_at?->copy()->setTimezone(TenantClock::timezone($tenant))->format('d/m/Y H:i') ?? '—').'</p></div>')
             ->addColumn('action', function (Contact $contact): string {
                 $editUrl = route('module', ['module' => 'contacts', 'section' => $contact->kind === 'supplier' ? 'supplier-add' : 'customer-add', 'edit' => $contact->id]);
                 $deleteUrl = route('contacts.destroy', $contact);
@@ -1566,7 +1568,7 @@ class LibraireProController extends Controller
                 return '<div class="flex justify-end gap-2"><a href="'.e($editUrl).'#contact-form" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Modifier</a><form action="'.e($deleteUrl).'" method="POST" onsubmit="return confirm(\'Supprimer ou archiver ce contact ?\')"><input type="hidden" name="_token" value="'.e(csrf_token()).'"><input type="hidden" name="_method" value="DELETE"><button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 dark:border-rose-500/20" type="submit">Supprimer</button></form></div>';
             })
             ->addColumn('row_url', fn (Contact $contact): string => route('module', ['module' => 'contacts', 'section' => $contact->kind === 'supplier' ? 'supplier-add' : 'customer-add', 'edit' => $contact->id]).'#contact-form')
-            ->rawColumns(['checkbox', 'name', 'credit_limit', 'previous_balance', 'purchase_due', 'purchase_return_due', 'supplier_total', 'outstanding_balance', 'advance_balance', 'status', 'action', 'row_url']);
+            ->rawColumns(['checkbox', 'name', 'credit_limit', 'previous_balance', 'purchase_due', 'purchase_return_due', 'supplier_total', 'outstanding_balance', 'advance_balance', 'status', 'timestamps', 'action', 'row_url']);
 
         return $dataTable->toJson();
     }
@@ -8991,7 +8993,9 @@ class LibraireProController extends Controller
             'stock_adjustments' => StockAdjustment::where('tenant_id', $tenant->id)->delete(),
             'stock_transfers' => StockTransfer::where('tenant_id', $tenant->id)->delete(),
             'stock_movements' => DB::table('stock_movements')->where('tenant_id', $tenant->id)->delete(),
-            'item_location_stock' => ItemLocationStock::where('tenant_id', $tenant->id)->delete(),
+            // Demo reset is an explicit destructive purge, not a sync mutation.
+            // Remove existing tombstones too before variants are deleted.
+            'item_location_stock' => ItemLocationStock::withTrashed()->where('tenant_id', $tenant->id)->forceDelete(),
             'item_stock_reset' => Item::where('tenant_id', $tenant->id)->update([
                 'stock_quantity' => 0,
                 'updated_at' => now(),

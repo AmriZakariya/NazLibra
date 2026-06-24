@@ -10,6 +10,9 @@ class ContactTransaction extends Model
 {
     use SoftDeletes;
 
+    /** Ledger changes also invalidate the synced contact balance snapshot. */
+    protected $touches = ['contact'];
+
     protected $fillable = [
         'tenant_id',
         'contact_id',

@@ -3511,6 +3511,7 @@ document.querySelectorAll('[data-yajra-table]').forEach((table) => {
             { data: 'sale_price', name: 'items.sale_price', orderable: true, searchable: false },
             { data: 'tax_label', name: 'tax_sort', orderable: true, searchable: true },
             { data: 'status', name: 'items.status', orderable: true, searchable: false },
+            { data: 'timestamps', name: 'timestamps', orderable: false, searchable: false },
             { data: 'action', name: 'action', orderable: false, searchable: false },
         ]
         : [
@@ -3518,6 +3519,7 @@ document.querySelectorAll('[data-yajra-table]').forEach((table) => {
             { data: 'sale_price', name: 'items.sale_price', orderable: true, searchable: false },
             { data: 'tax_label', name: 'tax_sort', orderable: true, searchable: true },
             { data: 'status', name: 'items.status', orderable: true, searchable: false },
+            { data: 'timestamps', name: 'timestamps', orderable: false, searchable: false },
             { data: 'action', name: 'action', orderable: false, searchable: false },
         ];
 
@@ -3566,6 +3568,7 @@ document.querySelectorAll('[data-contact-table]').forEach((table) => {
         { data: 'outstanding_balance', name: 'outstanding_balance', orderable: true, searchable: false },
         { data: 'advance_balance', name: 'advance_balance', orderable: true, searchable: false },
         { data: 'status', name: 'status', orderable: true, searchable: false },
+        { data: 'timestamps', name: 'timestamps', orderable: false, searchable: false },
         { data: 'action', name: 'action', orderable: false, searchable: false },
     ];
     const supplierColumns = [
@@ -3579,6 +3582,7 @@ document.querySelectorAll('[data-contact-table]').forEach((table) => {
         { data: 'purchase_return_due', name: 'purchase_returns_due_sum', orderable: true, searchable: false },
         { data: 'supplier_total', name: 'supplier_total', orderable: false, searchable: false },
         { data: 'status', name: 'status', orderable: true, searchable: false },
+        { data: 'timestamps', name: 'timestamps', orderable: false, searchable: false },
         { data: 'action', name: 'action', orderable: false, searchable: false },
     ];
 

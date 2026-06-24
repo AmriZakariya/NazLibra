@@ -232,13 +232,17 @@ class InventoryService
      */
     public function lockStock(int $tenantId, int $itemId, ?int $variantId, int $locationId): ItemLocationStock
     {
-        $stock = ItemLocationStock::query()
+        $stock = ItemLocationStock::withTrashed()
             ->where('tenant_id', $tenantId)
             ->where('item_id', $itemId)
             ->where('variant_id', $variantId)
             ->where('location_id', $locationId)
             ->lockForUpdate()
             ->first();
+
+        if ($stock?->trashed()) {
+            $stock->restore();
+        }
 
         if ($stock) {
             return $stock;
@@ -266,13 +270,18 @@ class InventoryService
                 'last_purchase_cost' => 0,
             ]);
         } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
-            return ItemLocationStock::query()
+            $stock = ItemLocationStock::withTrashed()
                 ->where('tenant_id', $tenantId)
                 ->where('item_id', $itemId)
                 ->where('variant_id', $variantId)
                 ->where('location_id', $locationId)
                 ->lockForUpdate()
                 ->firstOrFail();
+            if ($stock->trashed()) {
+                $stock->restore();
+            }
+
+            return $stock;
         }
     }
 

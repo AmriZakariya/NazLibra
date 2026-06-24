@@ -300,13 +300,15 @@ Tous les instants échangés par l'API sont normalisés en UTC. `since`, `sold_a
 | `/api/v1/sync/settings` | Tenant et emplacement résolus; réponse non paginée avec `tenant_id`, `location_id`, `has_more: false`. |
 | `/api/v1/sync/meta` | Catégories, marques, unités et taxes du tenant, tombstones `deleted_at`, ordre déterministe. |
 | `/api/v1/sync/items` | Catalogue tenant avec `external_id` (UUID local Flutter), tombstones `deleted_at`, pagination par curseur. |
-| `/api/v1/sync/stock` | Snapshot complet ou delta de l'emplacement courant; `is_full_snapshot` indique la sémantique de remplacement. |
+| `/api/v1/sync/stock` | Snapshot complet ou delta de l'emplacement courant; `is_full_snapshot` indique la sémantique de remplacement et `deleted_at` transporte les tombstones. |
 | `/api/v1/sync/contacts` | Contacts tenant, tombstones, filtre `kind` inclus dans l'identité du curseur. |
 | `/api/v1/sync/sales` | Ventes de l'emplacement courant, attribution utilisateur/terminal et tombstones. |
 | `/api/v1/sync/invoices` | Factures de vente liées à l'emplacement courant, tombstones. |
 | `/api/v1/sync/contact-transactions` | Grand livre tenant, tombstones et pagination par curseur. |
 
 Un `since`, `cursor`, `per_page` ou emplacement invalide retourne HTTP 422. Les mutations offline doivent fournir une clé d'idempotence stable; une même clé avec un payload différent retourne HTTP 409 `idempotency_conflict` lorsqu'un hash de requête est pris en charge.
+
+Les mutations Eloquent des ressources synchronisées avancent leur `updated_at`. Les lignes de paiement touchent également leur vente parente et les opérations du grand livre touchent leur contact parent, afin que les représentations imbriquées et les soldes soient réémis au prochain delta. Les suppressions logiques (`items`, métadonnées, contacts, ventes, factures, transactions et stock d'emplacement) restent visibles sous forme de tombstones.
 
 La création mobile `POST /api/v1/items` exige `local_id` sous forme d'UUID. Le serveur le conserve dans `items.external_id`, unique par tenant. Une première création retourne HTTP 201 avec `already_existed: false`; tout rejeu du même UUID retourne HTTP 200 avec `already_existed: true` et le même `item.id`. Les prix décimaux Laravel restent encodés comme chaînes JSON (`"89.90"`).
 
