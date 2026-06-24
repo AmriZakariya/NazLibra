@@ -392,7 +392,12 @@ class SaleController extends Controller
                 if ($allocated <= 0.001) {
                     continue;
                 }
-                $paymentNumber = $this->numbers->next($tenant, 'sale_payment', 'PAY')['number'];
+                $paymentNumber = $this->numbers->next(
+                    $tenant,
+                    'sale_payment',
+                    'PAY',
+                    fn (string $n) => SalePayment::where('tenant_id', $tenant->id)->where('number', $n)->exists()
+                )['number'];
                 SalePayment::create([
                     'tenant_id'  => $tenant->id,
                     'sale_id'    => $sale->id,
