@@ -22,8 +22,11 @@ class TenantClock
     {
         $timezone = self::timezone($tenant);
 
-        config(['app.timezone' => $timezone]);
-        date_default_timezone_set($timezone);
+        // Persistence, queue workers, sessions and SQL bindings must never
+        // depend on which tenant happened to make the current request.
+        // Tenant timezone conversion belongs at presentation boundaries.
+        config(['app.timezone' => 'UTC']);
+        date_default_timezone_set('UTC');
 
         return $timezone;
     }

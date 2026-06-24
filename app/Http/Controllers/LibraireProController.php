@@ -3598,7 +3598,7 @@ class LibraireProController extends Controller
             'sourceOnlineOrder' => $sourceOnlineOrder,
             'sourceCart' => $sourceCart,
             'sourceContactId' => $sourceContactId,
-            'nextSaleNumber' => $this->nextSaleNumber($tenant),
+            'nextSaleNumber' => $this->peekSaleNumber($tenant),
             'nextTicketNumber' => $this->nextTicketNumber($tenant),
             'categories' => Category::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'brands' => Brand::where('tenant_id', $tenant->id)->orderBy('name')->get(),
@@ -6851,7 +6851,7 @@ class LibraireProController extends Controller
             'salePrefillOnlineOrder' => $salePrefillOnlineOrder,
             'commercialEstimates' => $commercialEstimates,
             'salesTotals' => $salesTotals,
-            'nextSaleNumber' => $module === 'sales' ? $this->nextSaleNumber($tenant) : null,
+            'nextSaleNumber' => $module === 'sales' ? $this->peekSaleNumber($tenant) : null,
             'salesClients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
             'quotations' => $quotations,
             'quoteItems' => $quoteItems,
@@ -7670,7 +7670,12 @@ class LibraireProController extends Controller
 
     private function nextSaleNumber(Tenant $tenant): string
     {
-        return $this->numbers->next($tenant, 'sale', 'BL')['number'];
+        return $this->numbers->next($tenant, 'sale', 'BL', fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists())['number'];
+    }
+
+    private function peekSaleNumber(Tenant $tenant): string
+    {
+        return $this->numbers->peek($tenant, 'sale', 'BL');
     }
 
     private function nextTicketNumber(Tenant $tenant): string

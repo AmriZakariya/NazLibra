@@ -285,8 +285,8 @@ class SaleController extends Controller
                 $contact->decrement('advance_balance', $payments['advance']);
             }
 
-            // Generate atomic sale number (DocumentNumberGenerator uses lockForUpdate).
-            $numberData = $this->numbers->next($tenant, 'sale', 'BL');
+            // Generate atomic sale number, skipping any already-used numbers.
+            $numberData = $this->numbers->next($tenant, 'sale', 'BL', fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists());
             $saleNumber = $numberData['number'];
             $paymentMethod = collect($payments)
                 ->filter(fn ($a) => $a > 0.001)
