@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ItemController;
 use App\Http\Controllers\Api\LocationController;
+use App\Http\Controllers\Api\PrinterController;
 use App\Http\Controllers\Api\ReturnController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\SaleInvoiceController;
@@ -69,6 +70,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('contact-transactions', [SyncController::class, 'contactTransactions']); // manual ledger entries
             // Legacy alias kept for backward compatibility during rollout.
             Route::get('catalog',              [SyncController::class, 'catalog']);
+            Route::get('printers',             [SyncController::class, 'printers']);
         });
 
         // ── Contact transactions ───────────────────────────────────────────────
@@ -132,5 +134,21 @@ Route::prefix('v1')->group(function (): void {
 
         // ── Virtual devices ───────────────────────────────────────────────────
         Route::get('virtual-devices', [VirtualDeviceApiController::class, 'index']);
+
+        // ── Printers ──────────────────────────────────────────────────────────
+        // Note: push-config and clear-config must be registered BEFORE the {id}
+        // wildcard routes to avoid being swallowed by the parameterised routes.
+        Route::post('printers/push-config',   [PrinterController::class, 'pushConfig']);
+        Route::delete('printers/clear-config',[PrinterController::class, 'clearConfig']);
+        Route::get('printers',                [PrinterController::class, 'index']);
+        Route::post('printers',               [PrinterController::class, 'store']);
+        Route::put('printers/{id}',           [PrinterController::class, 'update']);
+        Route::delete('printers/{id}',        [PrinterController::class, 'destroy']);
+
+        // ── Printer groups ────────────────────────────────────────────────────
+        Route::get('printer-groups',             [PrinterController::class, 'indexGroups']);
+        Route::post('printer-groups',            [PrinterController::class, 'storeGroup']);
+        Route::put('printer-groups/{id}',        [PrinterController::class, 'updateGroup']);
+        Route::delete('printer-groups/{id}',     [PrinterController::class, 'destroyGroup']);
     });
 });

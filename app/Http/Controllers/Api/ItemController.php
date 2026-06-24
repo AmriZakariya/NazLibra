@@ -174,7 +174,7 @@ class ItemController extends Controller
                 ->where('external_id', $data['local_id'])
                 ->first();
             if ($existing) {
-                return response()->json(['ok' => true, 'already_existed' => true, 'item' => $existing->fresh()], 200);
+                return response()->json(['ok' => true, 'already_existed' => true, 'item' => $existing->fresh()->load('tax')], 200);
             }
         }
 
@@ -247,10 +247,10 @@ class ItemController extends Controller
                 throw $exception;
             }
 
-            return response()->json(['ok' => true, 'already_existed' => true, 'item' => $existing], 200);
+            return response()->json(['ok' => true, 'already_existed' => true, 'item' => $existing->load('tax')], 200);
         }
 
-        return response()->json(['ok' => true, 'already_existed' => false, 'item' => $item->fresh()], 201);
+        return response()->json(['ok' => true, 'already_existed' => false, 'item' => $item->fresh()->load('tax')], 201);
     }
 
     /**
@@ -301,7 +301,7 @@ class ItemController extends Controller
 
         $item->update($data);
 
-        return response()->json(['ok' => true, 'item' => $item->fresh()]);
+        return response()->json(['ok' => true, 'item' => $item->fresh()->load('tax')]);
     }
 
     /** GET /api/v1/items/{item} — single item detail with stock at location. */

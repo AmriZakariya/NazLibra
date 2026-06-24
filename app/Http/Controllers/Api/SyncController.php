@@ -487,6 +487,8 @@ class SyncController extends Controller
             'currency'                => $tenant->currency ?? 'MAD',
             'locale'                  => $tenant->locale   ?? 'fr',
             'tenant_name'             => $tenant->name,
+            'tenant_phone'            => $tenant->phone,
+            'tenant_address'          => $tenant->address,
             'location_name'           => $location?->name,
             'allow_oversell'          => (bool) data_get($tenant->settings, 'pos.allow_oversell', false),
             'receipt_header'          => data_get($tenant->settings, 'receipt.header'),
@@ -538,6 +540,19 @@ class SyncController extends Controller
             ...$page['meta'],
             'invoices' => $page['rows'],
         ]);
+    }
+
+    // ── Printer config ────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/v1/sync/printers
+     *
+     * Returns the full printer configuration for the requesting virtual device.
+     * Reads X-Virtual-Device-Id header; null means tenant-wide (no device scope).
+     */
+    public function printers(Request $request): JsonResponse
+    {
+        return (new \App\Http\Controllers\Api\PrinterController())->index($request);
     }
 
     /** GET /api/v1/sync/catalog — legacy alias for /sync/items, kept for backward compat. */
