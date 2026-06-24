@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Contact;
 use App\Models\ContactTransaction;
+use App\Rules\ExplicitOffsetDateTime;
+use App\Support\UtcDateTime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
@@ -54,16 +56,17 @@ class ContactTransactionController extends Controller
             'type'             => 'required|in:gave,got',
             'amount'           => 'required|numeric|min:0.01',
             'note'             => 'nullable|string|max:500',
-            'recorded_at'      => 'nullable|date',
+            'recorded_at'      => ['nullable', 'string', new ExplicitOffsetDateTime],
             'idempotency_key'  => 'required|string|max:64',
         ]);
 
+        $recordedAt = ! empty($validated['recorded_at']) ? UtcDateTime::parse($validated['recorded_at']) : now()->utc();
         $requestHash = hash('sha256', json_encode([
             'contact_id' => $contact->id,
             'type' => $validated['type'],
             'amount' => number_format((float) $validated['amount'], 2, '.', ''),
             'note' => $validated['note'] ?? null,
-            'recorded_at' => $validated['recorded_at'] ?? null,
+            'recorded_at' => isset($validated['recorded_at']) ? UtcDateTime::format($recordedAt) : null,
         ], JSON_THROW_ON_ERROR));
 
         // Idempotency — return existing if already processed.
@@ -79,18 +82,18 @@ class ContactTransactionController extends Controller
         }
 
         try {
-            $tx = DB::transaction(function () use ($contact, $validated, $tenant, $requestHash) {
+            $tx = DB::transaction(function () use ($contact, $validated, $tenant, $requestHash, $recordedAt) {
                 $contact = Contact::where('tenant_id', $tenant->id)->whereKey($contact->id)->lockForUpdate()->firstOrFail();
                 $tx = ContactTransaction::create([
-                'tenant_id'       => $tenant->id,
-                'contact_id'      => $contact->id,
-                'type'            => $validated['type'],
-                'amount'          => $validated['amount'],
-                'note'            => $validated['note'] ?? null,
-                'idempotency_key' => $validated['idempotency_key'] ?? null,
-                'request_hash'    => $requestHash,
-                'recorded_at'     => $validated['recorded_at'] ?? now(),
-            ]);
+                    'tenant_id'       => $tenant->id,
+                    'contact_id'      => $contact->id,
+                    'type'            => $validated['type'],
+                    'amount'          => $validated['amount'],
+                    'note'            => $validated['note'] ?? null,
+                    'idempotency_key' => $validated['idempotency_key'] ?? null,
+                    'request_hash'    => $requestHash,
+                    'recorded_at'     => $recordedAt,
+                ]);
 
                 $this->applyBalanceEffect($contact, $tx);
 

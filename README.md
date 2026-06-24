@@ -280,6 +280,8 @@ Les ventes exposent l'attribution dans toutes les réponses de création, rejeu 
 
 Les collections paginées (`items`, `contacts`, `sales`, `invoices`, `contact-transactions`) utilisent un curseur opaque émis par le serveur. La première requête accepte `since` et `per_page`; les suivantes transmettent uniquement `cursor=<next_cursor>`. Toutes les pages conservent le même `sync_at` et sont ordonnées par `(updated_at, id)`. Le client ne sauvegarde `sync_at` comme prochain curseur delta qu'après réception de `has_more: false`.
 
+Tous les instants échangés par l'API sont normalisés en UTC. `since`, `sold_at` et `recorded_at` doivent être au format RFC 3339 avec `Z` ou un décalage explicite (`2026-06-24T10:23:50Z` et `2026-06-24T11:23:50+01:00` désignent le même instant). Une date sans décalage est ambiguë et retourne HTTP 422. Les réponses `sync_at` utilisent toujours la forme UTC canonique avec six chiffres de microsecondes et `Z`. Le fuseau du tenant, par exemple `Africa/Casablanca`, sert uniquement à l'affichage. Laravel et les sessions MySQL/MariaDB stockent en UTC (`DB_TIMEZONE=+00:00`).
+
 ```json
 {
   "ok": true,

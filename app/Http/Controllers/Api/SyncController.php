@@ -14,6 +14,7 @@ use App\Models\SaleInvoice;
 use App\Models\Tax;
 use App\Models\Tenant;
 use App\Models\Unit;
+use App\Support\UtcDateTime;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -511,7 +512,7 @@ class SyncController extends Controller
             return null;
         }
         try {
-            return Carbon::parse($raw)->utc();
+            return UtcDateTime::parse((string) $raw);
         } catch (\Throwable) {
             throw ValidationException::withMessages(['since' => 'Le curseur since est invalide.']);
         }
@@ -694,8 +695,8 @@ class SyncController extends Controller
             }
 
             return [
-                'since' => ! empty($payload['since']) ? Carbon::parse($payload['since'])->utc() : null,
-                'sync_at' => Carbon::parse($payload['sync_at'])->utc(),
+                'since' => ! empty($payload['since']) ? UtcDateTime::parse($payload['since']) : null,
+                'sync_at' => UtcDateTime::parse($payload['sync_at']),
                 'after_updated_at' => $payload['after_updated_at'] ?? null,
                 'after_id' => (int) ($payload['after_id'] ?? 0),
                 'page' => max(1, (int) ($payload['page'] ?? 1)),
@@ -709,7 +710,7 @@ class SyncController extends Controller
 
     private function formatCursorTime(Carbon $time): string
     {
-        return $time->copy()->utc()->format('Y-m-d\TH:i:s.u\Z');
+        return UtcDateTime::format($time);
     }
 
     private function newSnapshotAt(): Carbon

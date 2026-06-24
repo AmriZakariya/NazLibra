@@ -10,7 +10,9 @@ use App\Models\ItemLocationStock;
 use App\Models\Sale;
 use App\Models\SalePayment;
 use App\Models\Tenant;
+use App\Rules\ExplicitOffsetDateTime;
 use App\Support\ApiActionContext;
+use App\Support\UtcDateTime;
 use App\Services\Documents\DocumentNumberGenerator;
 use App\Services\Inventory\InventoryMovementType;
 use App\Services\Inventory\InventoryService;
@@ -19,6 +21,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
 
 /**
@@ -132,8 +135,15 @@ class SaleController extends Controller
             'discount.type'           => ['nullable', 'in:percent,fixed'],
             'discount.value'          => ['nullable', 'numeric', 'min:0'],
             'note'                    => ['nullable', 'string', 'max:1000'],
-            'sold_at'                 => ['nullable', 'date', 'after:-24 hours', 'before:+5 minutes'],
+            'sold_at'                 => ['nullable', 'string', new ExplicitOffsetDateTime],
         ]);
+
+        $soldAt = ! empty($data['sold_at']) ? UtcDateTime::parse($data['sold_at']) : now()->utc();
+        if ($soldAt->lt(now()->utc()->subHours(24)) || $soldAt->gt(now()->utc()->addMinutes(5))) {
+            throw ValidationException::withMessages([
+                'sold_at' => 'sold_at doit être compris entre les dernières 24 heures et les 5 prochaines minutes.',
+            ]);
+        }
 
         /** @var Tenant $tenant */
         $tenant     = $request->attributes->get('api_tenant');
@@ -263,7 +273,7 @@ class SaleController extends Controller
             $sale = DB::transaction(function () use (
             $tenant, $locationId, $contact, $payments, $saleLines,
             $subtotal, $discount, $total, $paid, $data,
-            $totalCogs, $allowOversell, $action
+            $totalCogs, $allowOversell, $action, $soldAt
         ): Sale {
             // Decrement advance balance atomically before the rest.
             if ($contact && $payments['advance'] > 0) {
@@ -278,10 +288,6 @@ class SaleController extends Controller
             // Generate atomic sale number (DocumentNumberGenerator uses lockForUpdate).
             $numberData = $this->numbers->next($tenant, 'sale', 'BL');
             $saleNumber = $numberData['number'];
-            $soldAt     = ! empty($data['sold_at'])
-                ? \Carbon\Carbon::parse($data['sold_at'])
-                : now();
-
             $paymentMethod = collect($payments)
                 ->filter(fn ($a) => $a > 0.001)
                 ->keys()
@@ -448,13 +454,20 @@ class SaleController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant  = $request->attributes->get('api_tenant');
-        $since   = $request->query('since');
+        $sinceRaw = $request->query('since');
+        try {
+            $since = $sinceRaw ? UtcDateTime::parse((string) $sinceRaw) : null;
+        } catch (\Throwable) {
+            throw ValidationException::withMessages([
+                'since' => 'since doit être une date RFC 3339 avec Z ou un décalage explicite (ex. 2026-06-24T10:23:50Z).',
+            ]);
+        }
         $perPage = min((int) ($request->query('per_page', 50)), 200);
 
         $sales = Sale::query()
             ->where('tenant_id', $tenant->id)
             ->with(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name'])
-            ->when($since, fn ($q) => $q->where('sold_at', '>', \Carbon\Carbon::parse($since)))
+            ->when($since, fn ($q) => $q->where('sold_at', '>', $since))
             ->latest('sold_at')
             ->latest('id')
             ->paginate($perPage);
