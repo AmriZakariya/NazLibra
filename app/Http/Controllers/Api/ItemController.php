@@ -3,11 +3,22 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Brand;
+use App\Models\Category;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
+use App\Models\Tax;
 use App\Models\Tenant;
+use App\Models\Unit;
+use App\Services\Inventory\InventoryMovementType;
+use App\Services\Inventory\InventoryService;
+use App\Services\Inventory\MovementDTO;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
 
 /**
@@ -18,6 +29,8 @@ use OpenApi\Attributes as OA;
  */
 class ItemController extends Controller
 {
+    public function __construct(private readonly InventoryService $inventory) {}
+
     /**
      * GET /api/v1/items/search
      *
@@ -134,18 +147,23 @@ class ItemController extends Controller
         $locationId = $request->attributes->get('api_location_id');
 
         $data = $request->validate([
-            'local_id'            => ['nullable', 'string', 'max:100'],
+            'local_id'            => ['required', 'uuid', 'max:100'],
             'title'               => ['required', 'string', 'max:255'],
             'sale_price'          => ['required', 'numeric', 'min:0'],
             'purchase_price'      => ['nullable', 'numeric', 'min:0'],
-            'stock_quantity'      => ['nullable', 'numeric', 'min:0'],
-            'min_stock_threshold' => ['nullable', 'numeric', 'min:0'],
+            'stock_quantity'      => ['nullable', 'integer', 'min:0'],
+            'min_stock_threshold' => ['nullable', 'integer', 'min:0'],
             'isbn'                => ['nullable', 'string', 'max:30'],
             'barcode'             => ['nullable', 'string', 'max:100'],
             'sku'                 => ['nullable', 'string', 'max:100'],
             'author'              => ['nullable', 'string', 'max:255'],
-            'category_id'         => ['nullable', 'integer'],
-            'type'                => ['nullable', 'string', 'in:product,service,book'],
+            'category_id'         => ['nullable', 'integer', Rule::exists('categories', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->whereNull('deleted_at'))],
+            'brand_id'            => ['nullable', 'integer', Rule::exists('brands', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->whereNull('deleted_at'))],
+            'unit_id'             => ['required', 'integer', Rule::exists('units', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->where('is_active', true)->whereNull('deleted_at'))],
+            'tax_id'              => ['required', 'integer', Rule::exists('taxes', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->where('is_active', true)->whereNull('deleted_at'))],
+            'type'                => ['required', 'string', Rule::in(['book', 'supply', 'service'])],
+            'item_code'           => ['nullable', 'string', 'max:120', Rule::unique('items', 'item_code')->where(fn ($query) => $query->where('tenant_id', $tenant->id))],
+            'item_group'          => ['nullable', Rule::in(['Single', 'Variants', 'Group', 'Pack'])],
             'extra_fields'        => ['nullable', 'array'],
         ]);
 
@@ -156,41 +174,83 @@ class ItemController extends Controller
                 ->where('external_id', $data['local_id'])
                 ->first();
             if ($existing) {
-                return response()->json(['ok' => true, 'item' => $existing->fresh()], 200);
+                return response()->json(['ok' => true, 'already_existed' => true, 'item' => $existing->fresh()], 200);
             }
         }
 
-        $item = Item::create([
-            'tenant_id'           => $tenant->id,
-            'external_id'         => $data['local_id'] ?? null,
-            'title'               => $data['title'],
-            'sale_price'          => $data['sale_price'],
-            'purchase_price'      => $data['purchase_price'] ?? 0,
-            'stock_quantity'      => $data['stock_quantity'] ?? 0,
-            'min_stock_threshold' => $data['min_stock_threshold'] ?? 0,
-            'isbn'                => $data['isbn'] ?? null,
-            'barcode'             => $data['barcode'] ?? null,
-            'sku'                 => $data['sku'] ?? null,
-            'author'              => $data['author'] ?? null,
-            'category_id'         => $data['category_id'] ?? null,
-            'type'                => $data['type'] ?? 'product',
-            'extra_fields'        => $data['extra_fields'] ?? null,
-            'status'              => 'active',
-            'is_enabled'          => true,
-            'checkout_visible'    => true,
-        ]);
+        try {
+            $item = DB::transaction(function () use ($tenant, $locationId, $data, $request): Item {
+                $initialStock = $data['type'] === 'service' ? 0 : (int) ($data['stock_quantity'] ?? 0);
+                $item = Item::create([
+                    'tenant_id'           => $tenant->id,
+                    'external_id'         => $data['local_id'],
+                    'title'               => $data['title'],
+                    'sale_price'          => $data['sale_price'],
+                    'purchase_price'      => $data['purchase_price'] ?? 0,
+                    'stock_quantity'      => $initialStock,
+                    'min_stock_threshold' => $data['min_stock_threshold'] ?? 3,
+                    'isbn'                => $data['isbn'] ?? null,
+                    'barcode'             => $data['barcode'] ?? null,
+                    'sku'                 => $data['sku'] ?? null,
+                    'author'              => $data['author'] ?? null,
+                    'category_id'         => $data['category_id'] ?? null,
+                    'brand_id'            => $data['brand_id'] ?? null,
+                    'unit_id'             => $data['unit_id'],
+                    'tax_id'              => $data['tax_id'],
+                    'type'                => $data['type'],
+                    'item_code'           => $data['item_code'] ?? null,
+                    'item_group'          => $data['item_group'] ?? 'Single',
+                    'extra_fields'        => $data['extra_fields'] ?? null,
+                    'status'              => $data['type'] === 'service' || $initialStock > 0 ? 'active' : 'out_of_stock',
+                    'is_enabled'          => true,
+                    'checkout_visible'    => true,
+                    'online_store_visible'=> true,
+                ]);
 
-        // Initialise stock for the current location so the item appears in stock queries.
-        if ($locationId && ($data['stock_quantity'] ?? 0) > 0) {
-            ItemLocationStock::create([
-                'tenant_id'   => $tenant->id,
-                'item_id'     => $item->id,
-                'location_id' => $locationId,
-                'quantity'    => $data['stock_quantity'],
-            ]);
+                if (! $item->item_code) {
+                    $item->update(['item_code' => $this->generatedItemCode($item)]);
+                }
+
+                // Initialise stock for the current location so the item appears in stock queries.
+                if ($locationId && $data['type'] !== 'service' && $initialStock > 0) {
+                    $this->inventory->move(new MovementDTO(
+                        tenantId: $tenant->id,
+                        itemId: $item->id,
+                        variantId: null,
+                        locationId: $locationId,
+                        type: InventoryMovementType::OPENING_STOCK,
+                        quantityChanged: $initialStock,
+                        userId: $request->user()?->id,
+                        referenceType: Item::class,
+                        referenceId: $item->id,
+                        referenceNumber: $item->item_code,
+                        note: 'Stock initial article mobile '.$item->item_code,
+                        idempotencyKey: 'api-item-opening-'.$item->id,
+                        unitCost: (float) ($data['purchase_price'] ?? 0) ?: null,
+                    ));
+                } elseif ($locationId && $data['type'] !== 'service') {
+                    ItemLocationStock::create([
+                        'tenant_id'   => $tenant->id,
+                        'item_id'     => $item->id,
+                        'location_id' => $locationId,
+                        'quantity'    => 0,
+                    ]);
+                }
+
+                return $item;
+            });
+        } catch (QueryException $exception) {
+            $existing = Item::where('tenant_id', $tenant->id)
+                ->where('external_id', $data['local_id'])
+                ->first();
+            if (! $existing) {
+                throw $exception;
+            }
+
+            return response()->json(['ok' => true, 'already_existed' => true, 'item' => $existing], 200);
         }
 
-        return response()->json(['ok' => true, 'item' => $item->fresh()], 201);
+        return response()->json(['ok' => true, 'already_existed' => false, 'item' => $item->fresh()], 201);
     }
 
     /**
@@ -209,15 +269,35 @@ class ItemController extends Controller
             'title'               => ['sometimes', 'string', 'max:255'],
             'sale_price'          => ['sometimes', 'numeric', 'min:0'],
             'purchase_price'      => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'stock_quantity'      => ['sometimes', 'nullable', 'numeric', 'min:0'],
+            'stock_quantity'      => ['prohibited'],
             'min_stock_threshold' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'isbn'                => ['sometimes', 'nullable', 'string', 'max:30'],
             'barcode'             => ['sometimes', 'nullable', 'string', 'max:100'],
             'sku'                 => ['sometimes', 'nullable', 'string', 'max:100'],
             'author'              => ['sometimes', 'nullable', 'string', 'max:255'],
-            'type'                => ['sometimes', 'nullable', 'string', 'in:product,service,book'],
+            'category_id'         => ['sometimes', 'nullable', 'integer', Rule::exists('categories', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->whereNull('deleted_at'))],
+            'brand_id'            => ['sometimes', 'nullable', 'integer', Rule::exists('brands', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->whereNull('deleted_at'))],
+            'unit_id'             => ['sometimes', 'required', 'integer', Rule::exists('units', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->where('is_active', true)->whereNull('deleted_at'))],
+            'tax_id'              => ['sometimes', 'required', 'integer', Rule::exists('taxes', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->where('is_active', true)->whereNull('deleted_at'))],
+            'type'                => ['sometimes', 'required', 'string', Rule::in(['book', 'supply', 'service'])],
+            'item_code'           => ['sometimes', 'required', 'string', 'max:120', Rule::unique('items', 'item_code')->where(fn ($query) => $query->where('tenant_id', $tenant->id))->ignore($item->id)],
+            'item_group'          => ['sometimes', Rule::in(['Single', 'Variants', 'Group', 'Pack'])],
             'extra_fields'        => ['sometimes', 'nullable', 'array'],
         ]);
+
+        $nextType = $data['type'] ?? $item->type;
+        if ($nextType === 'service' && $item->type !== 'service' && $item->totalStockQuantity() > 0) {
+            throw ValidationException::withMessages([
+                'type' => 'Un article avec du stock ne peut pas devenir un service. Ajustez d’abord son stock à zéro.',
+            ]);
+        }
+
+        if (array_key_exists('type', $data)) {
+            $data['status'] = $nextType === 'service' ? 'active' : ((int) $item->stock_quantity > 0 ? 'active' : 'out_of_stock');
+            if ($nextType === 'service') {
+                $data['stock_quantity'] = 0;
+            }
+        }
 
         $item->update($data);
 
@@ -274,5 +354,10 @@ class ItemController extends Controller
         }
 
         return response()->json(['ok' => true, 'item' => $item]);
+    }
+
+    private function generatedItemCode(Item $item): string
+    {
+        return 'IT'.$item->created_at->format('ym').str_pad((string) $item->id, 4, '0', STR_PAD_LEFT);
     }
 }

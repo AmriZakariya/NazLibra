@@ -297,7 +297,7 @@ Les collections paginées (`items`, `contacts`, `sales`, `invoices`, `contact-tr
 | --- | --- |
 | `/api/v1/sync/settings` | Tenant et emplacement résolus; réponse non paginée avec `tenant_id`, `location_id`, `has_more: false`. |
 | `/api/v1/sync/meta` | Catégories, marques, unités et taxes du tenant, tombstones `deleted_at`, ordre déterministe. |
-| `/api/v1/sync/items` | Catalogue tenant, tombstones `deleted_at`, pagination par curseur. |
+| `/api/v1/sync/items` | Catalogue tenant avec `external_id` (UUID local Flutter), tombstones `deleted_at`, pagination par curseur. |
 | `/api/v1/sync/stock` | Snapshot complet ou delta de l'emplacement courant; `is_full_snapshot` indique la sémantique de remplacement. |
 | `/api/v1/sync/contacts` | Contacts tenant, tombstones, filtre `kind` inclus dans l'identité du curseur. |
 | `/api/v1/sync/sales` | Ventes de l'emplacement courant, attribution utilisateur/terminal et tombstones. |
@@ -305,6 +305,17 @@ Les collections paginées (`items`, `contacts`, `sales`, `invoices`, `contact-tr
 | `/api/v1/sync/contact-transactions` | Grand livre tenant, tombstones et pagination par curseur. |
 
 Un `since`, `cursor`, `per_page` ou emplacement invalide retourne HTTP 422. Les mutations offline doivent fournir une clé d'idempotence stable; une même clé avec un payload différent retourne HTTP 409 `idempotency_conflict` lorsqu'un hash de requête est pris en charge.
+
+La création mobile `POST /api/v1/items` exige `local_id` sous forme d'UUID. Le serveur le conserve dans `items.external_id`, unique par tenant. Une première création retourne HTTP 201 avec `already_existed: false`; tout rejeu du même UUID retourne HTTP 200 avec `already_existed: true` et le même `item.id`. Les prix décimaux Laravel restent encodés comme chaînes JSON (`"89.90"`).
+
+Contrat article mobile :
+
+- requis : `local_id`, `title`, `type` (`book|supply|service`), `sale_price`, `unit_id`, `tax_id` ;
+- optionnel : `purchase_price`, `stock_quantity`, `min_stock_threshold`, `category_id`, `brand_id`, `item_code`, `item_group` (`Single|Variants|Group|Pack`), `isbn`, `barcode`, `sku`, `author`, `extra_fields` ;
+- les références catalogue sont obligatoirement rattachées au tenant authentifié ;
+- `item_code` est généré au format `ITyymmNNNN` lorsqu'il est absent, et `item_group` vaut `Single` par défaut ;
+- un livre ou une fourniture sans stock reçoit le statut `out_of_stock`; avec stock, `active`. Un service reste `active`, force son stock à zéro et ne crée aucun stock d'emplacement ;
+- le stock initial physique produit un mouvement `opening_stock`. Les mises à jour de fiche interdisent `stock_quantity`; toute variation ultérieure passe par l'API d'ajustement de stock.
 
 ## Tests et qualité
 

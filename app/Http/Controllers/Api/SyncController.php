@@ -105,9 +105,9 @@ class SyncController extends Controller
             ]);
 
         $page = $this->syncPage($request, $query, 'items', $tenant->id, self::DEFAULT_ITEMS_PER_PAGE, self::MAX_ITEMS_PER_PAGE, [
-            'id', 'category_id', 'brand_id', 'unit_id', 'tax_id',
+            'id', 'external_id', 'category_id', 'brand_id', 'unit_id', 'tax_id',
             'type', 'status', 'is_enabled', 'checkout_visible', 'online_store_visible',
-            'title', 'isbn', 'barcode', 'sku', 'custom_barcode1',
+            'item_code', 'item_group', 'nb_item', 'title', 'isbn', 'barcode', 'sku', 'custom_barcode1', 'author',
             'sale_price', 'purchase_price', 'min_stock_threshold',
             'stock_quantity', 'images', 'extra_fields', 'description', 'tags',
             'updated_at', 'created_at', 'deleted_at',
