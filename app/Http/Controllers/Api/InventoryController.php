@@ -57,6 +57,70 @@ class InventoryController extends Controller
     }
 
     /**
+     * GET /api/v1/inventory/items?q=&type=&stock=&sort=&page=&per_page=
+     *
+     * Returns paginated items with live stock data for the online inventory view.
+     */
+    public function items(Request $request): JsonResponse
+    {
+        /** @var \App\Models\Tenant $tenant */
+        $tenant  = $request->attributes->get('api_tenant');
+        $perPage = min((int) $request->query('per_page', 50), 200);
+        $query   = trim((string) $request->query('q', ''));
+        $type    = $request->query('type');        // supply | service | book | null
+        $stock   = $request->query('stock', 'all'); // all | out | low
+        $sort    = $request->query('sort', 'title'); // title | stock_asc | stock_desc | value_desc
+
+        $q = Item::where('tenant_id', $tenant->id)
+            ->where('status', 'active')
+            ->when($query, function ($q) use ($query) {
+                $q->where(function ($inner) use ($query) {
+                    $inner->where('title', 'like', "%{$query}%")
+                        ->orWhere('barcode', 'like', "%{$query}%")
+                        ->orWhere('isbn', 'like', "%{$query}%")
+                        ->orWhere('sku', 'like', "%{$query}%")
+                        ->orWhere('author', 'like', "%{$query}%");
+                });
+            })
+            ->when($type, fn ($q) => $q->where('type', $type))
+            ->when($stock === 'out', fn ($q) => $q->where('type', '!=', 'service')->where('stock_quantity', '<=', 0))
+            ->when($stock === 'low', fn ($q) => $q->where('type', '!=', 'service')->where('min_stock_threshold', '>', 0)->whereColumn('stock_quantity', '<=', 'min_stock_threshold'))
+            ->when($sort === 'stock_asc',  fn ($q) => $q->orderBy('stock_quantity'))
+            ->when($sort === 'stock_desc', fn ($q) => $q->orderByDesc('stock_quantity'))
+            ->when($sort === 'value_desc', fn ($q) => $q->orderByRaw('stock_quantity * purchase_price DESC'))
+            ->when($sort === 'title' || !in_array($sort, ['stock_asc', 'stock_desc', 'value_desc']), fn ($q) => $q->orderBy('title'));
+
+        $paginator = $q->paginate($perPage, [
+            'id', 'type', 'title', 'author', 'barcode', 'isbn', 'sku',
+            'images', 'sale_price', 'purchase_price',
+            'stock_quantity', 'min_stock_threshold',
+        ]);
+
+        $items = collect($paginator->items())->map(fn (Item $item) => [
+            'id'                  => $item->id,
+            'type'                => $item->type,
+            'title'               => $item->title,
+            'author'              => $item->author,
+            'barcode'             => $item->barcode,
+            'isbn'                => $item->isbn,
+            'sku'                 => $item->sku,
+            'image_url'           => collect($item->images ?? [])->first(),
+            'sale_price'          => (float) $item->sale_price,
+            'purchase_price'      => (float) $item->purchase_price,
+            'stock_quantity'      => (float) $item->stock_quantity,
+            'min_stock_threshold' => (float) $item->min_stock_threshold,
+        ]);
+
+        return response()->json([
+            'ok'      => true,
+            'items'   => $items,
+            'total'   => $paginator->total(),
+            'page'    => $paginator->currentPage(),
+            'has_more'=> $paginator->hasMorePages(),
+        ]);
+    }
+
+    /**
      * GET /api/v1/inventory/movements?item_id={id}&page={n}&per_page={n}
      *
      * Returns paginated stock movements, optionally filtered by item.

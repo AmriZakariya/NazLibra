@@ -9000,7 +9000,7 @@ class LibraireProController extends Controller
             'stock_movements' => DB::table('stock_movements')->where('tenant_id', $tenant->id)->delete(),
             // Demo reset is an explicit destructive purge, not a sync mutation.
             // Remove existing tombstones too before variants are deleted.
-            'item_location_stock' => ItemLocationStock::withTrashed()->where('tenant_id', $tenant->id)->forceDelete(),
+            'item_location_stock' => ItemLocationStock::where('tenant_id', $tenant->id)->delete(),
             'item_stock_reset' => Item::where('tenant_id', $tenant->id)->update([
                 'stock_quantity' => 0,
                 'updated_at' => now(),

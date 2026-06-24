@@ -119,6 +119,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('inventory/adjustments', [AdjustmentController::class, 'store'])->middleware('api.action:stock.adjust');
         Route::get('inventory/summary',      [InventoryController::class, 'summary']);
         Route::get('inventory/movements',    [InventoryController::class, 'movements']);
+        Route::get('inventory/items',        [InventoryController::class, 'items']);
 
         // ── Sale invoices ─────────────────────────────────────────────────────
         Route::get('invoices',                          [SaleInvoiceController::class, 'index']);
