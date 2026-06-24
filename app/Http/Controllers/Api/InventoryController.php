@@ -23,12 +23,18 @@ class InventoryController extends Controller
         $tenant     = $request->attributes->get('api_tenant');
         $locationId = $request->attributes->get('api_location_id');
 
-        $stockAgg = ItemLocationStock::where('tenant_id', $tenant->id)
-            ->when($locationId, fn ($q) => $q->where('location_id', $locationId))
+        $stockAgg = DB::table('item_location_stock as ils')
+            ->join('items as i', function ($join) {
+                $join->on('i.id', '=', 'ils.item_id')
+                     ->whereNull('i.deleted_at');
+            })
+            ->where('ils.tenant_id', $tenant->id)
+            ->whereNull('ils.deleted_at')
+            ->when($locationId, fn ($q) => $q->where('ils.location_id', $locationId))
             ->selectRaw('
-                COUNT(DISTINCT item_id)                AS item_count,
-                COALESCE(SUM(quantity), 0)              AS total_volume,
-                COALESCE(SUM(quantity * average_cost), 0) AS total_value
+                COUNT(DISTINCT ils.item_id)                                                              AS item_count,
+                COALESCE(SUM(ils.quantity), 0)                                                           AS total_volume,
+                COALESCE(SUM(ils.quantity * COALESCE(NULLIF(ils.average_cost, 0), i.purchase_price, 0)), 0) AS total_value
             ')
             ->first();
 
