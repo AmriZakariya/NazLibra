@@ -212,6 +212,7 @@ class ContactController extends Controller
         return response()->json(['ok' => true, 'contact' => $contact->fresh()]);
     }
 
+    /**
      * GET /api/v1/contacts/list?kind=client&q=&filter=all&sort=name&page=1&per_page=50
      *
      * Full paginated contact list for the mobile contacts screen.

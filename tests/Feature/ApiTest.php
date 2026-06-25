@@ -219,6 +219,16 @@ class ApiTest extends TestCase
             ->assertJsonPath('ok', true);
     }
 
+    public function test_contacts_list_returns_paginated_contacts(): void
+    {
+        $this->withToken($this->apiToken())
+            ->getJson('/api/v1/contacts/list?kind=client&page=1&per_page=200')
+            ->assertOk()
+            ->assertJsonStructure(['ok', 'contacts', 'total', 'page', 'has_more'])
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('page', 1);
+    }
+
     // ── Sales ─────────────────────────────────────────────────────────────────
 
     public function test_sale_submission_creates_sale_and_moves_stock(): void
