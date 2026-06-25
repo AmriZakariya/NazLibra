@@ -169,6 +169,7 @@ class VirtualDeviceController extends Controller
         $this->cleanStaleConnections($tenant);
 
         $currentSession = $this->currentDeviceSession($tenant, $user);
+        $preferredDeviceId = $this->preferredDeviceId($tenant, $request);
 
         if ($currentSession && $currentSession->virtualDevice?->is_active) {
             return redirect()->intended(route('dashboard'));
@@ -193,6 +194,7 @@ class VirtualDeviceController extends Controller
             'tenant' => $tenant,
             'devices' => $devices,
             'currentSession' => $currentSession,
+            'preferredDeviceId' => $preferredDeviceId,
         ]);
     }
 
@@ -255,6 +257,7 @@ class VirtualDeviceController extends Controller
             ]);
 
             $request->session()->put('virtual_device_session_id', $session->id);
+            $request->session()->put('preferred_virtual_device_id', $device->id);
 
             return redirect()->intended(route('dashboard'))->with('status', 'Connecté à '.$device->name.'.');
         });
@@ -324,16 +327,41 @@ class VirtualDeviceController extends Controller
             ->first();
 
         if ($session && $session->isActive($this->heartbeatTimeoutSeconds)) {
+            session()->put('preferred_virtual_device_id', $session->virtual_device_id);
+
             return $session;
         }
 
         if ($session) {
+            session()->put('preferred_virtual_device_id', $session->virtual_device_id);
             $this->disconnectSession($session, 'stale');
         }
 
         session()->forget('virtual_device_session_id');
 
         return null;
+    }
+
+    private function preferredDeviceId(Tenant $tenant, Request $request): ?int
+    {
+        $preferredDeviceId = (int) $request->session()->get('preferred_virtual_device_id', 0);
+
+        if ($preferredDeviceId <= 0) {
+            return null;
+        }
+
+        $exists = VirtualDevice::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->whereKey($preferredDeviceId)
+            ->exists();
+
+        if (! $exists) {
+            $request->session()->forget('preferred_virtual_device_id');
+
+            return null;
+        }
+
+        return $preferredDeviceId;
     }
 
     private function disconnectSession(VirtualDeviceSession $session, string $reason): void

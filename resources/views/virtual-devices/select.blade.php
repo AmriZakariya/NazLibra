@@ -3,6 +3,8 @@
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
     $availableCount = $devices->where('is_in_use', false)->count();
     $hasCurrent = $currentSession && $currentSession->virtualDevice?->is_active;
+    $preferredDeviceId = isset($preferredDeviceId) ? (int) $preferredDeviceId : null;
+    $devicePersistenceKey = 'librairepro.virtual_device.' . $tenant->id . '.' . (auth()->id() ?? 'guest');
 @endphp
 <!DOCTYPE html>
 <html lang="{{ $locale }}" dir="{{ \App\Support\Locale::dir($locale) }}">
@@ -80,6 +82,7 @@
         .badge-in-use { background: rgba(251,191,36,0.15); color: #fbbf24; }
         .badge-disabled { background: rgba(239,68,68,0.15); color: #f87171; }
         .badge-current { background: rgba(16,185,129,0.15); color: #34d399; }
+        .badge-remembered { background: rgba(99,102,241,0.15); color: #a5b4fc; }
         .btn {
             display: flex; align-items: center; justify-content: center; gap: 0.5rem;
             width: 100%; padding: 0.875rem 1.5rem;
@@ -118,16 +121,18 @@
             <div class="error">{{ $tr('Votre appareil actuel a été désactivé. Veuillez en choisir un autre.') }}</div>
         @endif
 
-        <form method="POST" action="{{ route('device.connect') }}" id="device-form">
+        <form method="POST" action="{{ route('device.connect') }}" id="device-form" data-device-persistence-key="{{ $devicePersistenceKey }}">
             @csrf
             <div class="device-list">
                 @forelse ($devices as $device)
                     @php
                         $isCurrent = $currentSession && $currentSession->virtual_device_id === $device->id;
                         $isDisabled = $device->is_in_use && ! $isCurrent;
+                        $isRemembered = ! $isCurrent && $preferredDeviceId === $device->id;
+                        $isSelected = $isCurrent || ($isRemembered && ! $isDisabled);
                     @endphp
-                    <label class="device-item {{ $isDisabled ? 'is-disabled' : '' }} {{ $isCurrent ? 'is-selected' : '' }}">
-                        <input type="radio" name="virtual_device_id" value="{{ $device->id }}" {{ $isDisabled ? 'disabled' : '' }} {{ $isCurrent ? 'checked' : '' }}>
+                    <label class="device-item {{ $isDisabled ? 'is-disabled' : '' }} {{ $isSelected ? 'is-selected' : '' }}" data-device-id="{{ $device->id }}">
+                        <input type="radio" name="virtual_device_id" value="{{ $device->id }}" {{ $isDisabled ? 'disabled' : '' }} {{ $isSelected ? 'checked' : '' }}>
                         <span class="device-icon">
                             @if ($device->type === 'mobile') 📱
                             @elseif ($device->type === 'tablet') 📋
@@ -143,6 +148,8 @@
                         </span>
                         @if ($isCurrent)
                             <span class="device-badge badge-current">{{ $tr('Connecté') }}</span>
+                        @elseif ($isRemembered && ! $isDisabled)
+                            <span class="device-badge badge-remembered">{{ $tr('Dernier appareil') }}</span>
                         @elseif ($device->is_in_use)
                             <span class="device-badge badge-in-use">{{ $tr('Occupé') }}</span>
                         @endif
@@ -177,12 +184,45 @@
     </div>
 
     <script>
+        const form = document.getElementById('device-form');
+        const persistenceKey = form ? form.dataset.devicePersistenceKey : null;
+        const rememberDevice = function(deviceId) {
+            if (!persistenceKey || !deviceId || !window.localStorage) return;
+            try { localStorage.setItem(persistenceKey, String(deviceId)); } catch (e) {}
+        };
+        const selectDevice = function(el) {
+            if (!el || el.classList.contains('is-disabled')) return;
+            document.querySelectorAll('.device-item').forEach(function(i) { i.classList.remove('is-selected'); });
+            el.classList.add('is-selected');
+            const input = el.querySelector('input');
+            if (input) {
+                input.checked = true;
+                rememberDevice(input.value);
+            }
+            const submit = document.getElementById('submit-btn');
+            if (submit) submit.disabled = false;
+        };
+
+        if (persistenceKey && window.localStorage && !document.querySelector('.device-item input:checked')) {
+            try {
+                const rememberedId = localStorage.getItem(persistenceKey);
+                const rememberedItem = rememberedId
+                    ? [...document.querySelectorAll('.device-item:not(.is-disabled)')].find(function(item) {
+                        return item.dataset.deviceId === rememberedId;
+                    })
+                    : null;
+                if (rememberedItem) selectDevice(rememberedItem);
+            } catch (e) {}
+        }
+
+        form?.addEventListener('submit', function() {
+            const selected = form.querySelector('input[name="virtual_device_id"]:checked');
+            if (selected) rememberDevice(selected.value);
+        });
+
         document.querySelectorAll('.device-item:not(.is-disabled)').forEach(function(el) {
             el.addEventListener('click', function() {
-                document.querySelectorAll('.device-item').forEach(function(i) { i.classList.remove('is-selected'); });
-                el.classList.add('is-selected');
-                el.querySelector('input').checked = true;
-                document.getElementById('submit-btn').disabled = false;
+                selectDevice(el);
             });
         });
     </script>

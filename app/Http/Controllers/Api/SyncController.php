@@ -531,10 +531,18 @@ class SyncController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant  = $request->attributes->get('api_tenant');
+        $locationId = $request->attributes->get('api_location_id');
+
         $query = SaleInvoice::withTrashed()
             ->with(['sale:id,number,sold_at,status,total_amount,contact_id', 'contact:id,name,phone,email'])
             ->where('tenant_id', $tenant->id)
-            ->whereHas('sale', fn ($sale) => $sale->withTrashed()->where('location_id', $request->attributes->get('api_location_id')));
+            ->where(function ($q) use ($locationId) {
+                // Invoices without a linked sale (created directly on web) have no
+                // location; include them tenant-wide. Invoices with a sale are
+                // scoped to the sale's location.
+                $q->whereNull('sale_id')
+                  ->orWhereHas('sale', fn ($s) => $s->withTrashed()->where('location_id', $locationId));
+            });
 
         $page = $this->syncPage($request, $query, 'invoices:location-'.$request->attributes->get('api_location_id'), $tenant->id, 100, 200, ['*']);
 
