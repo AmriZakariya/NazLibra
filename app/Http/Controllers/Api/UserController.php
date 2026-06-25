@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Rules\FourDigitPin;
@@ -22,10 +23,12 @@ class UserController extends Controller
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
 
+        $roles = $tenant->roles()->get()->keyBy('key');
+
         $users = $tenant->users()
             ->withPivot(['role', 'permissions'])
             ->get()
-            ->map(fn ($u) => $this->formatUser($u));
+            ->map(fn ($u) => $this->formatUser($u, $roles));
 
         return response()->json(['ok' => true, 'users' => $users]);
     }
@@ -36,7 +39,8 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user): JsonResponse
     {
-        if (! $request->user()->tokenCan('*')) {
+        $authUser = $request->user();
+        if (! $authUser->tokenCan('*') && ! $authUser->tokenCan('settings.users')) {
             return response()->json(['ok' => false, 'message' => 'Accès refusé.'], 403);
         }
 
@@ -48,21 +52,11 @@ class UserController extends Controller
         }
 
         $data = $request->validate([
-            'role'          => ['nullable', 'string', 'max:50'],
-            'permissions'   => ['nullable', 'array'],
-            'permissions.*' => ['string'],
+            'role' => ['nullable', 'string', 'max:50'],
         ]);
 
-        $pivot = [];
         if (array_key_exists('role', $data)) {
-            $pivot['role'] = $data['role'];
-        }
-        if (array_key_exists('permissions', $data)) {
-            $pivot['permissions'] = json_encode($data['permissions']);
-        }
-
-        if (! empty($pivot)) {
-            $tenant->users()->updateExistingPivot($user->id, $pivot);
+            $tenant->users()->updateExistingPivot($user->id, ['role' => $data['role']]);
         }
 
         return response()->json(['ok' => true]);
@@ -91,7 +85,7 @@ class UserController extends Controller
             return response()->json(['ok' => false, 'message' => 'PIN ou utilisateur invalide.'], 422);
         }
 
-        [$role, $abilities] = $this->roleAndAbilities($user);
+        [$role, $abilities] = $this->roleAndAbilities($user, $tenant);
 
         $currentToken = PersonalAccessToken::findToken((string) $request->bearerToken())
             ?? $request->user()->currentAccessToken();
@@ -154,9 +148,9 @@ class UserController extends Controller
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    private function formatUser(User $user): array
+    private function formatUser(User $user, ?\Illuminate\Support\Collection $roles = null): array
     {
-        [$role, $abilities] = $this->roleAndAbilities($user);
+        [$role, $abilities] = $this->roleAndAbilities($user, null, $roles);
 
         return [
             'id'           => $user->id,
@@ -171,19 +165,31 @@ class UserController extends Controller
     }
 
     /**
-     * Returns [role, abilities] for a user that was loaded with withPivot(['role','permissions']).
+     * Returns [roleKey, abilities] derived exclusively from the Role model.
+     * Falls back to a minimal read-only set if no matching role is found.
      */
-    private function roleAndAbilities(User $user): array
+    private function roleAndAbilities(User $user, ?Tenant $tenant = null, ?\Illuminate\Support\Collection $roles = null): array
     {
-        $role        = $user->pivot?->role;
-        $permissions = json_decode((string) ($user->pivot?->permissions ?? '[]'), true) ?: [];
+        $roleKey = $user->pivot?->role;
 
-        if (in_array('*', $permissions, true)) {
-            return [$role, ['*']];
+        // Resolve the Role model — prefer the pre-loaded collection to avoid N+1.
+        $role = null;
+        if ($roles !== null) {
+            $role = $roles->get($roleKey);
+        } elseif ($tenant !== null && $roleKey) {
+            $role = $tenant->roles()->where('key', $roleKey)->first();
         }
 
-        $abilities = $permissions ?: ['sales.create', 'sales.view', 'items.view', 'stock.view'];
+        $permissions = $role?->permissions ?? [];
 
-        return [$role, $abilities];
+        if (in_array('*', $permissions, true)) {
+            return [$roleKey, ['*']];
+        }
+
+        $abilities = ! empty($permissions)
+            ? $permissions
+            : ['sales.create', 'sales.view', 'items.view', 'stock.view'];
+
+        return [$roleKey, $abilities];
     }
 }

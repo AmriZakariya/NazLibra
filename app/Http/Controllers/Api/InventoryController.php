@@ -77,7 +77,7 @@ class InventoryController extends Controller
         $sort    = $request->query('sort', 'title'); // title | stock_asc | stock_desc | value_desc
 
         $q = Item::where('tenant_id', $tenant->id)
-            ->where('status', 'active')
+            ->whereIn('status', ['active', 'out_of_stock'])
             ->when($query, function ($q) use ($query) {
                 $q->where(function ($inner) use ($query) {
                     $inner->where('title', 'like', "%{$query}%")

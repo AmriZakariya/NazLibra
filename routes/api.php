@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\ReturnController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\SaleInvoiceController;
 use App\Http\Controllers\Api\SyncController;
+use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\ContactTransactionController;
@@ -133,6 +134,12 @@ Route::prefix('v1')->group(function (): void {
         Route::post('users/set-pin',        [UserController::class, 'setPin']);
         Route::delete('users/pin',          [UserController::class, 'removePin']);
         Route::post('auth/pin-verify',      [UserController::class, 'pinVerify']);
+
+        // ── Roles ─────────────────────────────────────────────────────────────
+        Route::get('roles',           [RoleController::class, 'index']);
+        Route::post('roles',          [RoleController::class, 'store']);
+        Route::put('roles/{role}',    [RoleController::class, 'update']);
+        Route::delete('roles/{role}', [RoleController::class, 'destroy']);
 
         // ── Virtual devices ───────────────────────────────────────────────────
         Route::get('virtual-devices', [VirtualDeviceApiController::class, 'index']);
