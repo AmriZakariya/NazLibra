@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\PrinterController;
 use App\Http\Controllers\Api\ReturnController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\SaleInvoiceController;
+use App\Http\Controllers\Api\PurchaseController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\UserController;
@@ -69,6 +70,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('settings',             [SyncController::class, 'settings']);            // tenant settings
             Route::get('invoices',             [SyncController::class, 'invoices']);            // sale invoices
             Route::get('contact-transactions', [SyncController::class, 'contactTransactions']); // manual ledger entries
+            Route::get('purchases',            [SyncController::class, 'purchases']);            // purchase orders
             // Legacy alias kept for backward compatibility during rollout.
             Route::get('catalog',              [SyncController::class, 'catalog']);
             Route::get('printers',             [SyncController::class, 'printers']);
@@ -122,6 +124,11 @@ Route::prefix('v1')->group(function (): void {
         Route::get('inventory/summary',      [InventoryController::class, 'summary']);
         Route::get('inventory/movements',    [InventoryController::class, 'movements']);
         Route::get('inventory/items',        [InventoryController::class, 'items']);
+
+        // ── Purchases ─────────────────────────────────────────────────────────
+        Route::get('purchases',             [PurchaseController::class, 'index']);
+        Route::get('purchases/{purchase}',  [PurchaseController::class, 'show'])
+            ->middleware('api.action:purchases.view');
 
         // ── Sale invoices ─────────────────────────────────────────────────────
         Route::get('invoices',                          [SaleInvoiceController::class, 'index']);

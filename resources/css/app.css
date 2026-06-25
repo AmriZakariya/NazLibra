@@ -122,6 +122,53 @@
         color: var(--brand-success) !important;
     }
 
+    .text-amber-100,
+    .text-amber-200,
+    .text-amber-300,
+    .text-amber-400,
+    .text-amber-500,
+    .text-amber-600,
+    .text-amber-700,
+    .text-amber-800,
+    .text-amber-900,
+    .text-yellow-100,
+    .text-yellow-200,
+    .text-yellow-300,
+    .text-yellow-400,
+    .text-yellow-500,
+    .text-yellow-600,
+    .text-yellow-700,
+    .text-yellow-800,
+    .text-yellow-900 {
+        color: #92400e !important;
+    }
+
+    .dark .text-amber-100,
+    .dark .text-amber-200,
+    .dark .text-amber-300,
+    .dark .text-amber-400,
+    .dark .text-amber-500,
+    .dark .text-amber-600,
+    .dark .text-amber-700,
+    .dark .text-amber-800,
+    .dark .text-amber-900,
+    .dark .text-yellow-100,
+    .dark .text-yellow-200,
+    .dark .text-yellow-300,
+    .dark .text-yellow-400,
+    .dark .text-yellow-500,
+    .dark .text-yellow-600,
+    .dark .text-yellow-700,
+    .dark .text-yellow-800,
+    .dark .text-yellow-900 {
+        color: #fde68a !important;
+    }
+
+    .bg-amber-50,
+    .bg-yellow-50 {
+        background-color: #fffbeb !important;
+    }
+
     .border-brand {
         border-color: var(--brand-primary);
     }

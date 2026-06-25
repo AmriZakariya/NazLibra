@@ -1419,12 +1419,16 @@
                             @forelse ($categoryList->where('parent_id', null) as $rootCategory)
                                 @php
                                     $rootChildren = $categoryList->where('parent_id', $rootCategory->id);
+                                    $rootIcon = trim((string) ($rootCategory->icon ?? ''));
+                                    $rootIconDisplay = $rootIcon !== '' && Str::length($rootIcon) <= 3
+                                        ? $rootIcon
+                                        : Str::upper(Str::substr($rootCategory->name, 0, 2));
                                 @endphp
                                 <details class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                                     <summary class="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                        <div class="flex items-center gap-3">
-                                            <span class="grid size-10 place-items-center rounded-lg text-sm" style="background: {{ $rootCategory->color ?? '#4F46E5' }}20; color: {{ $rootCategory->color ?? '#4F46E5' }}">{{ $rootCategory->icon ?: Str::upper(Str::substr($rootCategory->name, 0, 2)) }}</span>
-                                            <span>
+                                        <div class="flex min-w-0 items-center gap-3">
+                                            <span class="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg border text-sm font-black text-slate-900 dark:text-white" style="background: {{ $rootCategory->color ?? '#4F46E5' }}20; border-color: {{ $rootCategory->color ?? '#4F46E5' }}30">{{ $rootIconDisplay }}</span>
+                                            <span class="min-w-0">
                                                 <strong>{{ $rootCategory->name }}</strong>
                                                 <span class="mt-1 flex flex-wrap gap-1.5 text-xs text-slate-500">
                                                     @if($rootCategory->children_count > 0)<span class="rounded-full bg-sky-100 px-2 py-0.5 font-semibold text-sky-600 dark:bg-sky-900/30 dark:text-sky-400">{{ $rootCategory->children_count }} sous-catégorie(s)</span>@endif
@@ -1439,10 +1443,16 @@
                                             <div class="mb-4 space-y-2">
                                                 <p class="text-xs font-semibold uppercase text-slate-500">Sous-catégories</p>
                                                 @foreach ($rootChildren as $child)
+                                                    @php
+                                                        $childIcon = trim((string) ($child->icon ?? ''));
+                                                        $childIconDisplay = $childIcon !== '' && Str::length($childIcon) <= 3
+                                                            ? $childIcon
+                                                            : Str::upper(Str::substr($child->name, 0, 1));
+                                                    @endphp
                                                     <div class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.03]">
-                                                        <div class="flex items-center gap-2.5">
-                                                            <span class="grid size-8 shrink-0 place-items-center rounded-md text-xs" style="background: {{ $child->color ?? '#4F46E5' }}20; color: {{ $child->color ?? '#4F46E5' }}">{{ $child->icon ?: Str::upper(Str::substr($child->name, 0, 1)) }}</span>
-                                                            <div>
+                                                        <div class="flex min-w-0 items-center gap-2.5">
+                                                            <span class="grid size-8 shrink-0 place-items-center overflow-hidden rounded-md border text-xs font-black text-slate-900 dark:text-white" style="background: {{ $child->color ?? '#4F46E5' }}20; border-color: {{ $child->color ?? '#4F46E5' }}30">{{ $childIconDisplay }}</span>
+                                                            <div class="min-w-0">
                                                                 <span class="text-sm font-semibold">{{ $child->name }}</span>
                                                                 <span class="ml-2 text-xs text-slate-500">{{ $child->items_count }} article(s)</span>
                                                             </div>

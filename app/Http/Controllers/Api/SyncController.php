@@ -10,6 +10,7 @@ use App\Models\Contact;
 use App\Models\ContactTransaction;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
+use App\Models\Purchase;
 use App\Models\SaleInvoice;
 use App\Models\Tax;
 use App\Models\Tenant;
@@ -550,6 +551,65 @@ class SyncController extends Controller
             'ok'       => true,
             ...$page['meta'],
             'invoices' => $page['rows'],
+        ]);
+    }
+
+    // ── Purchases ─────────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/v1/sync/purchases
+     *
+     * Paginated delta of purchase orders updated since the cursor.
+     * Items are embedded in each purchase to avoid a second round-trip.
+     */
+    public function purchases(Request $request): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant = $request->attributes->get('api_tenant');
+
+        $query = Purchase::withTrashed()
+            ->with([
+                'supplier:id,name,phone',
+                'items:id,purchase_id,item_id,quantity_ordered,quantity_received,unit_cost',
+                'items.item:id,title,barcode,sku',
+            ])
+            ->where('tenant_id', $tenant->id);
+
+        $page = $this->syncPage($request, $query, 'purchases', $tenant->id, 50, 100, ['*']);
+
+        $rows = collect($page['rows'])->map(function (Purchase $p) {
+            return [
+                'id'             => $p->id,
+                'tenant_id'      => $p->tenant_id,
+                'supplier_id'    => $p->supplier_id,
+                'supplier_name'  => $p->supplier?->name,
+                'supplier_phone' => $p->supplier?->phone,
+                'user_id'        => $p->user_id,
+                'number'         => $p->number,
+                'status'         => $p->status,
+                'total_amount'   => (float) $p->total_amount,
+                'ordered_at'     => $p->ordered_at?->toDateString(),
+                'expected_at'    => $p->expected_at?->toDateString(),
+                'received_at'    => $p->received_at?->toDateString(),
+                'note'           => $p->metadata['note'] ?? null,
+                'updated_at'     => $p->updated_at->toISOString(),
+                'deleted_at'     => $p->deleted_at?->toISOString(),
+                'items'          => $p->items->map(fn ($item) => [
+                    'id'                => $item->id,
+                    'item_id'           => $item->item_id,
+                    'item_title'        => $item->item?->title,
+                    'item_barcode'      => $item->item?->barcode,
+                    'quantity_ordered'  => (float) $item->quantity_ordered,
+                    'quantity_received' => (float) $item->quantity_received,
+                    'unit_cost'         => (float) $item->unit_cost,
+                ])->values()->all(),
+            ];
+        });
+
+        return response()->json([
+            'ok'        => true,
+            ...$page['meta'],
+            'purchases' => $rows->values(),
         ]);
     }
 

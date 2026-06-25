@@ -121,11 +121,12 @@ class SaleController extends Controller
             'idempotency_key'         => ['required', 'string', 'max:64'],
             'location_id'             => ['nullable', 'integer'],
             'contact_id'              => ['nullable', 'integer'],
-            'items'                   => ['required', 'array', 'min:1'],
-            'items.*.item_id'         => ['required', 'integer'],
-            'items.*.quantity'        => ['required', 'integer', 'min:1'],
-            'items.*.unit_price'      => ['nullable', 'numeric', 'min:0'],
-            'items.*.note'            => ['nullable', 'string', 'max:500'],
+            'items'                    => ['required', 'array', 'min:1'],
+            'items.*.item_id'          => ['nullable', 'integer'],
+            'items.*.custom_name'      => ['nullable', 'string', 'max:255'],
+            'items.*.quantity'         => ['required', 'integer', 'min:1'],
+            'items.*.unit_price'       => ['nullable', 'numeric', 'min:0'],
+            'items.*.note'             => ['nullable', 'string', 'max:500'],
             'payments'                => ['required', 'array'],
             'payments.cash'           => ['nullable', 'numeric', 'min:0'],
             'payments.card'           => ['nullable', 'numeric', 'min:0'],
@@ -166,12 +167,25 @@ class SaleController extends Controller
 
         $allowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
 
-        // Load all items in one query.
-        $itemIds   = collect($data['items'])->pluck('item_id')->unique()->all();
-        $items     = Item::where('tenant_id', $tenant->id)->whereIn('id', $itemIds)->get()->keyBy('id');
+        // Validate: each line must have item_id OR custom_name.
+        foreach ($data['items'] as $idx => $line) {
+            if (empty($line['item_id']) && empty($line['custom_name'])) {
+                return response()->json([
+                    'ok'      => false,
+                    'message' => "La ligne $idx doit avoir un article ou un nom personnalisé.",
+                ], 422);
+            }
+        }
 
-        // Validate all items exist and are active.
+        // Load catalog items for lines that reference them.
+        $itemIds   = collect($data['items'])->pluck('item_id')->filter()->unique()->all();
+        $items     = $itemIds
+            ? Item::where('tenant_id', $tenant->id)->whereIn('id', $itemIds)->get()->keyBy('id')
+            : collect();
+
+        // Validate catalog items exist and are active.
         foreach ($data['items'] as $line) {
+            if (empty($line['item_id'])) continue;
             $item = $items->get($line['item_id']);
             if (! $item || $item->status !== 'active') {
                 return response()->json([
@@ -200,6 +214,27 @@ class SaleController extends Controller
         $totalCogs  = 0.0;
 
         foreach ($data['items'] as $line) {
+            $isCustom = empty($line['item_id']);
+
+            if ($isCustom) {
+                // Out-of-catalog / custom item — no inventory tracking.
+                $unitPrice = (float) ($line['unit_price'] ?? 0);
+                $lineTotal = round($unitPrice * (int) $line['quantity'], 2);
+                $subtotal += $lineTotal;
+
+                $saleLines[] = [
+                    'item'        => null,
+                    'custom_name' => trim($line['custom_name']),
+                    'quantity'    => (int) $line['quantity'],
+                    'unit_price'  => $unitPrice,
+                    'total_price' => $lineTotal,
+                    'note'        => $line['note'] ?? null,
+                    'avg_cost'    => 0.0,
+                    'line_cogs'   => 0.0,
+                ];
+                continue;
+            }
+
             $item = $items->get($line['item_id']);
 
             $unitPrice  = $line['unit_price'] !== null
@@ -221,6 +256,7 @@ class SaleController extends Controller
 
             $saleLines[] = [
                 'item'        => $item,
+                'custom_name' => null,
                 'quantity'    => (int) $line['quantity'],
                 'unit_price'  => $unitPrice,
                 'total_price' => $lineTotal,
@@ -331,8 +367,8 @@ class SaleController extends Controller
                         'currency' => $tenant->currency ?? 'MAD',
                     ],
                     'line_adjustments' => collect($saleLines)->map(fn ($l) => [
-                        'item_id'     => $l['item']->id,
-                        'name'        => $l['item']->title,
+                        'item_id'     => $l['item']?->id,
+                        'name'        => $l['item'] ? $l['item']->title : $l['custom_name'],
                         'quantity'    => $l['quantity'],
                         'unit_price'  => $l['unit_price'],
                         'average_cost' => $l['avg_cost'],
@@ -346,8 +382,8 @@ class SaleController extends Controller
 
             foreach ($saleLines as $line) {
                 $sale->items()->create([
-                    'item_id'    => $line['item']->id,
-                    'name'       => $line['item']->title,
+                    'item_id'    => $line['item']?->id,
+                    'name'       => $line['item'] ? $line['item']->title : $line['custom_name'],
                     'quantity'   => $line['quantity'],
                     'unit_price' => $line['unit_price'],
                     'total_price' => $line['total_price'],
@@ -355,7 +391,7 @@ class SaleController extends Controller
                     'total_cost' => $line['line_cogs'],
                 ]);
 
-                if ($line['item']->type !== 'service') {
+                if ($line['item'] && $line['item']->type !== 'service') {
                     // InventoryService::move() does its own lockForUpdate + idempotency.
                     $this->inventory->move(new MovementDTO(
                         tenantId:       $tenant->id,
@@ -539,7 +575,7 @@ class SaleController extends Controller
         // Aggregate requested quantities per item.
         $needed = [];
         foreach ($saleLines as $line) {
-            if ($line['item']->type === 'service') {
+            if ($line['item'] === null || $line['item']->type === 'service') {
                 continue;
             }
             $id = $line['item']->id;
@@ -574,7 +610,7 @@ class SaleController extends Controller
         $sale->load(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name']);
 
         // Post-sale stock snapshot so the client updates local stock immediately.
-        $itemIds    = collect($requestedLines)->pluck('item_id')->unique()->all();
+        $itemIds    = collect($requestedLines)->pluck('item_id')->filter()->unique()->all();
         $stockAfter = ItemLocationStock::query()
             ->where('tenant_id', $tenantId)
             ->where('location_id', $locationId)
