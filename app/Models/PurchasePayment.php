@@ -4,11 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable(['tenant_id', 'purchase_id', 'supplier_id', 'user_id', 'number', 'method', 'amount', 'paid_at', 'reference', 'note', 'idempotency_key'])]
 class PurchasePayment extends Model
 {
+    use SoftDeletes;
+
     protected function casts(): array
     {
         return [

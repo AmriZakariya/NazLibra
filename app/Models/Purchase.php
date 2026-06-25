@@ -6,10 +6,13 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable(['tenant_id', 'supplier_id', 'user_id', 'number', 'status', 'total_amount', 'ordered_at', 'expected_at', 'received_at', 'metadata', 'idempotency_key'])]
 class Purchase extends Model
 {
+    use SoftDeletes;
+
     protected function casts(): array
     {
         return [

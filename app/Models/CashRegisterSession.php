@@ -4,12 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['tenant_id', 'financial_account_id', 'opened_by', 'closed_by', 'store_key', 'number', 'status', 'opening_amount', 'expected_cash_amount', 'counted_cash_amount', 'difference_amount', 'opened_at', 'closed_at', 'note', 'closing_note', 'metadata'])]
 class CashRegisterSession extends Model
 {
+    use SoftDeletes;
+
     protected function casts(): array
     {
         return [
