@@ -285,12 +285,17 @@ class StatisticsController extends Controller
         $tenant           = $this->tenant($request);
         [$fromDt, $toDt]  = $this->dateRange($request);
 
+        $isSqlite = DB::connection()->getDriverName() === 'sqlite';
+        $hourExpr = $isSqlite
+            ? "CAST(strftime('%H', sold_at) AS INTEGER)"
+            : 'HOUR(sold_at)';
+
         $rows = DB::table('sales')
             ->where('tenant_id', $tenant->id)
             ->whereNull('deleted_at')
             ->whereIn('status', ['paid', 'completed'])
             ->whereBetween('sold_at', [$fromDt, $toDt])
-            ->selectRaw('HOUR(sold_at) AS hr, COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS revenue')
+            ->selectRaw("$hourExpr AS hr, COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS revenue")
             ->groupBy('hr')
             ->orderBy('hr')
             ->get();
