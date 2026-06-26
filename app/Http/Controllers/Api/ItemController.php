@@ -358,6 +358,17 @@ class ItemController extends Controller
 
     private function generatedItemCode(Item $item): string
     {
-        return 'IT'.$item->created_at->format('ym').str_pad((string) $item->id, 4, '0', STR_PAD_LEFT);
+        $base = 'IT'.$item->created_at->format('ym').str_pad((string) $item->id, 4, '0', STR_PAD_LEFT);
+        $code = $base;
+        $suffix = 1;
+        while (
+            Item::where('tenant_id', $item->tenant_id)
+                ->where('item_code', $code)
+                ->where('id', '!=', $item->id)
+                ->exists()
+        ) {
+            $code = $base.'-'.$suffix++;
+        }
+        return $code;
     }
 }
