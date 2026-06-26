@@ -10,6 +10,7 @@ use App\Models\Contact;
 use App\Models\ContactTransaction;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
+use App\Models\OnlineOrder;
 use App\Models\Purchase;
 use App\Models\SaleInvoice;
 use App\Models\Tax;
@@ -610,6 +611,74 @@ class SyncController extends Controller
             'ok'        => true,
             ...$page['meta'],
             'purchases' => $rows->values(),
+        ]);
+    }
+
+    // ── Online orders ─────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/v1/sync/online-orders
+     *
+     * Paginated delta of online orders updated since the cursor.
+     * Items are embedded in each order to avoid a second round-trip.
+     */
+    public function onlineOrders(Request $request): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant = $request->attributes->get('api_tenant');
+
+        $query = OnlineOrder::withTrashed()
+            ->with([
+                'items:id,online_order_id,item_id,name,code,quantity,unit_price,discount_amount,total_amount,note,display_order',
+            ])
+            ->where('tenant_id', $tenant->id);
+
+        $page = $this->syncPage($request, $query, 'online_orders', $tenant->id, 50, 100, ['*']);
+
+        $rows = collect($page['rows'])->map(function (OnlineOrder $o) {
+            return [
+                'id'               => $o->id,
+                'tenant_id'        => $o->tenant_id,
+                'contact_id'       => $o->contact_id,
+                'user_id'          => $o->user_id,
+                'converted_sale_id'=> $o->converted_sale_id,
+                'number'           => $o->number,
+                'channel'          => $o->channel,
+                'status'           => $o->status,
+                'payment_status'   => $o->payment_status,
+                'customer_name'    => $o->customer_name,
+                'customer_phone'   => $o->customer_phone,
+                'customer_email'   => $o->customer_email,
+                'delivery_address' => $o->delivery_address,
+                'ordered_at'       => $o->ordered_at?->toISOString(),
+                'expected_at'      => $o->expected_at?->toDateString(),
+                'subtotal_amount'  => (float) $o->subtotal_amount,
+                'discount_amount'  => (float) $o->discount_amount,
+                'deposit_amount'   => (float) $o->deposit_amount,
+                'total_amount'     => (float) $o->total_amount,
+                'customer_note'    => $o->customer_note,
+                'internal_note'    => $o->internal_note,
+                'updated_at'       => $o->updated_at->toISOString(),
+                'deleted_at'       => $o->deleted_at?->toISOString(),
+                'items'            => $o->items->sortBy('display_order')->values()->map(fn ($item) => [
+                    'id'              => $item->id,
+                    'item_id'         => $item->item_id,
+                    'name'            => $item->name,
+                    'code'            => $item->code,
+                    'quantity'        => (float) $item->quantity,
+                    'unit_price'      => (float) $item->unit_price,
+                    'discount_amount' => (float) $item->discount_amount,
+                    'total_amount'    => (float) $item->total_amount,
+                    'note'            => $item->note,
+                    'display_order'   => $item->display_order,
+                ])->all(),
+            ];
+        });
+
+        return response()->json([
+            'ok'            => true,
+            ...$page['meta'],
+            'online_orders' => $rows->values(),
         ]);
     }
 
