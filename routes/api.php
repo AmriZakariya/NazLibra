@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\ContactTransactionController;
 use App\Http\Controllers\Api\PublicController;
+use App\Http\Controllers\Api\StatisticsController;
 use App\Http\Controllers\Api\VirtualDeviceApiController;
 use Illuminate\Support\Facades\Route;
 
@@ -59,6 +60,16 @@ Route::prefix('v1')->group(function (): void {
 
         // Dashboard KPIs
         Route::get('dashboard', [DashboardController::class, 'index']);
+
+        // Statistics breakdowns
+        Route::prefix('statistics')->group(function (): void {
+            Route::get('overview',    [StatisticsController::class, 'overview']);
+            Route::get('by-payment',  [StatisticsController::class, 'byPayment']);
+            Route::get('by-product',  [StatisticsController::class, 'byProduct']);
+            Route::get('by-operator', [StatisticsController::class, 'byOperator']);
+            Route::get('by-category', [StatisticsController::class, 'byCategory']);
+            Route::get('by-hour',     [StatisticsController::class, 'byHour']);
+        });
 
         // ── Delta sync ────────────────────────────────────────────────────────
         Route::prefix('sync')->group(function (): void {
