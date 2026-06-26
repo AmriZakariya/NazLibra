@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -10,19 +11,32 @@ class StatisticsController extends Controller
 {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    private function tenant(Request $request): object
+    {
+        return $request->attributes->get('api_tenant');
+    }
+
     private function dateRange(Request $request): array
     {
-        $from = $request->get('from', now()->toDateString());
-        $to   = $request->get('to',   now()->toDateString());
+        $tenant   = $this->tenant($request);
+        $timezone = $tenant->timezone ?? 'Africa/Casablanca';
 
-        return [$from.' 00:00:00', $to.' 23:59:59'];
+        $from = $request->query('from')
+            ? Carbon::parse($request->query('from'), $timezone)->startOfDay()->utc()
+            : Carbon::now($timezone)->startOfDay()->utc();
+
+        $to = $request->query('to')
+            ? Carbon::parse($request->query('to'), $timezone)->endOfDay()->utc()
+            : Carbon::now($timezone)->endOfDay()->utc();
+
+        return [$from->toDateTimeString(), $to->toDateTimeString()];
     }
 
     // ── Overview (extended KPIs) ───────────────────────────────────────────────
 
     public function overview(Request $request)
     {
-        $tenant            = $request->tenant;
+        $tenant            = $this->tenant($request);
         [$fromDt, $toDt]   = $this->dateRange($request);
 
         // Revenue + COGS from confirmed sale lines
@@ -97,7 +111,7 @@ class StatisticsController extends Controller
 
     public function byPayment(Request $request)
     {
-        $tenant           = $request->tenant;
+        $tenant           = $this->tenant($request);
         [$fromDt, $toDt]  = $this->dateRange($request);
 
         $rows = DB::table('sale_payments')
@@ -133,7 +147,7 @@ class StatisticsController extends Controller
 
     public function byProduct(Request $request)
     {
-        $tenant           = $request->tenant;
+        $tenant           = $this->tenant($request);
         [$fromDt, $toDt]  = $this->dateRange($request);
         $limit            = min((int) $request->get('limit', 20), 50);
 
@@ -181,7 +195,7 @@ class StatisticsController extends Controller
 
     public function byOperator(Request $request)
     {
-        $tenant           = $request->tenant;
+        $tenant           = $this->tenant($request);
         [$fromDt, $toDt]  = $this->dateRange($request);
 
         $rows = DB::table('sales')
@@ -222,7 +236,7 @@ class StatisticsController extends Controller
 
     public function byCategory(Request $request)
     {
-        $tenant           = $request->tenant;
+        $tenant           = $this->tenant($request);
         [$fromDt, $toDt]  = $this->dateRange($request);
 
         $rows = DB::table('sale_items')
@@ -268,7 +282,7 @@ class StatisticsController extends Controller
 
     public function byHour(Request $request)
     {
-        $tenant           = $request->tenant;
+        $tenant           = $this->tenant($request);
         [$fromDt, $toDt]  = $this->dateRange($request);
 
         $rows = DB::table('sales')

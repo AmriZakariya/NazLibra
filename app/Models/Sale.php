@@ -10,15 +10,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['tenant_id', 'location_id', 'contact_id', 'user_id', 'virtual_device_id', 'actor_name_snapshot', 'terminal_name_snapshot', 'source_invoice_id', 'source_online_order_id', 'number', 'status', 'payment_method', 'subtotal_amount', 'discount_amount', 'tax_amount', 'total_amount', 'sold_at', 'metadata', 'idempotency_key'])]
+#[Fillable(['tenant_id', 'location_id', 'contact_id', 'user_id', 'virtual_device_id', 'actor_name_snapshot', 'terminal_name_snapshot', 'source_invoice_id', 'source_online_order_id', 'number', 'status', 'payment_method', 'subtotal_amount', 'discount_amount', 'tax_amount', 'total_amount', 'loyalty_points_earned', 'loyalty_points_redeemed', 'sold_at', 'metadata', 'idempotency_key'])]
 class Sale extends Model
 {
     use SoftDeletes;
     protected function casts(): array
     {
         return [
-            'sold_at' => 'datetime',
-            'metadata' => 'array',
+            'sold_at'                  => 'datetime',
+            'metadata'                 => 'array',
+            'loyalty_points_earned'    => 'decimal:2',
+            'loyalty_points_redeemed'  => 'decimal:2',
         ];
     }
 

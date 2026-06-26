@@ -42,6 +42,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany as HasManyRelation;
     'advance_balance',
     'outstanding_balance',
     'fine_balance',
+    'loyalty_points',
     'membership_expires_at',
 ])]
 class Contact extends Model
@@ -57,6 +58,7 @@ class Contact extends Model
             'advance_balance' => 'decimal:2',
             'outstanding_balance' => 'decimal:2',
             'fine_balance' => 'decimal:2',
+            'loyalty_points' => 'decimal:2',
             'price_level' => 'decimal:2',
         ];
     }
@@ -64,6 +66,11 @@ class Contact extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(ContactTransaction::class);
+    }
+
+    public function loyaltyTransactions(): HasMany
+    {
+        return $this->hasMany(LoyaltyPointTransaction::class);
     }
 
     public function sales(): HasMany

@@ -17,6 +17,7 @@ use App\Services\Documents\DocumentNumberGenerator;
 use App\Services\Inventory\InventoryMovementType;
 use App\Services\Inventory\InventoryService;
 use App\Services\Inventory\MovementDTO;
+use App\Services\LoyaltyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
@@ -38,6 +39,7 @@ class SaleController extends Controller
     public function __construct(
         private readonly InventoryService $inventory,
         private readonly DocumentNumberGenerator $numbers,
+        private readonly LoyaltyService $loyalty,
     ) {}
 
     /**
@@ -137,6 +139,7 @@ class SaleController extends Controller
             'discount.value'          => ['nullable', 'numeric', 'min:0'],
             'note'                    => ['nullable', 'string', 'max:1000'],
             'sold_at'                 => ['nullable', 'string', new ExplicitOffsetDateTime],
+            'loyalty_points_redeemed' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         $soldAt = ! empty($data['sold_at']) ? UtcDateTime::parse($data['sold_at']) : now()->utc();
@@ -266,14 +269,50 @@ class SaleController extends Controller
             ];
         }
 
-        // Apply discount.
+        // Apply sale-level discount.
         $discountType  = $data['discount']['type'] ?? 'fixed';
         $discountValue = (float) ($data['discount']['value'] ?? 0);
         $discount = $discountType === 'percent'
             ? round($subtotal * $discountValue / 100, 2)
             : round(min($subtotal, $discountValue), 2);
 
-        $total = max(0, round($subtotal - $discount, 2));
+        $afterDiscount = max(0, round($subtotal - $discount, 2));
+
+        // Loyalty points redemption — validate before opening the transaction.
+        $loyaltyEnabled       = $this->loyalty->isEnabled($tenant);
+        $loyaltyCfg           = $this->loyalty->config($tenant);
+        $pointsToRedeem       = (float) ($data['loyalty_points_redeemed'] ?? 0);
+        $loyaltyDiscount      = 0.0;
+        $loyaltyPointsEarned  = 0.0;
+
+        if ($loyaltyEnabled && $pointsToRedeem > 0) {
+            if (! $contact) {
+                return response()->json([
+                    'ok'      => false,
+                    'error'   => 'loyalty_requires_contact',
+                    'message' => 'Sélectionnez un client pour utiliser vos points de fidélité.',
+                ], 422);
+            }
+
+            try {
+                $loyaltyDiscount = $this->loyalty->validateRedemption(
+                    $pointsToRedeem,
+                    (float) $contact->loyalty_points,
+                    $afterDiscount,
+                    $loyaltyCfg,
+                );
+            } catch (\InvalidArgumentException $e) {
+                return response()->json([
+                    'ok'      => false,
+                    'error'   => 'loyalty_redemption_invalid',
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+        } elseif (! $loyaltyEnabled) {
+            $pointsToRedeem = 0.0;
+        }
+
+        $total = max(0, round($afterDiscount - $loyaltyDiscount, 2));
         $paid  = round(array_sum($payments), 2);
 
         if ($paid + 0.001 < $total) {
@@ -308,8 +347,9 @@ class SaleController extends Controller
         try {
             $sale = DB::transaction(function () use (
             $tenant, $locationId, $contact, $payments, $saleLines,
-            $subtotal, $discount, $total, $paid, $data,
-            $totalCogs, $allowOversell, $action, $soldAt
+            $subtotal, $discount, $loyaltyDiscount, $total, $paid, $data,
+            $totalCogs, $allowOversell, $action, $soldAt,
+            $pointsToRedeem, $loyaltyCfg, $loyaltyEnabled
         ): Sale {
             // Decrement advance balance atomically before the rest.
             if ($contact && $payments['advance'] > 0) {
@@ -319,6 +359,19 @@ class SaleController extends Controller
                     throw new \RuntimeException('Avance client insuffisante.');
                 }
                 $contact->decrement('advance_balance', $payments['advance']);
+            }
+
+            // Redeem loyalty points — must happen inside transaction before sale is saved.
+            if ($loyaltyEnabled && $contact && $pointsToRedeem > 0) {
+                // Re-lock contact if we didn't already (advance may have done it).
+                if ($payments['advance'] <= 0) {
+                    $contact->lockForUpdate();
+                    $contact->refresh();
+                }
+                if ((float) $contact->loyalty_points < $pointsToRedeem) {
+                    throw new \RuntimeException('Solde de points insuffisant.');
+                }
+                // Debit is recorded after sale ID is known — see below.
             }
 
             // Generate atomic sale number, skipping any already-used numbers.
@@ -333,6 +386,11 @@ class SaleController extends Controller
             $cashChange     = min($payments['cash'], $changeAmount);
             $cashDrawerIn   = max(0, round($payments['cash'] - $cashChange, 2));
 
+            // Points earned are calculated on the final total (after loyalty discount).
+            $pointsEarned = ($loyaltyEnabled && $contact)
+                ? $this->loyalty->pointsForAmount($total, $loyaltyCfg)
+                : 0.0;
+
             $sale = Sale::create([
                 'tenant_id'       => $tenant->id,
                 'location_id'     => $locationId,
@@ -345,9 +403,11 @@ class SaleController extends Controller
                 'status'          => 'paid',
                 'payment_method'  => $paymentMethod,
                 'subtotal_amount' => $subtotal,
-                'discount_amount' => $discount,
+                'discount_amount' => round($discount + $loyaltyDiscount, 2),
                 'tax_amount'      => round($total * 0.2 / 1.2, 2),
                 'total_amount'    => $total,
+                'loyalty_points_earned'   => $pointsEarned,
+                'loyalty_points_redeemed' => $pointsToRedeem,
                 'sold_at'         => $soldAt,
                 'idempotency_key' => $data['idempotency_key'],
                 'metadata'        => [
@@ -377,6 +437,11 @@ class SaleController extends Controller
                     ])->values()->all(),
                     'note' => $data['note'] ?? null,
                     'discount' => ['type' => $data['discount']['type'] ?? 'fixed', 'value' => $data['discount']['value'] ?? 0, 'amount' => $discount],
+                    'loyalty' => $pointsToRedeem > 0 ? [
+                        'points_redeemed'  => $pointsToRedeem,
+                        'discount_applied' => $loyaltyDiscount,
+                        'points_earned'    => $pointsEarned,
+                    ] : null,
                 ],
             ]);
 
@@ -446,6 +511,27 @@ class SaleController extends Controller
                     'idempotency_key' => 'api-pay-'.$sale->id.'-'.$method,
                 ]);
                 $remaining -= $allocated;
+            }
+
+            // Loyalty point transactions — both redeem and earn recorded after sale exists.
+            if ($loyaltyEnabled && $contact) {
+                if ($pointsToRedeem > 0) {
+                    $this->loyalty->redeem(
+                        $contact,
+                        $sale,
+                        $pointsToRedeem,
+                        'api-loyalty-redeem-'.$sale->id,
+                    );
+                }
+
+                if ($pointsEarned > 0) {
+                    $this->loyalty->earn(
+                        $contact,
+                        $sale,
+                        $pointsEarned,
+                        'api-loyalty-earn-'.$sale->id,
+                    );
+                }
             }
 
             return $sale;

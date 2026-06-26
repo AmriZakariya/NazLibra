@@ -1,0 +1,43 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class LoyaltyPointTransaction extends Model
+{
+    use SoftDeletes;
+
+    protected $fillable = [
+        'tenant_id',
+        'contact_id',
+        'sale_id',
+        'type',
+        'points_amount',
+        'balance_after',
+        'note',
+        'idempotency_key',
+        'recorded_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'points_amount' => 'decimal:2',
+            'balance_after' => 'decimal:2',
+            'recorded_at'   => 'datetime',
+        ];
+    }
+
+    public function contact(): BelongsTo
+    {
+        return $this->belongsTo(Contact::class);
+    }
+
+    public function sale(): BelongsTo
+    {
+        return $this->belongsTo(Sale::class);
+    }
+}

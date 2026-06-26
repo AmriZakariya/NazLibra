@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\ContactTransactionController;
 use App\Http\Controllers\Api\PublicController;
+use App\Http\Controllers\Api\LoyaltyController;
 use App\Http\Controllers\Api\StatisticsController;
 use App\Http\Controllers\Api\VirtualDeviceApiController;
 use Illuminate\Support\Facades\Route;
@@ -90,6 +91,14 @@ Route::prefix('v1')->group(function (): void {
         // ── Contact transactions ───────────────────────────────────────────────
         Route::get('contacts/{contact}/transactions',  [ContactTransactionController::class, 'index']);
         Route::post('contacts/{contact}/transactions', [ContactTransactionController::class, 'store']);
+
+        // ── Loyalty points ────────────────────────────────────────────────────
+        Route::get('loyalty/settings',                         [LoyaltyController::class, 'settings']);
+        Route::put('loyalty/settings',                         [LoyaltyController::class, 'updateSettings']);
+        Route::post('loyalty/preview',                         [LoyaltyController::class, 'preview']);
+        Route::get('contacts/{contact}/loyalty/balance',       [LoyaltyController::class, 'balance']);
+        Route::get('contacts/{contact}/loyalty/history',       [LoyaltyController::class, 'history']);
+        Route::post('contacts/{contact}/loyalty/adjust',       [LoyaltyController::class, 'adjust']);
 
         // ── POS — sales & tickets ─────────────────────────────────────────────
         Route::prefix('pos')->group(function (): void {
