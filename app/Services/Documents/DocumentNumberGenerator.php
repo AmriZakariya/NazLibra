@@ -15,11 +15,7 @@ class DocumentNumberGenerator
      */
     public function next(Tenant $tenant, string $documentType, ?string $prefix = null, ?\Closure $existsCheck = null): array
     {
-        $prefix ??= match ($documentType) {
-            'invoice', 'invoice_payment' => $documentType === 'invoice' ? 'FAC' : 'IPAY',
-            'estimate' => 'DEV',
-            default => strtoupper(substr($documentType, 0, 3)),
-        };
+        $prefix ??= $this->defaultPrefix($documentType);
 
         $sequence = DocumentSequence::query()
             ->where('tenant_id', $tenant->id)
@@ -69,11 +65,7 @@ class DocumentNumberGenerator
      */
     public function peek(Tenant $tenant, string $documentType, ?string $prefix = null): string
     {
-        $prefix ??= match ($documentType) {
-            'invoice', 'invoice_payment' => $documentType === 'invoice' ? 'FAC' : 'IPAY',
-            'estimate' => 'DEV',
-            default => strtoupper(substr($documentType, 0, 3)),
-        };
+        $prefix ??= $this->defaultPrefix($documentType);
 
         $sequence = DocumentSequence::query()
             ->where('tenant_id', $tenant->id)
@@ -85,5 +77,18 @@ class DocumentNumberGenerator
         $padding = (int) data_get($sequence?->format, 'padding', 5);
 
         return $prefix.str_pad((string) $serial, $padding, '0', STR_PAD_LEFT);
+    }
+
+    private function defaultPrefix(string $documentType): string
+    {
+        return match ($documentType) {
+            'sale'             => 'TKT',
+            'return'           => 'RTN',
+            'invoice'          => 'FAC',
+            'invoice_payment'  => 'IPAY',
+            'estimate'         => 'DEV',
+            'payment'          => 'PAY',
+            default            => strtoupper(substr($documentType, 0, 3)),
+        };
     }
 }
