@@ -240,7 +240,7 @@ class ReturnController extends Controller
                 $stockDisposition = count(array_unique($stockActions)) === 1 ? $stockActions[0] : 'mixed';
                 $isFullRefund     = ($alreadyReturnedAmount + $returnTotal + 0.001) >= (float) $sale->total_amount;
 
-                $numberData  = $this->numbers->next($tenant, 'sale_return', 'RET');
+                $numberData  = $this->numbers->next($tenant, 'return', null);
                 $saleReturn  = SaleReturn::create([
                     'tenant_id'        => $tenant->id,
                     'sale_id'          => $sale->id,

@@ -21,6 +21,8 @@ use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\ContactTransactionController;
 use App\Http\Controllers\Api\PublicController;
 use App\Http\Controllers\Api\LoyaltyController;
+use App\Http\Controllers\Api\CouponApiController;
+use App\Http\Controllers\Api\DiscountRuleApiController;
 use App\Http\Controllers\Api\StatisticsController;
 use App\Http\Controllers\Api\VirtualDeviceApiController;
 use Illuminate\Support\Facades\Route;
@@ -101,6 +103,10 @@ Route::prefix('v1')->group(function (): void {
         Route::get('contacts/{contact}/loyalty/balance',       [LoyaltyController::class, 'balance']);
         Route::get('contacts/{contact}/loyalty/history',       [LoyaltyController::class, 'history']);
         Route::post('contacts/{contact}/loyalty/adjust',       [LoyaltyController::class, 'adjust']);
+
+        // ── Coupons & discount rules ──────────────────────────────────────────
+        Route::get('contacts/{contact}/coupons',               [CouponApiController::class, 'forContact']);
+        Route::get('discount-rules',                           [DiscountRuleApiController::class, 'index']);
 
         // ── POS — sales & tickets ─────────────────────────────────────────────
         Route::prefix('pos')->group(function (): void {

@@ -375,7 +375,7 @@ class SaleController extends Controller
             }
 
             // Generate atomic sale number, skipping any already-used numbers.
-            $numberData = $this->numbers->next($tenant, 'sale', 'BL', fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists());
+            $numberData = $this->numbers->next($tenant, 'sale', null, fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists());
             $saleNumber = $numberData['number'];
             $paymentMethod = collect($payments)
                 ->filter(fn ($a) => $a > 0.001)
