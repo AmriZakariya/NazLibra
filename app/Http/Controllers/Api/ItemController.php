@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ItemStatus;
+use App\Enums\ItemType;
 use App\Http\Controllers\Controller;
 use App\Models\Brand;
 use App\Models\Category;
@@ -87,7 +89,7 @@ class ItemController extends Controller
 
         $query = Item::query()
             ->where('tenant_id', $tenant->id)
-            ->where('status', 'active')
+            ->where('status', ItemStatus::Active->value)
             ->with(['category:id,name', 'tax:id,name,rate'])
             ->limit(30);
 
@@ -161,7 +163,7 @@ class ItemController extends Controller
             'brand_id'            => ['nullable', 'integer', Rule::exists('brands', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->whereNull('deleted_at'))],
             'unit_id'             => ['required', 'integer', Rule::exists('units', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->where('is_active', true)->whereNull('deleted_at'))],
             'tax_id'              => ['required', 'integer', Rule::exists('taxes', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->where('is_active', true)->whereNull('deleted_at'))],
-            'type'                => ['required', 'string', Rule::in(['book', 'supply', 'service'])],
+            'type'                => ['required', 'string', Rule::in(array_column(ItemType::cases(), 'value'))],
             'item_code'           => ['nullable', 'string', 'max:120', Rule::unique('items', 'item_code')->where(fn ($query) => $query->where('tenant_id', $tenant->id))],
             'item_group'          => ['nullable', Rule::in(['Single', 'Variants', 'Group', 'Pack'])],
             'extra_fields'        => ['nullable', 'array'],
@@ -180,7 +182,7 @@ class ItemController extends Controller
 
         try {
             $item = DB::transaction(function () use ($tenant, $locationId, $data, $request): Item {
-                $initialStock = $data['type'] === 'service' ? 0 : (int) ($data['stock_quantity'] ?? 0);
+                $initialStock = $data['type'] === ItemType::Service->value ? 0 : (int) ($data['stock_quantity'] ?? 0);
                 $item = Item::create([
                     'tenant_id'           => $tenant->id,
                     'external_id'         => $data['local_id'],
@@ -201,7 +203,7 @@ class ItemController extends Controller
                     'item_code'           => $data['item_code'] ?? null,
                     'item_group'          => $data['item_group'] ?? 'Single',
                     'extra_fields'        => $data['extra_fields'] ?? null,
-                    'status'              => $data['type'] === 'service' || $initialStock > 0 ? 'active' : 'out_of_stock',
+                    'status'              => ItemStatus::fromTypeAndStock($data['type'], $initialStock)->value,
                     'is_enabled'          => true,
                     'checkout_visible'    => true,
                     'online_store_visible'=> true,
@@ -212,7 +214,7 @@ class ItemController extends Controller
                 }
 
                 // Initialise stock for the current location so the item appears in stock queries.
-                if ($locationId && $data['type'] !== 'service' && $initialStock > 0) {
+                if ($locationId && $data['type'] !== ItemType::Service->value && $initialStock > 0) {
                     $this->inventory->move(new MovementDTO(
                         tenantId: $tenant->id,
                         itemId: $item->id,
@@ -228,7 +230,7 @@ class ItemController extends Controller
                         idempotencyKey: 'api-item-opening-'.$item->id,
                         unitCost: (float) ($data['purchase_price'] ?? 0) ?: null,
                     ));
-                } elseif ($locationId && $data['type'] !== 'service') {
+                } elseif ($locationId && $data['type'] !== ItemType::Service->value) {
                     ItemLocationStock::create([
                         'tenant_id'   => $tenant->id,
                         'item_id'     => $item->id,
@@ -279,22 +281,22 @@ class ItemController extends Controller
             'brand_id'            => ['sometimes', 'nullable', 'integer', Rule::exists('brands', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->whereNull('deleted_at'))],
             'unit_id'             => ['sometimes', 'required', 'integer', Rule::exists('units', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->where('is_active', true)->whereNull('deleted_at'))],
             'tax_id'              => ['sometimes', 'required', 'integer', Rule::exists('taxes', 'id')->where(fn ($query) => $query->where('tenant_id', $tenant->id)->where('is_active', true)->whereNull('deleted_at'))],
-            'type'                => ['sometimes', 'required', 'string', Rule::in(['book', 'supply', 'service'])],
+            'type'                => ['sometimes', 'required', 'string', Rule::in(array_column(ItemType::cases(), 'value'))],
             'item_code'           => ['sometimes', 'required', 'string', 'max:120', Rule::unique('items', 'item_code')->where(fn ($query) => $query->where('tenant_id', $tenant->id))->ignore($item->id)],
             'item_group'          => ['sometimes', Rule::in(['Single', 'Variants', 'Group', 'Pack'])],
             'extra_fields'        => ['sometimes', 'nullable', 'array'],
         ]);
 
         $nextType = $data['type'] ?? $item->type;
-        if ($nextType === 'service' && $item->type !== 'service' && $item->totalStockQuantity() > 0) {
+        if ($nextType === ItemType::Service->value && $item->type !== ItemType::Service->value && $item->totalStockQuantity() > 0) {
             throw ValidationException::withMessages([
                 'type' => 'Un article avec du stock ne peut pas devenir un service. Ajustez d’abord son stock à zéro.',
             ]);
         }
 
         if (array_key_exists('type', $data)) {
-            $data['status'] = $nextType === 'service' ? 'active' : ((int) $item->stock_quantity > 0 ? 'active' : 'out_of_stock');
-            if ($nextType === 'service') {
+            $data['status'] = ItemStatus::fromTypeAndStock($nextType, (int) $item->stock_quantity)->value;
+            if ($nextType === ItemType::Service->value) {
                 $data['stock_quantity'] = 0;
             }
         }

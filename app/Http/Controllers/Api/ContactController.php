@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ContactKind;
 use App\Http\Controllers\Controller;
 use App\Models\Contact;
 use App\Models\Tenant;
@@ -62,7 +63,7 @@ class ContactController extends Controller
 
         $query = Contact::query()
             ->where('tenant_id', $tenant->id)
-            ->where('kind', 'client');
+            ->where('kind', ContactKind::Client->value);
 
         if ($q !== '') {
             $query->where(fn ($q2) => $q2
@@ -169,7 +170,7 @@ class ContactController extends Controller
             'phone'   => ['nullable', 'string', 'max:30'],
             'email'   => ['nullable', 'email', 'max:150'],
             'address' => ['nullable', 'string', 'max:300'],
-            'kind'    => ['nullable', 'in:client,supplier'],
+            'kind'    => ['nullable', 'in:' . implode(',', array_column(ContactKind::cases(), 'value'))],
         ]);
 
         /** @var Tenant $tenant */
@@ -177,7 +178,7 @@ class ContactController extends Controller
 
         $contact = Contact::create([
             'tenant_id' => $tenant->id,
-            'kind'      => $data['kind'] ?? 'client',
+            'kind'      => $data['kind'] ?? ContactKind::Client->value,
             'name'      => $data['name'],
             'phone'     => $data['phone'] ?? null,
             'email'     => $data['email'] ?? null,
@@ -202,7 +203,7 @@ class ContactController extends Controller
             'phone'   => ['nullable', 'string', 'max:30'],
             'email'   => ['nullable', 'email', 'max:150'],
             'address' => ['nullable', 'string', 'max:300'],
-            'kind'    => ['sometimes', 'in:client,supplier'],
+            'kind'    => ['sometimes', 'in:' . implode(',', array_column(ContactKind::cases(), 'value'))],
             'status'  => ['sometimes', 'in:active,archived'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
         ]);
@@ -224,9 +225,9 @@ class ContactController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant  = $request->attributes->get('api_tenant');
-        $kind    = in_array($request->query('kind'), ['client', 'supplier'], true)
+        $kind    = in_array($request->query('kind'), array_column(ContactKind::cases(), 'value'), true)
             ? $request->query('kind')
-            : 'client';
+            : ContactKind::Client->value;
         $q       = trim((string) $request->query('q', ''));
         $filter  = $request->query('filter', 'all');  // all | balance | advance
         $sort    = $request->query('sort', 'name');   // name | balance_desc

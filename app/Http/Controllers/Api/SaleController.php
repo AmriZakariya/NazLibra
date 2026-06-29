@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ItemStatus;
+use App\Enums\ItemType;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\Api\SaleResource;
 use App\Models\Contact;
@@ -192,7 +194,7 @@ class SaleController extends Controller
         foreach ($data['items'] as $line) {
             if (empty($line['item_id'])) continue;
             $item = $items->get($line['item_id']);
-            if (! $item || $item->status !== 'active') {
+            if (! $item || $item->status !== ItemStatus::Active->value) {
                 return response()->json([
                     'ok'      => false,
                     'error'   => 'item_unavailable',
@@ -248,7 +250,7 @@ class SaleController extends Controller
             $lineTotal  = round($unitPrice * (int) $line['quantity'], 2);
 
             // Snapshot the weighted-average cost at this location right now.
-            $avgCost = $item->type !== 'service'
+            $avgCost = $item->type !== ItemType::Service->value
                 ? (float) (ItemLocationStock::where('tenant_id', $tenant->id)
                     ->where('item_id', $item->id)
                     ->where('location_id', $locationId)
@@ -490,7 +492,7 @@ class SaleController extends Controller
                     'total_cost' => $line['line_cogs'],
                 ]);
 
-                if ($line['item'] && $line['item']->type !== 'service') {
+                if ($line['item'] && $line['item']->type !== ItemType::Service->value) {
                     // InventoryService::move() does its own lockForUpdate + idempotency.
                     $this->inventory->move(new MovementDTO(
                         tenantId:       $tenant->id,
@@ -515,7 +517,7 @@ class SaleController extends Controller
                     // Keep denormalised stock_quantity in sync (used for low-stock alerts).
                     $line['item']->decrement('stock_quantity', $line['quantity']);
                     if (! $allowOversell && $line['item']->fresh()->stock_quantity <= 0) {
-                        $line['item']->update(['status' => 'out_of_stock']);
+                        $line['item']->update(['status' => ItemStatus::OutOfStock->value]);
                     }
                 }
             }
@@ -735,7 +737,7 @@ class SaleController extends Controller
         // Aggregate requested quantities per item.
         $needed = [];
         foreach ($saleLines as $line) {
-            if ($line['item'] === null || $line['item']->type === 'service') {
+            if ($line['item'] === null || $line['item']->type === ItemType::Service->value) {
                 continue;
             }
             $id = $line['item']->id;

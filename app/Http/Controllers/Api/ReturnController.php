@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ItemStatus;
+use App\Enums\ItemType;
+use App\Enums\RefundMethod;
+use App\Enums\RefundScope;
 use App\Http\Controllers\Controller;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
@@ -119,7 +123,7 @@ class ReturnController extends Controller
     {
         $data = $request->validate([
             'idempotency_key'              => ['required', 'string', 'max:64'],
-            'refund_method'                => ['required', 'in:cash,credit,account'],
+            'refund_method'                => ['required', 'in:' . implode(',', array_column(RefundMethod::cases(), 'value'))],
             'refund_reason'                => ['nullable', 'string', 'max:500'],
             'return_lines'                 => ['nullable', 'array'],
             'return_lines.*.sale_item_id'  => ['required_with:return_lines', 'integer'],
@@ -252,7 +256,7 @@ class ReturnController extends Controller
                     'number'           => $numberData['number'],
                     'status'           => 'approved',
                     'refund_method'    => $data['refund_method'],
-                    'refund_scope'     => $isFullRefund ? 'full' : 'partial',
+                    'refund_scope'     => $isFullRefund ? RefundScope::Full->value : RefundScope::Partial->value,
                     'total_amount'     => $returnTotal,
                     'lines'            => $lines,
                     'reason'           => $data['refund_reason'] ?? null,
@@ -274,7 +278,7 @@ class ReturnController extends Controller
                     }
 
                     $item = Item::whereKey($returnLine['item_id'])->lockForUpdate()->first();
-                    if (! $item || $item->type === 'service') {
+                    if (! $item || $item->type === ItemType::Service->value) {
                         continue;
                     }
 
@@ -300,8 +304,8 @@ class ReturnController extends Controller
                             terminalNameSnapshot: $action->virtualDevice?->name,
                         ));
                         $item->increment('stock_quantity', $qty);
-                        if ($item->status === 'out_of_stock' && $item->fresh()->stock_quantity > 0) {
-                            $item->update(['status' => 'active']);
+                        if ($item->status === ItemStatus::OutOfStock->value && $item->fresh()->stock_quantity > 0) {
+                            $item->update(['status' => ItemStatus::Active->value]);
                         }
                     } else {
                         // No physical return: record movement type only.
@@ -345,7 +349,7 @@ class ReturnController extends Controller
 
                 // Cash drawer out if refunded in cash.
                 $session = $this->cashRegister->openSession($tenant);
-                if ($data['refund_method'] === 'cash' && $session) {
+                if ($data['refund_method'] === RefundMethod::Cash->value && $session) {
                     $this->cashRegister->recordMovement($tenant, $session, 'sale_refund_cash', 'out', $returnTotal, [
                         'sale_id'         => $sale->id,
                         'reference'       => $saleReturn->number,
