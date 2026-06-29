@@ -92,6 +92,7 @@ class AdjustmentController extends Controller
             'variant_id'      => ['nullable', 'integer'],
             'mode'            => ['required', Rule::in(['delta', 'correction'])],
             'quantity'        => ['required', 'integer', 'not_in:0'],
+            'unit_cost'       => ['nullable', 'numeric', 'min:0'],
             'reason'          => ['nullable', 'string', 'max:500'],
             'note'            => ['nullable', 'string', 'max:500'],
         ]);
@@ -184,6 +185,7 @@ class AdjustmentController extends Controller
                     note:            $data['note'] ?? null,
                     reason:          $data['reason'] ?? null,
                     idempotencyKey:  $data['idempotency_key'],
+                    unitCost:        isset($data['unit_cost']) ? (float) $data['unit_cost'] : null,
                     allowNegative:   false,
                     virtualDeviceId: $action->virtualDevice?->id,
                     actorNameSnapshot: $action->actor->name,

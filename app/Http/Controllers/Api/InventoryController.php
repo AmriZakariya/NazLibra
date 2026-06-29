@@ -155,12 +155,34 @@ class InventoryController extends Controller
                 'note', 'reason', 'created_at',
             ]);
 
+        // When filtered by item, include current stock state so the client can
+        // display the correct stock value (quantity × average_cost) without a
+        // second request.
+        $stockSummary = null;
+        if ($itemId) {
+            $stockRow = ItemLocationStock::where('tenant_id', $tenant->id)
+                ->where('item_id', $itemId)
+                ->when($locationId, fn ($q) => $q->where('location_id', $locationId))
+                ->selectRaw('SUM(quantity) as quantity, SUM(reserved_quantity) as reserved, AVG(average_cost) as average_cost')
+                ->first();
+
+            $qty         = (int) ($stockRow?->quantity ?? 0);
+            $avgCost     = round((float) ($stockRow?->average_cost ?? 0), 4);
+            $stockSummary = [
+                'quantity'     => $qty,
+                'reserved'     => (int) ($stockRow?->reserved ?? 0),
+                'average_cost' => $avgCost,
+                'stock_value'  => round($qty * $avgCost, 2),
+            ];
+        }
+
         return response()->json([
-            'ok'       => true,
-            'movements' => $movements->items(),
-            'total'    => $movements->total(),
-            'has_more' => $movements->hasMorePages(),
-            'page'     => $movements->currentPage(),
+            'ok'           => true,
+            'movements'    => $movements->items(),
+            'total'        => $movements->total(),
+            'has_more'     => $movements->hasMorePages(),
+            'page'         => $movements->currentPage(),
+            'stock_summary' => $stockSummary,
         ]);
     }
 }

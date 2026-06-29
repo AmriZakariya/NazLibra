@@ -3,6 +3,7 @@
 namespace App\Services\Inventory;
 
 use App\Models\InventoryMovement;
+use App\Models\Item;
 use App\Models\ItemLocationStock;
 use App\Models\Location;
 use Illuminate\Support\Facades\DB;
@@ -50,8 +51,31 @@ class InventoryService
             }
 
             $stock->quantity = $quantityAfter;
+
+            // Recalculate weighted average cost when stock increases with a known unit cost.
+            if ($dto->unitCost !== null && $delta > 0 && ($quantityBefore + $delta) > 0) {
+                $stock->average_cost = round(
+                    ($quantityBefore * (float) $stock->average_cost + $delta * $dto->unitCost)
+                    / ($quantityBefore + $delta),
+                    4
+                );
+            }
+
             $stock->updated_at = now();
             $stock->save();
+
+            // Keep items.stock_quantity in sync (denormalized total across all locations).
+            $totalStock = ItemLocationStock::query()
+                ->where('tenant_id', $dto->tenantId)
+                ->where('item_id', $dto->itemId)
+                ->sum('quantity');
+
+            Item::where('tenant_id', $dto->tenantId)
+                ->where('id', $dto->itemId)
+                ->update([
+                    'stock_quantity' => $totalStock,
+                    'updated_at'     => now(),
+                ]);
 
             $movement = InventoryMovement::query()->create([
                 'tenant_id' => $dto->tenantId,
