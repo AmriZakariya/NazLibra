@@ -113,14 +113,25 @@ class SaleInvoiceController extends Controller
         ]);
 
         $invoice = DB::transaction(function () use ($tenant, $sale, $data): SaleInvoice {
-            $sale->loadMissing('invoice');
+            // withTrashed: if a sale's invoice was soft-deleted, restore it
+            // rather than assigning a new number. Fresh query avoids Eloquent cache.
+            $invoice = SaleInvoice::withTrashed()
+                ->where('sale_id', $sale->id)
+                ->where('tenant_id', $tenant->id)
+                ->first();
 
-            $invoice = $sale->invoice ?? new SaleInvoice([
-                'tenant_id' => $tenant->id,
-                'sale_id'   => $sale->id,
-                'number'    => $this->nextInvoiceNumber($tenant),
-                'issued_at' => now(),
-            ]);
+            if ($invoice?->trashed()) {
+                $invoice->restore();
+            }
+
+            if ($invoice === null) {
+                $invoice = new SaleInvoice([
+                    'tenant_id' => $tenant->id,
+                    'sale_id'   => $sale->id,
+                    'number'    => $this->nextInvoiceNumber($tenant),
+                    'issued_at' => now(),
+                ]);
+            }
 
             $invoice->fill([
                 'contact_id'       => $sale->contact_id,
@@ -192,7 +203,9 @@ class SaleInvoiceController extends Controller
 
     private function nextInvoiceNumber(Tenant $tenant): string
     {
-        $max = SaleInvoice::where('tenant_id', $tenant->id)
+        // withTrashed() ensures soft-deleted invoice numbers are never reused.
+        $max = SaleInvoice::withTrashed()
+            ->where('tenant_id', $tenant->id)
             ->where('number', 'like', 'FAC%')
             ->pluck('number')
             ->map(fn ($n) => (int) preg_replace('/\D+/', '', (string) $n))
