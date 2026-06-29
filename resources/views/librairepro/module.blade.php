@@ -4816,7 +4816,7 @@
                                                     </div>
                                                 </form>
                                                 @if (!$userRole?->is_system)
-                                                <form action="{{ route(‘settings.users.destroy’, $user) }}" method="POST" class="px-5 pb-5 text-right" onsubmit="return confirm(‘Retirer l\’accès de cet utilisateur ?’)">
+                                                <form action="{{ route(‘settings.users.destroy’, $user) }}" method="POST" class="px-5 pb-5 text-right" onsubmit="return confirm(&quot;Retirer l’accès de cet utilisateur ?&quot;)">
                                                     @csrf
                                                     @method(‘DELETE’)
                                                     <button class="text-sm font-semibold text-rose-600">Retirer accès</button>
