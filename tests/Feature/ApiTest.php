@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
 use App\Models\Location;
+use App\Models\Role;
 use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
@@ -92,6 +93,25 @@ class ApiTest extends TestCase
             ->assertOk()
             ->assertJsonStructure(['ok', 'user', 'tenant', 'abilities'])
             ->assertJsonPath('ok', true);
+    }
+
+    public function test_users_list_keeps_owner_wildcard_permissions(): void
+    {
+        Role::where('tenant_id', $this->tenant->id)
+            ->where('key', 'owner')
+            ->update(['permissions' => []]);
+
+        $owner = $this->tenant->users()->wherePivot('role', 'owner')->firstOrFail();
+        $token = $this->apiToken($owner);
+
+        $response = $this->withToken($token)->getJson('/api/v1/users');
+
+        $response->assertOk();
+        $listedOwner = collect($response->json('users'))
+            ->firstWhere('id', $owner->id);
+
+        $this->assertSame('owner', data_get($listedOwner, 'role'));
+        $this->assertSame(['*'], data_get($listedOwner, 'abilities'));
     }
 
     public function test_logout_returns_ok(): void
@@ -543,10 +563,12 @@ class ApiTest extends TestCase
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private function apiToken(): string
+    private function apiToken(?User $user = null): string
     {
+        $user ??= $this->user;
+
         $response = $this->postJson('/api/v1/auth/login', [
-            'email'       => $this->user->email,
+            'email'       => $user->email,
             'password'    => 'password',
             'device_name' => 'phpunit-'.microtime(true),
         ]);

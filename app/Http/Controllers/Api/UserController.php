@@ -179,6 +179,13 @@ class UserController extends Controller
     {
         $roleKey = $user->pivot?->role;
 
+        // Owner is always full access, matching AuthController::resolveUserContext.
+        // This prevents POS clients from losing wildcard permissions when they
+        // rebuild the active operator from GET /api/v1/users or PIN switch.
+        if ($roleKey === 'owner') {
+            return ['owner', ['*']];
+        }
+
         // Resolve the Role model — prefer the pre-loaded collection to avoid N+1.
         $role = null;
         if ($roles !== null) {
