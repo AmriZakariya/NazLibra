@@ -4,9 +4,27 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CommercialDocumentController;
 use App\Http\Controllers\LibraireProController;
 use App\Http\Controllers\OnlineStoreController;
+use App\Http\Controllers\SetupController;
 use App\Http\Controllers\VariantController;
 use App\Http\Controllers\VirtualDeviceController;
 use Illuminate\Support\Facades\Route;
+
+// ─── Setup wizard (only accessible when no tenant exists) ─────────────────────
+Route::prefix('setup')->name('setup.')->group(function (): void {
+    Route::get('/',            [SetupController::class, 'index'])->name('index');
+    Route::post('/secret',     [SetupController::class, 'storeSecret'])->name('secret');
+    Route::get('/store',       [SetupController::class, 'showStore'])->name('store');
+    Route::post('/store',      [SetupController::class, 'storeStore'])->name('store.save');
+    Route::get('/owner',       [SetupController::class, 'showOwner'])->name('owner');
+    Route::post('/owner',      [SetupController::class, 'storeOwner'])->name('owner.save');
+    Route::get('/locations',   [SetupController::class, 'showLocations'])->name('locations');
+    Route::post('/locations',  [SetupController::class, 'storeLocations'])->name('locations.save');
+    Route::get('/categories',  [SetupController::class, 'showCategories'])->name('categories');
+    Route::post('/categories', [SetupController::class, 'storeCategories'])->name('categories.save');
+    Route::get('/review',      [SetupController::class, 'review'])->name('review');
+    Route::post('/commit',     [SetupController::class, 'commit'])->name('commit');
+    Route::get('/done',        [SetupController::class, 'done'])->name('done');
+});
 
 Route::get('/manifest.json', [LibraireProController::class, 'manifest'])->name('manifest');
 Route::get('/app-icon/{size}', [LibraireProController::class, 'appIcon'])->where('size', '32|192|512')->name('app.icon');
