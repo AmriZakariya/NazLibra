@@ -22,7 +22,7 @@ class Tenant extends Model
 
     public function users(): BelongsToMany
     {
-        return $this->belongsToMany(User::class)->withPivot(['role', 'permissions', 'store_access'])->withTimestamps();
+        return $this->belongsToMany(User::class)->withPivot(['role', 'store_access'])->withTimestamps();
     }
 
     public function items(): HasMany

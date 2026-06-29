@@ -39,23 +39,21 @@ class EnsureTenantAccess
     private function permissionsFor(Tenant $tenant, $user): array
     {
         $tenantUser = $tenant->users()->whereKey($user->id)->first();
-        $pivotPermissions = json_decode((string) ($tenantUser?->pivot?->permissions ?? '[]'), true) ?: [];
+        $roleKey    = $tenantUser?->pivot?->role ?? '';
 
-        if (in_array('*', $pivotPermissions, true)) {
-            return ['*'];
+        if (empty($roleKey)) {
+            return [];
         }
 
         $rolePermissions = Role::where('tenant_id', $tenant->id)
-            ->where('key', (string) ($tenantUser?->pivot?->role ?? ''))
+            ->where('key', $roleKey)
             ->value('permissions') ?? [];
+
         $rolePermissions = is_string($rolePermissions)
             ? (json_decode($rolePermissions, true) ?: [])
-            : $rolePermissions;
+            : (is_array($rolePermissions) ? $rolePermissions : []);
 
-        return array_values(array_unique(array_merge(
-            is_array($rolePermissions) ? $rolePermissions : [],
-            $pivotPermissions,
-        )));
+        return array_values($rolePermissions);
     }
 
     private function moduleForRoute(Request $request): ?string

@@ -266,16 +266,23 @@ class AuthController extends Controller
      */
     private function resolveUserContext(Tenant $tenant, User $user): array
     {
-        $tenantUser  = $tenant->users()->whereKey($user->id)->first();
-        $role        = $tenantUser?->pivot?->role;
-        $permissions = json_decode((string) ($tenantUser?->pivot?->permissions ?? '[]'), true) ?: [];
+        $tenantUser = $tenant->users()->whereKey($user->id)->first();
+        $roleKey    = $tenantUser?->pivot?->role;
+
+        $role = $roleKey
+            ? $tenant->roles()->where('key', $roleKey)->first()
+            : null;
+
+        $permissions = $role?->permissions ?? [];
 
         if (in_array('*', $permissions, true)) {
-            return [$role, ['*']];
+            return [$roleKey, ['*']];
         }
 
-        $abilities = $permissions ?: ['sales.create', 'sales.view', 'items.view', 'stock.view'];
+        $abilities = ! empty($permissions)
+            ? $permissions
+            : ['sales.view', 'items.view', 'stock.view'];
 
-        return [$role, $abilities];
+        return [$roleKey, $abilities];
     }
 }

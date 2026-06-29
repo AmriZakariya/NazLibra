@@ -26,7 +26,7 @@ class UserController extends Controller
         $roles = $tenant->roles()->get()->keyBy('key');
 
         $users = $tenant->users()
-            ->withPivot(['role', 'permissions'])
+            ->withPivot(['role'])
             ->get()
             ->map(fn ($u) => $this->formatUser($u, $roles));
 
@@ -35,7 +35,7 @@ class UserController extends Controller
 
     /**
      * PUT /api/v1/users/{user}
-     * Update a user's role and/or permissions. Requires wildcard ability (*).
+     * Update a user's role. Requires wildcard or settings.users ability.
      */
     public function update(Request $request, User $user): JsonResponse
     {
@@ -54,6 +54,13 @@ class UserController extends Controller
         $data = $request->validate([
             'role' => ['nullable', 'string', 'max:50'],
         ]);
+
+        if (! empty($data['role'])) {
+            $roleExists = $tenant->roles()->where('key', $data['role'])->exists();
+            if (! $roleExists) {
+                return response()->json(['ok' => false, 'message' => 'Rôle introuvable.'], 422);
+            }
+        }
 
         if (array_key_exists('role', $data)) {
             $tenant->users()->updateExistingPivot($user->id, ['role' => $data['role']]);
@@ -77,7 +84,7 @@ class UserController extends Controller
         $tenant = $request->attributes->get('api_tenant');
 
         $user = $tenant->users()
-            ->withPivot(['role', 'permissions'])
+            ->withPivot(['role'])
             ->where('users.id', $data['user_id'])
             ->first();
 
@@ -158,7 +165,7 @@ class UserController extends Controller
             'email'        => $user->email,
             'role'         => $role,
             'avatar_color' => $user->avatar_color ?? '#0D9488',
-            'is_active'    => (bool) $user->is_active,
+            'is_active'    => (bool) ($user->is_active ?? true),
             'has_pin'      => ! is_null($user->pin_hash),
             'abilities'    => $abilities,
         ];
