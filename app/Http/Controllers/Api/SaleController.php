@@ -140,6 +140,7 @@ class SaleController extends Controller
             'note'                    => ['nullable', 'string', 'max:1000'],
             'sold_at'                 => ['nullable', 'string', new ExplicitOffsetDateTime],
             'loyalty_points_redeemed' => ['nullable', 'numeric', 'min:0'],
+            'source_online_order_id'  => ['nullable', 'integer'],
         ]);
 
         $soldAt = ! empty($data['sold_at']) ? UtcDateTime::parse($data['sold_at']) : now()->utc();
@@ -344,12 +345,34 @@ class SaleController extends Controller
             }
         }
 
+        // Validate source online order if provided.
+        $sourceOnlineOrderId = (int) ($data['source_online_order_id'] ?? 0);
+        $sourceOnlineOrder   = null;
+        if ($sourceOnlineOrderId > 0) {
+            $sourceOnlineOrder = \App\Models\OnlineOrder::where('tenant_id', $tenant->id)
+                ->whereKey($sourceOnlineOrderId)
+                ->first();
+
+            if (! $sourceOnlineOrder) {
+                return response()->json(['ok' => false, 'message' => 'Commande introuvable.'], 422);
+            }
+            if ($sourceOnlineOrder->converted_sale_id !== null) {
+                $existingSale = Sale::find($sourceOnlineOrder->converted_sale_id);
+                if ($existingSale) {
+                    return $this->saleResponse($existingSale, $data['items'], $tenant->id, $locationId, alreadyExisted: true);
+                }
+            }
+            if (! in_array($sourceOnlineOrder->status, ['confirmed', 'preparing', 'ready'], true)) {
+                return response()->json(['ok' => false, 'message' => 'Cette commande ne peut pas être convertie dans son état actuel.'], 422);
+            }
+        }
+
         try {
             $sale = DB::transaction(function () use (
             $tenant, $locationId, $contact, $payments, $saleLines,
             $subtotal, $discount, $loyaltyDiscount, $total, $paid, $data,
             $totalCogs, $allowOversell, $action, $soldAt,
-            $pointsToRedeem, $loyaltyCfg, $loyaltyEnabled
+            $pointsToRedeem, $loyaltyCfg, $loyaltyEnabled, $sourceOnlineOrder
         ): Sale {
             // Decrement advance balance atomically before the rest.
             if ($contact && $payments['advance'] > 0) {
@@ -409,8 +432,9 @@ class SaleController extends Controller
                 'loyalty_points_earned'   => $pointsEarned,
                 'loyalty_points_redeemed' => $pointsToRedeem,
                 'sold_at'         => $soldAt,
-                'idempotency_key' => $data['idempotency_key'],
-                'metadata'        => [
+                'idempotency_key'        => $data['idempotency_key'],
+                'source_online_order_id' => $sourceOnlineOrder?->id,
+                'metadata'               => [
                     'source'       => 'mobile_api',
                     'payments'     => $payments,
                     'paid_amount'  => $paid,
@@ -532,6 +556,17 @@ class SaleController extends Controller
                         'api-loyalty-earn-'.$sale->id,
                     );
                 }
+            }
+
+            // Mark source online order as fulfilled.
+            if ($sourceOnlineOrder) {
+                $sourceOnlineOrder->update([
+                    'converted_sale_id' => $sale->id,
+                    'converted_by'      => $action->actor->id,
+                    'converted_at'      => now(),
+                    'status'            => 'fulfilled',
+                    'payment_status'    => 'paid',
+                ]);
             }
 
             return $sale;
