@@ -12,6 +12,12 @@
 
     $orderedSteps = ['store', 'owner', 'locations', 'categories', 'review', 'done'];
     $currentNum   = $steps[$step]['num'] ?? 0;
+    $businessModes = $businessModes ?? \App\Support\BusinessMode::all();
+    $categoryPresets = $categoryPresets ?? [];
+    $setupSecretConfigured = $setupSecretConfigured ?? filled(config('app.setup_secret'));
+    $selectedBusinessMode = \App\Support\BusinessMode::get(old('business_mode', $data['business_mode'] ?? $store['business_mode'] ?? \App\Support\BusinessMode::defaultKey()));
+    $selectedModeKey = $selectedBusinessMode['key'];
+    $selectedModeLabel = $selectedBusinessMode['label'];
 
     $timezones = [
         'Africa/Casablanca' => 'Casablanca (UTC+1)',
@@ -37,18 +43,157 @@
     <title>{{ $isMaintenance ? 'Maintenance' : 'Configuration' }} · LibrairePro</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
-        :root { --brand: #3157D5; }
-        .setup-input {
-            @apply h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400;
-            @apply focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/10;
+        :root {
+            --brand: #3157D5;
+            --brand-dark: #2446b8;
+            --ink: #0f172a;
+            --muted: #64748b;
+            --line: #dbe4f0;
+            --surface: #ffffff;
+            --soft: #f8fafc;
         }
-        .setup-label { @apply block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5; }
-        .setup-btn-primary { @apply inline-flex items-center gap-2 rounded-xl bg-[var(--brand)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20 transition hover:brightness-110 active:scale-[0.98]; }
-        .setup-btn-ghost   { @apply inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50; }
-        .setup-btn-success { @apply inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 active:scale-[0.98]; background:#059669; box-shadow:0 1px 4px rgba(5,150,105,.25); }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background:
+                radial-gradient(circle at top left, rgba(49,87,213,.16), transparent 32rem),
+                radial-gradient(circle at bottom right, rgba(16,185,129,.12), transparent 28rem),
+                linear-gradient(135deg, #f8fafc 0%, #eef4ff 48%, #f8fafc 100%);
+            color: var(--ink);
+        }
+        .setup-panel {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(219, 228, 240, .9);
+            border-radius: 28px;
+            background: rgba(255,255,255,.88);
+            padding: 30px;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, .12);
+            backdrop-filter: blur(18px);
+        }
+        .setup-panel::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 5px;
+            background: linear-gradient(90deg, var(--brand), #10b981, #f59e0b);
+        }
+        .setup-input {
+            width: 100%;
+            min-height: 46px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: #fff;
+            padding: 0 15px;
+            color: var(--ink);
+            font-size: 14px;
+            line-height: 1.4;
+            outline: none;
+            transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+            box-shadow: 0 1px 2px rgba(15,23,42,.03);
+        }
+        .setup-input::placeholder { color: #94a3b8; }
+        .setup-input:hover { border-color: #bdcbe0; }
+        .setup-input:focus {
+            border-color: var(--brand);
+            box-shadow: 0 0 0 4px rgba(49,87,213,.12);
+        }
+        select.setup-input {
+            appearance: none;
+            padding-right: 42px;
+            background-image:
+                linear-gradient(45deg, transparent 50%, #64748b 50%),
+                linear-gradient(135deg, #64748b 50%, transparent 50%);
+            background-position:
+                calc(100% - 20px) 20px,
+                calc(100% - 14px) 20px;
+            background-size: 6px 6px, 6px 6px;
+            background-repeat: no-repeat;
+        }
+        .setup-label {
+            display: block;
+            margin: 0 0 7px;
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+        .setup-btn-primary,
+        .setup-btn-ghost,
+        .setup-btn-success {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border-radius: 14px;
+            padding: 11px 20px;
+            font-size: 14px;
+            font-weight: 800;
+            text-decoration: none;
+            transition: transform .18s ease, box-shadow .18s ease, filter .18s ease, background .18s ease;
+            cursor: pointer;
+        }
+        .setup-btn-primary {
+            border: 0;
+            background: linear-gradient(135deg, var(--brand), #5b7cfa);
+            color: #fff;
+            box-shadow: 0 14px 30px rgba(49,87,213,.28);
+        }
+        .setup-btn-primary:hover { filter: brightness(1.04); box-shadow: 0 18px 38px rgba(49,87,213,.34); }
+        .setup-btn-primary:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+        .setup-btn-ghost {
+            border: 1px solid var(--line);
+            background: #fff;
+            color: #334155;
+            box-shadow: 0 8px 20px rgba(15,23,42,.05);
+        }
+        .setup-btn-ghost:hover { background: #f8fafc; border-color: #cbd5e1; }
+        .setup-btn-success {
+            border: 0;
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: #fff;
+            box-shadow: 0 14px 30px rgba(5,150,105,.25);
+        }
+        .setup-btn-primary:active,
+        .setup-btn-ghost:active,
+        .setup-btn-success:active {
+            transform: translateY(1px) scale(.99);
+        }
+        .setup-choice {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background:
+                linear-gradient(180deg, rgba(255,255,255,.96), rgba(248,250,252,.94));
+            padding: 16px;
+            box-shadow: 0 10px 24px rgba(15,23,42,.06);
+            transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+            cursor: pointer;
+        }
+        .setup-choice:hover {
+            transform: translateY(-2px);
+            border-color: rgba(49,87,213,.45);
+            box-shadow: 0 18px 36px rgba(15,23,42,.11);
+        }
+        .setup-pill {
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: #f8fafc;
+            padding: 7px 11px;
+            color: #475569;
+            font-size: 11px;
+            font-weight: 800;
+            cursor: pointer;
+        }
         .step-done    { background:#10b981; color:#fff; }
         .step-active  { background:var(--brand); color:#fff; }
         .step-pending { background:rgba(255,255,255,.1); color:rgba(255,255,255,.35); }
+        @media (max-width: 640px) {
+            .setup-panel { padding: 22px; border-radius: 22px; }
+        }
     </style>
 </head>
 <body class="min-h-screen bg-slate-100 antialiased">
@@ -112,9 +257,9 @@
             <div class="mt-auto pt-6">
                 <p class="text-[11px] leading-5" style="color:rgba(255,255,255,.25)">
                     @if ($isMaintenance)
-                        Accès permanent via SETUP_SECRET. Les données affichées reflètent l'état actuel en base.
+                        /setup reste disponible via SETUP_SECRET. Les données affichées reflètent l'état actuel en base.
                     @else
-                        Cette session crée la configuration initiale du tenant. Accessible à tout moment pour maintenance.
+                        Déploiement rapide : activité, propriétaire, magasins, catégories et valeurs par défaut.
                     @endif
                 </p>
             </div>
@@ -133,7 +278,7 @@
         </div>
 
         <div class="flex flex-1 items-start justify-center px-5 py-10 sm:px-8">
-            <div class="w-full max-w-xl">
+            <div class="setup-panel w-full max-w-2xl">
 
                 {{-- Errors --}}
                 @if ($errors->any())
@@ -151,7 +296,7 @@
                 @if ($step === 'secret')
                 <div>
                     <div class="mb-8 flex items-center gap-3.5">
-                        <div class="grid size-12 shrink-0 place-items-center rounded-2xl" style="background:var(--brand)/10; border:1px solid rgba(49,87,213,.15)">
+                        <div class="grid size-12 shrink-0 place-items-center rounded-2xl" style="background:rgba(49,87,213,.10); border:1px solid rgba(49,87,213,.15)">
                             <svg class="size-5" style="color:var(--brand)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                         </div>
                         <div>
@@ -169,6 +314,13 @@
                     </div>
                     @endif
 
+                    @unless ($setupSecretConfigured)
+                    <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
+                        <p class="font-semibold">SETUP_SECRET manquant</p>
+                        <p class="mt-1">Ajoutez <code class="rounded bg-white/70 px-1.5 py-0.5 font-mono text-xs">SETUP_SECRET=un-code-fort</code> dans <code class="rounded bg-white/70 px-1.5 py-0.5 font-mono text-xs">.env</code>, puis exécutez <code class="rounded bg-white/70 px-1.5 py-0.5 font-mono text-xs">php artisan optimize:clear</code>. La page /setup restera disponible ensuite pour déploiement et maintenance.</p>
+                    </div>
+                    @endunless
+
                     <form action="{{ route('setup.secret') }}" method="POST" class="space-y-5">
                         @csrf
                         <div>
@@ -178,7 +330,7 @@
                                    placeholder="••••••••••••">
                             @error('secret')<p class="mt-1.5 text-xs font-semibold text-rose-600">{{ $message }}</p>@enderror
                         </div>
-                        <button type="submit" class="setup-btn-primary w-full justify-center py-3 text-base">
+                        <button type="submit" class="setup-btn-primary w-full justify-center py-3 text-base" @disabled(! $setupSecretConfigured)>
                             {{ $isMaintenance ? 'Accéder à la maintenance' : 'Démarrer la configuration' }}
                             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                         </button>
@@ -208,9 +360,9 @@
                             <div>
                                 <label class="setup-label" for="business_mode">Type d'activité *</label>
                                 <select id="business_mode" name="business_mode" required class="setup-input">
-                                    <option value="bookstore" @selected(old('business_mode', $data['business_mode'] ?? 'bookstore') === 'bookstore')>Librairie / Livres</option>
-                                    <option value="retail"    @selected(old('business_mode', $data['business_mode'] ?? '') === 'retail')>Commerce de détail</option>
-                                    <option value="service"   @selected(old('business_mode', $data['business_mode'] ?? '') === 'service')>Services</option>
+                                    @foreach ($businessModes as $modeKey => $mode)
+                                        <option value="{{ $modeKey }}" @selected($selectedModeKey === $modeKey)>{{ $mode['label'] }} — {{ $mode['subtitle'] }}</option>
+                                    @endforeach
                                 </select>
                             </div>
                             <div>
@@ -258,6 +410,23 @@
                                        class="setup-input" placeholder="Rue, Ville, Code postal">
                             </div>
                         </div>
+
+                        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Presets inclus</p>
+                            <div class="mt-3 grid gap-3 sm:grid-cols-3">
+                                @foreach (['library', 'restaurant', 'coffee'] as $presetMode)
+                                    @php $preset = \App\Support\BusinessMode::get($presetMode); @endphp
+                                    <button type="button"
+                                            class="setup-choice text-left"
+                                            data-select-business-mode="{{ $preset['key'] }}">
+                                        <span class="text-sm font-semibold text-slate-900">{{ $preset['short_label'] }}</span>
+                                        <span class="mt-1 block text-xs leading-5 text-slate-500">{{ $preset['subtitle'] }}</span>
+                                    </button>
+                                @endforeach
+                            </div>
+                            <p class="mt-3 text-xs leading-5 text-slate-500">Le type d’activité prépare les catégories, unités et libellés adaptés. Vous pouvez tout modifier plus tard.</p>
+                        </div>
+
                         <div class="flex justify-end pt-2">
                             <button type="submit" class="setup-btn-primary">
                                 Continuer
@@ -402,6 +571,25 @@
 
                     <form action="{{ route('setup.categories.save') }}" method="POST" class="mt-7">
                         @csrf
+                        <div class="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Démarrage rapide</p>
+                                    <p class="mt-1 text-sm text-slate-600">Chargez les catégories standards selon l’activité.</p>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    @foreach (['library', 'restaurant', 'coffee'] as $presetMode)
+                                        @php $preset = \App\Support\BusinessMode::get($presetMode); @endphp
+                                        <button type="button"
+                                                class="setup-pill transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                                                data-category-preset="{{ $preset['key'] }}">
+                                            {{ $preset['short_label'] }}
+                                        </button>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </div>
+
                         <div id="cats-list" class="space-y-2">
                             @php $cats = old('categories', count($data ?? []) ? $data : ['']); @endphp
                             @foreach ($cats as $i => $cat)
@@ -459,7 +647,7 @@
                             </div>
                             <div class="grid gap-x-6 gap-y-2.5 p-4 text-sm sm:grid-cols-2">
                                 <div><span class="text-slate-500">Nom</span><br><strong class="text-slate-900">{{ $store['name'] ?? '—' }}</strong></div>
-                                <div><span class="text-slate-500">Activité</span><br><strong class="text-slate-900">{{ ucfirst($store['business_mode'] ?? '—') }}</strong></div>
+                                <div><span class="text-slate-500">Activité</span><br><strong class="text-slate-900">{{ \App\Support\BusinessMode::get($store['business_mode'] ?? null)['label'] }}</strong></div>
                                 <div><span class="text-slate-500">Devise</span><br><strong class="text-slate-900">{{ $store['currency'] ?? '—' }}</strong></div>
                                 <div><span class="text-slate-500">Fuseau</span><br><strong class="text-slate-900">{{ $store['timezone'] ?? '—' }}</strong></div>
                                 <div><span class="text-slate-500">Langue</span><br><strong class="text-slate-900">{{ $store['language'] === 'ar' ? 'العربية' : 'Français' }}</strong></div>
@@ -612,6 +800,18 @@
 </div>
 
 <script>
+var categoryPresets = @json($categoryPresets);
+
+document.querySelectorAll('[data-select-business-mode]').forEach(function(button) {
+    button.addEventListener('click', function() {
+        var select = document.getElementById('business_mode');
+        if (!select) return;
+        select.value = button.getAttribute('data-select-business-mode');
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        select.focus();
+    });
+});
+
 function reindexLocations() {
     document.querySelectorAll('.location-item').forEach(function(item, i) {
         var label = item.querySelector('.text-slate-400');
@@ -627,8 +827,8 @@ if (addLocBtn) {
     addLocBtn.addEventListener('click', function() {
         var list = document.getElementById('locations-list');
         var idx  = list.querySelectorAll('.location-item').length;
-        var cls  = 'h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#3157D5] focus:ring-2 focus:ring-[#3157D5]/10';
-        var lbl  = 'block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5';
+        var cls  = 'setup-input';
+        var lbl  = 'setup-label';
         var item = document.createElement('div');
         item.className = 'location-item rounded-xl border border-slate-200 bg-white p-4 shadow-sm';
         item.innerHTML =
@@ -652,7 +852,7 @@ if (addCatBtn) {
     addCatBtn.addEventListener('click', function() {
         var list = document.getElementById('cats-list');
         var idx  = list.querySelectorAll('.cat-item').length;
-        var cls  = 'h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#3157D5] focus:ring-2 focus:ring-[#3157D5]/10';
+        var cls  = 'setup-input';
         var item = document.createElement('div');
         item.className = 'cat-item flex items-center gap-2';
         item.innerHTML =
@@ -664,6 +864,33 @@ if (addCatBtn) {
         item.querySelector('input').focus();
     });
 }
+
+function renderCategories(categories) {
+    var list = document.getElementById('cats-list');
+    if (!list) return;
+
+    var cls = 'setup-input';
+    list.innerHTML = '';
+
+    (categories.length ? categories : ['']).forEach(function(category, idx) {
+        var item = document.createElement('div');
+        item.className = 'cat-item flex items-center gap-2';
+        item.innerHTML =
+            '<input name="categories[' + idx + ']" type="text" class="' + cls + '" placeholder="Ex: Romans, Scolaire…" value="">'
+            + (idx > 0
+                ? '<button type="button" onclick="this.closest(\'.cat-item\').remove()" class="grid size-9 shrink-0 place-items-center rounded-xl border border-rose-200 text-rose-500 transition hover:bg-rose-50"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
+                : '<div class="size-9 shrink-0"></div>');
+        list.appendChild(item);
+        item.querySelector('input').value = category;
+    });
+}
+
+document.querySelectorAll('[data-category-preset]').forEach(function(button) {
+    button.addEventListener('click', function() {
+        var mode = button.getAttribute('data-category-preset');
+        renderCategories(categoryPresets[mode] || []);
+    });
+});
 </script>
 </body>
 </html>

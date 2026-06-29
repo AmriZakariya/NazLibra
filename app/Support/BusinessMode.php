@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Tenant;
+use Illuminate\Support\Str;
 
 class BusinessMode
 {
@@ -83,18 +84,74 @@ class BusinessMode
         return 'library';
     }
 
+    public static function accepts(?string $key): bool
+    {
+        $key = self::inputKey($key);
+
+        if ($key === '') {
+            return false;
+        }
+
+        return array_key_exists($key, self::aliases()) || array_key_exists($key, self::all());
+    }
+
     public static function current(?Tenant $tenant): array
     {
-        $key = (string) data_get($tenant?->settings, 'company_profile.business_mode', self::defaultKey());
+        $key = (string) (
+            data_get($tenant?->settings, 'company_profile.business_mode')
+            ?? $tenant?->business_mode
+            ?? $tenant?->mode
+            ?? self::defaultKey()
+        );
 
         return self::get($key);
+    }
+
+    public static function normalize(?string $key): string
+    {
+        $key = self::inputKey($key);
+        $key = self::aliases()[$key] ?? $key;
+
+        return array_key_exists($key, self::all()) ? $key : self::defaultKey();
     }
 
     public static function get(?string $key): array
     {
         $modes = self::all();
-        $key = $key && isset($modes[$key]) ? $key : self::defaultKey();
+        $key = self::normalize($key);
 
         return ['key' => $key] + $modes[$key];
+    }
+
+    private static function inputKey(?string $key): string
+    {
+        return Str::of((string) $key)->lower()->trim()->replace([' ', '-'], '_')->toString();
+    }
+
+    private static function aliases(): array
+    {
+        return [
+            '' => self::defaultKey(),
+            'bookstore' => 'library',
+            'books' => 'library',
+            'book' => 'library',
+            'livrairie' => 'library',
+            'bibliotheque' => 'library',
+            'library' => 'library',
+            'restaurant' => 'restaurant',
+            'resto' => 'restaurant',
+            'coffee' => 'coffee',
+            'cafe' => 'coffee',
+            'coffee_shop' => 'coffee',
+            'pharmacy' => 'pharmacy',
+            'pharmacie' => 'pharmacy',
+            'drugstore' => 'drugstore',
+            'droguerie' => 'drugstore',
+            'retail' => 'retail',
+            'commerce' => 'retail',
+            'service' => 'retail',
+            'services' => 'retail',
+            'hybrid' => 'retail',
+        ];
     }
 }

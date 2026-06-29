@@ -10,11 +10,13 @@ use App\Models\Tax;
 use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\User;
+use App\Support\BusinessMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class SetupController extends Controller
@@ -24,6 +26,24 @@ class SetupController extends Controller
     private function isMaintenance(): bool
     {
         return Tenant::exists();
+    }
+
+    private function setupSecret(): ?string
+    {
+        $secret = config('app.setup_secret');
+
+        return is_string($secret) && trim($secret) !== '' ? $secret : null;
+    }
+
+    private function setupView(string $step, array $data = []): View
+    {
+        return view('setup', array_merge([
+            'step'                  => $step,
+            'isMaintenance'         => $this->isMaintenance(),
+            'businessModes'         => BusinessMode::all(),
+            'categoryPresets'       => $this->categoryPresets(),
+            'setupSecretConfigured' => $this->setupSecret() !== null,
+        ], $data));
     }
 
     private function guardAuthorized(): void
@@ -38,6 +58,7 @@ class SetupController extends Controller
     private function preloadFromTenant(Tenant $tenant): void
     {
         $profile = $tenant->settings['company_profile'] ?? [];
+        $mode = BusinessMode::current($tenant)['key'];
 
         if (! session('setup.store')) {
             session(['setup.store' => [
@@ -48,7 +69,7 @@ class SetupController extends Controller
                 'currency'      => $tenant->currency ?? 'MAD',
                 'timezone'      => $tenant->timezone ?? 'Africa/Casablanca',
                 'language'      => $profile['language_id'] ?? 'fr',
-                'business_mode' => $tenant->mode ?? 'bookstore',
+                'business_mode' => $mode,
             ]]);
         }
 
@@ -78,7 +99,7 @@ class SetupController extends Controller
                 ->pluck('name')
                 ->all();
 
-            session(['setup.categories' => $cats]);
+            session(['setup.categories' => $cats ?: $this->defaultCategoriesForMode($mode)]);
         }
     }
 
@@ -90,16 +111,20 @@ class SetupController extends Controller
             return redirect(route('setup.store'));
         }
 
-        return view('setup', ['step' => 'secret', 'isMaintenance' => $this->isMaintenance()]);
+        return $this->setupView('secret');
     }
 
     public function storeSecret(Request $request): RedirectResponse
     {
         $request->validate(['secret' => ['required', 'string']]);
 
-        $expected = env('SETUP_SECRET');
+        $expected = $this->setupSecret();
 
-        if (! $expected || $request->input('secret') !== $expected) {
+        if (! $expected) {
+            return back()->withErrors(['secret' => 'SETUP_SECRET n’est pas configuré. Ajoutez SETUP_SECRET dans .env puis exécutez php artisan optimize:clear.']);
+        }
+
+        if (! hash_equals($expected, (string) $request->input('secret'))) {
             return back()->withErrors(['secret' => 'Code secret incorrect.']);
         }
 
@@ -119,9 +144,7 @@ class SetupController extends Controller
     {
         $this->guardAuthorized();
 
-        return view('setup', [
-            'step'           => 'store',
-            'isMaintenance'  => $this->isMaintenance(),
+        return $this->setupView('store', [
             'data'           => session('setup.store', []),
         ]);
     }
@@ -130,15 +153,26 @@ class SetupController extends Controller
     {
         $this->guardAuthorized();
 
+        if (! BusinessMode::accepts($request->input('business_mode'))) {
+            return back()
+                ->withErrors(['business_mode' => 'Type d’activité invalide.'])
+                ->withInput();
+        }
+
+        $request->merge([
+            'business_mode' => BusinessMode::normalize($request->input('business_mode')),
+            'currency' => Str::upper((string) $request->input('currency', 'MAD')),
+        ]);
+
         $data = $request->validate([
             'name'          => ['required', 'string', 'max:100'],
             'email'         => ['nullable', 'email', 'max:100'],
             'phone'         => ['nullable', 'string', 'max:30'],
             'address'       => ['nullable', 'string', 'max:200'],
-            'currency'      => ['required', 'string', 'max:5'],
-            'timezone'      => ['required', 'string', 'max:60'],
+            'currency'      => ['required', 'string', 'size:3'],
+            'timezone'      => ['required', 'timezone:all'],
             'language'      => ['required', 'in:fr,ar'],
-            'business_mode' => ['required', 'in:bookstore,retail,service'],
+            'business_mode' => ['required', Rule::in(array_keys(BusinessMode::all()))],
         ]);
 
         session(['setup.store' => $data]);
@@ -152,9 +186,7 @@ class SetupController extends Controller
     {
         $this->guardAuthorized();
 
-        return view('setup', [
-            'step'          => 'owner',
-            'isMaintenance' => $this->isMaintenance(),
+        return $this->setupView('owner', [
             'data'          => session('setup.owner', []),
         ]);
     }
@@ -189,9 +221,7 @@ class SetupController extends Controller
     {
         $this->guardAuthorized();
 
-        return view('setup', [
-            'step'          => 'locations',
-            'isMaintenance' => $this->isMaintenance(),
+        return $this->setupView('locations', [
             'data'          => session('setup.locations', [['name' => '', 'address' => '', 'phone' => '']]),
         ]);
     }
@@ -218,10 +248,11 @@ class SetupController extends Controller
     {
         $this->guardAuthorized();
 
-        return view('setup', [
-            'step'          => 'categories',
-            'isMaintenance' => $this->isMaintenance(),
-            'data'          => session('setup.categories', []),
+        $mode = BusinessMode::normalize(session('setup.store.business_mode', BusinessMode::defaultKey()));
+
+        return $this->setupView('categories', [
+            'data'          => session('setup.categories', $this->defaultCategoriesForMode($mode)),
+            'selectedMode'  => $mode,
         ]);
     }
 
@@ -234,7 +265,18 @@ class SetupController extends Controller
             'categories.*' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $cats = array_values(array_filter(array_map('trim', $data['categories'] ?? [])));
+        $seen = [];
+        $cats = [];
+        foreach ($data['categories'] ?? [] as $category) {
+            $category = trim((string) $category);
+            $key = Str::lower($category);
+            if ($category === '' || isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $cats[] = $category;
+        }
         session(['setup.categories' => $cats]);
 
         return redirect(route('setup.review'));
@@ -250,9 +292,7 @@ class SetupController extends Controller
             return redirect(route('setup.store'));
         }
 
-        return view('setup', [
-            'step'          => 'review',
-            'isMaintenance' => $this->isMaintenance(),
+        return $this->setupView('review', [
             'store'         => session('setup.store'),
             'owner'         => session('setup.owner'),
             'locations'     => session('setup.locations', []),
@@ -296,8 +336,7 @@ class SetupController extends Controller
             return redirect(route('setup.index'));
         }
 
-        return view('setup', [
-            'step'          => 'done',
+        return $this->setupView('done', [
             'isMaintenance' => session('setup_was_maintenance', false),
         ]);
     }
@@ -307,6 +346,8 @@ class SetupController extends Controller
     private function createFresh(array $storeData, array $ownerData, array $locationsData, array $categoriesData): void
     {
         DB::transaction(function () use ($storeData, $ownerData, $locationsData, $categoriesData): void {
+            $storeData['business_mode'] = BusinessMode::normalize($storeData['business_mode'] ?? null);
+            $categoriesData = $categoriesData ?: $this->defaultCategoriesForMode($storeData['business_mode']);
             [$tenant, $slug, $storeNames, $locationsList] = $this->buildTenant($storeData, $locationsData);
 
             // System roles
@@ -346,7 +387,7 @@ class SetupController extends Controller
             }
 
             // Defaults
-            $this->seedDefaults($tenant, $slug);
+            $this->seedDefaults($tenant, $slug, $storeData['business_mode']);
         });
     }
 
@@ -355,6 +396,8 @@ class SetupController extends Controller
         $tenant = Tenant::firstOrFail();
 
         DB::transaction(function () use ($tenant, $storeData, $ownerData, $locationsData, $categoriesData): void {
+            $storeData['business_mode'] = BusinessMode::normalize($storeData['business_mode'] ?? null);
+            $categoriesData = $categoriesData ?: $this->defaultCategoriesForMode($storeData['business_mode']);
             $slug     = Str::slug($storeData['name']) ?: Str::slug($tenant->name);
             $locale   = $storeData['language'] === 'ar' ? 'ar_MA' : 'fr_MA';
             $storeKey = $slug;
@@ -385,15 +428,16 @@ class SetupController extends Controller
             ]);
 
             $tenant->update([
-                'name'     => $storeData['name'],
-                'mode'     => $storeData['business_mode'],
-                'currency' => $storeData['currency'],
-                'locale'   => $locale,
-                'timezone' => $storeData['timezone'],
-                'phone'    => $storeData['phone'] ?? null,
-                'email'    => $storeData['email'] ?? null,
-                'address'  => $storeData['address'] ?? null,
-                'settings' => $mergedSettings,
+                'name'          => $storeData['name'],
+                'mode'          => $storeData['business_mode'],
+                'business_mode' => $storeData['business_mode'],
+                'currency'      => $storeData['currency'],
+                'locale'        => $locale,
+                'timezone'      => $storeData['timezone'],
+                'phone'         => $storeData['phone'] ?? null,
+                'email'         => $storeData['email'] ?? null,
+                'address'       => $storeData['address'] ?? null,
+                'settings'      => $mergedSettings,
             ]);
 
             // Update owner user
@@ -449,9 +493,47 @@ class SetupController extends Controller
 
     // ─── Shared helpers ───────────────────────────────────────────────────────
 
+    private function categoryPresets(): array
+    {
+        return [
+            'library' => $this->defaultCategoriesForMode('library'),
+            'restaurant' => $this->defaultCategoriesForMode('restaurant'),
+            'coffee' => $this->defaultCategoriesForMode('coffee'),
+            'pharmacy' => $this->defaultCategoriesForMode('pharmacy'),
+            'drugstore' => $this->defaultCategoriesForMode('drugstore'),
+            'retail' => $this->defaultCategoriesForMode('retail'),
+        ];
+    }
+
+    private function defaultCategoriesForMode(?string $mode): array
+    {
+        return match (BusinessMode::normalize($mode)) {
+            'restaurant' => ['Entrées', 'Plats', 'Menus', 'Desserts', 'Boissons', 'Suppléments'],
+            'coffee' => ['Cafés', 'Thés', 'Boissons froides', 'Pâtisseries', 'Snacks', 'Formules'],
+            'pharmacy' => ['Médicaments', 'Parapharmacie', 'Hygiène', 'Bébé', 'Compléments', 'Services'],
+            'drugstore' => ['Droguerie', 'Quincaillerie', 'Maison', 'Bricolage', 'Nettoyage', 'Services'],
+            'retail' => ['Produits', 'Accessoires', 'Services', 'Promotions', 'Nouveautés', 'Divers'],
+            default => ['Romans', 'Scolaire', 'Papeterie', 'Fournitures', 'Services', 'Informatique'],
+        };
+    }
+
+    private function uniqueTenantSlug(string $base): string
+    {
+        $slug = $base;
+        $suffix = 2;
+
+        while (Tenant::where('slug', $slug)->exists()) {
+            $slug = $base.'-'.$suffix;
+            $suffix++;
+        }
+
+        return $slug;
+    }
+
     private function buildTenant(array $storeData, array $locationsData): array
     {
-        $slug     = Str::slug($storeData['name']) ?: 'store';
+        $storeData['business_mode'] = BusinessMode::normalize($storeData['business_mode'] ?? null);
+        $slug     = $this->uniqueTenantSlug(Str::slug($storeData['name']) ?: 'store');
         $locale   = $storeData['language'] === 'ar' ? 'ar_MA' : 'fr_MA';
         $storeKey = $slug;
 
@@ -468,17 +550,18 @@ class SetupController extends Controller
         $storeNames = array_column($locationsList, 'name');
 
         $tenant = Tenant::create([
-            'name'     => $storeData['name'],
-            'slug'     => $slug,
-            'mode'     => $storeData['business_mode'],
-            'plan'     => 'pro',
-            'currency' => $storeData['currency'],
-            'locale'   => $locale,
-            'timezone' => $storeData['timezone'],
-            'phone'    => $storeData['phone'] ?? null,
-            'email'    => $storeData['email'] ?? null,
-            'address'  => $storeData['address'] ?? null,
-            'settings' => [
+            'name'          => $storeData['name'],
+            'slug'          => $slug,
+            'mode'          => $storeData['business_mode'],
+            'business_mode' => $storeData['business_mode'],
+            'plan'          => 'pro',
+            'currency'      => $storeData['currency'],
+            'locale'        => $locale,
+            'timezone'      => $storeData['timezone'],
+            'phone'         => $storeData['phone'] ?? null,
+            'email'         => $storeData['email'] ?? null,
+            'address'       => $storeData['address'] ?? null,
+            'settings'      => [
                 'receipt_header'  => $storeData['name'],
                 'languages'       => $storeData['language'] === 'ar' ? ['ar', 'fr'] : ['fr', 'ar'],
                 'current_store'   => $storeKey,
@@ -508,9 +591,24 @@ class SetupController extends Controller
         ];
     }
 
-    private function seedDefaults(Tenant $tenant, string $storeKey): void
+    private function seedDefaults(Tenant $tenant, string $storeKey, ?string $mode = null): void
     {
-        foreach ([['Pièce', 'Unité standard'], ['Pack', 'Lot composé'], ['Boîte', 'Conditionnement'], ['Service', 'Prestation non physique']] as [$n, $d]) {
+        $unitDefaults = match (BusinessMode::normalize($mode)) {
+            'restaurant', 'coffee' => [
+                ['Pièce', 'Unité standard'],
+                ['Portion', 'Portion servie'],
+                ['Menu', 'Formule ou menu composé'],
+                ['Service', 'Prestation non physique'],
+            ],
+            default => [
+                ['Pièce', 'Unité standard'],
+                ['Pack', 'Lot composé'],
+                ['Boîte', 'Conditionnement'],
+                ['Service', 'Prestation non physique'],
+            ],
+        };
+
+        foreach ($unitDefaults as [$n, $d]) {
             Unit::firstOrCreate(['tenant_id' => $tenant->id, 'name' => $n], ['description' => $d]);
         }
         foreach ([['Sans TVA', 0, true], ['TVA 20%', 20, true], ['TVA 7%', 7, false]] as [$n, $rate, $active]) {

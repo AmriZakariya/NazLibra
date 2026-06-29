@@ -62,6 +62,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Setup / Maintenance Secret
+    |--------------------------------------------------------------------------
+    |
+    | /setup stays available for first deployment and later maintenance, but it
+    | is gated by this shared secret. Keep it set in production and clear the
+    | config cache after changing SETUP_SECRET.
+    |
+    */
+
+    'setup_secret' => env('SETUP_SECRET'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

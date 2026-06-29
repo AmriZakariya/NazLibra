@@ -9,7 +9,7 @@ use App\Http\Controllers\VariantController;
 use App\Http\Controllers\VirtualDeviceController;
 use Illuminate\Support\Facades\Route;
 
-// ─── Setup wizard (only accessible when no tenant exists) ─────────────────────
+// ─── Setup / maintenance wizard (always gated by SETUP_SECRET) ───────────────
 Route::prefix('setup')->name('setup.')->group(function (): void {
     Route::get('/',            [SetupController::class, 'index'])->name('index');
     Route::post('/secret',     [SetupController::class, 'storeSecret'])->name('secret');
