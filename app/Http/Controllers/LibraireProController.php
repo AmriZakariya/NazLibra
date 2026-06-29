@@ -3328,7 +3328,7 @@ class LibraireProController extends Controller
         ]);
 
         $tenant->users()->syncWithoutDetaching([
-            $user->id => $this->tenantUserPayload($data),
+            $user->id => $this->tenantUserPayload($data, $tenant),
         ]);
 
         return redirect()
@@ -3373,7 +3373,7 @@ class LibraireProController extends Controller
         }
 
         $user->update($payload);
-        $tenant->users()->updateExistingPivot($user->id, $this->tenantUserPayload($data));
+        $tenant->users()->updateExistingPivot($user->id, $this->tenantUserPayload($data, $tenant));
 
         return redirect()
             ->route('module', ['module' => 'settings', 'section' => 'users'])
@@ -9138,7 +9138,16 @@ class LibraireProController extends Controller
 
     private function validateUserAccess(Request $request, Tenant $tenant, ?\App\Models\User $user = null): array
     {
-        $roleKeys = Role::where('tenant_id', $tenant->id)->pluck('key')->all();
+        // System roles cannot be assigned through the user form
+        $roleKeys = Role::where('tenant_id', $tenant->id)->where('is_system', false)->pluck('key')->all();
+
+        // If editing an existing user who already holds a system role, preserve it unchanged
+        $existingRole = $user ? ($tenant->users()->whereKey($user->id)->first()?->pivot?->role ?? '') : '';
+        $existingRoleIsSystem = $existingRole && Role::where('tenant_id', $tenant->id)->where('key', $existingRole)->where('is_system', true)->exists();
+        if ($existingRoleIsSystem) {
+            $roleKeys[] = $existingRole;
+        }
+
         $permissionKeys = array_keys($this->permissionCatalog());
 
         $data = $request->validate([
@@ -9200,11 +9209,21 @@ class LibraireProController extends Controller
         }
     }
 
-    private function tenantUserPayload(array $data): array
+    private function tenantUserPayload(array $data, ?Tenant $tenant = null): array
     {
+        $role = $data['role'];
+
+        // System-role users always get access to every store — cannot be restricted.
+        if ($tenant && Role::where('tenant_id', $tenant->id)->where('key', $role)->where('is_system', true)->exists()) {
+            $allStores = $this->storeAccessOptions($tenant);
+            $storeAccess = json_encode(array_values($allStores), JSON_UNESCAPED_UNICODE);
+        } else {
+            $storeAccess = json_encode(array_values(array_filter($data['store_access'] ?? [])), JSON_UNESCAPED_UNICODE);
+        }
+
         return [
-            'role' => $data['role'],
-            'store_access' => json_encode(array_values(array_filter($data['store_access'] ?? [])), JSON_UNESCAPED_UNICODE),
+            'role'         => $role,
+            'store_access' => $storeAccess,
         ];
     }
 

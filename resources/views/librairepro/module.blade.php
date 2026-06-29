@@ -4676,7 +4676,7 @@
                                                 $visibleStores = collect($userStores)->take(2)->implode(', ');
                                                 $extraStoresCount = max(count($userStores) - 2, 0);
                                             @endphp
-                                            <tr class="cursor-pointer bg-white align-middle transition hover:bg-slate-50 dark:bg-transparent dark:hover:bg-white/5" ondblclick="document.getElementById('user-edit-{{ $user->id }}').showModal()">
+                                            <tr class="cursor-pointer align-middle transition {{ $user->pivot->role === 'owner' ? 'bg-brand/[0.03] hover:bg-brand/[0.06] dark:bg-brand/[0.05] dark:hover:bg-brand/10' : 'bg-white hover:bg-slate-50 dark:bg-transparent dark:hover:bg-white/5' }}" ondblclick="document.getElementById('user-edit-{{ $user->id }}').showModal()">
                                                 <td class="px-4 py-4">
                                                     <div class="flex min-w-0 items-center gap-3">
                                                         <x-user-avatar :user="$user" size="md" rounded="rounded-xl" />
@@ -4687,13 +4687,28 @@
                                                     </div>
                                                 </td>
                                                 <td class="px-4 py-4">
-                                                    <a href="{{ route('module', ['module' => 'settings', 'section' => 'roles', 'edit_role' => $user->pivot->role]) }}" class="inline-block transition hover:brightness-110"><x-status-pill tone="info">{{ $userRole?->name ?? $user->pivot->role }}</x-status-pill></a>
+                                                    <div class="flex flex-wrap items-center gap-1.5">
+                                                        <a href="{{ route('module', ['module' => 'settings', 'section' => 'roles', 'edit_role' => $user->pivot->role]) }}" class="inline-block transition hover:brightness-110" ondblclick="event.preventDefault();"><x-status-pill tone="info">{{ $userRole?->name ?? $user->pivot->role }}</x-status-pill></a>
+                                                        @if ($userRole?->is_system)
+                                                            <span class="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand dark:bg-brand/20">
+                                                                <svg class="size-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                                                Système
+                                                            </span>
+                                                        @endif
+                                                    </div>
                                                     <p class="mt-1 text-xs text-slate-500">Clé: {{ $user->pivot->role }}</p>
                                                 </td>
                                                 <td class="px-4 py-4">
-                                                    <span class="font-medium text-slate-700 dark:text-slate-200">{{ $visibleStores ?: 'Aucun accès' }}</span>
-                                                    @if ($extraStoresCount > 0)
-                                                        <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">+{{ $extraStoresCount }}</span>
+                                                    @if ($userRole?->is_system)
+                                                        <span class="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand dark:bg-brand/20">
+                                                            <svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                                                            Tous les magasins
+                                                        </span>
+                                                    @else
+                                                        <span class="font-medium text-slate-700 dark:text-slate-200">{{ $visibleStores ?: 'Aucun accès' }}</span>
+                                                        @if ($extraStoresCount > 0)
+                                                            <span class="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">+{{ $extraStoresCount }}</span>
+                                                        @endif
                                                     @endif
                                                 </td>
                                                 <td class="px-4 py-4">
@@ -4747,7 +4762,18 @@
                                                                 @if ($canManageUserPins)
                                                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">PIN caisse</span><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="4 chiffres"></label>
                                                                 @endif
-                                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Rôle *</span><select name="role" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($settingsRoles as $role)<option value="{{ $role->key }}" @selected($user->pivot->role === $role->key)>{{ $role->name }}</option>@endforeach</select></label>
+                                                                @if ($userRole?->is_system)
+                                                                <div class="space-y-1.5">
+                                                                    <span class="text-xs font-semibold uppercase text-slate-500">Rôle</span>
+                                                                    <div class="flex h-11 items-center gap-2 rounded-lg border border-brand/20 bg-brand/5 px-3 text-sm font-semibold text-brand dark:border-brand/20 dark:bg-brand/10">
+                                                                        <svg class="size-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                                                        {{ $userRole->name }} — rôle système
+                                                                    </div>
+                                                                    <input type="hidden" name="role" value="{{ $user->pivot->role }}">
+                                                                </div>
+                                                                @else
+                                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Rôle *</span><select name="role" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($settingsRoles->where('is_system', false) as $role)<option value="{{ $role->key }}" @selected($user->pivot->role === $role->key)>{{ $role->name }}</option>@endforeach</select></label>
+                                                                @endif
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Couleur avatar</span><input name="avatar_color" type="color" value="{{ $user->avatar_color }}" class="h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900"></label>
                                                                 <label class="space-y-1.5 md:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Photo de profil</span><input name="profile_photo" type="file" accept="image/*" class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white dark:border-white/10 dark:bg-slate-900"></label>
                                                                 @if ($user->profile_photo_path)
@@ -4760,14 +4786,24 @@
                                                             </div>
                                                         </section>
                                                         <section class="grid gap-4">
-                                                            <fieldset class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-                                                                <legend class="px-1 text-xs font-semibold uppercase text-slate-500">Accès magasin</legend>
-                                                                <div class="mt-2 grid max-h-40 gap-2 overflow-y-auto sm:grid-cols-2">
-                                                                    @foreach ($storeAccessOptions as $store)
-                                                                        <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-white/5"><input name="store_access[]" value="{{ $store }}" type="checkbox" @checked(in_array($store, $userStores, true)) class="size-4 accent-[var(--brand-primary)]"> {{ $store }}</label>
-                                                                    @endforeach
+                                                            @if ($userRole?->is_system)
+                                                                <div class="flex items-center gap-3 rounded-xl border border-brand/20 bg-brand/[0.04] p-4 dark:border-brand/30 dark:bg-brand/10">
+                                                                    <svg class="size-5 shrink-0 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                                                                    <div>
+                                                                        <p class="text-sm font-semibold text-brand">Accès à tous les magasins</p>
+                                                                        <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Le rôle système dispose d'un accès complet à tous les magasins. Cette restriction ne peut pas être modifiée.</p>
+                                                                    </div>
                                                                 </div>
-                                                            </fieldset>
+                                                            @else
+                                                                <fieldset class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                                                                    <legend class="px-1 text-xs font-semibold uppercase text-slate-500">Accès magasin</legend>
+                                                                    <div class="mt-2 grid max-h-40 gap-2 overflow-y-auto sm:grid-cols-2">
+                                                                        @foreach ($storeAccessOptions as $store)
+                                                                            <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-white/5"><input name="store_access[]" value="{{ $store }}" type="checkbox" @checked(in_array($store, $userStores, true)) class="size-4 accent-[var(--brand-primary)]"> {{ $store }}</label>
+                                                                        @endforeach
+                                                                    </div>
+                                                                </fieldset>
+                                                            @endif
                                                         </section>
                                                         </div>
                                                     </div>
@@ -4779,11 +4815,15 @@
                                                         </div>
                                                     </div>
                                                 </form>
-                                                <form action="{{ route('settings.users.destroy', $user) }}" method="POST" class="px-5 pb-5 text-right" onsubmit="return confirm('Retirer l’accès de cet utilisateur ?')">
+                                                @if (!$userRole?->is_system)
+                                                <form action="{{ route(‘settings.users.destroy’, $user) }}" method="POST" class="px-5 pb-5 text-right" onsubmit="return confirm(‘Retirer l\’accès de cet utilisateur ?’)">
                                                     @csrf
-                                                    @method('DELETE')
+                                                    @method(‘DELETE’)
                                                     <button class="text-sm font-semibold text-rose-600">Retirer accès</button>
                                                 </form>
+                                                @else
+                                                <p class="px-5 pb-5 text-right text-xs text-slate-400">L’accès du propriétaire système ne peut pas être retiré.</p>
+                                                @endif
                                             </dialog>
                                             @if ($canManageUserPins)
                                             <dialog id="user-pin-{{ $user->id }}" class="app-dialog w-full max-w-[420px] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
@@ -4882,7 +4922,7 @@
                                         @if ($canManageUserPins)
                                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">PIN caisse</span><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="4 chiffres"></label>
                                         @endif
-                                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Rôle *</span><select name="role" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($settingsRoles as $role)<option value="{{ $role->key }}">{{ $role->name }}</option>@endforeach</select></label>
+                                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Rôle *</span><select name="role" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($settingsRoles->where('is_system', false) as $role)<option value="{{ $role->key }}">{{ $role->name }}</option>@endforeach</select></label>
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Couleur avatar</span><input name="avatar_color" type="color" value="#3157D5" class="h-11 w-full rounded-lg border border-slate-200 p-1 dark:border-white/10 dark:bg-slate-900"></label>
                                         <label class="space-y-1.5 md:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Photo de profil</span><input name="profile_photo" type="file" accept="image/*" class="block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-brand file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white dark:border-white/10 dark:bg-slate-900"></label>
                                         <label class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10"><input name="is_active" value="1" checked type="checkbox" class="size-4 accent-[var(--brand-primary)]"> Compte actif</label>
@@ -4914,7 +4954,27 @@
                     <form action="{{ route('settings.roles.store') }}" method="POST" class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">@csrf<div class="grid gap-3 lg:grid-cols-[1fr_1fr_auto]"><input name="name" required class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom du rôle"><input name="key" required class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="clé: manager_stock"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Créer rôle</button></div><div class="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">@foreach ($permissionCatalog as $key => $label)<label class="flex items-center gap-2 text-sm"><input name="permissions[]" value="{{ $key }}" type="checkbox" class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>@endforeach</div></form>
                     <div class="mt-5 grid gap-3">
                         @foreach ($settingsRoles as $role)
+                            @if ($role->is_system)
+                            {{-- System role: read-only, cannot be edited or deleted --}}
+                            <div id="role-detail-{{ $role->key }}" class="rounded-xl border border-brand/20 bg-brand/[0.03] p-4 dark:border-brand/20 dark:bg-brand/[0.06]">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <strong class="text-slate-950 dark:text-white">{{ $role->name }}</strong>
+                                            <span class="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand dark:bg-brand/20">
+                                                <svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                                Rôle système
+                                            </span>
+                                        </div>
+                                        <small class="mt-1 block text-slate-500">{{ $role->key }} · Accès complet à toutes les fonctionnalités</small>
+                                    </div>
+                                </div>
+                                <p class="mt-3 border-t border-brand/10 pt-3 text-xs text-slate-500 dark:border-brand/10">Ce rôle est défini par le système. Il ne peut pas être modifié ni supprimé. Seul le premier utilisateur peut en être titulaire.</p>
+                            </div>
+                            @else
+                            {{-- Regular role: fully editable --}}
                             <details id="role-detail-{{ $role->key }}" class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40"><summary class="flex cursor-pointer list-none items-center justify-between"><span><strong>{{ $role->name }}</strong><small class="mt-1 block text-slate-500">{{ $role->key }} · {{ count($role->permissions ?? []) }} permission(s)</small></span><span class="text-xs font-semibold text-brand">Modifier</span></summary><form action="{{ route('settings.roles.update', $role) }}" method="POST" class="mt-4 border-t border-slate-200 pt-4 dark:border-white/10">@csrf @method('PUT')<div class="grid gap-3 lg:grid-cols-2"><input name="name" required value="{{ $role->name }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="key" required value="{{ $role->key }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></div><div class="mt-3 grid max-h-48 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">@foreach ($permissionCatalog as $key => $label)<label class="flex items-center gap-2 text-sm"><input name="permissions[]" value="{{ $key }}" type="checkbox" @checked(in_array($key, $role->permissions ?? [], true)) class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>@endforeach</div><div class="mt-3 flex justify-end gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer rôle</button></div></form><form action="{{ route('settings.roles.destroy', $role) }}" method="POST" class="mt-2 flex justify-end" onsubmit="return confirm('Supprimer ce rôle ?')">@csrf @method('DELETE')<button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 dark:border-rose-500/30">Supprimer</button></form></details>
+                            @endif
                         @endforeach
                     </div>
                 </article>
