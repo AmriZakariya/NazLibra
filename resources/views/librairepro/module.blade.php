@@ -4235,87 +4235,184 @@
 
                 @elseif ($settingsSection === 'demo-data')
                     @php
+                        $demoModeKey = $currentBusinessMode['key'] ?? 'library';
+                        $demoModeProfile = match ($demoModeKey) {
+                            'restaurant' => [
+                                'emoji' => '🍽️',
+                                'label' => 'Restaurant',
+                                'scenario' => 'Préparez un restaurant propre pour montrer menu, rush comptoir, achats cuisine, caisse et rapports.',
+                                'keep' => ['Société', 'utilisateurs', 'rôles', 'magasins', 'paramètres caisse'],
+                                'before' => ['Fermer le tiroir caisse ouvert', 'Imprimer/exporter les tickets nécessaires', 'Vérifier que les commandes de test peuvent être supprimées'],
+                                'after' => ['Créer 5-8 plats/menus', 'Ajouter une caisse active', 'Tester une vente depuis /caisse'],
+                            ],
+                            'coffee' => [
+                                'emoji' => '☕',
+                                'label' => 'Café',
+                                'scenario' => 'Préparez un café / coffee shop pour démontrer tickets rapides, boissons, snacks, stock comptoir et remises.',
+                                'keep' => ['Société', 'utilisateurs', 'rôles', 'magasins', 'paramètres boutique'],
+                                'before' => ['Fermer la session caisse', 'Sauver les rapports Z utiles', 'Vérifier les avances clients à conserver'],
+                                'after' => ['Créer boissons/snacks', 'Ajouter quelques stocks initiaux', 'Tester un ticket rapide'],
+                            ],
+                            default => [
+                                'emoji' => '📚',
+                                'label' => 'Librairie',
+                                'scenario' => 'Préparez une librairie propre pour montrer catalogue, caisse, précommandes, stock, achats et clients.',
+                                'keep' => ['Société', 'utilisateurs', 'rôles', 'magasins', 'paramètres documents'],
+                                'before' => ['Exporter les ventes à garder', 'Fermer le tiroir caisse ouvert', 'Vérifier les précommandes à conserver'],
+                                'after' => ['Importer livres/fournitures', 'Créer quelques clients', 'Tester une vente depuis /caisse'],
+                            ],
+                        };
                         $demoActions = [
                             'clear_sales' => [
                                 'icon' => '🧾',
                                 'tone' => 'rose',
                                 'title' => 'Clear all sales',
+                                'short' => 'Ventes & tickets',
+                                'group' => 'Transactions',
                                 'description' => 'Supprime ventes, paiements, retours, livraisons, tickets POS et mouvements caisse liés aux ventes.',
+                                'edge' => 'Détache les précommandes/devis convertis avant suppression.',
                                 'count' => $demoMaintenanceStats['sales'] ?? 0,
                             ],
                             'clear_inventory' => [
                                 'icon' => '📦',
                                 'tone' => 'amber',
                                 'title' => 'Clear all inventory data',
+                                'short' => 'Stock seulement',
+                                'group' => 'Stock',
                                 'description' => 'Vide mouvements stock, inventaires, ajustements, transferts et remet les quantités articles/variantes à zéro.',
+                                'edge' => 'Garde les articles; utile avant une nouvelle réception/import.',
                                 'count' => $demoMaintenanceStats['inventory_rows'] ?? 0,
                             ],
                             'clear_items' => [
                                 'icon' => '📚',
                                 'tone' => 'rose',
                                 'title' => 'Clear items',
+                                'short' => $demoModeKey === 'restaurant' ? 'Menu/plats' : ($demoModeKey === 'coffee' ? 'Boissons/snacks' : 'Articles/services'),
+                                'group' => 'Catalogue',
                                 'description' => 'Nettoie transactions dépendantes puis supprime articles, services, variantes et prêts liés au catalogue.',
+                                'edge' => 'Exécute aussi ventes, achats, documents, finance et stock dépendants.',
                                 'count' => $demoMaintenanceStats['items'] ?? 0,
                             ],
                             'clear_online_orders' => [
                                 'icon' => '🌐',
                                 'tone' => 'amber',
                                 'title' => 'Clear online orders',
+                                'short' => 'Commandes web',
+                                'group' => 'Commandes',
                                 'description' => 'Supprime toutes les précommandes web/WhatsApp et leurs lignes.',
+                                'edge' => 'Détache les ventes issues de précommandes avant nettoyage.',
                                 'count' => $demoMaintenanceStats['online_orders'] ?? 0,
                             ],
                             'clear_purchases' => [
                                 'icon' => '🚚',
                                 'tone' => 'amber',
                                 'title' => 'Clear purchases',
+                                'short' => 'Achats',
+                                'group' => 'Fournisseurs',
                                 'description' => 'Supprime achats, réceptions, paiements fournisseurs, retours achat et stock généré par achat.',
+                                'edge' => 'À utiliser avant de rejouer une démo réception fournisseur.',
                                 'count' => $demoMaintenanceStats['purchases'] ?? 0,
                             ],
                             'clear_documents' => [
                                 'icon' => '📄',
                                 'tone' => 'amber',
                                 'title' => 'Clear invoices & estimates',
+                                'short' => 'Documents',
+                                'group' => 'Documents',
                                 'description' => 'Supprime factures, devis, paiements de facture, historiques documentaires et séquences FAC/DEV.',
+                                'edge' => 'Libère les séquences documentaires de démo.',
                                 'count' => ($demoMaintenanceStats['invoices'] ?? 0) + ($demoMaintenanceStats['estimates'] ?? 0),
                             ],
                             'clear_finance' => [
                                 'icon' => '💳',
                                 'tone' => 'amber',
                                 'title' => 'Clear finance/demo payments',
+                                'short' => 'Finance',
+                                'group' => 'Caisse & comptes',
                                 'description' => 'Supprime dépenses, avances, coupons, remises, transactions comptes et sessions de caisse.',
+                                'edge' => 'Remet les soldes clients à zéro et les comptes à leur solde d’ouverture.',
                                 'count' => $demoMaintenanceStats['finance_rows'] ?? 0,
                             ],
                             'clear_contacts' => [
                                 'icon' => '👥',
                                 'tone' => 'amber',
                                 'title' => 'Clear contacts',
+                                'short' => 'Clients/fournisseurs',
+                                'group' => 'CRM',
                                 'description' => 'Supprime clients/fournisseurs après nettoyage des documents dépendants.',
+                                'edge' => 'Nettoie ventes/documents/finance avant de retirer les contacts.',
                                 'count' => $demoMaintenanceStats['contacts'] ?? 0,
                             ],
                             'reset_demo' => [
                                 'icon' => '🧹',
                                 'tone' => 'rose',
                                 'title' => 'Reset demo workspace',
+                                'short' => 'Reset complet',
+                                'group' => 'Tout remettre à plat',
                                 'description' => 'Nettoyage complet: ventes, commandes, achats, documents, stock, catalogue, contacts et finances. Garde société, utilisateurs, rôles, magasins et paramètres.',
+                                'edge' => 'Le plus adapté avant une nouvelle présentation client.',
                                 'count' => $demoMaintenanceStats['total_demo_rows'] ?? 0,
                             ],
                         ];
+                        $demoTotalRows = (int) ($demoMaintenanceStats['total_demo_rows'] ?? 0);
+                        $demoQuickActions = match ($demoModeKey) {
+                            'restaurant', 'coffee' => ['clear_sales', 'clear_finance', 'clear_inventory', 'clear_items', 'reset_demo'],
+                            default => ['clear_sales', 'clear_online_orders', 'clear_inventory', 'clear_items', 'reset_demo'],
+                        };
                     @endphp
-                    <article class="rounded-xl border border-rose-200 bg-white shadow-sm dark:border-rose-500/20 dark:bg-slate-950/40">
+                    <article class="overflow-hidden rounded-2xl border border-rose-200 bg-white shadow-sm dark:border-rose-500/20 dark:bg-slate-950/40">
                         <div class="border-b border-rose-100 bg-gradient-to-br from-rose-50 via-white to-amber-50 p-5 dark:border-rose-500/20 dark:from-rose-500/10 dark:via-slate-950 dark:to-amber-500/10">
-                            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div class="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
                                 <div class="flex items-start gap-4">
-                                    <span class="grid size-12 shrink-0 place-items-center rounded-2xl bg-rose-600 text-xl text-white shadow-sm shadow-rose-500/20">🧹</span>
-                                    <div>
-                                        <p class="text-xs font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-300">Admin · démo uniquement</p>
-                                        <h2 class="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-100">Préparer / nettoyer les données de démonstration</h2>
-                                        <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">Ces actions sont destructives et limitées au tenant courant. Elles servent à remettre l’espace de démo à plat avant une présentation, sans toucher aux utilisateurs, rôles, société, magasins ni paramètres principaux.</p>
+                                    <span class="grid size-14 shrink-0 place-items-center rounded-2xl bg-rose-600 text-2xl text-white shadow-sm shadow-rose-500/20">🧹</span>
+                                    <div class="min-w-0">
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-200">Admin · démo uniquement · {{ $demoModeProfile['label'] }}</p>
+                                        <h2 class="mt-1 text-2xl font-black tracking-tight text-slate-950 dark:text-slate-100">Préparer / nettoyer les données de démonstration</h2>
+                                        <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-700 dark:text-slate-300">{{ $demoModeProfile['scenario'] }}</p>
+                                        <div class="mt-4 flex flex-wrap gap-2">
+                                            <x-status-pill tone="danger">Owner only</x-status-pill>
+                                            <x-status-pill tone="neutral">Confirmation DEMO</x-status-pill>
+                                            <x-status-pill tone="primary">{{ number_format($demoTotalRows, 0, ',', ' ') }} ligne(s) démo</x-status-pill>
+                                            <x-status-pill tone="info">{{ $demoModeProfile['emoji'] }} {{ $demoModeProfile['label'] }}</x-status-pill>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="flex flex-wrap gap-2">
-                                    <x-status-pill tone="danger">Owner only</x-status-pill>
-                                    <x-status-pill tone="neutral">Confirmation DEMO</x-status-pill>
+                                <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/60">
+                                    <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Ce qui est conservé</p>
+                                    <div class="mt-3 flex flex-wrap gap-2">
+                                        @foreach ($demoModeProfile['keep'] as $keepItem)
+                                            <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-500/20">{{ $keepItem }}</span>
+                                        @endforeach
+                                    </div>
+                                    <p class="mt-4 text-xs leading-5 text-slate-500 dark:text-slate-400">Les actions sont limitées au tenant courant, journalisées dans l’activité, et ne touchent pas la configuration principale.</p>
                                 </div>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-4 border-b border-slate-200 p-5 dark:border-white/10 xl:grid-cols-3">
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Avant nettoyage</p>
+                                <ul class="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                                    @foreach ($demoModeProfile['before'] as $step)
+                                        <li class="flex gap-2"><span class="text-amber-600">•</span><span>{{ $step }}</span></li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Actions rapides recommandées</p>
+                                <div class="mt-3 flex flex-wrap gap-2">
+                                    @foreach ($demoQuickActions as $quickAction)
+                                        <a href="#demo-action-{{ $quickAction }}" class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-900 dark:text-slate-200">{{ $demoActions[$quickAction]['short'] }}</a>
+                                    @endforeach
+                                </div>
+                            </div>
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+                                <p class="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Après nettoyage</p>
+                                <ul class="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+                                    @foreach ($demoModeProfile['after'] as $step)
+                                        <li class="flex gap-2"><span class="text-emerald-600">•</span><span>{{ $step }}</span></li>
+                                    @endforeach
+                                </ul>
                             </div>
                         </div>
 
@@ -4325,24 +4422,28 @@
                             </div>
                         @endif
 
-                        <div class="grid gap-4 p-5 lg:grid-cols-2">
+                        <div class="grid gap-4 p-5 xl:grid-cols-3">
                             @foreach ($demoActions as $actionKey => $action)
                                 @php
                                     $isDanger = $action['tone'] === 'rose';
+                                    $count = (int) $action['count'];
+                                    $isEmpty = $count <= 0;
                                     $buttonClass = $isDanger
                                         ? 'bg-rose-600 text-white hover:bg-rose-700'
                                         : 'bg-amber-500 text-white hover:bg-amber-600';
                                 @endphp
-                                <form action="{{ route('settings.demo-maintenance.run', $actionKey) }}" method="POST" class="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]" onsubmit="return confirm('Action destructive: {{ $action['title'] }}. Continuer ?')">
+                                <form id="demo-action-{{ $actionKey }}" action="{{ route('settings.demo-maintenance.run', $actionKey) }}" method="POST" class="scroll-mt-24 rounded-2xl border {{ $isDanger ? 'border-rose-200 bg-rose-50/40 dark:border-rose-500/20 dark:bg-rose-500/5' : 'border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/[0.03]' }} p-4 shadow-sm" onsubmit="return confirm('Action destructive: {{ $action['title'] }}. Continuer ?')">
                                     @csrf
                                     <div class="flex items-start gap-3">
                                         <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-white text-xl shadow-sm dark:bg-slate-900">{{ $action['icon'] }}</span>
                                         <div class="min-w-0 flex-1">
                                             <div class="flex flex-wrap items-center gap-2">
+                                                <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">{{ $action['group'] }}</span>
                                                 <h3 class="font-semibold text-slate-950 dark:text-slate-100">{{ $action['title'] }}</h3>
-                                                <x-status-pill :tone="$isDanger ? 'danger' : 'warning'">{{ number_format((int) $action['count'], 0, ',', ' ') }} ligne(s)</x-status-pill>
+                                                <x-status-pill :tone="$isEmpty ? 'neutral' : ($isDanger ? 'danger' : 'warning')">{{ number_format($count, 0, ',', ' ') }} ligne(s)</x-status-pill>
                                             </div>
                                             <p class="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{{ $action['description'] }}</p>
+                                            <p class="mt-2 rounded-lg bg-white px-3 py-2 text-xs leading-5 text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">{{ $action['edge'] }}</p>
                                         </div>
                                     </div>
                                     <div class="mt-4 space-y-3">
@@ -4355,8 +4456,8 @@
                                                 <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tapez DEMO pour confirmer</span>
                                                 <input name="confirmation" required pattern="DEMO" placeholder="DEMO" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold tracking-wide outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:border-white/10 dark:bg-slate-900 dark:focus:ring-rose-500/20" @disabled(! $currentUserIsOwner)>
                                             </label>
-                                            <button class="inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 {{ $buttonClass }}" @disabled(! $currentUserIsOwner)>
-                                                Exécuter
+                                            <button class="inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 {{ $isEmpty ? 'bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-300' : $buttonClass }}" @disabled(! $currentUserIsOwner)>
+                                                {{ $isEmpty ? 'Réinitialiser quand même' : 'Exécuter' }}
                                             </button>
                                         </div>
                                     </div>

@@ -20,11 +20,40 @@ class DemoMaintenanceTest extends TestCase
         $this->get(route('module', ['module' => 'settings', 'section' => 'demo-data']))
             ->assertOk()
             ->assertSee('Préparer / nettoyer les données de démonstration')
+            ->assertSee('Librairie')
             ->assertSee('Clear all sales')
             ->assertSee('Clear all inventory data')
             ->assertSee('Clear items')
             ->assertSee('Reset demo workspace')
             ->assertSee('name="confirmation"', false);
+    }
+
+    public function test_demo_maintenance_screen_adapts_to_restaurant_and_coffee_activity_modes(): void
+    {
+        $this->seed();
+
+        $tenant = Tenant::firstOrFail();
+        $owner = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+        $settings = $tenant->settings ?? [];
+        data_set($settings, 'company_profile.business_mode', 'restaurant');
+        $tenant->update(['settings' => $settings]);
+
+        $this->actingAs($owner->fresh())
+            ->get(route('module', ['module' => 'settings', 'section' => 'demo-data']))
+            ->assertOk()
+            ->assertSee('Restaurant')
+            ->assertSee('Menu/plats')
+            ->assertSee('Créer 5-8 plats/menus');
+
+        data_set($settings, 'company_profile.business_mode', 'coffee');
+        $tenant->update(['settings' => $settings]);
+
+        $this->actingAs($owner->fresh())
+            ->get(route('module', ['module' => 'settings', 'section' => 'demo-data']))
+            ->assertOk()
+            ->assertSee('Café')
+            ->assertSee('Boissons/snacks')
+            ->assertSee('Créer boissons/snacks');
     }
 
     public function test_demo_cleanup_requires_owner_and_confirmation(): void

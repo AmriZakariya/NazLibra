@@ -9035,9 +9035,21 @@ class LibraireProController extends Controller
             ? Item::withTrashed()->where('tenant_id', $tenant->id)->pluck('id')
             : Item::where('tenant_id', $tenant->id)->pluck('id');
 
-        $counts['loans']         = Loan::where('tenant_id', $tenant->id)->delete();
+        $counts['loans'] = Loan::where('tenant_id', $tenant->id)->delete();
+
+        // Full catalog demo cleanup is destructive by definition. Remove stock
+        // projection rows before deleting variants; otherwise nullable
+        // variant_id FKs can collapse multiple soft-deleted rows to variant_id
+        // null and violate the generated unique variant_key constraint.
+        $counts['item_location_stock_force_deleted'] = $itemIds->isEmpty()
+            ? 0
+            : ItemLocationStock::withTrashed()
+                ->where('tenant_id', $tenant->id)
+                ->whereIn('item_id', $itemIds)
+                ->forceDelete();
+
         $counts['item_variants'] = $itemIds->isEmpty() ? 0 : ItemVariant::whereIn('item_id', $itemIds)->delete();
-        $counts['items']         = $hardDelete
+        $counts['items'] = $hardDelete
             ? Item::withTrashed()->where('tenant_id', $tenant->id)->forceDelete()
             : Item::where('tenant_id', $tenant->id)->delete();
 
