@@ -154,9 +154,10 @@ Route::prefix('v1')->group(function (): void {
         Route::get('inventory/items',        [InventoryController::class, 'items']);
 
         // ── Purchases ─────────────────────────────────────────────────────────
-        Route::get('purchases',             [PurchaseController::class, 'index']);
-        Route::get('purchases/{purchase}',  [PurchaseController::class, 'show'])
+        Route::get('purchases',                          [PurchaseController::class, 'index']);
+        Route::get('purchases/{purchase}',               [PurchaseController::class, 'show'])
             ->middleware('api.action:purchases.view');
+        Route::post('purchases/{purchase}/receive',      [PurchaseController::class, 'receive']);
 
         // ── Online orders ─────────────────────────────────────────────────────
         Route::get('online-orders',                          [OnlineOrderController::class, 'index']);

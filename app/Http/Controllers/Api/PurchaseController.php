@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Models\InventoryMovement;
+use App\Models\ItemLocationStock;
 use App\Models\Purchase;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PurchaseController extends Controller
 {
@@ -78,6 +81,57 @@ class PurchaseController extends Controller
             'ok'       => true,
             'purchase' => $this->format($purchase),
         ]);
+    }
+
+    public function receive(Request $request, Purchase $purchase): JsonResponse
+    {
+        $tenant = $request->attributes->get('api_tenant');
+
+        if ($purchase->tenant_id !== $tenant->id) {
+            return response()->json(['ok' => false, 'error' => 'not_found'], 404);
+        }
+
+        if ($purchase->status === 'received') {
+            return response()->json(['ok' => false, 'error' => 'already_received'], 422);
+        }
+
+        $locationId = (int) $request->header('X-Location-Id', 1);
+
+        DB::transaction(function () use ($purchase, $locationId, $tenant): void {
+            foreach ($purchase->items as $item) {
+                $qtyToReceive = (float) $item->quantity_ordered - (float) $item->quantity_received;
+                if ($qtyToReceive <= 0) continue;
+
+                $stock = ItemLocationStock::firstOrCreate(
+                    ['item_id' => $item->item_id, 'location_id' => $locationId, 'tenant_id' => $tenant->id],
+                    ['quantity' => 0, 'reserved_quantity' => 0]
+                );
+
+                $quantityBefore = (int) $stock->quantity;
+                $stock->increment('quantity', $qtyToReceive);
+
+                InventoryMovement::create([
+                    'tenant_id'       => $tenant->id,
+                    'item_id'         => $item->item_id,
+                    'location_id'     => $locationId,
+                    'type'            => 'purchase_receive',
+                    'quantity_before' => $quantityBefore,
+                    'quantity_delta'  => (int) $qtyToReceive,
+                    'quantity_after'  => $quantityBefore + (int) $qtyToReceive,
+                    'reference_type'  => 'purchase',
+                    'reference_id'    => $purchase->id,
+                ]);
+
+                $item->update(['quantity_received' => $item->quantity_ordered]);
+            }
+
+            $purchase->update([
+                'status'      => 'received',
+                'received_at' => now(),
+            ]);
+        });
+
+        return response()->json(['ok' => true, 'purchase' => $this->format($purchase->fresh())]);
     }
 
     private function format(Purchase $purchase): array

@@ -595,6 +595,8 @@ class SaleController extends Controller
             ->where('tenant_id', $tenant->id)
             ->with(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name'])
             ->when($since, fn ($q) => $q->where('sold_at', '>', $since))
+            ->when($request->query('contact_id'), fn ($q, $contactId) => $q->where('contact_id', $contactId))
+            ->when($request->query('payment_method'), fn ($q, $method) => $q->where('payment_method', 'like', "%{$method}%"))
             ->latest('sold_at')
             ->latest('id')
             ->paginate($perPage);
