@@ -64,18 +64,9 @@ class InventoryService
             $stock->updated_at = now();
             $stock->save();
 
-            // Keep items.stock_quantity in sync (denormalized total across all locations).
-            $totalStock = ItemLocationStock::query()
-                ->where('tenant_id', $dto->tenantId)
-                ->where('item_id', $dto->itemId)
-                ->sum('quantity');
-
-            Item::where('tenant_id', $dto->tenantId)
-                ->where('id', $dto->itemId)
-                ->update([
-                    'stock_quantity' => $totalStock,
-                    'updated_at'     => now(),
-                ]);
+            // items.stock_quantity is maintained by each caller (web controllers
+            // increment/decrement directly; the LIFO ledger path uses syncStockCache()).
+            // Do not sync here to avoid double-updates in callers that manage it themselves.
 
             $movement = InventoryMovement::query()->create([
                 'tenant_id' => $dto->tenantId,
