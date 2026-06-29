@@ -368,11 +368,25 @@ class SaleController extends Controller
             }
         }
 
+        // Generate the sale number in its own committed transaction BEFORE the main sale
+        // transaction. If the sale transaction later rolls back (e.g. on a unique constraint
+        // conflict), the sequence counter is already advanced so the next retry gets a fresh
+        // number rather than hitting the same conflict forever.
+        $saleNumber = DB::transaction(function () use ($tenant) {
+            return $this->numbers->next(
+                $tenant,
+                'sale',
+                null,
+                fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists()
+            )['number'];
+        });
+
         $transactionFn = function () use (
             $tenant, $locationId, $contact, $payments, $saleLines,
             $subtotal, $discount, $loyaltyDiscount, $total, $paid, $data,
             $totalCogs, $allowOversell, $action, $soldAt,
-            $pointsToRedeem, $loyaltyCfg, $loyaltyEnabled, $sourceOnlineOrder
+            $pointsToRedeem, $loyaltyCfg, $loyaltyEnabled, $sourceOnlineOrder,
+            &$saleNumber
         ): Sale {
             // Decrement advance balance atomically before the rest.
             if ($contact && $payments['advance'] > 0) {
@@ -396,10 +410,6 @@ class SaleController extends Controller
                 }
                 // Debit is recorded after sale ID is known — see below.
             }
-
-            // Generate atomic sale number, skipping any already-used numbers.
-            $numberData = $this->numbers->next($tenant, 'sale', null, fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists());
-            $saleNumber = $numberData['number'];
             $paymentMethod = collect($payments)
                 ->filter(fn ($a) => $a > 0.001)
                 ->keys()
@@ -572,8 +582,9 @@ class SaleController extends Controller
             return $sale;
         };
 
-        // Retry up to 3 times on number uniqueness conflicts caused by concurrent inserts.
-        // On each retry the existsCheck inside DocumentNumberGenerator will skip past the taken number.
+        // Retry up to 3 times on number uniqueness conflicts (concurrent inserts on the same slot).
+        // $saleNumber is captured by reference so reassigning it before a retry is picked up
+        // by the closure without duplicating the closure body.
         $attempt = 0;
         do {
             try {
@@ -594,7 +605,17 @@ class SaleController extends Controller
                 if (! $isNumberConflict || ++$attempt >= 3) {
                     throw $exception;
                 }
-                // else: retry — existsCheck will find and skip the conflicting number
+
+                // Commit a fresh number before the next attempt. Because $saleNumber is captured
+                // by reference the closure will use this new value on its next invocation.
+                $saleNumber = DB::transaction(function () use ($tenant) {
+                    return $this->numbers->next(
+                        $tenant,
+                        'sale',
+                        null,
+                        fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists()
+                    )['number'];
+                });
             }
         } while (true);
 
