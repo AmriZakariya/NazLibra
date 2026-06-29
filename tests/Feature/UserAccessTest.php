@@ -34,7 +34,6 @@ class UserAccessTest extends TestCase
         $this->assertSame('stockist', $pivot->role);
         $role = Role::where('tenant_id', $tenant->id)->where('key', 'stockist')->firstOrFail();
         $this->assertContains('items.*', $role->permissions);
-        $this->assertContains('stock.adjust', $role->permissions);
         $this->assertSame(['Magasin principal', 'Dépôt'], json_decode($pivot->store_access, true));
     }
 

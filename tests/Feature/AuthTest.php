@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Models\Tenant;
+use App\Models\Role;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
@@ -265,7 +266,6 @@ class AuthTest extends TestCase
                 'phone' => $cashier->phone,
                 'role' => 'cashier',
                 'store_access' => ['Magasin principal'],
-                'permissions' => [],
                 'is_active' => '1',
                 'pin' => '2468',
             ])
@@ -275,9 +275,11 @@ class AuthTest extends TestCase
 
         $tenant->users()->updateExistingPivot($cashier->id, [
             'role' => 'cashier',
-            'permissions' => json_encode(['settings.users']),
             'store_access' => json_encode(['Magasin principal']),
         ]);
+        Role::where('tenant_id', $tenant->id)
+            ->where('key', 'cashier')
+            ->update(['permissions' => ['settings.users']]);
 
         $this->actingAs($cashier)
             ->put(route('settings.users.update', $cashier), [
@@ -286,7 +288,6 @@ class AuthTest extends TestCase
                 'phone' => $cashier->phone,
                 'role' => 'cashier',
                 'store_access' => ['Magasin principal'],
-                'permissions' => [],
                 'is_active' => '1',
                 'pin' => '1357',
             ])
