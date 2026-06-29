@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\Role;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -31,7 +32,9 @@ class UserAccessTest extends TestCase
         $pivot = $tenant->users()->whereKey($user->id)->firstOrFail()->pivot;
 
         $this->assertSame('stockist', $pivot->role);
-        $this->assertSame(['items.view', 'stock.adjust'], json_decode($pivot->permissions, true));
+        $role = Role::where('tenant_id', $tenant->id)->where('key', 'stockist')->firstOrFail();
+        $this->assertContains('items.*', $role->permissions);
+        $this->assertContains('stock.adjust', $role->permissions);
         $this->assertSame(['Magasin principal', 'Dépôt'], json_decode($pivot->store_access, true));
     }
 
@@ -51,7 +54,6 @@ class UserAccessTest extends TestCase
 
         $tenant->users()->attach($user->id, [
             'role' => 'cashier',
-            'permissions' => json_encode(['sales.view']),
             'store_access' => json_encode(['Magasin principal']),
         ]);
 
@@ -72,7 +74,8 @@ class UserAccessTest extends TestCase
         $this->assertSame('Caissier Responsable', $user->name);
         $this->assertSame('caissier.responsable@example.test', $user->email);
         $this->assertSame('manager', $pivot->role);
-        $this->assertSame(['sales.view', 'sales.refund'], json_decode($pivot->permissions, true));
+        $role = Role::where('tenant_id', $tenant->id)->where('key', 'manager')->firstOrFail();
+        $this->assertContains('sales.*', $role->permissions);
         $this->assertSame(['Magasin principal', 'Dépôt'], json_decode($pivot->store_access, true));
     }
 

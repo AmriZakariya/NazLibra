@@ -178,8 +178,8 @@ class DemoSeeder extends Seeder
             ]);
 
             $tenant->users()->sync([
-                $owner->id => ['role' => 'owner', 'permissions' => json_encode(['*']), 'store_access' => json_encode(['Oubra Store'])],
-                $cashier->id => ['role' => 'cashier', 'permissions' => json_encode(['sales.view', 'sales.create', 'online_orders.view', 'online_orders.create', 'items.view']), 'store_access' => json_encode(['Oubra Store'])],
+                $owner->id => ['role' => 'owner', 'store_access' => json_encode(['Oubra Store'])],
+                $cashier->id => ['role' => 'cashier', 'store_access' => json_encode(['Oubra Store'])],
             ]);
 
             foreach ([

@@ -93,8 +93,8 @@ class DatabaseSeeder extends Seeder
             ]);
 
             $tenant->users()->syncWithoutDetaching([
-                $owner->id => ['role' => 'owner', 'permissions' => json_encode(['*'])],
-                $cashier->id => ['role' => 'cashier', 'permissions' => json_encode(['sales.view', 'sales.create', 'online_orders.view', 'online_orders.create', 'items.view'])],
+                $owner->id => ['role' => 'owner'],
+                $cashier->id => ['role' => 'cashier'],
             ]);
 
             foreach ([
