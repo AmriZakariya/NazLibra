@@ -4689,7 +4689,7 @@
                                                 <td class="px-4 py-4">
                                                     <div class="flex flex-wrap items-center gap-1.5">
                                                         <a href="{{ route('module', ['module' => 'settings', 'section' => 'roles', 'edit_role' => $user->pivot->role]) }}" class="inline-block transition hover:brightness-110" ondblclick="event.preventDefault();"><x-status-pill tone="info">{{ $userRole?->name ?? $user->pivot->role }}</x-status-pill></a>
-                                                        @if ($userRole?->is_system)
+                                                        @if ($userRole && $userRole->is_system)
                                                             <span class="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand dark:bg-brand/20">
                                                                 <svg class="size-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                                                                 Système
@@ -4699,7 +4699,7 @@
                                                     <p class="mt-1 text-xs text-slate-500">Clé: {{ $user->pivot->role }}</p>
                                                 </td>
                                                 <td class="px-4 py-4">
-                                                    @if ($userRole?->is_system)
+                                                    @if ($userRole && $userRole->is_system)
                                                         <span class="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand dark:bg-brand/20">
                                                             <svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                                                             Tous les magasins
@@ -4762,7 +4762,7 @@
                                                                 @if ($canManageUserPins)
                                                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">PIN caisse</span><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="4 chiffres"></label>
                                                                 @endif
-                                                                @if ($userRole?->is_system)
+                                                                @if ($userRole && $userRole->is_system)
                                                                 <div class="space-y-1.5">
                                                                     <span class="text-xs font-semibold uppercase text-slate-500">Rôle</span>
                                                                     <div class="flex h-11 items-center gap-2 rounded-lg border border-brand/20 bg-brand/5 px-3 text-sm font-semibold text-brand dark:border-brand/20 dark:bg-brand/10">
@@ -4786,7 +4786,7 @@
                                                             </div>
                                                         </section>
                                                         <section class="grid gap-4">
-                                                            @if ($userRole?->is_system)
+                                                            @if ($userRole && $userRole->is_system)
                                                                 <div class="flex items-center gap-3 rounded-xl border border-brand/20 bg-brand/[0.04] p-4 dark:border-brand/30 dark:bg-brand/10">
                                                                     <svg class="size-5 shrink-0 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                                                                     <div>
@@ -4815,7 +4815,7 @@
                                                         </div>
                                                     </div>
                                                 </form>
-                                                @if (!$userRole?->is_system)
+                                                @if (!$userRole || !$userRole->is_system)
                                                 <form action="{{ route(‘settings.users.destroy’, $user) }}" method="POST" class="px-5 pb-5 text-right" onsubmit="return confirm(&quot;Retirer l’accès de cet utilisateur ?&quot;)">
                                                     @csrf
                                                     @method(‘DELETE’)
