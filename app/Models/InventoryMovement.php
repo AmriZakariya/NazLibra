@@ -25,6 +25,9 @@ class InventoryMovement extends Model
         'quantity_after',
         'unit_cost',
         'total_cost',
+        'cogs',
+        'occurred_at',
+        'synced_at',
         'reference_type',
         'reference_id',
         'reference_number',
@@ -45,11 +48,14 @@ class InventoryMovement extends Model
     protected function casts(): array
     {
         return [
-            'quantity_before' => 'integer',
-            'quantity_delta' => 'integer',
-            'quantity_after' => 'integer',
-            'unit_cost' => 'decimal:4',
-            'total_cost' => 'decimal:4',
+            'quantity_before' => 'decimal:4',
+            'quantity_delta'  => 'decimal:4',
+            'quantity_after'  => 'decimal:4',
+            'unit_cost'       => 'decimal:4',
+            'total_cost'      => 'decimal:4',
+            'cogs'            => 'decimal:4',
+            'occurred_at'     => 'datetime',
+            'synced_at'       => 'datetime',
         ];
     }
 

@@ -42,16 +42,32 @@ class ApiTest extends TestCase
 
         if ($candidate) {
             $this->item = $candidate;
-            ItemLocationStock::updateOrCreate(
-                [
-                    'tenant_id'   => $this->tenant->id,
-                    'item_id'     => $this->item->id,
-                    'variant_id'  => null,
-                    'location_id' => $this->location->id,
-                ],
-                ['quantity' => 100, 'average_cost' => 50.00]
-            );
-            $this->item->update(['stock_quantity' => 100, 'sale_price' => 80.00, 'purchase_price' => 50.00]);
+            $this->item->update(['stock_quantity' => 0, 'sale_price' => 80.00, 'purchase_price' => 50.00]);
+
+            // Seed stock through the LIFO ledger so inventory_layers are populated
+            // and availableQuantity() returns the correct value during tests.
+            $ledger = app(\App\Services\Inventory\InventoryLedgerService::class);
+            $ledger->createIncomingMovement([
+                'tenantId'             => $this->tenant->id,
+                'itemId'               => $this->item->id,
+                'variantId'            => null,
+                'locationId'           => $this->location->id,
+                'type'                 => \App\Services\Inventory\InventoryMovementType::INITIAL_STOCK,
+                'quantity'             => 100,
+                'unitCost'             => 50.00,
+                'occurredAt'           => now()->subMinutes(5),
+                'syncedAt'             => null,
+                'userId'               => null,
+                'idempotencyKey'       => 'test-setup-'.$this->item->id,
+                'referenceType'        => null,
+                'referenceId'          => null,
+                'referenceNumber'      => null,
+                'reason'               => null,
+                'note'                 => null,
+                'virtualDeviceId'      => null,
+                'actorNameSnapshot'    => null,
+                'terminalNameSnapshot' => null,
+            ]);
         } else {
             // @phpstan-ignore-next-line
             $this->item = null;
@@ -483,11 +499,17 @@ class ApiTest extends TestCase
             $this->markTestSkipped('No active product item available in seed data.');
         }
 
-        // Set stock to 1.
+        // Set stock to 1 — must update both the cache AND the layer ledger so
+        // availableQuantity() (which reads from inventory_layers) also returns 1.
         ItemLocationStock::where('tenant_id', $this->tenant->id)
             ->where('item_id', $this->item->id)
             ->where('location_id', $this->location->id)
             ->update(['quantity' => 1]);
+
+        \App\Models\InventoryLayer::where('tenant_id', $this->tenant->id)
+            ->where('item_id', $this->item->id)
+            ->where('location_id', $this->location->id)
+            ->update(['remaining_quantity' => 1]);
 
         $salesBefore = Sale::where('tenant_id', $this->tenant->id)->count();
 

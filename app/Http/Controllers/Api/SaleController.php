@@ -16,9 +16,10 @@ use App\Rules\ExplicitOffsetDateTime;
 use App\Support\ApiActionContext;
 use App\Support\UtcDateTime;
 use App\Services\Documents\DocumentNumberGenerator;
+use App\Exceptions\InsufficientStockException;
+use App\Services\Inventory\InventoryLedgerService;
 use App\Services\Inventory\InventoryMovementType;
 use App\Services\Inventory\InventoryService;
-use App\Services\Inventory\MovementDTO;
 use App\Services\LoyaltyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -41,6 +42,7 @@ class SaleController extends Controller
 {
     public function __construct(
         private readonly InventoryService $inventory,
+        private readonly InventoryLedgerService $ledger,
         private readonly DocumentNumberGenerator $numbers,
         private readonly LoyaltyService $loyalty,
     ) {}
@@ -493,34 +495,51 @@ class SaleController extends Controller
                 ]);
 
                 if ($line['item'] && $line['item']->type !== ItemType::Service->value) {
-                    // InventoryService::move() does its own lockForUpdate + idempotency.
-                    $this->inventory->move(new MovementDTO(
-                        tenantId:       $tenant->id,
-                        itemId:         $line['item']->id,
-                        variantId:      null,
-                        locationId:     $locationId,
-                        type:           InventoryMovementType::SALE,
-                        quantityChanged: -$line['quantity'],
-                        userId:         $action->actor->id,
-                        referenceType:  Sale::class,
-                        referenceId:    $sale->id,
-                        referenceNumber: $sale->number,
-                        note:           'Vente mobile '.$sale->number,
-                        idempotencyKey: 'api-sale-'.$sale->id.'-item-'.$line['item']->id,
-                        unitCost:       $line['avg_cost'] > 0 ? $line['avg_cost'] : null,
-                        allowNegative:  $allowOversell,
-                        virtualDeviceId: $action->virtualDevice?->id,
-                        actorNameSnapshot: $action->actor->name,
-                        terminalNameSnapshot: $action->virtualDevice?->name,
-                    ));
+                    // InventoryLedgerService::createOutgoingMovement() handles LIFO
+                    // layer consumption, COGS computation, and stock cache sync.
+                    $ledgerResult = $this->ledger->createOutgoingMovement([
+                        'tenantId'             => $tenant->id,
+                        'itemId'               => $line['item']->id,
+                        'variantId'            => null,
+                        'locationId'           => $locationId,
+                        'type'                 => InventoryMovementType::SALE,
+                        'quantity'             => $line['quantity'],
+                        'occurredAt'           => $soldAt,
+                        'syncedAt'             => null,
+                        'userId'               => $action->actor->id,
+                        'idempotencyKey'       => 'api-sale-'.$sale->id.'-item-'.$line['item']->id,
+                        'referenceType'        => Sale::class,
+                        'referenceId'          => $sale->id,
+                        'referenceNumber'      => $sale->number,
+                        'reason'               => null,
+                        'note'                 => 'Vente mobile '.$sale->number,
+                        'virtualDeviceId'      => $action->virtualDevice?->id,
+                        'actorNameSnapshot'    => $action->actor->name,
+                        'terminalNameSnapshot' => $action->virtualDevice?->name,
+                        'allowNegative'        => $allowOversell,
+                    ]);
 
-                    // Keep denormalised stock_quantity in sync (used for low-stock alerts).
-                    $line['item']->decrement('stock_quantity', $line['quantity']);
-                    if (! $allowOversell && $line['item']->fresh()->stock_quantity <= 0) {
+                    // Backfill sale item cost with actual LIFO-computed COGS.
+                    $actualUnitCost  = $ledgerResult['unitCost'];
+                    $actualTotalCost = $ledgerResult['cogs'];
+                    $sale->items()
+                        ->where('item_id', $line['item']->id)
+                        ->update([
+                            'unit_cost'  => $actualUnitCost,
+                            'total_cost' => $actualTotalCost,
+                        ]);
+
+                    // Low-stock status is maintained by syncStockCache via ledger.
+                    $freshQty = $this->ledger->availableQuantity($tenant->id, $line['item']->id, null, $locationId);
+                    if (! $allowOversell && $freshQty <= 0) {
                         $line['item']->update(['status' => ItemStatus::OutOfStock->value]);
                     }
                 }
             }
+
+            // Update sale.cogs with actual LIFO-computed total (from all sale items' total_cost).
+            $actualSaleCogs = $sale->items()->sum('total_cost');
+            $sale->update(['cogs' => $actualSaleCogs]);
 
             // Record individual payment lines.
             $remaining = $total;
@@ -750,7 +769,8 @@ class SaleController extends Controller
 
         $conflicts = [];
         foreach ($needed as $id => $entry) {
-            $available = $this->inventory->available($tenantId, $id, null, $locationId);
+            // Use layer-based available quantity — authoritative, not the cached column.
+            $available = $this->ledger->availableQuantity($tenantId, $id, null, $locationId);
             if ($available < $entry['requested']) {
                 $conflicts[] = [
                     'item_id'   => $entry['item']->id,

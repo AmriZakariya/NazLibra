@@ -72,6 +72,62 @@ final class InventoryMovementType
         ], true);
     }
 
+    /**
+     * Movement types that represent stock flowing IN.
+     * Each incoming movement creates an inventory layer.
+     */
+    public static function incoming(): array
+    {
+        return [
+            self::INITIAL_STOCK,
+            self::OPENING_STOCK,
+            self::ADJUSTMENT,
+            self::SALE_CANCEL,
+            self::CUSTOMER_RETURN,
+            self::REFUND_WITH_RETURN,
+            self::RETURN,
+            self::PURCHASE,
+            self::PURCHASE_RECEIPT,
+            self::MANUAL_ADD,
+            self::CORRECTION,
+            self::ITEM_UPDATE,
+            self::TRANSFER_IN,
+            self::STOCKTAKE,
+            self::IMPORT,
+            self::MIGRATION,
+            self::RESERVATION_RELEASE,
+        ];
+    }
+
+    /**
+     * Movement types that represent stock flowing OUT.
+     * Each outgoing movement consumes inventory layers via LIFO.
+     */
+    public static function outgoing(): array
+    {
+        return [
+            self::SALE,
+            self::PURCHASE_RETURN,
+            self::SUPPLIER_RETURN,
+            self::MANUAL_DEDUCT,
+            self::DAMAGE,
+            self::LOSS,
+            self::EXPIRATION,
+            self::INTERNAL_USE,
+            self::TRANSFER_OUT,
+        ];
+    }
+
+    public static function createsLayer(string $type): bool
+    {
+        return in_array($type, self::incoming(), true);
+    }
+
+    public static function consumesLayers(string $type): bool
+    {
+        return in_array($type, self::outgoing(), true);
+    }
+
     public static function valid(): array
     {
         return (new \ReflectionClass(self::class))->getConstants();

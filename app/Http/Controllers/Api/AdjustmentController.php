@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\InsufficientStockException;
 use App\Http\Controllers\Controller;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
+use App\Models\InventoryMovement;
 use App\Models\Tenant;
+use App\Services\Inventory\InventoryLedgerService;
 use App\Services\Inventory\InventoryMovementType;
-use App\Services\Inventory\InventoryService;
-use App\Services\Inventory\MovementDTO;
 use App\Support\ApiActionContext;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,12 +26,12 @@ use OpenApi\Attributes as OA;
  *   - correction  set an absolute quantity (delta computed server-side)
  *
  * All adjustments are idempotent via client-generated `idempotency_key`.
- * Stock is always mutated server-side through InventoryService::move() to
- * preserve atomic locking and the movement audit log.
+ * Stock is always mutated through InventoryLedgerService which maintains
+ * LIFO layers and is the single authoritative source for inventory state.
  */
 class AdjustmentController extends Controller
 {
-    public function __construct(private readonly InventoryService $inventory) {}
+    public function __construct(private readonly InventoryLedgerService $ledger) {}
 
     /**
      * POST /api/v1/inventory/adjustments
@@ -103,8 +105,8 @@ class AdjustmentController extends Controller
         /** @var ApiActionContext $action */
         $action = $request->attributes->get('api_action_context');
 
-        // Idempotency: return existing movement if the key was already processed.
-        $existing = \App\Models\InventoryMovement::where('tenant_id', $tenant->id)
+        // Early idempotency check before any locking.
+        $existing = InventoryMovement::where('tenant_id', $tenant->id)
             ->where('idempotency_key', $data['idempotency_key'])
             ->first();
 
@@ -115,10 +117,10 @@ class AdjustmentController extends Controller
                 ->first(['quantity', 'reserved_quantity', 'average_cost']);
 
             return response()->json([
-                'ok'             => true,
+                'ok'              => true,
                 'already_existed' => true,
-                'movement'       => $existing,
-                'stock_after'    => $this->stockSnapshot($stock, $existing->item_id, $locationId),
+                'movement'        => $existing,
+                'stock_after'     => $this->stockSnapshot($stock, $existing->item_id, $existing->location_id),
             ]);
         }
 
@@ -137,28 +139,27 @@ class AdjustmentController extends Controller
                     throw new \RuntimeException('Impossible d\'ajuster le stock d\'un service.');
                 }
 
-                $effectiveLocationId = $locationId ?? $this->inventory->locationIdFromName($tenant->id, null);
+                $effectiveLocationId = $locationId ?? $this->ledger->defaultLocationId($tenant->id);
 
                 $qty = (int) $data['quantity'];
 
                 if ($data['mode'] === 'correction') {
-                    // Absolute target: compute the delta from current stock.
                     if ($qty < 0) {
                         throw new \RuntimeException('La quantité cible ne peut pas être négative pour une correction.');
                     }
 
-                    $stock = ItemLocationStock::where('tenant_id', $tenant->id)
-                        ->where('item_id', $item->id)
-                        ->where('location_id', $effectiveLocationId)
-                        ->lockForUpdate()
-                        ->first();
-
-                    $currentQty = (int) ($stock?->quantity ?? $item->stock_quantity);
-                    $delta      = $qty - $currentQty;
+                    // Authoritative current stock from layers.
+                    $currentQty = (int) $this->ledger->availableQuantity(
+                        $tenant->id, $item->id, null, $effectiveLocationId
+                    );
+                    $delta = $qty - $currentQty;
 
                     if ($delta === 0) {
-                        // No change needed — but we still record a correction at zero.
-                        // Use +1 then immediately -1 is wrong; just skip movement and return current state.
+                        $stock = ItemLocationStock::where('tenant_id', $tenant->id)
+                            ->where('item_id', $item->id)
+                            ->where('location_id', $effectiveLocationId)
+                            ->first(['quantity', 'reserved_quantity', 'average_cost']);
+
                         return [
                             'movement'    => null,
                             'stock_after' => $this->stockSnapshot($stock, $item->id, $effectiveLocationId),
@@ -166,43 +167,69 @@ class AdjustmentController extends Controller
                         ];
                     }
 
-                    $movementType = InventoryMovementType::CORRECTION;
+                    $movementType    = InventoryMovementType::CORRECTION;
                     $quantityChanged = $delta;
                 } else {
-                    // Delta mode: positive = add, negative = deduct.
                     $movementType    = $qty > 0 ? InventoryMovementType::MANUAL_ADD : InventoryMovementType::MANUAL_DEDUCT;
                     $quantityChanged = $qty;
                 }
 
-                $movement = $this->inventory->move(new MovementDTO(
-                    tenantId:        $tenant->id,
-                    itemId:          $item->id,
-                    variantId:       isset($data['variant_id']) ? (int) $data['variant_id'] : null,
-                    locationId:      $effectiveLocationId,
-                    type:            $movementType,
-                    quantityChanged: $quantityChanged,
-                    userId:          $action->actor->id,
-                    note:            $data['note'] ?? null,
-                    reason:          $data['reason'] ?? null,
-                    idempotencyKey:  $data['idempotency_key'],
-                    unitCost:        isset($data['unit_cost']) ? (float) $data['unit_cost'] : null,
-                    allowNegative:   false,
-                    virtualDeviceId: $action->virtualDevice?->id,
-                    actorNameSnapshot: $action->actor->name,
-                    terminalNameSnapshot: $action->virtualDevice?->name,
-                ));
+                $occurredAt  = isset($data['occurred_at']) ? Carbon::parse($data['occurred_at']) : now();
+                $variantId   = isset($data['variant_id']) ? (int) $data['variant_id'] : null;
+                $unitCost    = isset($data['unit_cost']) ? (float) $data['unit_cost'] : 0.0;
 
-                $stock = ItemLocationStock::where('tenant_id', $tenant->id)
-                    ->where('item_id', $item->id)
-                    ->where('location_id', $effectiveLocationId)
-                    ->first(['quantity', 'reserved_quantity', 'average_cost']);
+                $baseParams = [
+                    'tenantId'             => $tenant->id,
+                    'itemId'               => $item->id,
+                    'variantId'            => $variantId,
+                    'locationId'           => $effectiveLocationId,
+                    'type'                 => $movementType,
+                    'occurredAt'           => $occurredAt,
+                    'syncedAt'             => null,
+                    'userId'               => $action->actor->id,
+                    'idempotencyKey'       => $data['idempotency_key'],
+                    'referenceType'        => null,
+                    'referenceId'          => null,
+                    'referenceNumber'      => null,
+                    'reason'               => $data['reason'] ?? null,
+                    'note'                 => $data['note'] ?? null,
+                    'virtualDeviceId'      => $action->virtualDevice?->id,
+                    'actorNameSnapshot'    => $action->actor->name,
+                    'terminalNameSnapshot' => $action->virtualDevice?->name,
+                ];
+
+                if ($quantityChanged > 0) {
+                    $ledgerResult = $this->ledger->createIncomingMovement(array_merge($baseParams, [
+                        'quantity' => abs($quantityChanged),
+                        'unitCost' => $unitCost,
+                    ]));
+                    $movement = $ledgerResult['movement'];
+                } else {
+                    $ledgerResult = $this->ledger->createOutgoingMovement(array_merge($baseParams, [
+                        'quantity'      => abs($quantityChanged),
+                        'allowNegative' => false,
+                    ]));
+                    $movement = $ledgerResult['movement'];
+                }
+
+                $summary = $this->ledger->itemSummary($tenant->id, $item->id, $effectiveLocationId);
 
                 return [
                     'movement'    => $movement,
-                    'stock_after' => $this->stockSnapshot($stock, $item->id, $effectiveLocationId),
+                    'stock_after' => [
+                        'item_id'      => $item->id,
+                        'location_id'  => $effectiveLocationId,
+                        'quantity'     => $summary['quantity'],
+                        'reserved'     => 0,
+                        'available'    => $summary['quantity'],
+                        'average_cost' => $summary['average_cost'],
+                        'stock_value'  => $summary['value'],
+                    ],
                     'no_change'   => false,
                 ];
             });
+        } catch (InsufficientStockException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
         } catch (\RuntimeException $e) {
             return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
         }
@@ -218,13 +245,18 @@ class AdjustmentController extends Controller
 
     private function stockSnapshot(?ItemLocationStock $stock, int $itemId, int $locationId): array
     {
+        $qty  = (float) ($stock?->quantity ?? 0);
+        $avg  = (float) ($stock?->average_cost ?? 0);
+        $res  = (float) ($stock?->reserved_quantity ?? 0);
+
         return [
-            'item_id'       => $itemId,
-            'location_id'   => $locationId,
-            'quantity'      => (int) ($stock?->quantity ?? 0),
-            'reserved'      => (int) ($stock?->reserved_quantity ?? 0),
-            'available'     => max(0, (int) ($stock?->quantity ?? 0) - (int) ($stock?->reserved_quantity ?? 0)),
-            'average_cost'  => (float) ($stock?->average_cost ?? 0),
+            'item_id'      => $itemId,
+            'location_id'  => $locationId,
+            'quantity'     => $qty,
+            'reserved'     => $res,
+            'available'    => max(0, $qty - $res),
+            'average_cost' => $avg,
+            'stock_value'  => round($qty * $avg, 2),
         ];
     }
 }

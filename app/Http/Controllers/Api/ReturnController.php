@@ -14,9 +14,9 @@ use App\Models\SaleReturn;
 use App\Models\Tenant;
 use App\Services\CashRegisterService;
 use App\Services\Documents\DocumentNumberGenerator;
+use App\Services\Inventory\InventoryLedgerService;
 use App\Services\Inventory\InventoryMovementType;
 use App\Services\Inventory\InventoryService;
-use App\Services\Inventory\MovementDTO;
 use App\Support\ApiActionContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,6 +32,7 @@ class ReturnController extends Controller
 {
     public function __construct(
         private readonly InventoryService $inventory,
+        private readonly InventoryLedgerService $ledger,
         private readonly DocumentNumberGenerator $numbers,
         private readonly CashRegisterService $cashRegister,
     ) {}
@@ -285,27 +286,39 @@ class ReturnController extends Controller
                     $qty = (int) $returnLine['quantity'];
 
                     if ($returnLine['stock_action'] === 'restock') {
-                        $this->inventory->move(new MovementDTO(
-                            tenantId:       $tenant->id,
-                            itemId:         $item->id,
-                            variantId:      null,
-                            locationId:     $locationId,
-                            type:           InventoryMovementType::RETURN,
-                            quantityChanged: $qty,
-                            userId:         $action->actor->id,
-                            referenceType:  SaleReturn::class,
-                            referenceId:    $saleReturn->id,
-                            referenceNumber: $saleReturn->number,
-                            note:           'Retour mobile '.$saleReturn->number,
-                            reason:         $returnLine['reason'] ?: ($data['refund_reason'] ?? null),
-                            idempotencyKey: 'api-ret-'.$saleReturn->id.'-'.$returnLine['sale_item_id'].'-restock',
-                            virtualDeviceId: $action->virtualDevice?->id,
-                            actorNameSnapshot: $action->actor->name,
-                            terminalNameSnapshot: $action->virtualDevice?->name,
-                        ));
-                        $item->increment('stock_quantity', $qty);
-                        if ($item->status === ItemStatus::OutOfStock->value && $item->fresh()->stock_quantity > 0) {
-                            $item->update(['status' => ItemStatus::Active->value]);
+                        // Use the original LIFO-computed cost from the sale item, not
+                        // purchase_price, so the restored layer carries the correct cost.
+                        $saleItemUnitCost = (float) \App\Models\SaleItem::where('id', $returnLine['sale_item_id'])
+                            ->value('unit_cost') ?? 0.0;
+
+                        $this->ledger->createIncomingMovement([
+                            'tenantId'             => $tenant->id,
+                            'itemId'               => $item->id,
+                            'variantId'            => null,
+                            'locationId'           => $locationId,
+                            'type'                 => InventoryMovementType::CUSTOMER_RETURN,
+                            'quantity'             => $qty,
+                            'unitCost'             => $saleItemUnitCost,
+                            'occurredAt'           => now(),
+                            'syncedAt'             => null,
+                            'userId'               => $action->actor->id,
+                            'idempotencyKey'       => 'api-ret-'.$saleReturn->id.'-'.$returnLine['sale_item_id'].'-restock',
+                            'referenceType'        => SaleReturn::class,
+                            'referenceId'          => $saleReturn->id,
+                            'referenceNumber'      => $saleReturn->number,
+                            'reason'               => $returnLine['reason'] ?: ($data['refund_reason'] ?? null),
+                            'note'                 => 'Retour mobile '.$saleReturn->number,
+                            'virtualDeviceId'      => $action->virtualDevice?->id,
+                            'actorNameSnapshot'    => $action->actor->name,
+                            'terminalNameSnapshot' => $action->virtualDevice?->name,
+                        ]);
+
+                        // Status update — ledger syncStockCache already updated stock_quantity.
+                        if ($item->status === ItemStatus::OutOfStock->value) {
+                            $freshQty = $this->ledger->availableQuantity($tenant->id, $item->id, null, $locationId);
+                            if ($freshQty > 0) {
+                                $item->update(['status' => ItemStatus::Active->value]);
+                            }
                         }
                     } else {
                         // No physical return: record movement type only.

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\InventoryLayer;
 use App\Models\InventoryMovement;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
@@ -23,6 +24,14 @@ class InventoryController extends Controller
         $tenant     = $request->attributes->get('api_tenant');
         $locationId = $request->attributes->get('api_location_id');
 
+        // total_value is computed from inventory_layers — the LIFO ledger is authoritative.
+        // Never fallback to item.purchase_price which is a catalog price, not a cost.
+        $layerAgg = InventoryLayer::where('tenant_id', $tenant->id)
+            ->when($locationId, fn ($q) => $q->where('location_id', $locationId))
+            ->where('remaining_quantity', '>', 0)
+            ->selectRaw('COUNT(DISTINCT item_id) AS item_count, SUM(remaining_quantity * unit_cost) AS total_value')
+            ->first();
+
         $stockAgg = DB::table('item_location_stock as ils')
             ->join('items as i', function ($join) {
                 $join->on('i.id', '=', 'ils.item_id')
@@ -31,11 +40,7 @@ class InventoryController extends Controller
             ->where('ils.tenant_id', $tenant->id)
             ->whereNull('ils.deleted_at')
             ->when($locationId, fn ($q) => $q->where('ils.location_id', $locationId))
-            ->selectRaw('
-                COUNT(DISTINCT ils.item_id)                                                              AS item_count,
-                COALESCE(SUM(ils.quantity), 0)                                                           AS total_volume,
-                COALESCE(SUM(ils.quantity * COALESCE(NULLIF(ils.average_cost, 0), i.purchase_price, 0)), 0) AS total_value
-            ')
+            ->selectRaw('COALESCE(SUM(ils.quantity), 0) AS total_volume')
             ->first();
 
         $alertCounts = DB::table('items')
@@ -52,9 +57,9 @@ class InventoryController extends Controller
         return response()->json([
             'ok'      => true,
             'summary' => [
-                'item_count'         => (int) $stockAgg->item_count,
-                'total_volume'       => (float) $stockAgg->total_volume,
-                'total_value'        => (float) $stockAgg->total_value,
+                'item_count'         => (int) ($layerAgg->item_count ?? 0),
+                'total_volume'       => (float) ($stockAgg->total_volume ?? 0),
+                'total_value'        => round((float) ($layerAgg->total_value ?? 0), 2),
                 'low_stock_count'    => (int) ($alertCounts->low_stock ?? 0),
                 'out_of_stock_count' => (int) ($alertCounts->out_of_stock ?? 0),
             ],
@@ -160,19 +165,29 @@ class InventoryController extends Controller
         // second request.
         $stockSummary = null;
         if ($itemId) {
-            $stockRow = ItemLocationStock::where('tenant_id', $tenant->id)
+            // Authoritative values from inventory layers (LIFO ledger).
+            $layerRow = InventoryLayer::where('tenant_id', $tenant->id)
                 ->where('item_id', $itemId)
                 ->when($locationId, fn ($q) => $q->where('location_id', $locationId))
-                ->selectRaw('SUM(quantity) as quantity, SUM(reserved_quantity) as reserved, AVG(average_cost) as average_cost')
+                ->where('remaining_quantity', '>', 0)
+                ->selectRaw('SUM(remaining_quantity) as qty, SUM(remaining_quantity * unit_cost) as value')
                 ->first();
 
-            $qty         = (int) ($stockRow?->quantity ?? 0);
-            $avgCost     = round((float) ($stockRow?->average_cost ?? 0), 4);
+            $reservedRow = ItemLocationStock::where('tenant_id', $tenant->id)
+                ->where('item_id', $itemId)
+                ->when($locationId, fn ($q) => $q->where('location_id', $locationId))
+                ->selectRaw('SUM(reserved_quantity) as reserved')
+                ->first();
+
+            $qty   = (float) ($layerRow?->qty ?? 0);
+            $value = round((float) ($layerRow?->value ?? 0), 2);
+            $avg   = $qty > 0 ? round($value / $qty, 4) : 0.0;
+
             $stockSummary = [
                 'quantity'     => $qty,
-                'reserved'     => (int) ($stockRow?->reserved ?? 0),
-                'average_cost' => $avgCost,
-                'stock_value'  => round($qty * $avgCost, 2),
+                'reserved'     => (int) ($reservedRow?->reserved ?? 0),
+                'average_cost' => $avg,
+                'stock_value'  => $value,
             ];
         }
 
