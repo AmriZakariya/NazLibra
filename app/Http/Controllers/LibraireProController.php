@@ -9204,7 +9204,6 @@ class LibraireProController extends Controller
     {
         return [
             'role' => $data['role'],
-            'permissions' => json_encode(array_values($data['permissions'] ?? []), JSON_UNESCAPED_UNICODE),
             'store_access' => json_encode(array_values(array_filter($data['store_access'] ?? [])), JSON_UNESCAPED_UNICODE),
         ];
     }

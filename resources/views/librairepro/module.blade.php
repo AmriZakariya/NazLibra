@@ -4615,7 +4615,7 @@
                             <div>
                                 <p class="text-sm font-semibold text-brand">Paramètres · Équipe</p>
                                 <h2 class="mt-1 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Utilisateurs & accès magasin</h2>
-                                <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">Gérez les comptes de l'équipe, les rôles, les magasins autorisés et les permissions exceptionnelles sans perdre le contexte.</p>
+                                <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">Gérez les comptes de l'équipe, les rôles et les magasins autorisés.</p>
                             </div>
                             <div class="app-action-row">
                                 <x-status-pill tone="primary">{{ $settingsUsers->count() }} utilisateur(s)</x-status-pill>
@@ -4635,8 +4635,8 @@
                                 <strong class="mt-2 block text-2xl text-slate-950 dark:text-white">{{ count($storeAccessOptions) }}</strong>
                             </div>
                             <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.06]">
-                                <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Permissions suivies</span>
-                                <strong class="mt-2 block text-2xl text-slate-950 dark:text-white">{{ count($permissionCatalog) }}</strong>
+                                <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Avec accès magasin</span>
+                                <strong class="mt-2 block text-2xl text-slate-950 dark:text-white">{{ $settingsUsers->filter(fn($u) => !empty(json_decode($u->pivot->store_access ?? '[]', true)))->count() }}</strong>
                             </div>
                         </div>
                     </div>
@@ -4646,7 +4646,7 @@
                             <div class="grid gap-4 border-b border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/5 xl:grid-cols-[minmax(280px,1fr)_auto] xl:items-center">
                                 <div>
                                     <h3 class="text-base font-semibold text-slate-950 dark:text-white">Liste des utilisateurs</h3>
-                                    <p class="mt-1 text-sm text-slate-500">Recherchez, modifiez les rôles, les accès magasin et les permissions directes.</p>
+                                    <p class="mt-1 text-sm text-slate-500">Recherchez et modifiez les rôles et les accès magasin. Double-cliquez sur une ligne pour modifier.</p>
                                     @error('pin')
                                         <p class="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">{{ $message }}</p>
                                     @enderror
@@ -4657,28 +4657,26 @@
                                 </div>
                             </div>
                             <div class="overflow-x-auto">
-                                <table id="settings-users-table" class="w-full min-w-[1120px] text-left text-sm">
+                                <table id="settings-users-table" class="w-full min-w-[800px] text-left text-sm">
                                     <thead class="bg-white text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-950/40">
                                         <tr>
                                             <th class="px-4 py-3">Utilisateur</th>
                                             <th class="px-4 py-3">Rôle</th>
                                             <th class="px-4 py-3">Magasins</th>
-                                            <th class="px-4 py-3">Permissions directes</th>
                                             <th class="px-4 py-3">PIN</th>
                                             <th class="px-4 py-3">Statut</th>
-                                            <th class="px-4 py-3 text-right">Action</th>
+                                            <th class="px-4 py-3 text-right">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                                         @forelse ($settingsUsers as $user)
                                             @php
-                                                $userPermissions = json_decode($user->pivot->permissions ?? '[]', true) ?: [];
                                                 $userStores = json_decode($user->pivot->store_access ?? '[]', true) ?: [];
                                                 $userRole = $settingsRoles->firstWhere('key', $user->pivot->role);
                                                 $visibleStores = collect($userStores)->take(2)->implode(', ');
                                                 $extraStoresCount = max(count($userStores) - 2, 0);
                                             @endphp
-                                            <tr class="bg-white align-middle transition hover:bg-slate-50 dark:bg-transparent dark:hover:bg-white/5">
+                                            <tr class="cursor-pointer bg-white align-middle transition hover:bg-slate-50 dark:bg-transparent dark:hover:bg-white/5" ondblclick="document.getElementById('user-edit-{{ $user->id }}').showModal()">
                                                 <td class="px-4 py-4">
                                                     <div class="flex min-w-0 items-center gap-3">
                                                         <x-user-avatar :user="$user" size="md" rounded="rounded-xl" />
@@ -4699,9 +4697,6 @@
                                                     @endif
                                                 </td>
                                                 <td class="px-4 py-4">
-                                                    <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-white/10 dark:text-slate-200">{{ count($userPermissions) }} permission(s)</span>
-                                                </td>
-                                                <td class="px-4 py-4">
                                                     @if ($canManageUserPins)
                                                         <button type="button" onclick="document.getElementById('user-pin-{{ $user->id }}').showModal()" class="inline-block transition hover:brightness-110">
                                                             <x-status-pill :tone="$user->pin_hash ? 'success' : 'warning'">{{ $user->pin_hash ? 'Configuré' : 'À définir' }}</x-status-pill>
@@ -4714,7 +4709,12 @@
                                                     <x-status-pill :tone="$user->is_active ? 'success' : 'danger'">{{ $user->is_active ? 'Actif' : 'Désactivé' }}</x-status-pill>
                                                 </td>
                                                 <td class="px-4 py-4 text-right">
-                                                    <button type="button" onclick="document.getElementById('user-edit-{{ $user->id }}').showModal()" class="inline-flex items-center justify-center rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-500/20 transition hover:bg-brand-600">Modifier accès</button>
+                                                    <div class="inline-flex items-center gap-1.5">
+                                                        <button type="button" onclick="event.stopPropagation(); document.getElementById('user-edit-{{ $user->id }}').showModal()" class="inline-flex items-center justify-center rounded-lg border border-brand/20 bg-brand/5 px-3 py-1.5 text-xs font-semibold text-brand transition hover:bg-brand hover:text-white dark:border-brand/30 dark:bg-brand/10 dark:hover:bg-brand">
+                                                            <svg class="mr-1 size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                                            Modifier
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                             <dialog id="user-edit-{{ $user->id }}" class="app-dialog app-user-dialog w-[min(980px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
@@ -4725,16 +4725,16 @@
                                                         <div class="flex min-w-0 items-center gap-3">
                                                             <x-user-avatar :user="$user" size="lg" rounded="rounded-xl" />
                                                             <div class="min-w-0">
-                                                                <p class="text-sm font-semibold text-brand">Utilisateur · rôle · permissions</p>
+                                                                <p class="text-sm font-semibold text-brand">Utilisateur · rôle · accès</p>
                                                                 <h3 class="truncate text-xl font-semibold">{{ $user->name }}</h3>
-                                                                <p class="mt-1 text-sm text-slate-500">Modifiez ses informations, son rôle, ses magasins autorisés et ses permissions directes.</p>
+                                                                <p class="mt-1 text-sm text-slate-500">Modifiez ses informations, son rôle et ses magasins autorisés.</p>
                                                             </div>
                                                         </div>
                                                         <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
                                                     </div>
                                                     <div class="app-user-dialog-scroll min-h-0 flex-1 overflow-y-auto p-5">
                                                         <div class="mb-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                                                            <span>Informations, rôle, magasins et permissions</span>
+                                                            <span>Informations, rôle et magasins</span>
                                                             <span class="hidden sm:inline">Défilement disponible</span>
                                                         </div>
                                                         <div class="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
@@ -4765,15 +4765,6 @@
                                                                 <div class="mt-2 grid max-h-40 gap-2 overflow-y-auto sm:grid-cols-2">
                                                                     @foreach ($storeAccessOptions as $store)
                                                                         <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-white/5"><input name="store_access[]" value="{{ $store }}" type="checkbox" @checked(in_array($store, $userStores, true)) class="size-4 accent-[var(--brand-primary)]"> {{ $store }}</label>
-                                                                    @endforeach
-                                                                </div>
-                                                            </fieldset>
-                                                            <fieldset class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-                                                                <legend class="px-1 text-xs font-semibold uppercase text-slate-500">Permissions directes</legend>
-                                                                <p class="mt-1 text-xs text-slate-500">À utiliser seulement pour les exceptions au rôle.</p>
-                                                                <div class="mt-3 grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
-                                                                    @foreach ($permissionCatalog as $key => $label)
-                                                                        <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-white/5"><input name="permissions[]" value="{{ $key }}" type="checkbox" @checked(in_array($key, $userPermissions, true)) class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>
                                                                     @endforeach
                                                                 </div>
                                                             </fieldset>
@@ -4857,7 +4848,7 @@
                                             </dialog>
                                             @endif
                                         @empty
-                                            <tr><td colspan="7" class="px-4 py-12 text-center text-slate-500">Aucun utilisateur configuré.</td></tr>
+                                            <tr><td colspan="6" class="px-4 py-12 text-center text-slate-500">Aucun utilisateur configuré.</td></tr>
                                         @endforelse
                                     </tbody>
                                 </table>
@@ -4872,13 +4863,13 @@
                                 <div>
                                     <p class="text-sm font-semibold text-brand">Nouvel accès</p>
                                     <h3 class="mt-1 text-xl font-semibold">Ajouter un utilisateur</h3>
-                                    <p class="mt-1 text-sm text-slate-500">Créez le compte avec un rôle, puis ajustez uniquement les exceptions nécessaires.</p>
+                                    <p class="mt-1 text-sm text-slate-500">Créez le compte avec un rôle et définissez les magasins autorisés.</p>
                                 </div>
                                 <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
                             </div>
                             <div class="app-user-dialog-scroll min-h-0 flex-1 overflow-y-auto p-5">
                                 <div class="mb-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                                    <span>Compte, rôle, magasins et permissions</span>
+                                    <span>Compte, rôle et magasins</span>
                                     <span class="hidden sm:inline">Défilement disponible</span>
                                 </div>
                                 <div class="grid gap-5 lg:grid-cols-[1fr_0.9fr]">
@@ -4903,15 +4894,6 @@
                                         <div class="mt-2 grid max-h-40 gap-2 overflow-y-auto sm:grid-cols-2">
                                             @foreach ($storeAccessOptions as $store)
                                                 <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-white/5"><input name="store_access[]" value="{{ $store }}" type="checkbox" checked class="size-4 accent-[var(--brand-primary)]"> {{ $store }}</label>
-                                            @endforeach
-                                        </div>
-                                    </fieldset>
-                                    <fieldset class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
-                                        <legend class="px-1 text-xs font-semibold uppercase text-slate-500">Permissions directes</legend>
-                                        <p class="mt-1 text-xs text-slate-500">Laissez vide si le rôle couvre déjà l'accès.</p>
-                                        <div class="mt-3 grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-2">
-                                            @foreach ($permissionCatalog as $key => $label)
-                                                <label class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-white/5"><input name="permissions[]" value="{{ $key }}" type="checkbox" class="size-4 accent-[var(--brand-primary)]"> {{ $label }}</label>
                                             @endforeach
                                         </div>
                                     </fieldset>
