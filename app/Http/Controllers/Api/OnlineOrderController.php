@@ -2,22 +2,32 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Controller;
+use App\Models\Contact;
+use App\Models\Item;
 use App\Models\OnlineOrder;
 use App\Models\Sale;
+use App\Models\SalePayment;
+use App\Models\Tenant;
+use App\Services\Documents\DocumentNumberGenerator;
+use App\Services\Inventory\InventoryMovementType;
+use App\Services\Inventory\InventoryService;
+use App\Services\Inventory\MovementDTO;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class OnlineOrderController extends Controller
 {
+    public function __construct(private readonly DocumentNumberGenerator $numbers) {}
+
     /**
      * GET /api/v1/online-orders
-     *
-     * Paginated list of online orders for the authenticated tenant.
      */
     public function index(Request $request): JsonResponse
     {
-        /** @var \App\Models\Tenant $tenant */
+        /** @var Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
 
         $query = OnlineOrder::with(['items'])
@@ -57,8 +67,6 @@ class OnlineOrderController extends Controller
 
     /**
      * GET /api/v1/online-orders/{order}
-     *
-     * Full detail of one online order.
      */
     public function show(Request $request, OnlineOrder $order): JsonResponse
     {
@@ -75,9 +83,6 @@ class OnlineOrderController extends Controller
 
     /**
      * PATCH /api/v1/online-orders/{order}/status
-     *
-     * Update the status of an online order.
-     * Allowed statuses: pending, confirmed, preparing, ready, dispatched, delivered, cancelled
      */
     public function updateStatus(Request $request, OnlineOrder $order): JsonResponse
     {
@@ -101,60 +106,219 @@ class OnlineOrderController extends Controller
     /**
      * POST /api/v1/online-orders/{order}/convert
      *
-     * Convert the online order to a POS sale.
-     * Returns the newly created sale ID so the client can navigate to it.
+     * Convert the online order to a sale, mirroring the web checkout flow:
+     * proper numbering, stock deduction via InventoryService, SalePayment records,
+     * and order status set to "fulfilled".
+     *
+     * Request body (all optional — defaults to cash/paid):
+     *   payment_method: cash|card|transfer|credit  (default: cash)
+     *   payment_status: paid|partial|unpaid         (default: paid)
+     *   note: string
      */
     public function convertToSale(Request $request, OnlineOrder $order): JsonResponse
     {
+        /** @var Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
         abort_if($order->tenant_id !== $tenant->id, 403);
 
+        // If already converted, return the existing sale idempotently.
         if ($order->converted_sale_id !== null) {
             return response()->json([
-                'ok'      => true,
-                'sale_id' => $order->converted_sale_id,
-                'message' => 'Already converted.',
+                'ok'          => true,
+                'sale_id'     => $order->converted_sale_id,
+                'sale_number' => Sale::find($order->converted_sale_id)?->number,
+                'message'     => 'Already converted.',
             ]);
         }
 
-        $order->load('items');
-
-        $sale = Sale::create([
-            'tenant_id'       => $tenant->id,
-            'user_id'         => $request->user()?->id,
-            'user_name'       => $request->user()?->name,
-            'contact_id'      => $order->contact_id,
-            'status'          => 'completed',
-            'payment_method'  => 'cash',
-            'subtotal_amount' => $order->subtotal_amount,
-            'discount_amount' => $order->discount_amount,
-            'total_amount'    => $order->total_amount,
-            'note'            => $order->customer_note,
-            'idempotency_key' => 'online-order-' . $order->id,
-            'sold_at'         => now(),
-        ]);
-
-        foreach ($order->items as $item) {
-            $sale->items()->create([
-                'item_id'        => $item->item_id,
-                'title'          => $item->name,
-                'quantity'       => $item->quantity,
-                'unit_price'     => $item->unit_price,
-                'discount_amount'=> $item->discount_amount,
-                'total_amount'   => $item->total_amount,
-            ]);
+        // Validate status allows conversion (same rule as web).
+        if (! in_array($order->status, ['confirmed', 'preparing', 'ready'], true)) {
+            $reason = match ($order->status) {
+                'pending'   => 'Confirmez d\'abord la précommande avant de créer la vente.',
+                'fulfilled' => 'Cette précommande est déjà traitée.',
+                'cancelled' => 'Une précommande annulée ne peut pas être convertie en vente.',
+                default     => 'Cette précommande ne peut pas être convertie dans son état actuel.',
+            };
+            return response()->json(['ok' => false, 'message' => $reason], 422);
         }
 
-        $order->update([
-            'converted_sale_id' => $sale->id,
-            'converted_by'      => $request->user()?->id,
-            'converted_at'      => now(),
-            'status'            => 'confirmed',
+        $data = $request->validate([
+            'payment_method' => ['nullable', 'string', Rule::in(['cash', 'card', 'transfer', 'credit'])],
+            'payment_status' => ['nullable', 'string', Rule::in(['paid', 'partial', 'unpaid'])],
+            'note'           => ['nullable', 'string', 'max:700'],
         ]);
+
+        $paymentMethod = $data['payment_method'] ?? 'cash';
+        $saleStatus    = $data['payment_status'] ?? 'paid';
+
+        try {
+            $sale = DB::transaction(function () use ($tenant, $order, $request, $data, $paymentMethod, $saleStatus): Sale {
+                // Re-check inside the transaction with a lock.
+                $order->load('items');
+                $lockedOrder = OnlineOrder::where('tenant_id', $tenant->id)
+                    ->whereKey($order->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($lockedOrder->converted_sale_id !== null) {
+                    return Sale::findOrFail($lockedOrder->converted_sale_id);
+                }
+
+                /** @var InventoryService $inventoryService */
+                $inventoryService = app(InventoryService::class);
+                $locationId       = $inventoryService->locationIdFromName($tenant->id, null);
+                $allowOversell    = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
+
+                $itemIds = $order->items->pluck('item_id')->filter()->unique()->values();
+                $catalogItems = Item::where('tenant_id', $tenant->id)
+                    ->whereIn('id', $itemIds)
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
+
+                // Verify all lines are linked to catalog items.
+                foreach ($order->items as $line) {
+                    if (! $line->item_id || ! $catalogItems->has($line->item_id)) {
+                        throw new \RuntimeException('Une ligne de la précommande n\'est plus liée au catalogue.');
+                    }
+                }
+
+                $saleNumber = $this->numbers->next(
+                    $tenant, 'sale', 'BL',
+                    fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists()
+                )['number'];
+
+                $total          = (float) $order->total_amount;
+                $paidAmount     = $saleStatus === 'unpaid' ? 0.0 : $total;
+                $resolvedStatus = match ($saleStatus) {
+                    'unpaid'  => 'unpaid',
+                    'partial' => 'partial',
+                    default   => 'paid',
+                };
+                $resolvedPaymentMethod = $saleStatus === 'unpaid' ? 'credit' : $paymentMethod;
+
+                $sale = Sale::create([
+                    'tenant_id'             => $tenant->id,
+                    'contact_id'            => $order->contact_id,
+                    'user_id'               => $request->user()?->id,
+                    'source_online_order_id'=> $order->id,
+                    'number'                => $saleNumber,
+                    'status'                => $resolvedStatus,
+                    'payment_method'        => $resolvedPaymentMethod,
+                    'subtotal_amount'       => (float) $order->subtotal_amount,
+                    'discount_amount'       => (float) $order->discount_amount,
+                    'tax_amount'            => 0,
+                    'total_amount'          => $total,
+                    'sold_at'               => now(),
+                    'idempotency_key'       => 'online-order-' . $order->id,
+                    'metadata'              => [
+                        'source'                       => 'online_order_conversion',
+                        'document_flow'                => 'online_order_then_sale',
+                        'document_origin'              => 'online_order',
+                        'source_online_order_id'       => $order->id,
+                        'source_online_order_number'   => $order->number,
+                        'paid_amount'                  => $paidAmount,
+                        'payments'                     => $saleStatus !== 'unpaid' ? [$paymentMethod => $total] : [],
+                        'note'                         => $data['note'] ?? $order->customer_note,
+                    ],
+                ]);
+
+                // Create sale items + deduct stock.
+                foreach ($order->items as $line) {
+                    $item = $catalogItems->get($line->item_id);
+
+                    $sale->items()->create([
+                        'item_id'    => $item->id,
+                        'name'       => $item->title,
+                        'quantity'   => $line->quantity,
+                        'unit_price' => (float) $line->unit_price,
+                        'total_price'=> (float) $line->total_amount,
+                        'unit_cost'  => 0,
+                        'total_cost' => 0,
+                    ]);
+
+                    if ($item->type !== 'service') {
+                        $inventoryService->move(new MovementDTO(
+                            tenantId: $tenant->id,
+                            itemId: $item->id,
+                            variantId: null,
+                            locationId: $locationId,
+                            type: InventoryMovementType::SALE,
+                            quantityChanged: -(int) $line->quantity,
+                            userId: $request->user()?->id,
+                            referenceType: Sale::class,
+                            referenceId: $sale->id,
+                            referenceNumber: $sale->number,
+                            note: 'Conversion commande ' . $order->number,
+                            allowNegative: $allowOversell,
+                        ));
+
+                        $item->decrement('stock_quantity', $line->quantity);
+                        if (! $allowOversell && $item->fresh()->stock_quantity <= 0) {
+                            $item->update(['status' => 'out_of_stock']);
+                        }
+                    }
+                }
+
+                // Record payment.
+                if ($paidAmount > 0) {
+                    $paymentNumber = $this->numbers->next(
+                        $tenant, 'payment', 'PAY',
+                        fn (string $n) => SalePayment::where('tenant_id', $tenant->id)->where('number', $n)->exists()
+                    )['number'];
+
+                    SalePayment::create([
+                        'tenant_id'  => $tenant->id,
+                        'sale_id'    => $sale->id,
+                        'contact_id' => $order->contact_id,
+                        'user_id'    => $request->user()?->id,
+                        'number'     => $paymentNumber,
+                        'method'     => $paymentMethod,
+                        'amount'     => $paidAmount,
+                        'paid_at'    => $sale->sold_at,
+                        'reference'  => $sale->number,
+                        'note'       => 'Paiement conversion commande ' . $order->number,
+                    ]);
+                }
+
+                // Update order to fulfilled.
+                $orderMetadata  = $order->metadata ?? [];
+                $statusHistory  = collect($orderMetadata['status_history'] ?? [])
+                    ->push([
+                        'from'           => $order->status,
+                        'to'             => 'fulfilled',
+                        'payment_status' => $resolvedStatus === 'paid' ? 'paid' : ($resolvedStatus === 'partial' ? 'deposit' : $order->payment_status),
+                        'user_id'        => $request->user()?->id,
+                        'user_name'      => $request->user()?->name,
+                        'at'             => now()->toIso8601String(),
+                        'note'           => 'Conversion en vente ' . $sale->number,
+                    ])
+                    ->take(-30)
+                    ->values()
+                    ->all();
+
+                $lockedOrder->update([
+                    'converted_sale_id' => $sale->id,
+                    'converted_by'      => $request->user()?->id,
+                    'converted_at'      => now(),
+                    'status'            => 'fulfilled',
+                    'payment_status'    => $resolvedStatus === 'paid' ? 'paid' : ($resolvedStatus === 'partial' ? 'deposit' : $order->payment_status),
+                    'metadata'          => array_merge($orderMetadata, [
+                        'status_history'        => $statusHistory,
+                        'converted_sale_number' => $sale->number,
+                    ]),
+                ]);
+
+                return $sale;
+            });
+        } catch (\RuntimeException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
 
         return response()->json([
-            'ok'      => true,
-            'sale_id' => $sale->id,
+            'ok'          => true,
+            'sale_id'     => $sale->id,
+            'sale_number' => $sale->number,
         ], 201);
     }
 
