@@ -59,6 +59,7 @@ class RoleController extends Controller
     /**
      * PUT /api/v1/roles/{role}
      * Update an existing role. Requires settings.roles ability.
+     * System roles (is_system = true) cannot be modified.
      */
     public function update(Request $request, Role $role): JsonResponse
     {
@@ -69,6 +70,10 @@ class RoleController extends Controller
 
         if ((int) $role->tenant_id !== (int) $tenant->id) {
             return response()->json(['ok' => false, 'message' => 'Rôle introuvable.'], 404);
+        }
+
+        if ($role->isProtected()) {
+            return response()->json(['ok' => false, 'message' => 'Ce rôle système ne peut pas être modifié.'], 403);
         }
 
         $data = $request->validate([
@@ -85,6 +90,7 @@ class RoleController extends Controller
     /**
      * DELETE /api/v1/roles/{role}
      * Delete a role. Requires settings.roles ability.
+     * System roles (is_system = true) cannot be deleted.
      */
     public function destroy(Request $request, Role $role): JsonResponse
     {
@@ -95,6 +101,10 @@ class RoleController extends Controller
 
         if ((int) $role->tenant_id !== (int) $tenant->id) {
             return response()->json(['ok' => false, 'message' => 'Rôle introuvable.'], 404);
+        }
+
+        if ($role->isProtected()) {
+            return response()->json(['ok' => false, 'message' => 'Ce rôle système ne peut pas être supprimé.'], 403);
         }
 
         $role->delete();
@@ -119,6 +129,7 @@ class RoleController extends Controller
             'name'        => $role->name,
             'key'         => $role->key,
             'permissions' => $role->permissions ?? [],
+            'is_system'   => (bool) $role->is_system,
         ];
     }
 }

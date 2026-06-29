@@ -269,6 +269,13 @@ class AuthController extends Controller
         $tenantUser = $tenant->users()->whereKey($user->id)->first();
         $roleKey    = $tenantUser?->pivot?->role;
 
+        // Owner is always granted full access — no DB lookup needed.
+        // This ensures the owner can never be locked out even if the roles
+        // table is empty or the owner role record is missing.
+        if ($roleKey === 'owner') {
+            return ['owner', ['*']];
+        }
+
         $role = $roleKey
             ? $tenant->roles()->where('key', $roleKey)->first()
             : null;

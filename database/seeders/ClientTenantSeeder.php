@@ -121,22 +121,23 @@ class ClientTenantSeeder extends Seeder
                 ],
             );
 
+            // is_system = true on the owner role makes it immutable (cannot be deleted or edited).
             $roles = [
-                ['Owner', 'owner', ['*']],
-                ['Manager', 'manager', ['dashboard.view', 'items.*', 'sales.*', 'online_orders.*', 'purchases.*', 'contacts.*', 'finance.*', 'reports.view', 'settings.theme']],
-                ['Caissier', 'cashier', ['dashboard.view', 'sales.view', 'sales.create', 'online_orders.view', 'online_orders.create', 'contacts.create', 'items.view']],
-                ['Stockiste', 'stockist', ['dashboard.view', 'items.*', 'stock.adjust', 'stock.transfer', 'purchases.view', 'purchases.receive']],
+                ['Owner', 'owner', ['*'], true],
+                ['Manager', 'manager', ['dashboard.view', 'items.*', 'sales.*', 'online_orders.*', 'purchases.*', 'contacts.*', 'finance.*', 'reports.view', 'settings.theme'], false],
+                ['Caissier', 'cashier', ['dashboard.view', 'sales.view', 'sales.create', 'online_orders.view', 'online_orders.create', 'contacts.create', 'items.view'], false],
+                ['Stockiste', 'stockist', ['dashboard.view', 'items.*', 'stock.adjust', 'stock.transfer', 'purchases.view', 'purchases.receive'], false],
             ];
 
-            foreach ($roles as [$roleName, $roleKey, $permissions]) {
+            foreach ($roles as [$roleName, $roleKey, $permissions, $isSystem]) {
                 Role::updateOrCreate(
                     ['tenant_id' => $tenant->id, 'key' => $roleKey],
-                    ['name' => $roleName, 'permissions' => $permissions],
+                    ['name' => $roleName, 'permissions' => $permissions, 'is_system' => $isSystem],
                 );
             }
 
             $tenant->users()->syncWithoutDetaching([
-                $owner->id => ['role' => 'owner', 'permissions' => json_encode(['*']), 'store_access' => json_encode([$store['name']])],
+                $owner->id => ['role' => 'owner', 'store_access' => json_encode([$store['name']])],
             ]);
 
             foreach ([['Pièce', 'Unité standard'], ['Pack', 'Lot composé'], ['Boîte', 'Conditionnement'], ['Service', 'Prestation non physique']] as [$unitName, $description]) {

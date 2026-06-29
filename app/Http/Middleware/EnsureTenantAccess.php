@@ -45,6 +45,11 @@ class EnsureTenantAccess
             return [];
         }
 
+        // Owner always has full access — no DB lookup needed.
+        if ($roleKey === 'owner') {
+            return ['*'];
+        }
+
         $rolePermissions = Role::where('tenant_id', $tenant->id)
             ->where('key', $roleKey)
             ->value('permissions') ?? [];

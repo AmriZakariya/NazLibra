@@ -3436,6 +3436,7 @@ class LibraireProController extends Controller
     {
         $tenant = $this->tenant();
         abort_unless($role->tenant_id === $tenant->id, 403);
+        abort_if($role->isProtected(), 403, 'Ce rôle système ne peut pas être modifié.');
 
         $role->update($this->validateRole($request, $tenant, $role));
 
@@ -3448,6 +3449,7 @@ class LibraireProController extends Controller
     {
         $tenant = $this->tenant();
         abort_unless($role->tenant_id === $tenant->id, 403);
+        abort_if($role->isProtected(), 403, 'Ce rôle système ne peut pas être supprimé.');
         abort_if($tenant->users()->wherePivot('role', $role->key)->exists(), 422, 'Ce rôle est encore utilisé.');
 
         $role->delete();

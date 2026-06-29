@@ -6,18 +6,24 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['tenant_id', 'name', 'key', 'permissions'])]
+#[Fillable(['tenant_id', 'name', 'key', 'permissions', 'is_system'])]
 class Role extends Model
 {
     protected function casts(): array
     {
         return [
             'permissions' => 'array',
+            'is_system'   => 'boolean',
         ];
     }
 
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
+    }
+
+    public function isProtected(): bool
+    {
+        return (bool) $this->is_system;
     }
 }
