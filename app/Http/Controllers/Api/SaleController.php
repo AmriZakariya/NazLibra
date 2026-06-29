@@ -21,6 +21,7 @@ use App\Services\LoyaltyService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
@@ -367,8 +368,7 @@ class SaleController extends Controller
             }
         }
 
-        try {
-            $sale = DB::transaction(function () use (
+        $transactionFn = function () use (
             $tenant, $locationId, $contact, $payments, $saleLines,
             $subtotal, $discount, $loyaltyDiscount, $total, $paid, $data,
             $totalCogs, $allowOversell, $action, $soldAt,
@@ -570,17 +570,33 @@ class SaleController extends Controller
             }
 
             return $sale;
-            });
-        } catch (QueryException $exception) {
-            $existing = Sale::where('tenant_id', $tenant->id)
-                ->where('idempotency_key', $data['idempotency_key'])
-                ->first();
-            if (! $existing) {
-                throw $exception;
-            }
+        };
 
-            return $this->saleResponse($existing, $data['items'], $tenant->id, $locationId, alreadyExisted: true);
-        }
+        // Retry up to 3 times on number uniqueness conflicts caused by concurrent inserts.
+        // On each retry the existsCheck inside DocumentNumberGenerator will skip past the taken number.
+        $attempt = 0;
+        do {
+            try {
+                $sale = DB::transaction($transactionFn);
+                break;
+            } catch (QueryException $exception) {
+                $existing = Sale::where('tenant_id', $tenant->id)
+                    ->where('idempotency_key', $data['idempotency_key'])
+                    ->first();
+
+                if ($existing) {
+                    return $this->saleResponse($existing, $data['items'], $tenant->id, $locationId, alreadyExisted: true);
+                }
+
+                $isNumberConflict = $exception instanceof UniqueConstraintViolationException
+                    && str_contains($exception->getMessage(), 'sales.tenant_id, sales.number');
+
+                if (! $isNumberConflict || ++$attempt >= 3) {
+                    throw $exception;
+                }
+                // else: retry — existsCheck will find and skip the conflicting number
+            }
+        } while (true);
 
         return $this->saleResponse($sale, $data['items'], $tenant->id, $locationId);
     }
