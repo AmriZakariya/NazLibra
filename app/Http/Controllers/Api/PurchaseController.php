@@ -3,15 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\InventoryMovement;
-use App\Models\ItemLocationStock;
 use App\Models\Purchase;
+use App\Services\Inventory\InventoryLedgerService;
+use App\Services\Inventory\InventoryMovementType;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class PurchaseController extends Controller
 {
+    public function __construct(private readonly InventoryLedgerService $ledger) {}
+
     /**
      * GET /api/v1/purchases
      *
@@ -98,29 +100,28 @@ class PurchaseController extends Controller
 
         $locationId = (int) $request->header('X-Location-Id', 1);
 
+        // Receive each item line via the ledger service so LIFO layers are
+        // created alongside the stock-cache update. Without this, the cache
+        // shows positive stock but the layer sum stays at 0, causing a phantom
+        // "Correction automatique" movement on every subsequent POS sale.
         DB::transaction(function () use ($purchase, $locationId, $tenant): void {
             foreach ($purchase->items as $item) {
                 $qtyToReceive = (float) $item->quantity_ordered - (float) $item->quantity_received;
                 if ($qtyToReceive <= 0) continue;
 
-                $stock = ItemLocationStock::firstOrCreate(
-                    ['item_id' => $item->item_id, 'location_id' => $locationId, 'tenant_id' => $tenant->id],
-                    ['quantity' => 0, 'reserved_quantity' => 0]
-                );
-
-                $quantityBefore = (int) $stock->quantity;
-                $stock->increment('quantity', $qtyToReceive);
-
-                InventoryMovement::create([
-                    'tenant_id'       => $tenant->id,
-                    'item_id'         => $item->item_id,
-                    'location_id'     => $locationId,
-                    'type'            => 'purchase_receive',
-                    'quantity_before' => $quantityBefore,
-                    'quantity_delta'  => (int) $qtyToReceive,
-                    'quantity_after'  => $quantityBefore + (int) $qtyToReceive,
-                    'reference_type'  => 'purchase',
-                    'reference_id'    => $purchase->id,
+                $this->ledger->createIncomingMovement([
+                    'tenantId'        => $tenant->id,
+                    'itemId'          => $item->item_id,
+                    'variantId'       => null,
+                    'locationId'      => $locationId,
+                    'type'            => InventoryMovementType::PURCHASE_RECEIPT,
+                    'quantity'        => $qtyToReceive,
+                    'unitCost'        => (float) $item->unit_cost,
+                    'occurredAt'      => now(),
+                    'referenceType'   => 'purchase',
+                    'referenceId'     => $purchase->id,
+                    'referenceNumber' => $purchase->number,
+                    'idempotencyKey'  => 'purchase-receive-'.$purchase->id.'-item-'.$item->item_id,
                 ]);
 
                 $item->update(['quantity_received' => $item->quantity_ordered]);

@@ -418,7 +418,7 @@ class SyncController extends Controller
 
         $page = $this->syncPage($request, $query, 'sales:location-'.$request->attributes->get('api_location_id'), $tenant->id, 100, 200, [
                 'id', 'location_id', 'contact_id', 'user_id', 'virtual_device_id', 'actor_name_snapshot', 'terminal_name_snapshot', 'number', 'status', 'payment_method',
-                'subtotal_amount', 'discount_amount', 'total_amount',
+                'subtotal_amount', 'discount_amount', 'total_amount', 'metadata',
                 'sold_at', 'updated_at', 'deleted_at',
             ]);
 

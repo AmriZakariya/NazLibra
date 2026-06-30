@@ -3618,7 +3618,7 @@ class LibraireProController extends Controller
             'items' => $items,
             'clients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->take(80)->get(),
             'recentSales' => $tenant->sales()->with('contact')->latest('sold_at')->take(5)->get(),
-            'lastSale' => $lastSaleId ? $tenant->sales()->with(['contact', 'items', 'user'])->whereKey($lastSaleId)->first() : null,
+            'lastSale' => $lastSaleId ? $tenant->sales()->with(['contact', 'items', 'user', 'payments'])->whereKey($lastSaleId)->first() : null,
             'heldTickets' => $heldTickets,
             'heldTicketItems' => $heldTicketItems,
             'resumeTicket' => $resumeTicket,

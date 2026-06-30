@@ -128,7 +128,18 @@
                                 @endif
                                 <div class="flex justify-between"><span>Remise {{ $lastSale->discount_amount > 0 ? '('.$lastDiscountLabel.')' : '' }}</span><span>{{ $money($lastSale->discount_amount) }}</span></div>
                                 <div class="flex justify-between text-base font-bold"><span>Total</span><span>{{ $money($lastSale->total_amount) }}</span></div>
-                                <div class="mt-2 text-xs text-slate-500">Paiement: {{ $lastSale->payment_method }}</div>
+                                @if ($lastSale->payments && $lastSale->payments->count() > 0)
+                                    <div class="mt-2 space-y-0.5 text-xs text-slate-500">
+                                        @foreach ($lastSale->payments as $pay)
+                                            <div class="flex justify-between">
+                                                <span>{{ match($pay->method) { 'cash' => 'Espèces', 'card' => 'Carte', 'transfer' => 'Virement', 'advance' => 'Avance', default => $pay->method } }}</span>
+                                                <span class="font-medium">{{ $money($pay->amount) }}</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <div class="mt-2 text-xs text-slate-500">Paiement: {{ $lastSale->payment_method }}</div>
+                                @endif
                                 <div class="text-xs text-slate-500">Payé: {{ $money($paidAmount) }} · Monnaie: {{ $money($changeAmount) }}</div>
                                 @if ($lastManualNote !== '')
                                     <div class="mt-2 rounded-lg bg-white px-2 py-1 text-xs text-slate-600 dark:bg-slate-950/40 dark:text-slate-300">Note: {{ $lastManualNote }}</div>
