@@ -413,6 +413,32 @@
                         </div>
 
                         <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Méthode de valorisation des stocks</p>
+                            <p class="mt-1 text-xs leading-5 text-slate-500">Définit comment le coût des marchandises vendues (CMV) est calculé. Ce choix s'applique à tous les articles.</p>
+                            @php $selectedCosting = old('costing_method', $data['costing_method'] ?? 'lifo'); @endphp
+                            <div class="mt-3 grid gap-3 sm:grid-cols-3">
+                                @foreach ([
+                                    'lifo' => ['label' => 'LIFO', 'sub' => 'Dernier entré, premier sorti', 'note' => 'CMV basé sur les lots les plus récents. Recommandé pour valoriser au prix actuel du marché.'],
+                                    'fifo' => ['label' => 'FIFO', 'sub' => 'Premier entré, premier sorti', 'note' => 'CMV basé sur les lots les plus anciens. Standard pour la grande distribution et l\'alimentaire.'],
+                                    'wac'  => ['label' => 'CMUP', 'sub' => 'Coût moyen pondéré', 'note' => 'CMV calculé sur la moyenne de tous les lots en stock. Idéal pour les produits à fort volume.'],
+                                ] as $key => $opt)
+                                    <label data-costing-label="{{ $key }}" class="setup-choice cursor-pointer text-left {{ $selectedCosting === $key ? 'ring-2 ring-blue-500' : '' }}">
+                                        <input type="radio" name="costing_method" value="{{ $key }}" class="sr-only" {{ $selectedCosting === $key ? 'checked' : '' }}
+                                               onchange="document.querySelectorAll('[data-costing-label]').forEach(el => el.classList.toggle('ring-2', el.dataset.costingLabel === this.value)); document.querySelectorAll('[data-costing-label]').forEach(el => el.classList.toggle('ring-blue-500', el.dataset.costingLabel === this.value))">
+                                        <span class="block">
+                                            <span class="text-sm font-semibold text-slate-900">{{ $opt['label'] }}</span>
+                                            <span class="mt-0.5 block text-xs font-medium text-slate-600">{{ $opt['sub'] }}</span>
+                                            <span class="mt-1 block text-xs leading-5 text-slate-400">{{ $opt['note'] }}</span>
+                                        </span>
+                                    </label>
+                                @endforeach
+                            </div>
+                            @error('costing_method')
+                                <p class="mt-2 text-xs text-rose-500">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                             <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Presets inclus</p>
                             <div class="mt-3 grid gap-3 sm:grid-cols-3">
                                 @foreach (['library', 'restaurant', 'coffee'] as $presetMode)

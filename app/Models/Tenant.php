@@ -79,4 +79,11 @@ class Tenant extends Model
     {
         return $this->hasMany(InventoryMovement::class);
     }
+
+    /** Costing method used by the inventory ledger: 'lifo' | 'fifo' | 'wac'. */
+    public function costingMethod(): string
+    {
+        $settings = $this->settings ?? [];
+        return $settings['inventory']['costing_method'] ?? 'lifo';
+    }
 }

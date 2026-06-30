@@ -796,9 +796,33 @@ class SaleController extends Controller
             ->map(fn (array $line) => $line['item']?->id)
             ->filter()
             ->unique()
-            ->values();
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
 
-        foreach ($itemIds as $itemId) {
+        if (empty($itemIds)) {
+            return;
+        }
+
+        // Bulk-check which items actually have cache > layers before entering
+        // per-item transactions. In a healthy system (all purchases going through
+        // the ledger) this subquery returns nothing and we skip all 10+ transactions.
+        $shortfallItemIds = DB::table('item_location_stocks as s')
+            ->where('s.tenant_id', $tenantId)
+            ->where('s.location_id', $locationId)
+            ->whereIn('s.item_id', $itemIds)
+            ->where('s.quantity', '>', 0)
+            ->whereRaw('s.quantity > (
+                SELECT COALESCE(SUM(l.remaining_quantity), 0)
+                FROM inventory_layers l
+                WHERE l.tenant_id = s.tenant_id
+                  AND l.item_id   = s.item_id
+                  AND l.location_id = s.location_id
+                  AND l.remaining_quantity > 0
+            ) + 0.0001')
+            ->pluck('s.item_id');
+
+        foreach ($shortfallItemIds as $itemId) {
             $this->ledger->reconcilePositiveStockCacheShortfall(
                 $tenantId,
                 (int) $itemId,

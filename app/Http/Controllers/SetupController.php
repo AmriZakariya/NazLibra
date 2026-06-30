@@ -187,14 +187,15 @@ class SetupController extends Controller
         ]);
 
         $data = $request->validate([
-            'name'          => ['required', 'string', 'max:100'],
-            'email'         => ['nullable', 'email', 'max:100'],
-            'phone'         => ['nullable', 'string', 'max:30'],
-            'address'       => ['nullable', 'string', 'max:200'],
-            'currency'      => ['required', 'string', 'size:3'],
-            'timezone'      => ['required', 'timezone:all'],
-            'language'      => ['required', 'in:fr,ar'],
-            'business_mode' => ['required', Rule::in(array_keys(BusinessMode::all()))],
+            'name'           => ['required', 'string', 'max:100'],
+            'email'          => ['nullable', 'email', 'max:100'],
+            'phone'          => ['nullable', 'string', 'max:30'],
+            'address'        => ['nullable', 'string', 'max:200'],
+            'currency'       => ['required', 'string', 'size:3'],
+            'timezone'       => ['required', 'timezone:all'],
+            'language'       => ['required', 'in:fr,ar'],
+            'business_mode'  => ['required', Rule::in(array_keys(BusinessMode::all()))],
+            'costing_method' => ['required', 'in:lifo,fifo,wac'],
         ]);
 
         session(['setup.store' => $data]);
@@ -730,7 +731,8 @@ class SetupController extends Controller
                     ['key' => 'transfer', 'name' => 'Virement', 'code' => 'transfer', 'description' => 'Paiement bancaire', 'is_active' => true],
                     ['key' => 'advance', 'name' => 'Avance client', 'code' => 'advance', 'description' => 'Solde client', 'is_active' => true],
                 ],
-                'features' => ['virtual_devices' => true],
+                'features'  => ['virtual_devices' => true],
+                'inventory' => ['costing_method' => $storeData['costing_method'] ?? 'lifo'],
                 'pos' => ['editable_price' => true, 'allow_sale_edit' => true, 'allow_oversell' => false, 'show_out_of_stock' => false, 'show_cash_drawer_navbar' => true, 'require_adjustment_reason' => true, 'update_cost_on_purchase' => true, 'low_stock_dashboard' => true, 'auto_reorder_draft' => false, 'inventory_cycle_days' => 30, 'default_min_stock_threshold' => 3],
             ],
         ]);

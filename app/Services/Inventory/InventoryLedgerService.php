@@ -9,6 +9,7 @@ use App\Enums\ItemStatus;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
 use App\Models\Location;
+use App\Models\Tenant;
 use App\Exceptions\InsufficientStockException;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\DB;
  *   - All inventory state is derived from inventory_layers and
  *     inventory_layer_consumptions. No other source is authoritative.
  *   - Every incoming movement creates one InventoryLayer.
- *   - Every outgoing movement consumes layers in LIFO order.
+ *   - Every outgoing movement consumes layers using the tenant's costing method (LIFO/FIFO/WAC).
  *   - ItemLocationStock and items.stock_quantity are read-cache only —
  *     always recomputed from layers by syncStockCache().
  *   - No frontend or mobile client may call these methods directly.
@@ -34,6 +35,9 @@ use Illuminate\Support\Facades\DB;
  */
 class InventoryLedgerService
 {
+    /** Per-request cache so each tenant is loaded at most once per HTTP cycle. */
+    private array $costingMethodCache = [];
+
     // ── Public: incoming movement ───────────────────────────────────────────────
 
     /**
@@ -269,8 +273,8 @@ class InventoryLedgerService
                 $consumptions = InventoryLayerConsumption::where('outgoing_movement_id', $movement->id)->get();
                 $cogs         = (float) $consumptions->sum('total_cost');
             } else {
-                // Fast path: consume layers LIFO directly.
-                [$consumptions, $cogs] = $this->consumeLayersLifo(
+                // Fast path: consume layers via the tenant's configured method.
+                [$consumptions, $cogs] = $this->consumeLayersByMethod(
                     $tenantId, $itemId, $variantId, $locationId, $quantity, $movement->id
                 );
                 $this->syncStockCache($tenantId, $itemId, $variantId, $locationId);
@@ -351,12 +355,16 @@ class InventoryLedgerService
                 return;
             }
 
+            // lockForUpdate so both reads are consistent inside the transaction
+            // and a concurrent layer insert cannot slip between the two checks.
             $layerQty = (float) InventoryLayer::where('tenant_id', $tenantId)
                 ->where('item_id', $itemId)
                 ->where('location_id', $locationId)
                 ->when($variantId, fn ($q) => $q->where('variant_id', $variantId))
                 ->where('remaining_quantity', '>', 0)
-                ->sum('remaining_quantity');
+                ->lockForUpdate()
+                ->selectRaw('COALESCE(SUM(remaining_quantity), 0) as s')
+                ->value('s') ?? 0.0;
 
             if ($layerQty + 0.0001 >= $cacheQty) {
                 return;
@@ -540,7 +548,7 @@ class InventoryLedgerService
                     $this->createLayer($movement, $delta, (float) ($movement->unit_cost ?? 0), $movement->occurred_at);
                 } elseif ($delta < 0) {
                     $qty = abs($delta);
-                    [$consumptions, $cogs] = $this->consumeLayersLifo(
+                    [$consumptions, $cogs] = $this->consumeLayersByMethod(
                         $tenantId, $itemId, $variantId, $locationId, $qty, $movement->id
                     );
                     $avgUnit = $qty > 0 ? round($cogs / $qty, 4) : 0.0;
@@ -574,20 +582,19 @@ class InventoryLedgerService
         ?int $variantId,
         int $locationId,
     ): void {
-        $quantity = (float) InventoryLayer::where('tenant_id', $tenantId)
+        // Single pass: fetch both aggregates in one query instead of two.
+        $agg = InventoryLayer::where('tenant_id', $tenantId)
             ->where('item_id', $itemId)
             ->where('location_id', $locationId)
             ->when($variantId, fn ($q) => $q->where('variant_id', $variantId))
-            ->sum('remaining_quantity');
+            ->selectRaw('
+                COALESCE(SUM(remaining_quantity), 0) as qty,
+                COALESCE(SUM(CASE WHEN remaining_quantity > 0 THEN remaining_quantity * unit_cost ELSE 0 END), 0) as val
+            ')
+            ->first();
 
-        $value = (float) InventoryLayer::where('tenant_id', $tenantId)
-            ->where('item_id', $itemId)
-            ->where('location_id', $locationId)
-            ->when($variantId, fn ($q) => $q->where('variant_id', $variantId))
-            ->where('remaining_quantity', '>', 0)
-            ->selectRaw('SUM(remaining_quantity * unit_cost) as v')
-            ->value('v') ?? 0.0;
-
+        $quantity    = (float) ($agg->qty ?? 0);
+        $value       = (float) ($agg->val ?? 0);
         $averageCost = $quantity > 0 ? round($value / $quantity, 4) : 0.0;
 
         // Update or create the ItemLocationStock cache row.
@@ -707,6 +714,150 @@ class InventoryLedgerService
         }
 
         return [$consumptions, round($totalCogs, 4)];
+    }
+
+    /**
+     * Consume layers in FIFO order (oldest first — suited for retail/food).
+     */
+    private function consumeLayersFifo(
+        int $tenantId,
+        int $itemId,
+        ?int $variantId,
+        int $locationId,
+        float $quantity,
+        int $outgoingMovementId,
+    ): array {
+        $remainingToConsume = $quantity;
+        $consumptions       = collect();
+        $totalCogs          = 0.0;
+
+        $layers = InventoryLayer::where('tenant_id', $tenantId)
+            ->where('item_id', $itemId)
+            ->where('location_id', $locationId)
+            ->when($variantId, fn ($q) => $q->where('variant_id', $variantId))
+            ->where('remaining_quantity', '>', 0)
+            ->orderBy('occurred_at')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($layers as $layer) {
+            if ($remainingToConsume <= 0) {
+                break;
+            }
+
+            $consumeQty = min($remainingToConsume, (float) $layer->remaining_quantity);
+            $layerCost  = round($consumeQty * (float) $layer->unit_cost, 4);
+
+            $consumptions->push(InventoryLayerConsumption::create([
+                'outgoing_movement_id' => $outgoingMovementId,
+                'inventory_layer_id'   => $layer->id,
+                'quantity_consumed'    => $consumeQty,
+                'unit_cost'            => $layer->unit_cost,
+                'total_cost'           => $layerCost,
+            ]));
+
+            $totalCogs += $layerCost;
+            $newRemaining = (float) $layer->remaining_quantity - $consumeQty;
+            $layer->remaining_quantity = max(0, $newRemaining);
+            $layer->exhausted_at = $newRemaining <= 0 ? now() : null;
+            $layer->save();
+
+            $remainingToConsume -= $consumeQty;
+        }
+
+        return [$consumptions, round($totalCogs, 4)];
+    }
+
+    /**
+     * Consume layers using Weighted Average Cost.
+     *
+     * Average cost is computed live from all remaining layers at the moment of the
+     * sale (not from the cached average_cost field), so backdated ops don't drift.
+     * Layers are depleted in FIFO order (oldest first) but every consumption record
+     * uses the average unit cost, not the per-layer cost.
+     */
+    private function consumeLayersWac(
+        int $tenantId,
+        int $itemId,
+        ?int $variantId,
+        int $locationId,
+        float $quantity,
+        int $outgoingMovementId,
+    ): array {
+        $remainingToConsume = $quantity;
+        $consumptions       = collect();
+
+        $layers = InventoryLayer::where('tenant_id', $tenantId)
+            ->where('item_id', $itemId)
+            ->where('location_id', $locationId)
+            ->when($variantId, fn ($q) => $q->where('variant_id', $variantId))
+            ->where('remaining_quantity', '>', 0)
+            ->orderBy('occurred_at')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        // Compute weighted average from all available layers.
+        $totalRemaining = $layers->sum(fn ($l) => (float) $l->remaining_quantity);
+        $totalValue     = $layers->sum(fn ($l) => (float) $l->remaining_quantity * (float) $l->unit_cost);
+        $avgUnitCost    = $totalRemaining > 0 ? round($totalValue / $totalRemaining, 4) : 0.0;
+        $totalCogs      = round(min($quantity, $totalRemaining) * $avgUnitCost, 4);
+
+        foreach ($layers as $layer) {
+            if ($remainingToConsume <= 0) {
+                break;
+            }
+
+            $consumeQty = min($remainingToConsume, (float) $layer->remaining_quantity);
+
+            $consumptions->push(InventoryLayerConsumption::create([
+                'outgoing_movement_id' => $outgoingMovementId,
+                'inventory_layer_id'   => $layer->id,
+                'quantity_consumed'    => $consumeQty,
+                'unit_cost'            => $avgUnitCost,
+                'total_cost'           => round($consumeQty * $avgUnitCost, 4),
+            ]));
+
+            $newRemaining = (float) $layer->remaining_quantity - $consumeQty;
+            $layer->remaining_quantity = max(0, $newRemaining);
+            $layer->exhausted_at = $newRemaining <= 0 ? now() : null;
+            $layer->save();
+
+            $remainingToConsume -= $consumeQty;
+        }
+
+        return [$consumptions, $totalCogs];
+    }
+
+    /**
+     * Dispatch layer consumption to the method configured for this tenant.
+     */
+    private function consumeLayersByMethod(
+        int $tenantId,
+        int $itemId,
+        ?int $variantId,
+        int $locationId,
+        float $quantity,
+        int $outgoingMovementId,
+    ): array {
+        return match ($this->getTenantCostingMethod($tenantId)) {
+            'fifo' => $this->consumeLayersFifo($tenantId, $itemId, $variantId, $locationId, $quantity, $outgoingMovementId),
+            'wac'  => $this->consumeLayersWac($tenantId, $itemId, $variantId, $locationId, $quantity, $outgoingMovementId),
+            default => $this->consumeLayersLifo($tenantId, $itemId, $variantId, $locationId, $quantity, $outgoingMovementId),
+        };
+    }
+
+    /** Resolve and cache the tenant's configured costing method. */
+    private function getTenantCostingMethod(int $tenantId): string
+    {
+        if (! isset($this->costingMethodCache[$tenantId])) {
+            $raw = Tenant::where('id', $tenantId)->value('settings');
+            $settings = is_array($raw) ? $raw : (json_decode($raw ?? '{}', true) ?? []);
+            $this->costingMethodCache[$tenantId] = $settings['inventory']['costing_method'] ?? 'lifo';
+        }
+
+        return $this->costingMethodCache[$tenantId];
     }
 
     /**
