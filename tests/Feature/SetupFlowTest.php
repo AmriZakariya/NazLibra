@@ -150,6 +150,18 @@ class SetupFlowTest extends TestCase
         $this->get(route('setup.store'))
             ->assertOk()
             ->assertSee('Restaurant')
-            ->assertSee('Existing Restaurant');
+            ->assertSee('Existing Restaurant')
+            ->assertSee('Ignorer cette étape');
+
+        $this->get(route('setup.owner'))
+            ->assertOk()
+            ->assertSee('Changer le mot de passe')
+            ->assertSee('Ignorer cette étape')
+            ->assertSee('disabled autocomplete=new-password', false);
+
+        $this->post(route('setup.owner.save'), [
+            'name' => 'Owner Updated',
+            'email' => 'owner-updated@example.test',
+        ])->assertRedirect(route('setup.locations'));
     }
 }

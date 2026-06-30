@@ -427,7 +427,13 @@
                             <p class="mt-3 text-xs leading-5 text-slate-500">Le type d’activité prépare les catégories, unités et libellés adaptés. Vous pouvez tout modifier plus tard.</p>
                         </div>
 
-                        <div class="flex justify-end pt-2">
+                        <div class="flex flex-wrap justify-end gap-3 pt-2">
+                            @if ($isMaintenance)
+                                <a href="{{ route('setup.owner') }}" class="setup-btn-ghost">
+                                    Ignorer cette étape
+                                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                </a>
+                            @endif
                             <button type="submit" class="setup-btn-primary">
                                 Continuer
                                 <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
@@ -462,32 +468,54 @@
                                        value="{{ old('email', $data['email'] ?? '') }}"
                                        class="setup-input" placeholder="proprietaire@boutique.ma">
                             </div>
+                            @if ($isMaintenance)
+                            <div class="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <p class="text-sm font-semibold text-slate-900">Mot de passe inchangé</p>
+                                        <p class="mt-1 text-xs leading-5 text-slate-500">Les champs sont désactivés pour éviter l’autofill navigateur. Activez-les seulement si vous voulez vraiment changer le mot de passe owner.</p>
+                                    </div>
+                                    <button type="button" id="enable-password-change" class="setup-pill">
+                                        Changer le mot de passe
+                                    </button>
+                                </div>
+                            </div>
+                            @endif
                             <div>
                                 <label class="setup-label" for="password">
                                     Mot de passe {{ $isMaintenance ? '(laisser vide = inchangé)' : '*' }}
                                 </label>
                                 <input id="password" name="password" type="password"
-                                       {{ $isMaintenance ? '' : 'required' }} minlength="8"
+                                       {{ $isMaintenance ? 'disabled autocomplete=new-password' : 'required autocomplete=new-password' }} minlength="8"
                                        class="setup-input" placeholder="{{ $isMaintenance ? 'Laisser vide si inchangé' : 'Minimum 8 caractères' }}">
                             </div>
                             <div>
                                 <label class="setup-label" for="password_confirmation">Confirmer</label>
                                 <input id="password_confirmation" name="password_confirmation" type="password"
+                                       {{ $isMaintenance ? 'disabled autocomplete=new-password' : 'autocomplete=new-password' }}
                                        class="setup-input" placeholder="Répétez le mot de passe">
                             </div>
                         </div>
                         <div class="rounded-xl px-4 py-3 text-xs" style="background:rgba(49,87,213,.05); border:1px solid rgba(49,87,213,.15); color:var(--brand)">
                             <strong class="font-semibold">Rôle Owner :</strong> accès illimité, protégé contre la modification par d'autres utilisateurs.
                         </div>
-                        <div class="flex justify-between gap-3 pt-2">
+                        <div class="flex flex-wrap justify-between gap-3 pt-2">
                             <a href="{{ route('setup.store') }}" class="setup-btn-ghost">
                                 <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                                 Retour
                             </a>
-                            <button type="submit" class="setup-btn-primary">
-                                Continuer
-                                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                            </button>
+                            <div class="flex flex-wrap justify-end gap-3">
+                                @if ($isMaintenance)
+                                    <a href="{{ route('setup.locations') }}" class="setup-btn-ghost">
+                                        Ignorer cette étape
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                    </a>
+                                @endif
+                                <button type="submit" class="setup-btn-primary">
+                                    Continuer
+                                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -545,15 +573,23 @@
                             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                             Ajouter un magasin
                         </button>
-                        <div class="mt-6 flex justify-between gap-3">
+                        <div class="mt-6 flex flex-wrap justify-between gap-3">
                             <a href="{{ route('setup.owner') }}" class="setup-btn-ghost">
                                 <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                                 Retour
                             </a>
-                            <button type="submit" class="setup-btn-primary">
-                                Continuer
-                                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                            </button>
+                            <div class="flex flex-wrap justify-end gap-3">
+                                @if ($isMaintenance)
+                                    <a href="{{ route('setup.categories') }}" class="setup-btn-ghost">
+                                        Ignorer cette étape
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                    </a>
+                                @endif
+                                <button type="submit" class="setup-btn-primary">
+                                    Continuer
+                                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -612,15 +648,23 @@
                             <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                             Ajouter une catégorie
                         </button>
-                        <div class="mt-6 flex justify-between gap-3">
+                        <div class="mt-6 flex flex-wrap justify-between gap-3">
                             <a href="{{ route('setup.locations') }}" class="setup-btn-ghost">
                                 <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                                 Retour
                             </a>
-                            <button type="submit" class="setup-btn-primary">
-                                Continuer
-                                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                            </button>
+                            <div class="flex flex-wrap justify-end gap-3">
+                                @if ($isMaintenance)
+                                    <a href="{{ route('setup.review') }}" class="setup-btn-ghost">
+                                        Ignorer cette étape
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                    </a>
+                                @endif
+                                <button type="submit" class="setup-btn-primary">
+                                    Continuer
+                                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -801,6 +845,22 @@
 
 <script>
 var categoryPresets = @json($categoryPresets);
+
+var enablePasswordButton = document.getElementById('enable-password-change');
+if (enablePasswordButton) {
+    enablePasswordButton.addEventListener('click', function() {
+        ['password', 'password_confirmation'].forEach(function(id) {
+            var input = document.getElementById(id);
+            if (!input) return;
+            input.disabled = false;
+            input.value = '';
+        });
+        enablePasswordButton.textContent = 'Changement activé';
+        enablePasswordButton.disabled = true;
+        var password = document.getElementById('password');
+        if (password) password.focus();
+    });
+}
 
 document.querySelectorAll('[data-select-business-mode]').forEach(function(button) {
     button.addEventListener('click', function() {
