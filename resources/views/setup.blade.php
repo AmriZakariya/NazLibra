@@ -192,6 +192,49 @@
         .step-done    { background:#10b981; color:#fff; }
         .step-active  { background:var(--brand); color:#fff; }
         .step-pending { background:rgba(255,255,255,.1); color:rgba(255,255,255,.35); }
+        /* Costing method cards — pure CSS selection, no JS */
+        .costing-card {
+            position: relative;
+            transition: border-color .18s ease, box-shadow .18s ease, background .18s ease, transform .18s ease;
+        }
+        .costing-card:has(input[type="radio"]:checked) {
+            border-color: var(--brand);
+            background: linear-gradient(160deg, rgba(235,242,255,.98), rgba(218,230,255,.95));
+            box-shadow: 0 0 0 3px rgba(49,87,213,.14), 0 14px 28px rgba(49,87,213,.12);
+            transform: translateY(-1px);
+        }
+        .costing-card:has(input[type="radio"]:checked) .costing-tick {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .costing-card:has(input[type="radio"]:checked) .costing-icon {
+            background: var(--brand);
+            color: #fff;
+        }
+        .costing-tick {
+            position: absolute;
+            top: 12px; right: 12px;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            background: var(--brand);
+            color: #fff;
+            font-size: 11px;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0;
+            transform: scale(.6);
+            transition: opacity .18s ease, transform .18s ease;
+        }
+        .costing-icon {
+            width: 36px; height: 36px;
+            border-radius: 10px;
+            background: #f1f5f9;
+            color: #475569;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+            transition: background .18s ease, color .18s ease;
+            margin-bottom: 10px;
+        }
         @media (max-width: 640px) {
             .setup-panel { padding: 22px; border-radius: 22px; }
         }
@@ -412,29 +455,70 @@
                             </div>
                         </div>
 
-                        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                            <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Méthode de valorisation des stocks</p>
-                            <p class="mt-1 text-xs leading-5 text-slate-500">Définit comment le coût des marchandises vendues (CMV) est calculé. Ce choix s'applique à tous les articles.</p>
-                            @php $selectedCosting = old('costing_method', $data['costing_method'] ?? 'lifo'); @endphp
-                            <div class="mt-3 grid gap-3 sm:grid-cols-3">
-                                @foreach ([
-                                    'lifo' => ['label' => 'LIFO', 'sub' => 'Dernier entré, premier sorti', 'note' => 'CMV basé sur les lots les plus récents. Recommandé pour valoriser au prix actuel du marché.'],
-                                    'fifo' => ['label' => 'FIFO', 'sub' => 'Premier entré, premier sorti', 'note' => 'CMV basé sur les lots les plus anciens. Standard pour la grande distribution et l\'alimentaire.'],
-                                    'wac'  => ['label' => 'CMUP', 'sub' => 'Coût moyen pondéré', 'note' => 'CMV calculé sur la moyenne de tous les lots en stock. Idéal pour les produits à fort volume.'],
-                                ] as $key => $opt)
-                                    <label data-costing-label="{{ $key }}" class="setup-choice cursor-pointer text-left {{ $selectedCosting === $key ? 'ring-2 ring-blue-500' : '' }}">
-                                        <input type="radio" name="costing_method" value="{{ $key }}" class="sr-only" {{ $selectedCosting === $key ? 'checked' : '' }}
-                                               onchange="document.querySelectorAll('[data-costing-label]').forEach(el => el.classList.toggle('ring-2', el.dataset.costingLabel === this.value)); document.querySelectorAll('[data-costing-label]').forEach(el => el.classList.toggle('ring-blue-500', el.dataset.costingLabel === this.value))">
-                                        <span class="block">
-                                            <span class="text-sm font-semibold text-slate-900">{{ $opt['label'] }}</span>
-                                            <span class="mt-0.5 block text-xs font-medium text-slate-600">{{ $opt['sub'] }}</span>
-                                            <span class="mt-1 block text-xs leading-5 text-slate-400">{{ $opt['note'] }}</span>
+                        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <div class="flex items-start gap-3">
+                                <div class="flex size-9 shrink-0 items-center justify-center rounded-xl text-lg" style="background:#f1f5f9">📦</div>
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-800">Méthode de valorisation des stocks</p>
+                                    <p class="mt-0.5 text-xs leading-5 text-slate-500">Détermine comment le coût des marchandises vendues (CMV) est calculé. Peut être modifié plus tard dans les paramètres.</p>
+                                </div>
+                            </div>
+
+                            @php
+                                $selectedCosting = old('costing_method', $data['costing_method'] ?? 'lifo');
+                                $costingOptions = [
+                                    'lifo' => [
+                                        'icon'    => '⬆️',
+                                        'label'   => 'LIFO',
+                                        'sub'     => 'Dernier entré, premier sorti',
+                                        'note'    => 'CMV calculé sur les lots les plus récents. Idéal pour les articles dont le coût fluctue.',
+                                        'badge'   => 'Par défaut',
+                                    ],
+                                    'fifo' => [
+                                        'icon'    => '⬇️',
+                                        'label'   => 'FIFO',
+                                        'sub'     => 'Premier entré, premier sorti',
+                                        'note'    => 'CMV calculé sur les lots les plus anciens. Standard pour la distribution et l\'alimentaire.',
+                                        'badge'   => null,
+                                    ],
+                                    'wac'  => [
+                                        'icon'    => '⚖️',
+                                        'label'   => 'CMUP',
+                                        'sub'     => 'Coût moyen pondéré',
+                                        'note'    => 'CMV lissé sur tous les lots en stock. Simplifie la comptabilité à fort volume.',
+                                        'badge'   => null,
+                                    ],
+                                ];
+                            @endphp
+
+                            <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                                @foreach ($costingOptions as $key => $opt)
+                                    <label class="setup-choice costing-card cursor-pointer text-left">
+                                        <input type="radio" name="costing_method" value="{{ $key }}"
+                                               class="sr-only"
+                                               @checked($selectedCosting === $key)>
+
+                                        {{-- Checkmark tick shown when selected --}}
+                                        <span class="costing-tick" aria-hidden="true">
+                                            <svg viewBox="0 0 10 8" fill="none" width="10" height="8"><path d="M1 4l3 3 5-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                                         </span>
+
+                                        <span class="costing-icon">{{ $opt['icon'] }}</span>
+
+                                        <span class="flex items-center gap-2">
+                                            <span class="text-sm font-bold text-slate-900">{{ $opt['label'] }}</span>
+                                            @if ($opt['badge'])
+                                                <span class="rounded-full px-2 py-0.5 text-[10px] font-bold" style="background:rgba(49,87,213,.1);color:var(--brand)">{{ $opt['badge'] }}</span>
+                                            @endif
+                                        </span>
+                                        <span class="mt-0.5 block text-xs font-semibold text-slate-500">{{ $opt['sub'] }}</span>
+                                        <span class="mt-2 block text-xs leading-5 text-slate-400">{{ $opt['note'] }}</span>
                                     </label>
                                 @endforeach
                             </div>
+
                             @error('costing_method')
-                                <p class="mt-2 text-xs text-rose-500">{{ $message }}</p>
+                                <p class="mt-3 text-xs text-rose-500">{{ $message }}</p>
                             @enderror
                         </div>
 
