@@ -3812,7 +3812,7 @@
             $posAutoReorderDraft = (bool) data_get($tenant->settings, 'pos.auto_reorder_draft', false);
             $onlineStoreEnabled = (bool) data_get($tenant->settings, 'online_store.enabled', true);
             $onlinePickupStoreKey = (string) data_get($tenant->settings, 'online_store.pickup_store', data_get($tenant->settings, 'current_store'));
-            $virtualDevicesEnabled = (bool) data_get($tenant->settings, 'features.virtual_devices', true);
+            $virtualDevicesEnabled = (bool) data_get($tenant->settings, 'features.virtual_devices', false);
             $posInventoryCycleDays = (int) data_get($tenant->settings, 'pos.inventory_cycle_days', 30);
             $posDefaultMinStock = (int) data_get($tenant->settings, 'pos.default_min_stock_threshold', 3);
             $themePresets = [

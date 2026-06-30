@@ -42,7 +42,7 @@ class VirtualDeviceController extends Controller
     {
         $tenant ??= $this->tenant();
 
-        return (bool) data_get($tenant->settings, 'features.virtual_devices', true);
+        return (bool) data_get($tenant->settings, 'features.virtual_devices', false);
     }
 
     private function ensureModuleEnabled(?Tenant $tenant = null): void
