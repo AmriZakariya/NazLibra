@@ -6,11 +6,12 @@
         'owner'      => ['num' => 2, 'label' => 'Propriétaire'],
         'locations'  => ['num' => 3, 'label' => 'Magasins'],
         'categories' => ['num' => 4, 'label' => 'Catégories'],
-        'review'     => ['num' => 5, 'label' => $isMaintenance ? 'Mise à jour' : 'Confirmation'],
-        'done'       => ['num' => 6, 'label' => 'Terminé'],
+        'devices'    => ['num' => 5, 'label' => 'Appareils'],
+        'review'     => ['num' => 6, 'label' => $isMaintenance ? 'Mise à jour' : 'Confirmation'],
+        'done'       => ['num' => 7, 'label' => 'Terminé'],
     ];
 
-    $orderedSteps = ['store', 'owner', 'locations', 'categories', 'review', 'done'];
+    $orderedSteps = ['store', 'owner', 'locations', 'categories', 'devices', 'review', 'done'];
     $currentNum   = $steps[$step]['num'] ?? 0;
     $businessModes = $businessModes ?? \App\Support\BusinessMode::all();
     $categoryPresets = $categoryPresets ?? [];
@@ -342,7 +343,7 @@
                 ════════════════════════════════════════════════════════════ --}}
                 @elseif ($step === 'store')
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-widest" style="color:var(--brand)">Étape 1 / 5</p>
+                    <p class="text-xs font-semibold uppercase tracking-widest" style="color:var(--brand)">Étape 1 / 6</p>
                     <h1 class="mt-1.5 text-2xl font-semibold tracking-tight text-slate-900">Informations de la boutique</h1>
                     <p class="mt-1.5 text-sm leading-6 text-slate-500">
                         {{ $isMaintenance ? 'Modifiez les informations du tenant. Ces changements s\'appliquent immédiatement.' : 'Ces données définissent l\'identité de votre tenant dans le système.' }}
@@ -447,7 +448,7 @@
                 ════════════════════════════════════════════════════════════ --}}
                 @elseif ($step === 'owner')
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-widest" style="color:var(--brand)">Étape 2 / 5</p>
+                    <p class="text-xs font-semibold uppercase tracking-widest" style="color:var(--brand)">Étape 2 / 6</p>
                     <h1 class="mt-1.5 text-2xl font-semibold tracking-tight text-slate-900">Compte propriétaire</h1>
                     <p class="mt-1.5 text-sm leading-6 text-slate-500">
                         {{ $isMaintenance ? 'Modifiez le nom ou l\'email. Laissez le mot de passe vide pour ne pas le changer.' : 'Ce compte est le super-administrateur. Il ne peut pas être restreint.' }}
@@ -525,7 +526,7 @@
                 ════════════════════════════════════════════════════════════ --}}
                 @elseif ($step === 'locations')
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-widest" style="color:var(--brand)">Étape 3 / 5</p>
+                    <p class="text-xs font-semibold uppercase tracking-widest" style="color:var(--brand)">Étape 3 / 6</p>
                     <h1 class="mt-1.5 text-2xl font-semibold tracking-tight text-slate-900">Magasins & dépôts</h1>
                     <p class="mt-1.5 text-sm leading-6 text-slate-500">
                         {{ $isMaintenance ? 'Les magasins existants sont modifiables. Ajoutez-en de nouveaux. Aucun magasin existant ne sera supprimé.' : 'Définissez au moins un point de vente. D\'autres pourront être ajoutés plus tard.' }}
@@ -599,7 +600,7 @@
                 ════════════════════════════════════════════════════════════ --}}
                 @elseif ($step === 'categories')
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-widest" style="color:var(--brand)">Étape 4 / 5</p>
+                    <p class="text-xs font-semibold uppercase tracking-widest" style="color:var(--brand)">Étape 4 / 6</p>
                     <h1 class="mt-1.5 text-2xl font-semibold tracking-tight text-slate-900">Catégories de produits</h1>
                     <p class="mt-1.5 text-sm leading-6 text-slate-500">
                         {{ $isMaintenance ? 'Liste actuelle des catégories. Les catégories retirées seront supprimées, les nouvelles seront créées.' : 'Pré-remplissez les catégories principales. Optionnel — modifiable plus tard.' }}
@@ -655,6 +656,107 @@
                             </a>
                             <div class="flex flex-wrap justify-end gap-3">
                                 @if ($isMaintenance)
+                                    <a href="{{ route('setup.devices') }}" class="setup-btn-ghost">
+                                        Ignorer cette étape
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                    </a>
+                                @endif
+                                <button type="submit" class="setup-btn-primary">
+                                    Continuer
+                                    <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                {{-- ═══════════════════════════════════════════════════════════
+                     STEP: DEVICES
+                ════════════════════════════════════════════════════════════ --}}
+                @elseif ($step === 'devices')
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-widest" style="color:var(--brand)">Étape 5 / 6</p>
+                    <h1 class="mt-1.5 text-2xl font-semibold tracking-tight text-slate-900">Appareils virtuels</h1>
+                    <p class="mt-1.5 text-sm leading-6 text-slate-500">
+                        Activez les terminaux virtuels pour tracer chaque vente par caisse/appareil. Par défaut, le déploiement crée 2 caisses web et 3 terminaux mobiles.
+                    </p>
+
+                    <form action="{{ route('setup.devices.save') }}" method="POST" class="mt-7 space-y-5">
+                        @csrf
+                        @php
+                            $deviceData = old('devices', $data['devices'] ?? []);
+                            $devicesEnabled = old('enabled', ($data['enabled'] ?? true) ? '1' : '0') === '1' || old('enabled', $data['enabled'] ?? true) === true;
+                            $deviceTypes = ['computer' => 'Web / ordinateur', 'mobile' => 'Mobile', 'tablet' => 'Tablette', 'other' => 'Autre'];
+                        @endphp
+                        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                            <label class="flex flex-wrap items-center justify-between gap-4">
+                                <span>
+                                    <span class="block text-sm font-semibold text-slate-900">Activer les appareils virtuels</span>
+                                    <span class="mt-1 block text-xs leading-5 text-slate-500">Si activé, la caisse web/mobile demandera un terminal avant les ventes et actions POS auditables.</span>
+                                </span>
+                                <span class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                                    <input type="hidden" name="enabled" value="0">
+                                    <input id="devices-enabled" type="checkbox" name="enabled" value="1" class="size-4 accent-[#3157D5]" @checked($devicesEnabled)>
+                                    Activé
+                                </span>
+                            </label>
+                        </div>
+
+                        <div id="devices-list" class="space-y-3">
+                            @foreach ($deviceData as $i => $device)
+                            <div class="device-item rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                                <div class="mb-3 flex items-center justify-between">
+                                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Appareil {{ $i + 1 }}</span>
+                                    @if ($i > 0)
+                                        <button type="button" onclick="this.closest('.device-item').remove(); reindexDevices()" class="grid size-6 place-items-center rounded-lg border border-rose-200 text-rose-500 transition hover:bg-rose-50">
+                                            <svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                        </button>
+                                    @endif
+                                </div>
+                                <div class="grid gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <label class="setup-label">Nom *</label>
+                                        <input name="devices[{{ $i }}][name]" type="text" value="{{ $device['name'] ?? '' }}" class="setup-input" placeholder="Ex: Caisse Web 1">
+                                    </div>
+                                    <div>
+                                        <label class="setup-label">Code</label>
+                                        <input name="devices[{{ $i }}][code]" type="text" value="{{ $device['code'] ?? '' }}" class="setup-input" placeholder="web-pos-01">
+                                    </div>
+                                    <div>
+                                        <label class="setup-label">Type</label>
+                                        <select name="devices[{{ $i }}][type]" class="setup-input">
+                                            @foreach ($deviceTypes as $typeKey => $typeLabel)
+                                                <option value="{{ $typeKey }}" @selected(($device['type'] ?? 'other') === $typeKey)>{{ $typeLabel }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <label class="flex items-end gap-2 pb-3 text-sm font-semibold text-slate-700">
+                                        <input type="hidden" name="devices[{{ $i }}][is_active]" value="0">
+                                        <input type="checkbox" name="devices[{{ $i }}][is_active]" value="1" class="size-4 accent-[#3157D5]" @checked($device['is_active'] ?? true)>
+                                        Appareil actif
+                                    </label>
+                                    <div class="sm:col-span-2">
+                                        <label class="setup-label">Description</label>
+                                        <input name="devices[{{ $i }}][description]" type="text" value="{{ $device['description'] ?? '' }}" class="setup-input" placeholder="Ex: Terminal navigateur principal">
+                                    </div>
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+
+                        <button type="button" id="add-device"
+                                class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 py-3 text-sm font-semibold text-slate-500 transition hover:border-[var(--brand)] hover:text-[var(--brand)]">
+                            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Ajouter un appareil
+                        </button>
+
+                        <div class="mt-6 flex flex-wrap justify-between gap-3">
+                            <a href="{{ route('setup.categories') }}" class="setup-btn-ghost">
+                                <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                                Retour
+                            </a>
+                            <div class="flex flex-wrap justify-end gap-3">
+                                @if ($isMaintenance)
                                     <a href="{{ route('setup.review') }}" class="setup-btn-ghost">
                                         Ignorer cette étape
                                         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
@@ -674,7 +776,7 @@
                 ════════════════════════════════════════════════════════════ --}}
                 @elseif ($step === 'review')
                 <div>
-                    <p class="text-xs font-semibold uppercase tracking-widest" style="color:var(--brand)">Étape 5 / 5</p>
+                    <p class="text-xs font-semibold uppercase tracking-widest" style="color:var(--brand)">Étape 6 / 6</p>
                     <h1 class="mt-1.5 text-2xl font-semibold tracking-tight text-slate-900">
                         {{ $isMaintenance ? 'Récapitulatif des modifications' : 'Confirmation' }}
                     </h1>
@@ -749,9 +851,39 @@
                         </div>
                         @endif
 
+                        {{-- Virtual devices --}}
+                        @php
+                            $reviewDevicesEnabled = (bool) ($devices['enabled'] ?? true);
+                            $reviewDevices = $devices['devices'] ?? [];
+                        @endphp
+                        <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                            <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                                <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Appareils virtuels</p>
+                                <a href="{{ route('setup.devices') }}" class="text-xs font-semibold hover:underline" style="color:var(--brand)">Modifier</a>
+                            </div>
+                            <div class="p-4 text-sm">
+                                <div class="mb-3 flex flex-wrap items-center gap-2">
+                                    <span class="rounded-full px-3 py-1 text-xs font-bold {{ $reviewDevicesEnabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500' }}">
+                                        {{ $reviewDevicesEnabled ? 'Activé' : 'Désactivé' }}
+                                    </span>
+                                    <span class="text-slate-500">{{ count($reviewDevices) }} appareil(s) configuré(s)</span>
+                                </div>
+                                @if ($reviewDevicesEnabled && count($reviewDevices))
+                                    <div class="grid gap-2 sm:grid-cols-2">
+                                        @foreach ($reviewDevices as $device)
+                                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                                <p class="font-semibold text-slate-900">{{ $device['name'] ?? 'Appareil' }}</p>
+                                                <p class="mt-0.5 text-xs text-slate-500">{{ $device['code'] ?? '—' }} · {{ $device['type'] ?? 'other' }} · {{ ($device['is_active'] ?? true) ? 'actif' : 'désactivé' }}</p>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
                         @if (!$isMaintenance)
                         <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
-                            Créés automatiquement : <strong class="text-slate-700">4 rôles</strong>, <strong class="text-slate-700">4 unités</strong>, <strong class="text-slate-700">3 taxes</strong>, <strong class="text-slate-700">4 modes de paiement</strong>, <strong class="text-slate-700">1 compte caisse</strong>.
+                            Créés automatiquement : <strong class="text-slate-700">4 rôles</strong>, <strong class="text-slate-700">4 unités</strong>, <strong class="text-slate-700">3 taxes</strong>, <strong class="text-slate-700">4 modes de paiement</strong>, <strong class="text-slate-700">1 compte caisse</strong>, <strong class="text-slate-700">5 appareils virtuels</strong>.
                         </div>
                         @endif
                     </div>
@@ -759,7 +891,7 @@
                     <form action="{{ route('setup.commit') }}" method="POST" class="mt-5">
                         @csrf
                         <div class="flex justify-between gap-3">
-                            <a href="{{ route('setup.categories') }}" class="setup-btn-ghost">
+                            <a href="{{ route('setup.devices') }}" class="setup-btn-ghost">
                                 <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                                 Retour
                             </a>
@@ -882,6 +1014,16 @@ function reindexLocations() {
     });
 }
 
+function reindexDevices() {
+    document.querySelectorAll('.device-item').forEach(function(item, i) {
+        var label = item.querySelector('.text-slate-400');
+        if (label) label.textContent = 'Appareil ' + (i + 1);
+        item.querySelectorAll('input, select').forEach(function(inp) {
+            inp.name = inp.name.replace(/devices\[\d+\]/, 'devices[' + i + ']');
+        });
+    });
+}
+
 var addLocBtn = document.getElementById('add-location');
 if (addLocBtn) {
     addLocBtn.addEventListener('click', function() {
@@ -920,6 +1062,31 @@ if (addCatBtn) {
             + '<button type="button" onclick="this.closest(\'.cat-item\').remove()" class="grid size-9 shrink-0 place-items-center rounded-xl border border-rose-200 text-rose-500 transition hover:bg-rose-50">'
             + '<svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
             + '</button>';
+        list.appendChild(item);
+        item.querySelector('input').focus();
+    });
+}
+
+var addDeviceBtn = document.getElementById('add-device');
+if (addDeviceBtn) {
+    addDeviceBtn.addEventListener('click', function() {
+        var list = document.getElementById('devices-list');
+        var idx = list.querySelectorAll('.device-item').length;
+        var item = document.createElement('div');
+        item.className = 'device-item rounded-xl border border-slate-200 bg-white p-4 shadow-sm';
+        item.innerHTML =
+            '<div class="mb-3 flex items-center justify-between">'
+            + '<span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Appareil ' + (idx + 1) + '</span>'
+            + '<button type="button" onclick="this.closest(\'.device-item\').remove(); reindexDevices()" class="grid size-6 place-items-center rounded-lg border border-rose-200 text-rose-500 transition hover:bg-rose-50">'
+            + '<svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+            + '</button></div>'
+            + '<div class="grid gap-3 sm:grid-cols-2">'
+            + '<div><label class="setup-label">Nom *</label><input name="devices[' + idx + '][name]" type="text" class="setup-input" placeholder="Ex: Mobile POS 4"></div>'
+            + '<div><label class="setup-label">Code</label><input name="devices[' + idx + '][code]" type="text" class="setup-input" placeholder="mobile-pos-04"></div>'
+            + '<div><label class="setup-label">Type</label><select name="devices[' + idx + '][type]" class="setup-input"><option value="computer">Web / ordinateur</option><option value="mobile" selected>Mobile</option><option value="tablet">Tablette</option><option value="other">Autre</option></select></div>'
+            + '<label class="flex items-end gap-2 pb-3 text-sm font-semibold text-slate-700"><input type="hidden" name="devices[' + idx + '][is_active]" value="0"><input type="checkbox" name="devices[' + idx + '][is_active]" value="1" class="size-4 accent-[#3157D5]" checked> Appareil actif</label>'
+            + '<div class="sm:col-span-2"><label class="setup-label">Description</label><input name="devices[' + idx + '][description]" type="text" class="setup-input" placeholder="Terminal mobile supplémentaire"></div>'
+            + '</div>';
         list.appendChild(item);
         item.querySelector('input').focus();
     });

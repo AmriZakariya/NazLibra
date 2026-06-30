@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\VirtualDevice;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -58,6 +59,23 @@ class SetupFlowTest extends TestCase
 
         $this->post(route('setup.categories.save'), [
             'categories' => ['Cafés', 'Snacks', 'Cafés', ''],
+        ])->assertRedirect(route('setup.devices'));
+
+        $this->get(route('setup.devices'))
+            ->assertOk()
+            ->assertSee('Appareils virtuels')
+            ->assertSee('Caisse Web 1')
+            ->assertSee('Mobile POS 3');
+
+        $this->post(route('setup.devices.save'), [
+            'enabled' => '1',
+            'devices' => [
+                ['name' => 'Caisse Web 1', 'code' => 'web-pos-01', 'type' => 'computer', 'description' => 'Terminal navigateur principal', 'is_active' => '1'],
+                ['name' => 'Caisse Web 2', 'code' => 'web-pos-02', 'type' => 'computer', 'description' => 'Terminal navigateur secondaire', 'is_active' => '1'],
+                ['name' => 'Mobile POS 1', 'code' => 'mobile-pos-01', 'type' => 'mobile', 'description' => 'Terminal mobile 1', 'is_active' => '1'],
+                ['name' => 'Mobile POS 2', 'code' => 'mobile-pos-02', 'type' => 'mobile', 'description' => 'Terminal mobile 2', 'is_active' => '1'],
+                ['name' => 'Mobile POS 3', 'code' => 'mobile-pos-03', 'type' => 'mobile', 'description' => 'Terminal mobile 3', 'is_active' => '1'],
+            ],
         ])->assertRedirect(route('setup.review'));
 
         $this->post(route('setup.commit'))
@@ -68,6 +86,7 @@ class SetupFlowTest extends TestCase
         $this->assertSame('coffee', $tenant->business_mode);
         $this->assertSame('coffee', $tenant->mode);
         $this->assertSame('coffee', data_get($tenant->settings, 'company_profile.business_mode'));
+        $this->assertTrue(data_get($tenant->settings, 'features.virtual_devices'));
         $this->assertSame('MAD', $tenant->currency);
 
         $this->assertDatabaseHas('users', ['email' => 'owner@coffee.test', 'current_tenant_id' => $tenant->id]);
@@ -78,6 +97,9 @@ class SetupFlowTest extends TestCase
         $this->assertDatabaseHas('units', ['tenant_id' => $tenant->id, 'name' => 'Portion']);
         $this->assertDatabaseHas('units', ['tenant_id' => $tenant->id, 'name' => 'Menu']);
         $this->assertSame(4, Unit::where('tenant_id', $tenant->id)->count());
+        $this->assertSame(5, VirtualDevice::where('tenant_id', $tenant->id)->count());
+        $this->assertSame(2, VirtualDevice::where('tenant_id', $tenant->id)->where('type', 'computer')->count());
+        $this->assertSame(3, VirtualDevice::where('tenant_id', $tenant->id)->where('type', 'mobile')->count());
 
         $owner = User::where('email', 'owner@coffee.test')->firstOrFail();
         $this->assertDatabaseHas('tenant_user', [
@@ -115,6 +137,20 @@ class SetupFlowTest extends TestCase
                 'language' => 'fr',
                 'business_mode' => 'spaceship',
             ])->assertSessionHasErrors('business_mode');
+    }
+
+    public function test_virtual_devices_step_can_disable_module(): void
+    {
+        config(['app.setup_secret' => 'deploy-secret']);
+
+        $this->withSession(['setup_authorized' => true])
+            ->post(route('setup.devices.save'), [
+                'enabled' => '0',
+                'devices' => [],
+            ])->assertRedirect(route('setup.review'));
+
+        $this->assertFalse(session('setup.devices.enabled'));
+        $this->assertSame([], session('setup.devices.devices'));
     }
 
     public function test_setup_remains_available_for_existing_tenant_maintenance(): void
@@ -163,5 +199,10 @@ class SetupFlowTest extends TestCase
             'name' => 'Owner Updated',
             'email' => 'owner-updated@example.test',
         ])->assertRedirect(route('setup.locations'));
+
+        $this->get(route('setup.devices'))
+            ->assertOk()
+            ->assertSee('Appareils virtuels')
+            ->assertSee('Ignorer cette étape');
     }
 }

@@ -14,7 +14,7 @@ class VirtualDeviceApiController extends Controller
         /** @var \App\Models\Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
 
-        if (! (bool) data_get($tenant->settings, 'features.virtual_devices', false)) {
+        if (! (bool) data_get($tenant->settings, 'features.virtual_devices', true)) {
             return response()->json(['ok' => true, 'devices' => []]);
         }
 

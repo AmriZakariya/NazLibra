@@ -21,6 +21,8 @@ Route::prefix('setup')->name('setup.')->group(function (): void {
     Route::post('/locations',  [SetupController::class, 'storeLocations'])->name('locations.save');
     Route::get('/categories',  [SetupController::class, 'showCategories'])->name('categories');
     Route::post('/categories', [SetupController::class, 'storeCategories'])->name('categories.save');
+    Route::get('/devices',     [SetupController::class, 'showDevices'])->name('devices');
+    Route::post('/devices',    [SetupController::class, 'storeDevices'])->name('devices.save');
     Route::get('/review',      [SetupController::class, 'review'])->name('review');
     Route::post('/commit',     [SetupController::class, 'commit'])->name('commit');
     Route::get('/done',        [SetupController::class, 'done'])->name('done');

@@ -10,6 +10,8 @@ use App\Models\Tax;
 use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\VirtualDevice;
+use App\Models\VirtualDeviceSession;
 use App\Support\BusinessMode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -100,6 +102,26 @@ class SetupController extends Controller
                 ->all();
 
             session(['setup.categories' => $cats ?: $this->defaultCategoriesForMode($mode)]);
+        }
+
+        if (! session('setup.devices')) {
+            $devices = VirtualDevice::where('tenant_id', $tenant->id)
+                ->orderBy('type')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (VirtualDevice $device) => [
+                    'name' => $device->name,
+                    'code' => $device->code,
+                    'type' => $device->type ?: 'other',
+                    'description' => $device->description ?? '',
+                    'is_active' => (bool) $device->is_active,
+                ])
+                ->all();
+
+            session(['setup.devices' => [
+                'enabled' => (bool) data_get($tenant->settings, 'features.virtual_devices', true),
+                'devices' => $devices ?: $this->defaultVirtualDevices(),
+            ]]);
         }
     }
 
@@ -279,10 +301,79 @@ class SetupController extends Controller
         }
         session(['setup.categories' => $cats]);
 
+        return redirect(route('setup.devices'));
+    }
+
+    // ─── Step 6: Virtual devices ─────────────────────────────────────────────
+
+    public function showDevices(): View
+    {
+        $this->guardAuthorized();
+
+        return $this->setupView('devices', [
+            'data' => session('setup.devices', [
+                'enabled' => true,
+                'devices' => $this->defaultVirtualDevices(),
+            ]),
+        ]);
+    }
+
+    public function storeDevices(Request $request): RedirectResponse
+    {
+        $this->guardAuthorized();
+
+        $enabled = $request->boolean('enabled');
+
+        $data = $request->validate([
+            'devices' => ['nullable', 'array'],
+            'devices.*.name' => [$enabled ? 'required' : 'nullable', 'string', 'max:120'],
+            'devices.*.code' => ['nullable', 'string', 'max:80'],
+            'devices.*.type' => ['nullable', Rule::in(['computer', 'tablet', 'mobile', 'other'])],
+            'devices.*.description' => ['nullable', 'string', 'max:500'],
+            'devices.*.is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $seen = [];
+        $devices = [];
+        foreach ($data['devices'] ?? [] as $idx => $device) {
+            $name = trim((string) ($device['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $code = Str::slug((string) ($device['code'] ?? '')) ?: Str::slug($name) ?: 'device';
+            $base = $code;
+            $suffix = 2;
+            while (isset($seen[$code])) {
+                $code = $base.'-'.$suffix;
+                $suffix++;
+            }
+            $seen[$code] = true;
+
+            $devices[] = [
+                'name' => $name,
+                'code' => $code,
+                'type' => $device['type'] ?? 'other',
+                'description' => trim((string) ($device['description'] ?? '')),
+                'is_active' => array_key_exists('is_active', $device) ? (bool) $device['is_active'] : true,
+            ];
+        }
+
+        if ($enabled && empty($devices)) {
+            return back()
+                ->withErrors(['devices' => 'Ajoutez au moins un appareil virtuel actif ou désactivez le module.'])
+                ->withInput();
+        }
+
+        session(['setup.devices' => [
+            'enabled' => $enabled,
+            'devices' => $devices,
+        ]]);
+
         return redirect(route('setup.review'));
     }
 
-    // ─── Step 6: Review ───────────────────────────────────────────────────────
+    // ─── Step 7: Review ───────────────────────────────────────────────────────
 
     public function review(): View|RedirectResponse
     {
@@ -297,6 +388,7 @@ class SetupController extends Controller
             'owner'         => session('setup.owner'),
             'locations'     => session('setup.locations', []),
             'categories'    => session('setup.categories', []),
+            'devices'       => session('setup.devices', ['enabled' => true, 'devices' => $this->defaultVirtualDevices()]),
         ]);
     }
 
@@ -314,14 +406,15 @@ class SetupController extends Controller
         $ownerData      = session('setup.owner');
         $locationsData  = session('setup.locations', []);
         $categoriesData = session('setup.categories', []);
+        $devicesData    = session('setup.devices', ['enabled' => true, 'devices' => $this->defaultVirtualDevices()]);
 
         if ($this->isMaintenance()) {
-            $this->updateExisting($storeData, $ownerData, $locationsData, $categoriesData);
+            $this->updateExisting($storeData, $ownerData, $locationsData, $categoriesData, $devicesData);
         } else {
-            $this->createFresh($storeData, $ownerData, $locationsData, $categoriesData);
+            $this->createFresh($storeData, $ownerData, $locationsData, $categoriesData, $devicesData);
         }
 
-        session()->forget(['setup_authorized', 'setup.store', 'setup.owner', 'setup.locations', 'setup.categories']);
+        session()->forget(['setup_authorized', 'setup.store', 'setup.owner', 'setup.locations', 'setup.categories', 'setup.devices']);
         session()->flash('setup_complete', true);
         session()->flash('setup_was_maintenance', $this->isMaintenance());
 
@@ -343,9 +436,9 @@ class SetupController extends Controller
 
     // ─── DB operations ────────────────────────────────────────────────────────
 
-    private function createFresh(array $storeData, array $ownerData, array $locationsData, array $categoriesData): void
+    private function createFresh(array $storeData, array $ownerData, array $locationsData, array $categoriesData, array $devicesData): void
     {
-        DB::transaction(function () use ($storeData, $ownerData, $locationsData, $categoriesData): void {
+        DB::transaction(function () use ($storeData, $ownerData, $locationsData, $categoriesData, $devicesData): void {
             $storeData['business_mode'] = BusinessMode::normalize($storeData['business_mode'] ?? null);
             $categoriesData = $categoriesData ?: $this->defaultCategoriesForMode($storeData['business_mode']);
             [$tenant, $slug, $storeNames, $locationsList] = $this->buildTenant($storeData, $locationsData);
@@ -388,14 +481,15 @@ class SetupController extends Controller
 
             // Defaults
             $this->seedDefaults($tenant, $slug, $storeData['business_mode']);
+            $this->syncVirtualDevices($tenant, $devicesData);
         });
     }
 
-    private function updateExisting(array $storeData, array $ownerData, array $locationsData, array $categoriesData): void
+    private function updateExisting(array $storeData, array $ownerData, array $locationsData, array $categoriesData, array $devicesData): void
     {
         $tenant = Tenant::firstOrFail();
 
-        DB::transaction(function () use ($tenant, $storeData, $ownerData, $locationsData, $categoriesData): void {
+        DB::transaction(function () use ($tenant, $storeData, $ownerData, $locationsData, $categoriesData, $devicesData): void {
             $storeData['business_mode'] = BusinessMode::normalize($storeData['business_mode'] ?? null);
             $categoriesData = $categoriesData ?: $this->defaultCategoriesForMode($storeData['business_mode']);
             $slug     = Str::slug($storeData['name']) ?: Str::slug($tenant->name);
@@ -488,6 +582,8 @@ class SetupController extends Controller
             foreach ($toCreate as $catName) {
                 Category::create(['tenant_id' => $tenant->id, 'name' => $catName, 'slug' => Str::slug($catName)]);
             }
+
+            $this->syncVirtualDevices($tenant, $devicesData);
         });
     }
 
@@ -515,6 +611,66 @@ class SetupController extends Controller
             'retail' => ['Produits', 'Accessoires', 'Services', 'Promotions', 'Nouveautés', 'Divers'],
             default => ['Romans', 'Scolaire', 'Papeterie', 'Fournitures', 'Services', 'Informatique'],
         };
+    }
+
+    private function defaultVirtualDevices(): array
+    {
+        return [
+            ['name' => 'Caisse Web 1', 'code' => 'web-pos-01', 'type' => 'computer', 'description' => 'Terminal navigateur principal', 'is_active' => true],
+            ['name' => 'Caisse Web 2', 'code' => 'web-pos-02', 'type' => 'computer', 'description' => 'Terminal navigateur secondaire', 'is_active' => true],
+            ['name' => 'Mobile POS 1', 'code' => 'mobile-pos-01', 'type' => 'mobile', 'description' => 'Terminal mobile 1', 'is_active' => true],
+            ['name' => 'Mobile POS 2', 'code' => 'mobile-pos-02', 'type' => 'mobile', 'description' => 'Terminal mobile 2', 'is_active' => true],
+            ['name' => 'Mobile POS 3', 'code' => 'mobile-pos-03', 'type' => 'mobile', 'description' => 'Terminal mobile 3', 'is_active' => true],
+        ];
+    }
+
+    private function syncVirtualDevices(Tenant $tenant, array $devicesData): void
+    {
+        $enabled = array_key_exists('enabled', $devicesData) ? (bool) $devicesData['enabled'] : true;
+        $settings = $tenant->settings ?? [];
+        $settings['features'] = array_merge($settings['features'] ?? [], [
+            'virtual_devices' => $enabled,
+        ]);
+        $tenant->update(['settings' => $settings]);
+
+        if (! $enabled) {
+            VirtualDeviceSession::where('tenant_id', $tenant->id)
+                ->whereNull('disconnected_at')
+                ->update([
+                    'disconnected_at' => now(),
+                    'disconnect_reason' => 'module_disabled',
+                    'updated_at' => now(),
+                ]);
+
+            return;
+        }
+
+        $seen = [];
+        foreach (($devicesData['devices'] ?? []) ?: $this->defaultVirtualDevices() as $device) {
+            $name = trim((string) ($device['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+
+            $code = Str::slug((string) ($device['code'] ?? '')) ?: Str::slug($name) ?: 'device';
+            $base = $code;
+            $suffix = 2;
+            while (isset($seen[$code])) {
+                $code = $base.'-'.$suffix;
+                $suffix++;
+            }
+            $seen[$code] = true;
+
+            VirtualDevice::updateOrCreate(
+                ['tenant_id' => $tenant->id, 'code' => $code],
+                [
+                    'name' => $name,
+                    'type' => $device['type'] ?? 'other',
+                    'description' => $device['description'] ?? null,
+                    'is_active' => array_key_exists('is_active', $device) ? (bool) $device['is_active'] : true,
+                ],
+            );
+        }
     }
 
     private function uniqueTenantSlug(string $base): string
@@ -574,6 +730,7 @@ class SetupController extends Controller
                     ['key' => 'transfer', 'name' => 'Virement', 'code' => 'transfer', 'description' => 'Paiement bancaire', 'is_active' => true],
                     ['key' => 'advance', 'name' => 'Avance client', 'code' => 'advance', 'description' => 'Solde client', 'is_active' => true],
                 ],
+                'features' => ['virtual_devices' => true],
                 'pos' => ['editable_price' => true, 'allow_sale_edit' => true, 'allow_oversell' => false, 'show_out_of_stock' => false, 'show_cash_drawer_navbar' => true, 'require_adjustment_reason' => true, 'update_cost_on_purchase' => true, 'low_stock_dashboard' => true, 'auto_reorder_draft' => false, 'inventory_cycle_days' => 30, 'default_min_stock_threshold' => 3],
             ],
         ]);

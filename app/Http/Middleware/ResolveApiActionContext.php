@@ -29,7 +29,7 @@ class ResolveApiActionContext
             return response()->json(['ok' => false, 'error' => 'client_actor_forbidden', 'message' => "L'utilisateur est déterminé par le jeton authentifié."], 422);
         }
 
-        $enabled = (bool) data_get($tenant->settings, 'features.virtual_devices', false);
+        $enabled = (bool) data_get($tenant->settings, 'features.virtual_devices', true);
         $header = trim((string) $request->header('X-Virtual-Device-Id', ''));
 
         if ($enabled && $header === '') {
