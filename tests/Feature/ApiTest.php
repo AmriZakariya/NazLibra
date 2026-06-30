@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\Item;
 use App\Models\ItemLocationStock;
+use App\Models\CashRegisterMovement;
 use App\Models\Location;
 use App\Models\Role;
 use App\Models\Sale;
+use App\Models\SaleReturn;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\VirtualDevice;
@@ -348,6 +350,72 @@ class ApiTest extends TestCase
             ->where('location_id', $this->location->id)
             ->value('quantity');
         $this->assertEquals(99, $stock);
+    }
+
+    public function test_zero_amount_sale_can_be_returned_for_stock_without_cash_movement(): void
+    {
+        if (! $this->item) {
+            $this->markTestSkipped('No active product item available in seed data.');
+        }
+
+        $startingStock = ItemLocationStock::where('tenant_id', $this->tenant->id)
+            ->where('item_id', $this->item->id)
+            ->where('location_id', $this->location->id)
+            ->value('quantity');
+
+        $saleResponse = $this->withToken($this->apiToken())
+            ->postJson('/api/v1/pos/sales', [
+                'idempotency_key' => \Illuminate\Support\Str::uuid()->toString(),
+                'location_id'     => $this->location->id,
+                'items'           => [
+                    ['item_id' => $this->item->id, 'quantity' => 2, 'unit_price' => 0],
+                ],
+                'payments'        => ['cash' => 0, 'card' => 0, 'transfer' => 0, 'advance' => 0],
+            ]);
+
+        $saleResponse->assertCreated()
+            ->assertJsonPath('sale.total_amount', 0);
+
+        $saleId = $saleResponse->json('sale.id');
+        $lineId = $saleResponse->json('sale.items.0.id');
+
+        $this->assertEquals($startingStock - 2, ItemLocationStock::where('tenant_id', $this->tenant->id)
+            ->where('item_id', $this->item->id)
+            ->where('location_id', $this->location->id)
+            ->value('quantity'));
+
+        $cashRefundsBefore = CashRegisterMovement::where('tenant_id', $this->tenant->id)
+            ->where('type', 'sale_refund_cash')
+            ->count();
+
+        $returnResponse = $this->withToken($this->apiToken())
+            ->postJson("/api/v1/pos/sales/{$saleId}/returns", [
+                'idempotency_key' => \Illuminate\Support\Str::uuid()->toString(),
+                'refund_method' => 'cash',
+                'return_lines' => [[
+                    'sale_item_id' => $lineId,
+                    'quantity' => 2,
+                    'stock_action' => 'restock',
+                ]],
+            ]);
+
+        $returnResponse->assertCreated()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('return.total_amount', 0)
+            ->assertJsonPath('return.refund_scope', 'full');
+
+        $this->assertDatabaseHas('sales', [
+            'id' => $saleId,
+            'status' => 'refunded',
+        ]);
+        $this->assertSame(1, SaleReturn::where('sale_id', $saleId)->count());
+        $this->assertEquals($startingStock, ItemLocationStock::where('tenant_id', $this->tenant->id)
+            ->where('item_id', $this->item->id)
+            ->where('location_id', $this->location->id)
+            ->value('quantity'));
+        $this->assertSame($cashRefundsBefore, CashRegisterMovement::where('tenant_id', $this->tenant->id)
+            ->where('type', 'sale_refund_cash')
+            ->count());
     }
 
     public function test_enabled_virtual_devices_require_a_valid_terminal_and_reject_client_actor(): void

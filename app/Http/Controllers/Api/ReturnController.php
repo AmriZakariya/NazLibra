@@ -235,9 +235,6 @@ class ReturnController extends Controller
                 if (empty($lines)) {
                     throw new \RuntimeException('Aucun article à retourner.');
                 }
-                if ($returnTotal <= 0.001) {
-                    throw new \RuntimeException('Aucun montant remboursable pour cette vente.');
-                }
 
                 $alreadyReturnedAmount = (float) $sale->returns->sum('total_amount');
                 $refundable = max(0, (float) $sale->total_amount - $alreadyReturnedAmount);
@@ -364,7 +361,7 @@ class ReturnController extends Controller
                 }
 
                 // Cash drawer out if refunded in cash.
-                $session = $this->cashRegister->openSession($tenant);
+                $session = $returnTotal > 0.001 ? $this->cashRegister->openSession($tenant) : null;
                 if ($data['refund_method'] === RefundMethod::Cash->value && $session) {
                     $this->cashRegister->recordMovement($tenant, $session, 'sale_refund_cash', 'out', $returnTotal, [
                         'sale_id'         => $sale->id,
