@@ -196,7 +196,7 @@ class SaleController extends Controller
         foreach ($data['items'] as $line) {
             if (empty($line['item_id'])) continue;
             $item = $items->get($line['item_id']);
-            if (! $item || $item->status !== ItemStatus::Active->value) {
+            if (! $item || ! ItemStatus::from($item->status)->isVisible()) {
                 return response()->json([
                     'ok'      => false,
                     'error'   => 'item_unavailable',

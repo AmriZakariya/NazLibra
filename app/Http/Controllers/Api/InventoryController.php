@@ -97,7 +97,7 @@ class InventoryController extends Controller
             ->when($stock === 'low', fn ($q) => $q->where('type', '!=', 'service')->where('min_stock_threshold', '>', 0)->whereColumn('stock_quantity', '<=', 'min_stock_threshold'))
             ->when($sort === 'stock_asc',  fn ($q) => $q->orderBy('stock_quantity'))
             ->when($sort === 'stock_desc', fn ($q) => $q->orderByDesc('stock_quantity'))
-            ->when($sort === 'value_desc', fn ($q) => $q->orderByRaw('stock_quantity * purchase_price DESC'))
+            ->when($sort === 'value_desc', fn ($q) => $q->orderByRaw('(SELECT COALESCE(SUM(il.remaining_quantity * il.unit_cost), 0) FROM inventory_layers il WHERE il.tenant_id = items.tenant_id AND il.item_id = items.id) DESC'))
             ->when($sort === 'title' || !in_array($sort, ['stock_asc', 'stock_desc', 'value_desc']), fn ($q) => $q->orderBy('title'));
 
         $paginator = $q->paginate($perPage, [
@@ -106,20 +106,38 @@ class InventoryController extends Controller
             'stock_quantity', 'min_stock_threshold',
         ]);
 
-        $items = collect($paginator->items())->map(fn (Item $item) => [
-            'id'                  => $item->id,
-            'type'                => $item->type,
-            'title'               => $item->title,
-            'author'              => $item->author,
-            'barcode'             => $item->barcode,
-            'isbn'                => $item->isbn,
-            'sku'                 => $item->sku,
-            'image_url'           => collect($item->images ?? [])->first(),
-            'sale_price'          => (float) $item->sale_price,
-            'purchase_price'      => (float) $item->purchase_price,
-            'stock_quantity'      => (float) $item->stock_quantity,
-            'min_stock_threshold' => (float) $item->min_stock_threshold,
-        ]);
+        // Batch-load LIFO stock values from inventory layers for paginated item IDs.
+        $itemIds = collect($paginator->items())->pluck('id')->all();
+        $layerValues = InventoryLayer::where('tenant_id', $tenant->id)
+            ->whereIn('item_id', $itemIds)
+            ->groupBy('item_id')
+            ->selectRaw('item_id,
+                COALESCE(SUM(remaining_quantity * unit_cost), 0) as stock_value,
+                CASE WHEN SUM(remaining_quantity) > 0
+                     THEN SUM(remaining_quantity * unit_cost) / SUM(remaining_quantity)
+                     ELSE 0 END as average_cost')
+            ->get()
+            ->keyBy('item_id');
+
+        $items = collect($paginator->items())->map(function (Item $item) use ($layerValues) {
+            $layer = $layerValues->get($item->id);
+            return [
+                'id'                  => $item->id,
+                'type'                => $item->type,
+                'title'               => $item->title,
+                'author'              => $item->author,
+                'barcode'             => $item->barcode,
+                'isbn'                => $item->isbn,
+                'sku'                 => $item->sku,
+                'image_url'           => collect($item->images ?? [])->first(),
+                'sale_price'          => (float) $item->sale_price,
+                'purchase_price'      => (float) $item->purchase_price,
+                'stock_quantity'      => (float) $item->stock_quantity,
+                'min_stock_threshold' => (float) $item->min_stock_threshold,
+                'average_cost'        => round((float) ($layer?->average_cost ?? 0), 4),
+                'stock_value'         => round((float) ($layer?->stock_value ?? 0), 2),
+            ];
+        });
 
         return response()->json([
             'ok'      => true,

@@ -5,6 +5,7 @@ namespace App\Services\Inventory;
 use App\Models\InventoryLayer;
 use App\Models\InventoryLayerConsumption;
 use App\Models\InventoryMovement;
+use App\Enums\ItemStatus;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
 use App\Models\Location;
@@ -518,12 +519,20 @@ class InventoryLedgerService
             ->where('item_id', $itemId)
             ->sum('quantity');
 
-        Item::where('tenant_id', $tenantId)
-            ->where('id', $itemId)
-            ->update([
-                'stock_quantity' => $totalQty,
-                'updated_at'     => now(),
-            ]);
+        $item = Item::where('tenant_id', $tenantId)->where('id', $itemId)->first();
+
+        if ($item) {
+            $newStatus = ItemStatus::fromTypeAndStock($item->type, $totalQty);
+            $updates = ['stock_quantity' => $totalQty, 'updated_at' => now()];
+
+            // Only promote/demote between active and out_of_stock; never touch
+            // archived or inactive items.
+            if (in_array($item->status, [ItemStatus::Active->value, ItemStatus::OutOfStock->value], true)) {
+                $updates['status'] = $newStatus->value;
+            }
+
+            $item->update($updates);
+        }
     }
 
     // ── Private helpers ─────────────────────────────────────────────────────────

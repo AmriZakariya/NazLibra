@@ -725,7 +725,9 @@
                                 default => null,
                             };
                             $movementValue = $movement->total_cost !== null ? abs((float) $movement->total_cost) : abs($delta) * (float) $movement->purchase_price;
-                            $stockValueAfter = $movement->unit_cost !== null ? (int) $movement->quantity_after * (float) $movement->unit_cost : (int) $movement->quantity_after * (float) $movement->purchase_price;
+                            // stock_value_after is the true cumulative layer value computed
+                            // by the correlated subquery in the controller — never qty × last_cost.
+                            $stockValueAfter = (float) ($movement->stock_value_after ?? 0);
                         @endphp
                         <div class="inventory-movement-row is-{{ $movementMeta['tone'] }}">
                             <div class="inventory-movement-type">

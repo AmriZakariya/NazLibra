@@ -719,11 +719,13 @@ class LibraireProController extends Controller
                 'stock_movements.quantity_after',
                 'stock_movements.unit_cost',
                 'stock_movements.total_cost',
+                'stock_movements.cogs',
                 'stock_movements.reference_type',
                 'stock_movements.reference_id',
                 'stock_movements.reference_number',
                 'stock_movements.note',
                 'stock_movements.created_at',
+                'stock_movements.occurred_at',
                 'items.title as item_title',
                 'items.item_code',
                 'items.barcode',
@@ -733,6 +735,28 @@ class LibraireProController extends Controller
                 'users.name as user_name',
                 'locations.name as location_name',
                 'item_variants.name as variant_name',
+                // Cumulative inventory value at the time of this movement.
+                // Incoming movements add total_cost; outgoing movements subtract
+                // their COGS (stored in the cogs column, or total_cost if cogs is null).
+                // This uses occurred_at (device time) as the ordering key, which
+                // matches the LIFO ledger rebuild ordering.
+                DB::raw('(
+                    SELECT COALESCE(SUM(
+                        CASE
+                            WHEN sm2.quantity_delta >= 0
+                                THEN COALESCE(sm2.total_cost, 0)
+                            ELSE -ABS(COALESCE(NULLIF(sm2.cogs, 0), sm2.total_cost, 0))
+                        END
+                    ), 0)
+                    FROM stock_movements sm2
+                    WHERE sm2.tenant_id = stock_movements.tenant_id
+                      AND sm2.item_id   = stock_movements.item_id
+                      AND sm2.location_id = stock_movements.location_id
+                      AND (
+                          sm2.occurred_at < stock_movements.occurred_at
+                          OR (sm2.occurred_at = stock_movements.occurred_at AND sm2.id <= stock_movements.id)
+                      )
+                ) as stock_value_after'),
             ])
             ->latest('stock_movements.created_at')
             ->paginate($stockMovementPerPage, ['*'], 'movements_page')
