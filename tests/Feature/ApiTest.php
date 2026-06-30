@@ -627,6 +627,64 @@ class ApiTest extends TestCase
         $this->assertEquals($salesBefore, Sale::where('tenant_id', $this->tenant->id)->count());
     }
 
+    public function test_sale_reconciles_positive_stock_cache_when_layers_are_missing(): void
+    {
+        if (! $this->item) {
+            $this->markTestSkipped('No active product item available in seed data.');
+        }
+
+        ItemLocationStock::where('tenant_id', $this->tenant->id)
+            ->where('item_id', $this->item->id)
+            ->where('location_id', $this->location->id)
+            ->update(['quantity' => 10, 'average_cost' => 1.5]);
+
+        \App\Models\InventoryLayer::where('tenant_id', $this->tenant->id)
+            ->where('item_id', $this->item->id)
+            ->where('location_id', $this->location->id)
+            ->update(['remaining_quantity' => 0, 'exhausted_at' => now()]);
+
+        $ledger = app(\App\Services\Inventory\InventoryLedgerService::class);
+
+        $this->assertSame(0.0, $ledger->availableQuantity(
+            $this->tenant->id,
+            $this->item->id,
+            null,
+            $this->location->id,
+        ));
+
+        $response = $this->withToken($this->apiToken())
+            ->postJson('/api/v1/pos/sales', [
+                'idempotency_key' => \Illuminate\Support\Str::uuid()->toString(),
+                'location_id'     => $this->location->id,
+                'items'           => [
+                    ['item_id' => $this->item->id, 'quantity' => 10, 'unit_price' => 2],
+                ],
+                'payments' => ['cash' => 20, 'card' => 0, 'transfer' => 0, 'advance' => 0],
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('sale.total_amount', 20);
+
+        $this->assertDatabaseHas('stock_movements', [
+            'tenant_id' => $this->tenant->id,
+            'item_id' => $this->item->id,
+            'location_id' => $this->location->id,
+            'type' => \App\Services\Inventory\InventoryMovementType::CORRECTION,
+            'reason' => 'Synchronisation cache stock / couches LIFO',
+        ]);
+
+        $this->assertSame(0.0, $ledger->availableQuantity(
+            $this->tenant->id,
+            $this->item->id,
+            null,
+            $this->location->id,
+        ));
+        $this->assertEquals(0, ItemLocationStock::where('tenant_id', $this->tenant->id)
+            ->where('item_id', $this->item->id)
+            ->where('location_id', $this->location->id)
+            ->value('quantity'));
+    }
+
     // ── Dashboard ─────────────────────────────────────────────────────────────
 
     public function test_dashboard_returns_kpis(): void

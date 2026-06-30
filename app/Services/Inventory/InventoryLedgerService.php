@@ -311,6 +311,93 @@ class InventoryLedgerService
     }
 
     /**
+     * Repair legacy/cache drift before POS operations.
+     *
+     * Mobile sync displays ItemLocationStock.quantity. Sales consume
+     * InventoryLayer.remaining_quantity. If old imports or previous code wrote
+     * only the cache row, the cashier sees stock while the sale API sees zero.
+     * This creates a correction layer for the positive shortfall so both views
+     * use the same available quantity again.
+     */
+    public function reconcilePositiveStockCacheShortfall(
+        int $tenantId,
+        int $itemId,
+        ?int $variantId,
+        int $locationId,
+        ?int $userId = null,
+        ?int $virtualDeviceId = null,
+        ?string $actorNameSnapshot = null,
+        ?string $terminalNameSnapshot = null,
+    ): void {
+        DB::transaction(function () use (
+            $tenantId,
+            $itemId,
+            $variantId,
+            $locationId,
+            $userId,
+            $virtualDeviceId,
+            $actorNameSnapshot,
+            $terminalNameSnapshot,
+        ): void {
+            $stock = ItemLocationStock::where('tenant_id', $tenantId)
+                ->where('item_id', $itemId)
+                ->where('location_id', $locationId)
+                ->when($variantId, fn ($q) => $q->where('variant_id', $variantId))
+                ->lockForUpdate()
+                ->first();
+
+            $cacheQty = (float) ($stock?->quantity ?? 0);
+            if ($cacheQty <= 0) {
+                return;
+            }
+
+            $layerQty = (float) InventoryLayer::where('tenant_id', $tenantId)
+                ->where('item_id', $itemId)
+                ->where('location_id', $locationId)
+                ->when($variantId, fn ($q) => $q->where('variant_id', $variantId))
+                ->where('remaining_quantity', '>', 0)
+                ->sum('remaining_quantity');
+
+            if ($layerQty + 0.0001 >= $cacheQty) {
+                return;
+            }
+
+            $delta = round($cacheQty - $layerQty, 4);
+            $unitCost = (float) ($stock?->average_cost ?? 0);
+            $now = now();
+
+            $movement = InventoryMovement::create([
+                'tenant_id'              => $tenantId,
+                'item_id'                => $itemId,
+                'variant_id'             => $variantId,
+                'location_id'            => $locationId,
+                'user_id'                => $userId,
+                'type'                   => InventoryMovementType::CORRECTION,
+                'quantity_before'        => $layerQty,
+                'quantity_delta'         => $delta,
+                'quantity_after'         => $cacheQty,
+                'unit_cost'              => $unitCost,
+                'total_cost'             => round($delta * $unitCost, 4),
+                'cogs'                   => null,
+                'occurred_at'            => $now,
+                'synced_at'              => null,
+                'idempotency_key'        => 'stock-cache-reconcile-'.$tenantId.'-'.$itemId.'-'.($variantId ?? 'base').'-'.$locationId.'-'.$now->format('YmdHisv'),
+                'reference_type'         => ItemLocationStock::class,
+                'reference_id'           => $stock?->id,
+                'reference_number'       => null,
+                'reason'                 => 'Synchronisation cache stock / couches LIFO',
+                'note'                   => 'Correction automatique avant vente POS',
+                'virtual_device_id'      => $virtualDeviceId,
+                'actor_name_snapshot'    => $actorNameSnapshot,
+                'terminal_name_snapshot' => $terminalNameSnapshot,
+            ]);
+
+            $this->createLayer($movement, $delta, $unitCost, $now);
+            $this->syncStockCache($tenantId, $itemId, $variantId, $locationId);
+        });
+    }
+
+    /**
      * Current inventory value at a location.
      * Value = SUM(remaining_quantity * unit_cost).
      * NEVER uses product.purchase_price or any static price field.

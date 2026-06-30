@@ -339,6 +339,7 @@ class SaleController extends Controller
 
         // Stock pre-check (outside transaction for early feedback without holding locks).
         if (! $allowOversell) {
+            $this->reconcileSaleLineStock($tenant->id, $locationId, $saleLines, $action);
             $conflicts = $this->stockConflicts($tenant->id, $locationId, $saleLines);
             if (! empty($conflicts)) {
                 return response()->json([
@@ -772,15 +773,43 @@ class SaleController extends Controller
             // Use layer-based available quantity — authoritative, not the cached column.
             $available = $this->ledger->availableQuantity($tenantId, $id, null, $locationId);
             if ($available < $entry['requested']) {
+                $cacheQuantity = (float) (ItemLocationStock::where('tenant_id', $tenantId)
+                    ->where('item_id', $id)
+                    ->where('location_id', $locationId)
+                    ->value('quantity') ?? 0);
                 $conflicts[] = [
-                    'item_id'   => $entry['item']->id,
-                    'name'      => $entry['item']->title,
-                    'requested' => $entry['requested'],
-                    'available' => $available,
+                    'item_id'        => $entry['item']->id,
+                    'name'           => $entry['item']->title,
+                    'location_id'    => $locationId,
+                    'requested'      => $entry['requested'],
+                    'available'      => $available,
+                    'cache_quantity' => $cacheQuantity,
                 ];
             }
         }
         return $conflicts;
+    }
+
+    private function reconcileSaleLineStock(int $tenantId, int $locationId, array $saleLines, ApiActionContext $action): void
+    {
+        $itemIds = collect($saleLines)
+            ->map(fn (array $line) => $line['item']?->id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        foreach ($itemIds as $itemId) {
+            $this->ledger->reconcilePositiveStockCacheShortfall(
+                $tenantId,
+                (int) $itemId,
+                null,
+                $locationId,
+                $action->actor->id,
+                $action->virtualDevice?->id,
+                $action->actor->name,
+                $action->virtualDevice?->name,
+            );
+        }
     }
 
     /**
