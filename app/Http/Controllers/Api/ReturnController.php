@@ -163,7 +163,7 @@ class ReturnController extends Controller
 
                 $sale->load(['items.item', 'returns']);
 
-                $locationId = $this->inventory->locationIdFromName($tenant->id, null);
+                $locationId = (int) $sale->location_id;
                 $soldLines  = $sale->items->keyBy('id');
 
                 // Already-returned quantities per sale_item_id.
@@ -243,7 +243,20 @@ class ReturnController extends Controller
                 }
 
                 $stockDisposition = count(array_unique($stockActions)) === 1 ? $stockActions[0] : 'mixed';
-                $isFullRefund     = ($alreadyReturnedAmount + $returnTotal + 0.001) >= (float) $sale->total_amount;
+                $allLinesFullyReturned = collect($lines)->every(function (array $returnLine) use ($alreadyReturned, $soldLines): bool {
+                    $soldLine = $soldLines->get((int) $returnLine['sale_item_id']);
+
+                    return $soldLine
+                        && ((int) ($alreadyReturned[$soldLine->id] ?? 0) + (int) $returnLine['quantity']) >= (int) $soldLine->quantity;
+                }) && collect($soldLines)->every(function ($soldLine) use ($alreadyReturned, $lines): bool {
+                    $currentQuantity = collect($lines)->firstWhere('sale_item_id', $soldLine->id)['quantity'] ?? 0;
+
+                    return ((int) ($alreadyReturned[$soldLine->id] ?? 0) + (int) $currentQuantity) >= (int) $soldLine->quantity;
+                });
+                $saleTotal = (float) $sale->total_amount;
+                $amountFullyRefunded = $saleTotal > 0.001
+                    && ($alreadyReturnedAmount + $returnTotal + 0.001) >= $saleTotal;
+                $isFullRefund = $amountFullyRefunded || $allLinesFullyReturned;
 
                 $numberData  = $this->numbers->next($tenant, 'return', null);
                 $saleReturn  = SaleReturn::create([
@@ -373,8 +386,7 @@ class ReturnController extends Controller
                 }
 
                 // Update sale status.
-                $totalReturned = (float) $sale->returns()->sum('total_amount');
-                if ($totalReturned + 0.001 >= (float) $sale->total_amount) {
+                if ($isFullRefund) {
                     $sale->update(['status' => 'refunded']);
                 } else {
                     $sale->update(['status' => 'partial_refund']);

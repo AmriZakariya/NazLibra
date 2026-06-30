@@ -5026,7 +5026,7 @@ class LibraireProController extends Controller
             }
 
             $inventoryService = app(\App\Services\Inventory\InventoryService::class);
-            $returnLocationId = $inventoryService->locationIdFromName($tenant->id, null);
+            $returnLocationId = (int) $sale->location_id;
 
             $sale->load(['items.item', 'returns']);
             $soldLines = $sale->items->keyBy('id');
@@ -5089,7 +5089,7 @@ class LibraireProController extends Controller
                 ];
             }
 
-            if ($returnTotal <= 0.001 || empty($lines)) {
+            if (empty($lines)) {
                 throw new \RuntimeException('Sélectionnez au moins un article et une quantité à retourner.');
             }
             $alreadyReturnedAmount = (float) $sale->returns->sum('total_amount');
@@ -5106,7 +5106,10 @@ class LibraireProController extends Controller
 
                 return ((int) ($alreadyReturned[$soldLine->id] ?? 0) + (int) $currentQuantity) >= (int) $soldLine->quantity;
             });
-            $isFullRefund = ($alreadyReturnedAmount + $returnTotal) + 0.001 >= (float) $sale->total_amount || $allLinesFullyReturned;
+            $saleTotal = (float) $sale->total_amount;
+            $amountFullyRefunded = $saleTotal > 0.001
+                && ($alreadyReturnedAmount + $returnTotal) + 0.001 >= $saleTotal;
+            $isFullRefund = $amountFullyRefunded || $allLinesFullyReturned;
 
             $saleReturn = SaleReturn::create([
                 'tenant_id' => $tenant->id,
@@ -5200,7 +5203,7 @@ class LibraireProController extends Controller
                 }
             }
 
-            if ($data['refund_method'] === 'cash' && $session = app(CashRegisterService::class)->openSession($tenant, true)) {
+            if ($returnTotal > 0.001 && $data['refund_method'] === 'cash' && $session = app(CashRegisterService::class)->openSession($tenant, true)) {
                 $movement = app(CashRegisterService::class)->recordMovement($tenant, $session, 'sale_refund_cash', 'out', $returnTotal, [
                     'sale_id' => $sale->id,
                     'reference' => $saleReturn->number,

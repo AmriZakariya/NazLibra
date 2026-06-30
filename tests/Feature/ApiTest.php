@@ -394,12 +394,41 @@ class ApiTest extends TestCase
                 'refund_method' => 'cash',
                 'return_lines' => [[
                     'sale_item_id' => $lineId,
-                    'quantity' => 2,
+                    'quantity' => 1,
                     'stock_action' => 'restock',
                 ]],
             ]);
 
         $returnResponse->assertCreated()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('return.total_amount', 0)
+            ->assertJsonPath('return.refund_scope', 'partial');
+
+        $this->assertDatabaseHas('sales', [
+            'id' => $saleId,
+            'status' => 'partial_refund',
+        ]);
+        $this->assertSame(1, SaleReturn::where('sale_id', $saleId)->count());
+        $this->assertEquals($startingStock - 1, ItemLocationStock::where('tenant_id', $this->tenant->id)
+            ->where('item_id', $this->item->id)
+            ->where('location_id', $this->location->id)
+            ->value('quantity'));
+        $this->assertSame($cashRefundsBefore, CashRegisterMovement::where('tenant_id', $this->tenant->id)
+            ->where('type', 'sale_refund_cash')
+            ->count());
+
+        $finalReturnResponse = $this->withToken($this->apiToken())
+            ->postJson("/api/v1/pos/sales/{$saleId}/returns", [
+                'idempotency_key' => \Illuminate\Support\Str::uuid()->toString(),
+                'refund_method' => 'cash',
+                'return_lines' => [[
+                    'sale_item_id' => $lineId,
+                    'quantity' => 1,
+                    'stock_action' => 'restock',
+                ]],
+            ]);
+
+        $finalReturnResponse->assertCreated()
             ->assertJsonPath('ok', true)
             ->assertJsonPath('return.total_amount', 0)
             ->assertJsonPath('return.refund_scope', 'full');
@@ -408,7 +437,7 @@ class ApiTest extends TestCase
             'id' => $saleId,
             'status' => 'refunded',
         ]);
-        $this->assertSame(1, SaleReturn::where('sale_id', $saleId)->count());
+        $this->assertSame(2, SaleReturn::where('sale_id', $saleId)->count());
         $this->assertEquals($startingStock, ItemLocationStock::where('tenant_id', $this->tenant->id)
             ->where('item_id', $this->item->id)
             ->where('location_id', $this->location->id)
