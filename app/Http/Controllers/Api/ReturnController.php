@@ -232,8 +232,11 @@ class ReturnController extends Controller
                     ];
                 }
 
-                if (empty($lines) || $returnTotal <= 0.001) {
+                if (empty($lines)) {
                     throw new \RuntimeException('Aucun article à retourner.');
+                }
+                if ($returnTotal <= 0.001) {
+                    throw new \RuntimeException('Aucun montant remboursable pour cette vente.');
                 }
 
                 $alreadyReturnedAmount = (float) $sale->returns->sum('total_amount');
