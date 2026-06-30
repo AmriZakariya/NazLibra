@@ -358,6 +358,29 @@ class ItemController extends Controller
         return response()->json(['ok' => true, 'item' => $item]);
     }
 
+    /**
+     * POST /api/v1/items/{item}/images — upload or replace the item's image.
+     */
+    public function uploadImage(Request $request, Item $item): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant = $request->attributes->get('api_tenant');
+
+        if ($item->tenant_id !== $tenant->id) {
+            return response()->json(['ok' => false, 'message' => 'Article introuvable.'], 404);
+        }
+
+        $request->validate([
+            'image' => ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:4096'],
+        ]);
+
+        $path = $request->file('image')->store('catalogue/items', 'public');
+
+        $item->update(['images' => [$path]]);
+
+        return response()->json(['ok' => true, 'image_url' => $path]);
+    }
+
     private function generatedItemCode(Item $item): string
     {
         $base = 'IT'.$item->created_at->format('ym').str_pad((string) $item->id, 4, '0', STR_PAD_LEFT);

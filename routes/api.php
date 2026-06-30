@@ -142,10 +142,11 @@ Route::prefix('v1')->group(function (): void {
         Route::delete('contacts/{contact}', [ContactController::class, 'destroy']);
 
         // ── Item lookup & CRUD ────────────────────────────────────────────────
-        Route::get('items/search',  [ItemController::class, 'search']);
-        Route::post('items',         [ItemController::class, 'store']);
-        Route::get('items/{item}',  [ItemController::class, 'show']);
-        Route::put('items/{item}',  [ItemController::class, 'update']);
+        Route::get('items/search',         [ItemController::class, 'search']);
+        Route::post('items',                [ItemController::class, 'store']);
+        Route::get('items/{item}',         [ItemController::class, 'show']);
+        Route::put('items/{item}',         [ItemController::class, 'update']);
+        Route::post('items/{item}/images', [ItemController::class, 'uploadImage']);
 
         // ── Inventory adjustments ─────────────────────────────────────────────
         Route::post('inventory/adjustments', [AdjustmentController::class, 'store'])->middleware('api.action:stock.adjust');
