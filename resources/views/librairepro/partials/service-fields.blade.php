@@ -177,7 +177,7 @@
                 <span class="catalog-file-button">{{ $tr('Choisir une image') }}</span>
                 <span class="catalog-file-name" data-file-name data-empty-label="{{ $tr('Aucun fichier choisi') }}">{{ $tr('Aucun fichier choisi') }}</span>
             </label>
-            <span class="mt-1 block text-xs text-slate-500">{{ $tr('Une nouvelle image devient l'image principale.') }}</span>
+            <span class="mt-1 block text-xs text-slate-500">{{ $tr('Une nouvelle image devient image principale.') }}</span>
             @if ($currentImage)
                 <label class="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
                     <input type="checkbox" name="remove_item_image" value="1" class="rounded border-slate-300 text-brand focus:ring-brand">
