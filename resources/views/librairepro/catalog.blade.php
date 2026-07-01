@@ -1787,4 +1787,51 @@
             window.addEventListener('DOMContentLoaded', () => document.getElementById(@json($stockAutoOpenDialogId))?.showModal());
         </script>
     @endif
+
+    {{-- Import loading overlay --}}
+    <div id="import-overlay" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.55);backdrop-filter:blur(3px);align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:16px;padding:32px 40px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.2);max-width:340px;width:90%;dark:background:#1e293b">
+            <div style="display:inline-block;width:44px;height:44px;border:3px solid #e2e8f0;border-top-color:#6366f1;border-radius:50%;animation:import-spin 0.8s linear infinite;margin-bottom:16px"></div>
+            <p style="margin:0 0 6px;font-weight:700;font-size:15px;color:#1e293b">Import en cours…</p>
+            <p id="import-overlay-hint" style="margin:0;font-size:13px;color:#64748b">Traitement du fichier, veuillez patienter.</p>
+        </div>
+    </div>
+    <style>
+        @keyframes import-spin { to { transform: rotate(360deg); } }
+        @media (prefers-color-scheme: dark) {
+            #import-overlay > div { background: #1e293b !important; }
+            #import-overlay > div p { color: #f1f5f9 !important; }
+            #import-overlay > div p:last-child { color: #94a3b8 !important; }
+        }
+    </style>
+    <script>
+        (function () {
+            const overlay = document.getElementById('import-overlay');
+            const hint    = document.getElementById('import-overlay-hint');
+            const hints   = [
+                'Traitement du fichier, veuillez patienter.',
+                'Détection des colonnes en cours…',
+                'Mise à jour du catalogue…',
+                'Calcul des stocks…',
+                'Finalisation…',
+            ];
+            let hintIdx = 0;
+            let hintTimer = null;
+
+            function showOverlay() {
+                overlay.style.display = 'flex';
+                hintTimer = setInterval(function () {
+                    hintIdx = (hintIdx + 1) % hints.length;
+                    hint.textContent = hints[hintIdx];
+                }, 3000);
+            }
+
+            document.querySelectorAll('form[action="{{ route('catalog.import') }}"]').forEach(function (form) {
+                form.addEventListener('submit', function () {
+                    if (!form.querySelector('[name="catalog_file"]')?.files?.length) return;
+                    showOverlay();
+                });
+            });
+        })();
+    </script>
 </x-layouts.app>

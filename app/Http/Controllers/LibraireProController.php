@@ -2294,144 +2294,236 @@ class LibraireProController extends Controller
         $updated = 0;
         $skipped = 0;
 
+        // ── Pre-cache all lookup tables (eliminates N×4 per-row queries) ─────────
+        $catCache   = Category::where('tenant_id', $tenant->id)->get()->keyBy(fn ($c) => Str::slug($c->name));
+        $brandCache = Brand::where('tenant_id', $tenant->id)->get()->keyBy(fn ($b) => mb_strtolower(trim($b->name)));
+        $unitCache  = Unit::where('tenant_id', $tenant->id)->get()->keyBy(fn ($u) => mb_strtolower(trim($u->name)));
+        $taxCache   = Tax::where('tenant_id', $tenant->id)->get()->keyBy(fn ($t) => mb_strtolower(trim($t->name)));
+
+        // ── Pre-scan rows to collect all identifiers, then bulk-load items ────────
+        $scannedBarcodes = [];
+        $scannedIsbns    = [];
+        $scannedCodes    = [];
         foreach ($rows as $row) {
-            $title = trim((string) $this->rowValue($row, ['title', 'titre', 'name', 'nom', 'item_name', 'nom_article', 'nom_de_l_article']));
-
-            if ($title === '') {
-                $skipped++;
-                continue;
-            }
-
-            $category = $this->categoryByName($tenant->id, $this->cleanLegacyCategoryName((string) ($this->rowValue($row, ['category', 'categorie', 'category_name', 'nom_categorie', 'categorie_type_d_element']) ?: ($data['kind'] === 'services' ? 'Services' : 'Import'))));
-            $brand = $this->brandByName($tenant->id, (string) $this->rowValue($row, ['brand', 'brand_name', 'publisher', 'editeur', 'marque']));
-            $unit = $this->unitByName($tenant->id, (string) ($this->rowValue($row, ['unit', 'unit_name', 'unite', 'nom_unite']) ?: ($data['kind'] === 'services' ? 'Service' : 'Pièce')));
-            [$taxName, $taxRate] = $this->taxParts((string) ($this->rowValue($row, ['tax', 'tax_name', 'taxe', 'impot']) ?: 'Sans TVA'), $this->rowValue($row, ['tax_rate', 'tax_value', 'taux_taxe']));
-            $tax = $this->taxByName($tenant->id, $taxName, $taxRate);
-            $type = $this->importedItemType($row, $data['kind']);
-            $stock = $type === 'service' ? 9999 : (int) $this->decimalValue($this->rowValue($row, ['stock', 'stock_quantity', 'opening_stock', 'stock_ouverture']));
-            $defaultMinStock = (int) data_get($tenant->settings, 'pos.default_min_stock_threshold', 3);
-
-            $barcode = trim((string) $this->rowValue($row, ['barcode', 'custom_barcode', 'code_barres', 'code_de_barre'])) ?: null;
-            $isbn = trim((string) $this->rowValue($row, ['isbn'])) ?: null;
-            $priceBeforeTax = $this->decimalValue($this->rowValue($row, ['price_before_tax', 'price', 'prix', 'prix_ht']));
-            $purchasePrice = $this->decimalValue($this->rowValue($row, ['purchase_price', 'prix_achat']) ?? $priceBeforeTax);
-            $salePrice = $this->decimalValue($this->rowValue($row, ['sale_price', 'sales_price', 'prix_vente', 'prix_de_vente']) ?? $priceBeforeTax);
-
-            $payload = [
-                'tenant_id' => $tenant->id,
-                'category_id' => $category->id,
-                'brand_id' => $brand?->id,
-                'unit_id' => $unit?->id,
-                'tax_id' => $tax?->id,
-                'type' => $type,
-                'is_enabled' => true,
-                'checkout_visible' => true,
-                'status' => $this->itemStatus($row, $stock, $type),
-                'item_code' => trim((string) $this->rowValue($row, ['item_code', 'code_article'])) ?: $this->nextItemCode($tenant->id),
-                'title' => $title,
-                'isbn' => $isbn,
-                'barcode' => $barcode,
-                'sku' => $this->rowValue($row, ['sku']),
-                'custom_barcode1' => $this->rowValue($row, ['lot_number', 'lot', 'autre_code_article']),
-                'sac' => $this->rowValue($row, ['sac']),
-                'hsn' => $this->rowValue($row, ['hsn']),
-                'author' => $this->rowValue($row, ['author', 'auteur']),
-                'editor' => $this->rowValue($row, ['editor', 'editeur_texte']),
-                'edition_year' => $this->rowValue($row, ['edition_year', 'annee_edition']),
-                'theme' => $this->rowValue($row, ['theme']),
-                'tags' => $this->normalizeTagsInput($this->rowValue($row, ['tags', 'tag', 'etiquettes', 'mots_cles', 'mots-cles'])),
-                'description' => $this->rowValue($row, ['description', 'item_desciption', 'item_description']),
-                'price' => $priceBeforeTax,
-                'purchase_price' => $purchasePrice,
-                'sale_price' => $salePrice,
-                'tax_type' => $this->rowValue($row, ['tax_type', 'type_taxe']) ?: 'Exclusive',
-                'discount_type' => $this->rowValue($row, ['discount_type', 'type_remise']) ?: 'Percentage',
-                'discount' => (float) ($this->rowValue($row, ['discount', 'remise']) ?? 0),
-                'mrp' => (float) ($this->rowValue($row, ['mrp']) ?? 0),
-                'seller_points' => (float) ($this->rowValue($row, ['seller_points', 'points_vendeur']) ?? 0),
-                'opening_stock' => $stock,
-                'stock_quantity' => $stock,
-                'min_stock_threshold' => (int) ($this->rowValue($row, ['min_stock_threshold', 'seuil_stock', 'alert_qty', 'quantite_d_alerte']) ?? $defaultMinStock),
-                'location' => $this->rowValue($row, ['location', 'emplacement']),
-            ];
-
-            $wasCreated = false;
-
-            if ($barcode || $isbn) {
-                $match = ['tenant_id' => $tenant->id];
-                $barcode ? $match['barcode'] = $barcode : $match['isbn'] = $isbn;
-                // Include soft-deleted items so a re-import restores them instead
-                // of failing with a unique constraint on item_code.
-                $existing = Item::withTrashed()->where($match)->first();
-                $beforeStock = $existing ? (int) $existing->stock_quantity : 0;
-                if ($existing) {
-                    if ($existing->trashed()) {
-                        $existing->restore();
-                    }
-                    $existing->update($payload);
-                    $model = $existing->fresh();
-                    $updated++;
-                } else {
-                    $model = Item::create($payload);
-                    $wasCreated = true;
-                    $created++;
-                }
-            } else {
-                // No barcode/isbn — try to match by item_code (including trashed)
-                // so a re-import of soft-deleted items doesn't violate the unique index.
-                $itemCode = $payload['item_code'] ?? null;
-                $existing = $itemCode
-                    ? Item::withTrashed()
-                        ->where('tenant_id', $tenant->id)
-                        ->where('item_code', $itemCode)
-                        ->first()
-                    : null;
-
-                if ($existing) {
-                    $beforeStock = (int) $existing->stock_quantity;
-                    if ($existing->trashed()) {
-                        $existing->restore();
-                    }
-                    $existing->update($payload);
-                    $model = $existing->fresh();
-                    $updated++;
-                } else {
-                    $model = Item::create($payload);
-                    $wasCreated = true;
-                    $beforeStock = 0;
-                    $created++;
-                }
-            }
-
-            if ($model->type !== 'service' && $stock > 0 && $defaultLocation) {
-                // Compute the delta against what the ledger already tracks for this
-                // item at the default location. This self-heals items previously
-                // imported without ledger layers (e.g. Excel import via old path).
-                $currentLedgerQty = $ledger->availableQuantity(
-                    $tenant->id, $model->id, null, $defaultLocation->id
-                );
-                $delta = $stock - $currentLedgerQty;
-
-                if ($delta > 0) {
-                    $ledger->createIncomingMovement([
-                        'tenantId'            => $tenant->id,
-                        'itemId'              => $model->id,
-                        'variantId'           => null,
-                        'locationId'          => $defaultLocation->id,
-                        'type'                => $wasCreated ? 'opening_stock' : 'adjustment_in',
-                        'quantity'            => $delta,
-                        'unitCost'            => (float) $model->purchase_price,
-                        'occurredAt'          => now(),
-                        'syncedAt'            => null,
-                        'userId'              => auth()->id(),
-                        'idempotencyKey'      => null,
-                        'referenceType'       => Item::class,
-                        'referenceId'         => $model->id,
-                        'note'                => ($model->wasRecentlyCreated ? 'Import stock initial ' : 'Import mise à jour stock ').($model->item_code ?? $model->barcode ?? $model->title),
-                    ]);
-                }
-            }
+            $bc = trim((string) $this->rowValue($row, ['barcode', 'custom_barcode', 'code_barres', 'code_de_barre'])) ?: null;
+            $ib = trim((string) $this->rowValue($row, ['isbn'])) ?: null;
+            $ic = trim((string) $this->rowValue($row, ['item_code', 'code_article'])) ?: null;
+            if ($bc) $scannedBarcodes[] = $bc;
+            if ($ib) $scannedIsbns[]    = $ib;
+            if ($ic) $scannedCodes[]    = $ic;
         }
+        $byBarcode = $scannedBarcodes
+            ? Item::withTrashed()->where('tenant_id', $tenant->id)->whereIn('barcode', array_unique($scannedBarcodes))->get()->keyBy('barcode')
+            : collect();
+        $byIsbn = $scannedIsbns
+            ? Item::withTrashed()->where('tenant_id', $tenant->id)->whereIn('isbn', array_unique($scannedIsbns))->get()->keyBy('isbn')
+            : collect();
+        $byCode = $scannedCodes
+            ? Item::withTrashed()->where('tenant_id', $tenant->id)->whereIn('item_code', array_unique($scannedCodes))->get()->keyBy('item_code')
+            : collect();
+
+        // ── Pre-load current ledger quantities for all pre-loaded items (1 query) ─
+        $preloadedIds = $byBarcode->pluck('id')
+            ->merge($byIsbn->pluck('id'))
+            ->merge($byCode->pluck('id'))
+            ->unique()->values()->all();
+        $ledgerQtyMap = ($defaultLocation && $preloadedIds)
+            ? \App\Models\InventoryLayer::where('tenant_id', $tenant->id)
+                ->where('location_id', $defaultLocation->id)
+                ->whereNull('variant_id')
+                ->whereIn('item_id', $preloadedIds)
+                ->where('remaining_quantity', '>', 0)
+                ->select('item_id', DB::raw('SUM(remaining_quantity) as qty'))
+                ->groupBy('item_id')
+                ->pluck('qty', 'item_id')
+                ->toArray()
+            : [];
+
+        // ── Item-code counter — avoids N×2 existence queries ─────────────────────
+        $codePrefix  = 'IT' . now()->format('ym');
+        $codeCounter = Item::where('tenant_id', $tenant->id)->count() + 1;
+        $usedCodes   = Item::where('tenant_id', $tenant->id)->whereNotNull('item_code')
+            ->pluck('item_code')->flip()->toArray();
+
+        $resolveNextCode = function () use ($codePrefix, &$codeCounter, &$usedCodes): string {
+            do {
+                $code = $codePrefix . str_pad((string) $codeCounter++, 4, '0', STR_PAD_LEFT);
+            } while (isset($usedCodes[$code]));
+            $usedCodes[$code] = true;
+            return $code;
+        };
+
+        // ── Cached lookup helpers (DB hit only on first encounter of each name) ───
+        $resolveCat = function (string $name) use ($tenant, &$catCache): Category {
+            $slug = Str::slug($name ?: 'Import');
+            if (! $catCache->has($slug)) {
+                $cat = Category::firstOrCreate(
+                    ['tenant_id' => $tenant->id, 'slug' => $slug],
+                    ['name' => $name ?: 'Import', 'icon' => 'archive', 'color' => '#4F46E5', 'loan_duration_days' => 14, 'daily_fine_amount' => 2],
+                );
+                $catCache->put($slug, $cat);
+            }
+            return $catCache->get($slug);
+        };
+
+        $resolveBrand = function (string $name) use ($tenant, &$brandCache): ?Brand {
+            $key = mb_strtolower(trim($name));
+            if ($key === '') return null;
+            if (! $brandCache->has($key)) {
+                $brandCache->put($key, Brand::firstOrCreate(['tenant_id' => $tenant->id, 'name' => $name], ['type' => 'publisher']));
+            }
+            return $brandCache->get($key);
+        };
+
+        $resolveUnit = function (string $name) use ($tenant, &$unitCache): ?Unit {
+            $key = mb_strtolower(trim($name));
+            if ($key === '') return null;
+            if (! $unitCache->has($key)) {
+                $unitCache->put($key, Unit::firstOrCreate(['tenant_id' => $tenant->id, 'name' => $name]));
+            }
+            return $unitCache->get($key);
+        };
+
+        $resolveTax = function (string $name, float $rate) use ($tenant, &$taxCache): ?Tax {
+            $key = mb_strtolower(trim($name));
+            if ($key === '') return null;
+            if (! $taxCache->has($key)) {
+                $taxCache->put($key, Tax::firstOrCreate(['tenant_id' => $tenant->id, 'name' => $name], ['rate' => $rate]));
+            }
+            return $taxCache->get($key);
+        };
+
+        $defaultMinStock = (int) data_get($tenant->settings, 'pos.default_min_stock_threshold', 3);
+
+        // ── Wrap all writes in one transaction ────────────────────────────────────
+        DB::transaction(function () use (
+            $tenant, $rows, $data, $ledger, $defaultLocation,
+            $byBarcode, $byIsbn, $byCode,
+            $resolveCat, $resolveBrand, $resolveUnit, $resolveTax, $resolveNextCode,
+            $defaultMinStock,
+            &$ledgerQtyMap, &$created, &$updated, &$skipped,
+        ) {
+            foreach ($rows as $row) {
+                $title = trim((string) $this->rowValue($row, ['title', 'titre', 'name', 'nom', 'item_name', 'nom_article', 'nom_de_l_article']));
+                if ($title === '') { $skipped++; continue; }
+
+                $category = $resolveCat($this->cleanLegacyCategoryName((string) ($this->rowValue($row, ['category', 'categorie', 'category_name', 'nom_categorie', 'categorie_type_d_element']) ?: ($data['kind'] === 'services' ? 'Services' : 'Import'))));
+                $brand    = $resolveBrand((string) $this->rowValue($row, ['brand', 'brand_name', 'publisher', 'editeur', 'marque']));
+                $unit     = $resolveUnit((string) ($this->rowValue($row, ['unit', 'unit_name', 'unite', 'nom_unite']) ?: ($data['kind'] === 'services' ? 'Service' : 'Pièce')));
+                [$taxName, $taxRate] = $this->taxParts((string) ($this->rowValue($row, ['tax', 'tax_name', 'taxe', 'impot']) ?: 'Sans TVA'), $this->rowValue($row, ['tax_rate', 'tax_value', 'taux_taxe']));
+                $tax  = $resolveTax($taxName, (float) $taxRate);
+                $type = $this->importedItemType($row, $data['kind']);
+                $stock = $type === 'service' ? 9999 : (int) $this->decimalValue($this->rowValue($row, ['stock', 'stock_quantity', 'opening_stock', 'stock_ouverture']));
+
+                $barcode  = trim((string) $this->rowValue($row, ['barcode', 'custom_barcode', 'code_barres', 'code_de_barre'])) ?: null;
+                $isbn     = trim((string) $this->rowValue($row, ['isbn'])) ?: null;
+                $itemCode = trim((string) $this->rowValue($row, ['item_code', 'code_article'])) ?: $resolveNextCode();
+
+                $priceBeforeTax = $this->decimalValue($this->rowValue($row, ['price_before_tax', 'price', 'prix', 'prix_ht']));
+                $purchasePrice  = $this->decimalValue($this->rowValue($row, ['purchase_price', 'prix_achat']) ?? $priceBeforeTax);
+                $salePrice      = $this->decimalValue($this->rowValue($row, ['sale_price', 'sales_price', 'prix_vente', 'prix_de_vente']) ?? $priceBeforeTax);
+
+                $payload = [
+                    'tenant_id'           => $tenant->id,
+                    'category_id'         => $category->id,
+                    'brand_id'            => $brand?->id,
+                    'unit_id'             => $unit?->id,
+                    'tax_id'              => $tax?->id,
+                    'type'                => $type,
+                    'is_enabled'          => true,
+                    'checkout_visible'    => true,
+                    'status'              => $this->itemStatus($row, $stock, $type),
+                    'item_code'           => $itemCode,
+                    'title'               => $title,
+                    'isbn'                => $isbn,
+                    'barcode'             => $barcode,
+                    'sku'                 => $this->rowValue($row, ['sku']),
+                    'custom_barcode1'     => $this->rowValue($row, ['lot_number', 'lot', 'autre_code_article']),
+                    'sac'                 => $this->rowValue($row, ['sac']),
+                    'hsn'                 => $this->rowValue($row, ['hsn']),
+                    'author'              => $this->rowValue($row, ['author', 'auteur']),
+                    'editor'              => $this->rowValue($row, ['editor', 'editeur_texte']),
+                    'edition_year'        => $this->rowValue($row, ['edition_year', 'annee_edition']),
+                    'theme'               => $this->rowValue($row, ['theme']),
+                    'tags'                => $this->normalizeTagsInput($this->rowValue($row, ['tags', 'tag', 'etiquettes', 'mots_cles', 'mots-cles'])),
+                    'description'         => $this->rowValue($row, ['description', 'item_desciption', 'item_description']),
+                    'price'               => $priceBeforeTax,
+                    'purchase_price'      => $purchasePrice,
+                    'sale_price'          => $salePrice,
+                    'tax_type'            => $this->rowValue($row, ['tax_type', 'type_taxe']) ?: 'Exclusive',
+                    'discount_type'       => $this->rowValue($row, ['discount_type', 'type_remise']) ?: 'Percentage',
+                    'discount'            => (float) ($this->rowValue($row, ['discount', 'remise']) ?? 0),
+                    'mrp'                 => (float) ($this->rowValue($row, ['mrp']) ?? 0),
+                    'seller_points'       => (float) ($this->rowValue($row, ['seller_points', 'points_vendeur']) ?? 0),
+                    'opening_stock'       => $stock,
+                    'stock_quantity'      => $stock,
+                    'min_stock_threshold' => (int) ($this->rowValue($row, ['min_stock_threshold', 'seuil_stock', 'alert_qty', 'quantite_d_alerte']) ?? $defaultMinStock),
+                    'location'            => $this->rowValue($row, ['location', 'emplacement']),
+                ];
+
+                $wasCreated = false;
+
+                if ($barcode || $isbn) {
+                    // Use pre-loaded map — no per-row DB query
+                    $existing = ($barcode ? $byBarcode->get($barcode) : null)
+                        ?? ($isbn ? $byIsbn->get($isbn) : null);
+
+                    if ($existing) {
+                        if ($existing->trashed()) $existing->restore();
+                        $existing->update($payload);
+                        $model = $existing;
+                        $updated++;
+                    } else {
+                        $model = Item::create($payload);
+                        $wasCreated = true;
+                        $created++;
+                        if ($barcode) $byBarcode->put($barcode, $model);
+                        if ($isbn)    $byIsbn->put($isbn, $model);
+                    }
+                } else {
+                    // No barcode/isbn — match by item_code (includes trashed, avoids unique-key collision)
+                    $existing = $byCode->get($itemCode);
+
+                    if ($existing) {
+                        if ($existing->trashed()) $existing->restore();
+                        $existing->update($payload);
+                        $model = $existing;
+                        $updated++;
+                    } else {
+                        $model = Item::create($payload);
+                        $wasCreated = true;
+                        $created++;
+                        $byCode->put($itemCode, $model);
+                    }
+                }
+
+                if ($model->type !== 'service' && $stock > 0 && $defaultLocation) {
+                    // Use pre-loaded ledger qty — no per-row availableQuantity() query
+                    $currentLedgerQty = (float) ($ledgerQtyMap[$model->id] ?? 0.0);
+                    $delta = $stock - $currentLedgerQty;
+
+                    if ($delta > 0) {
+                        $ledger->createIncomingMovement([
+                            'tenantId'       => $tenant->id,
+                            'itemId'         => $model->id,
+                            'variantId'      => null,
+                            'locationId'     => $defaultLocation->id,
+                            'type'           => $wasCreated ? 'opening_stock' : 'adjustment_in',
+                            'quantity'       => $delta,
+                            'unitCost'       => (float) $model->purchase_price,
+                            'occurredAt'     => now(),
+                            'syncedAt'       => null,
+                            'userId'         => auth()->id(),
+                            'idempotencyKey' => null,
+                            'referenceType'  => Item::class,
+                            'referenceId'    => $model->id,
+                            'note'           => ($wasCreated ? 'Import stock initial ' : 'Import mise à jour stock ') . ($model->item_code ?? $model->barcode ?? $model->title),
+                        ]);
+                        $ledgerQtyMap[$model->id] = $currentLedgerQty + $delta;
+                    }
+                }
+            }
+        });
 
         return back()->with('status', "{$created} créée(s), {$updated} mise(s) à jour, {$skipped} ignorée(s).");
     }
@@ -4110,6 +4202,7 @@ class LibraireProController extends Controller
                 $cashDrawerIn = max(0, round($payments['cash'] - $cashChange, 2));
                 $sale = Sale::create([
                     'tenant_id' => $tenant->id,
+                    'location_id' => $saleLocationId,
                     'contact_id' => $contact?->id,
                     'user_id' => auth()->id(),
                     'source_invoice_id' => $sourceInvoice?->id,
@@ -4617,6 +4710,7 @@ class LibraireProController extends Controller
                 $soldAt = ! empty($data['sold_at']) ? Carbon::parse($data['sold_at']) : now();
                 $sale = Sale::create([
                     'tenant_id' => $tenant->id,
+                    'location_id' => $saleLocationId,
                     'contact_id' => $contact?->id,
                     'user_id' => auth()->id(),
                     'source_invoice_id' => $sourceInvoice?->id,
@@ -7772,12 +7866,12 @@ class LibraireProController extends Controller
 
     private function nextSaleNumber(Tenant $tenant): string
     {
-        return $this->numbers->next($tenant, 'sale', 'BL', fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists())['number'];
+        return $this->numbers->next($tenant, 'sale', null, fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists())['number'];
     }
 
     private function peekSaleNumber(Tenant $tenant): string
     {
-        return $this->numbers->peek($tenant, 'sale', 'BL');
+        return $this->numbers->peek($tenant, 'sale', null);
     }
 
     private function nextTicketNumber(Tenant $tenant): string
