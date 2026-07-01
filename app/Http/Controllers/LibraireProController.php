@@ -1231,11 +1231,7 @@ class LibraireProController extends Controller
                 'id' => $item->id,
                 'title' => $item->title,
                 'type' => $item->type,
-                'type_label' => match ($item->type) {
-                    'service' => 'Service',
-                    'book' => 'Livre',
-                    default => 'Article',
-                },
+                'type_label' => $this->typeLabel($item->type),
                 'code' => $item->barcode ?: ($item->isbn ?: ($item->sku ?: $item->item_code)),
                 'category' => $item->category?->name,
                 'brand' => $item->brand?->name,
@@ -2615,7 +2611,8 @@ class LibraireProController extends Controller
             $data[$boolean] = $request->boolean($boolean);
         }
 
-        $data['business_mode'] = BusinessMode::get($data['business_mode'] ?? data_get($tenant->settings, 'company_profile.business_mode'))['key'];
+        $businessMode = BusinessMode::get($data['business_mode'] ?? data_get($tenant->settings, 'company_profile.business_mode'));
+        $data['business_mode'] = $businessMode['key'];
 
         if ($request->boolean('remove_app_icon')) {
             $this->deleteAppIconFiles();
@@ -2649,6 +2646,12 @@ class LibraireProController extends Controller
 
         $settings = $tenant->settings ?? [];
         $settings['company_profile'] = $data;
+        $settings['catalog'] = array_merge($settings['catalog'] ?? [], [
+            'label' => $businessMode['catalog_label'],
+            'primary_item' => $businessMode['primary_item'],
+            'search_placeholder' => $businessMode['search_placeholder'],
+            'type_labels' => $businessMode['type_labels'],
+        ]);
         $settings['receipt_header'] = $data['store_name'];
         $settings['locale'] = $data['language_id'] === 'ar' ? 'ar_MA' : ($data['language_id'] === 'en' ? 'en_US' : 'fr_MA');
         $settings['number_format'] = [
@@ -2660,6 +2663,8 @@ class LibraireProController extends Controller
 
         $tenant->update([
             'name' => $data['store_name'],
+            'mode' => $businessMode['key'],
+            'business_mode' => $businessMode['key'],
             'currency' => strtoupper($data['currency']),
             'locale' => $settings['locale'],
             'timezone' => $data['timezone'],
@@ -7029,7 +7034,7 @@ class LibraireProController extends Controller
             'sellable' => $isSellable,
             'out_of_stock' => $isOutOfStock,
             'type' => $item->type,
-            'type_label' => $item->type === 'service' ? 'Service' : ($item->type === 'book' ? 'Livre' : 'Produit'),
+            'type_label' => $this->typeLabel($item->type),
             'category_id' => $item->category_id,
             'brand_id' => $item->brand_id,
             'unit_id' => $item->unit_id,
@@ -10189,11 +10194,15 @@ class LibraireProController extends Controller
 
     private function typeLabel(string $type): string
     {
-        return match ($type) {
+        $tenant = $this->tenant();
+        $mode = BusinessMode::current($tenant);
+        $labels = data_get($tenant?->settings, 'catalog.type_labels', $mode['type_labels']);
+
+        return (string) ($labels[$type] ?? $mode['type_labels'][$type] ?? match ($type) {
             'service' => 'Service',
             'supply' => 'Produit',
             default => 'Livre',
-        };
+        });
     }
 
     private function statusLabel(string $status): string

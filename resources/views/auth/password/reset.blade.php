@@ -15,17 +15,18 @@
         'font_scale' => '1',
         'radius' => '12',
     ], $tenant?->settings['theme'] ?? []);
-    $tenantName = $tenant?->name ?? 'LibrairePro';
     $locale = \App\Support\Locale::current($tenant);
     $direction = \App\Support\Locale::dir($locale);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
+    $productName = config('app.name', 'Kivo POS');
+    $tenantName = $tenant?->name ?? $tr('Votre commerce');
 @endphp
 <!DOCTYPE html>
 <html lang="{{ $locale }}" dir="{{ $direction }}" style="--brand-primary: {{ $theme['primary'] }}; --brand-accent: {{ $theme['accent'] }}; --brand-success: {{ $theme['success'] }}; --app-bg: {{ $theme['background'] }}; --surface: {{ $theme['surface_color'] }}; --surface-muted: {{ $theme['surface_muted'] }}; --text-main: {{ $theme['text'] }}; --text-muted: {{ $theme['muted'] }}; --border-soft: {{ $theme['border'] }}; --font-scale: {{ $theme['font_scale'] }}; --brand-radius: {{ $theme['radius'] }}px;">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $tr('Nouveau mot de passe') }} · LibrairePro</title>
+        <title>{{ $tr('Nouveau mot de passe') }} · {{ $productName }}</title>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-slate-50 text-slate-950 antialiased">
@@ -36,9 +37,9 @@
                     <div class="absolute inset-x-0 bottom-0 h-1/2 bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.10))]"></div>
                     <div class="relative">
                         <div class="flex items-center gap-3">
-                            <span class="grid size-12 place-items-center rounded-2xl bg-white text-sm font-black text-slate-950 shadow-sm">LP</span>
+                            <span class="grid size-12 place-items-center rounded-2xl bg-white text-sm font-black text-slate-950 shadow-sm">KP</span>
                             <div>
-                                <p class="text-sm font-semibold text-white/80">LibrairePro SaaS</p>
+                                <p class="text-sm font-semibold text-white/80">{{ $productName }}</p>
                                 <p class="text-lg font-semibold">{{ $tenantName }}</p>
                             </div>
                         </div>

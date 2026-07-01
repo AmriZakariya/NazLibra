@@ -18,6 +18,7 @@ class BusinessMode
                 'hero_text' => 'Pilotez catalogue, caisse, stock, clients et rapports avec une interface rapide, claire et pensée pour les pics d’activité.',
                 'catalog_label' => 'Catalogue livres & articles',
                 'primary_item' => 'Article / livre',
+                'type_labels' => ['book' => 'Livre', 'supply' => 'Produit', 'service' => 'Service'],
                 'search_placeholder' => 'Rechercher titre, ISBN, code-barres...',
                 'keywords' => ['ISBN', 'auteur', 'éditeur', 'emprunts'],
             ],
@@ -29,6 +30,7 @@ class BusinessMode
                 'hero_text' => 'Gérez menus, caisse, achats, stock cuisine, clients et rapports avec un flux adapté aux rushs.',
                 'catalog_label' => 'Menu & articles restaurant',
                 'primary_item' => 'Plat / menu',
+                'type_labels' => ['book' => 'Plat / menu', 'supply' => 'Produit cuisine', 'service' => 'Service'],
                 'search_placeholder' => 'Rechercher plat, formule, code...',
                 'keywords' => ['tables', 'menus', 'cuisine', 'service'],
             ],
@@ -40,6 +42,7 @@ class BusinessMode
                 'hero_text' => 'Encaissez rapidement boissons et snacks, gardez vos stocks à jour et préparez vos démonstrations sans friction.',
                 'catalog_label' => 'Menu café & snacks',
                 'primary_item' => 'Boisson / snack',
+                'type_labels' => ['book' => 'Boisson / snack', 'supply' => 'Produit comptoir', 'service' => 'Service'],
                 'search_placeholder' => 'Rechercher boisson, snack, formule...',
                 'keywords' => ['boissons', 'snacks', 'comptoir', 'tickets'],
             ],
@@ -51,6 +54,7 @@ class BusinessMode
                 'hero_text' => 'Retrouvez rapidement les produits, suivez le stock sensible, encaissez sans friction et gardez une traçabilité claire.',
                 'catalog_label' => 'Catalogue produits santé',
                 'primary_item' => 'Produit pharmacie',
+                'type_labels' => ['book' => 'Produit santé', 'supply' => 'Produit parapharmacie', 'service' => 'Service'],
                 'search_placeholder' => 'Rechercher produit, code-barres, référence...',
                 'keywords' => ['lots', 'péremption', 'ordonnance', 'parapharmacie'],
             ],
@@ -62,6 +66,7 @@ class BusinessMode
                 'hero_text' => 'Gérez les familles d’articles, les stocks, les achats fournisseurs et les ventes comptoir depuis un seul espace.',
                 'catalog_label' => 'Catalogue droguerie',
                 'primary_item' => 'Produit droguerie',
+                'type_labels' => ['book' => 'Produit droguerie', 'supply' => 'Article', 'service' => 'Service'],
                 'search_placeholder' => 'Rechercher produit, marque, code-barres...',
                 'keywords' => ['rayons', 'marques', 'stock', 'fournisseurs'],
             ],
@@ -73,6 +78,7 @@ class BusinessMode
                 'hero_text' => 'Centralisez catalogue, caisse, remises, clients et reporting dans une interface moderne et adaptable.',
                 'catalog_label' => 'Catalogue produits & services',
                 'primary_item' => 'Produit',
+                'type_labels' => ['book' => 'Produit', 'supply' => 'Article', 'service' => 'Service'],
                 'search_placeholder' => 'Rechercher produit, service, code-barres...',
                 'keywords' => ['boutique', 'accessoires', 'services', 'tickets'],
             ],
@@ -121,6 +127,11 @@ class BusinessMode
         $key = self::normalize($key);
 
         return ['key' => $key] + $modes[$key];
+    }
+
+    public static function typeLabels(?string $key): array
+    {
+        return self::get($key)['type_labels'];
     }
 
     private static function inputKey(?string $key): string

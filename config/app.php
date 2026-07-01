@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'LibrairePro'),
+    'name' => env('APP_NAME', 'Kivo POS'),
 
     'version' => env('APP_VERSION', '1.0.0-beta.5'),
 

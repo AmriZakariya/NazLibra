@@ -15,10 +15,11 @@
         'font_scale' => '1',
         'radius' => '12',
     ], $tenant?->settings['theme'] ?? []);
-    $tenantName = $tenant?->name ?? 'LibrairePro';
     $locale = \App\Support\Locale::current($tenant);
     $direction = \App\Support\Locale::dir($locale);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
+    $productName = config('app.name', 'Kivo POS');
+    $tenantName = $tenant?->name ?? $tr('Votre commerce');
     $appVersion = config('app.version', '1.0.0-beta.5');
     $releaseLabel = app()->environment('production') ? $tr('Production') : \Illuminate\Support\Str::headline(app()->environment());
 @endphp
@@ -27,7 +28,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $tr('Mot de passe oublié') }} · LibrairePro</title>
+        <title>{{ $tr('Mot de passe oublié') }} · {{ $productName }}</title>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-slate-50 text-slate-950 antialiased">
@@ -38,9 +39,9 @@
                     <div class="absolute inset-x-0 bottom-0 h-1/2 bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.10))]"></div>
                     <div class="relative">
                         <div class="flex items-center gap-3">
-                            <span class="grid size-12 place-items-center rounded-2xl bg-white text-sm font-black text-slate-950 shadow-sm">LP</span>
+                            <span class="grid size-12 place-items-center rounded-2xl bg-white text-sm font-black text-slate-950 shadow-sm">KP</span>
                             <div>
-                                <p class="text-sm font-semibold text-white/80">LibrairePro SaaS</p>
+                                <p class="text-sm font-semibold text-white/80">{{ $productName }}</p>
                                 <p class="text-lg font-semibold">{{ $tenantName }}</p>
                             </div>
                         </div>
@@ -68,7 +69,7 @@
                             @csrf
                             <label class="block space-y-1.5">
                                 <span class="text-xs font-semibold uppercase text-slate-500">Email</span>
-                                <input name="email" value="{{ old('email') }}" type="email" required autofocus autocomplete="email" class="h-12 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="vous@librairie.ma">
+                                <input name="email" value="{{ old('email') }}" type="email" required autofocus autocomplete="email" class="h-12 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="vous@entreprise.ma">
                             </label>
                             <button class="h-12 w-full rounded-xl bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20 transition hover:brightness-110">{{ $tr('Envoyer le lien') }}</button>
                         </form>

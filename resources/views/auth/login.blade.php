@@ -15,16 +15,16 @@
         'font_scale' => '1',
         'radius' => '12',
     ], $tenant?->settings['theme'] ?? []);
-    $tenantName = $tenant?->name ?? 'LibrairePro';
-    $businessMode = \App\Support\BusinessMode::current($tenant);
-    $tenantInitials = collect(preg_split('/\s+/', trim($tenantName)))
-        ->filter()
-        ->take(2)
-        ->map(fn ($word) => mb_strtoupper(mb_substr($word, 0, 1)))
-        ->join('') ?: 'LP';
     $locale = \App\Support\Locale::current($tenant);
     $direction = \App\Support\Locale::dir($locale);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
+    $productName = config('app.name', 'Kivo POS');
+    $productInitials = collect(preg_split('/\s+/', trim($productName)))
+        ->filter()
+        ->take(2)
+        ->map(fn ($word) => mb_strtoupper(mb_substr($word, 0, 1)))
+        ->join('') ?: 'KP';
+    $tenantName = $tenant?->name ?? $tr('Votre commerce');
     $appVersion = config('app.version', '1.0.0-beta.5');
     $releaseLabel = app()->environment('production') ? $tr('Production') : \Illuminate\Support\Str::headline(app()->environment());
 @endphp
@@ -33,7 +33,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $tr('Connexion') }} · LibrairePro</title>
+        <title>{{ $tr('Connexion') }} · {{ $productName }}</title>
         <link rel="icon" type="image/png" sizes="32x32" href="{{ route('app.icon', 32) }}">
         <link rel="shortcut icon" href="{{ route('app.icon', 32) }}" type="image/x-icon">
         <script>
@@ -52,9 +52,9 @@
                     <div class="relative">
                         <div class="flex items-center justify-between gap-3">
                             <div class="flex min-w-0 items-center gap-3">
-                            <span class="grid size-12 place-items-center rounded-2xl bg-white text-sm font-black text-slate-950 shadow-sm">{{ $tenantInitials }}</span>
+                            <span class="grid size-12 place-items-center rounded-2xl bg-white text-sm font-black text-slate-950 shadow-sm">{{ $productInitials }}</span>
                             <div>
-                            <p class="text-sm font-semibold text-white/80">LibrairePro · {{ $businessMode['short_label'] }}</p>
+                            <p class="text-sm font-semibold text-white/80">{{ $productName }} · {{ $tr('Point de vente') }}</p>
                                 <p class="text-lg font-semibold">{{ $tenantName }}</p>
                             </div>
                             </div>
@@ -62,14 +62,14 @@
                         </div>
 
                         <div class="mt-12 max-w-xl">
-                            <p class="text-sm font-semibold uppercase tracking-[0.16em] text-white/55">{{ $businessMode['subtitle'] }}</p>
-                            <h1 class="mt-3 text-4xl font-semibold tracking-normal text-white sm:text-5xl">{{ $businessMode['hero_title'] }}</h1>
-                            <p class="mt-5 text-base leading-7 text-white/72">{{ $businessMode['hero_text'] }}</p>
+                            <p class="text-sm font-semibold uppercase tracking-[0.16em] text-white/55">{{ $tr('Caisse, stock, clients et rapports') }}</p>
+                            <h1 class="mt-3 text-4xl font-semibold tracking-normal text-white sm:text-5xl">{{ $tr('Une caisse moderne pour vendre plus vite.') }}</h1>
+                            <p class="mt-5 text-base leading-7 text-white/72">{{ $tr('Pilotez vos ventes, terminaux, stocks, clients et paiements depuis une plateforme POS claire, rapide et prête pour plusieurs activités.') }}</p>
                         </div>
                     </div>
 
                     <div class="relative mt-10 grid gap-3 sm:grid-cols-3">
-                        @foreach (array_slice($businessMode['keywords'], 0, 3) as $keyword)
+                        @foreach ([$tr('Caisse'), $tr('Stock'), $tr('Clients')] as $keyword)
                             <div class="rounded-2xl border border-white/14 bg-white/10 p-4 backdrop-blur">
                                 <span class="text-xs font-semibold uppercase text-white/55">{{ $tr('Module') }}</span>
                                 <strong class="mt-2 block text-lg">{{ $keyword }}</strong>
@@ -79,7 +79,7 @@
                             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <span class="text-xs font-semibold uppercase text-white/55">{{ $tr('Accès rapide') }}</span>
-                                    <strong class="mt-1 block text-lg">{{ $businessMode['catalog_label'] }}</strong>
+                                    <strong class="mt-1 block text-lg">{{ $tr('Caisse, catalogue et rapports') }}</strong>
                                 </div>
                                 <span class="rounded-full bg-white px-3 py-1 text-xs font-black text-slate-950">MAD · DH</span>
                             </div>

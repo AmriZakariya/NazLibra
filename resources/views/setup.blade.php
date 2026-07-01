@@ -177,6 +177,15 @@
             border-color: rgba(49,87,213,.45);
             box-shadow: 0 18px 36px rgba(15,23,42,.11);
         }
+        .setup-choice.is-selected {
+            border-color: var(--brand);
+            background: linear-gradient(160deg, rgba(235,242,255,.98), rgba(225,236,255,.96));
+            box-shadow: 0 0 0 3px rgba(49,87,213,.14), 0 18px 36px rgba(49,87,213,.14);
+        }
+        .setup-choice.is-selected .preset-check {
+            opacity: 1;
+            transform: scale(1);
+        }
         .setup-pill {
             display: inline-flex;
             align-items: center;
@@ -528,14 +537,33 @@
                                 @foreach (['library', 'restaurant', 'coffee'] as $presetMode)
                                     @php $preset = \App\Support\BusinessMode::get($presetMode); @endphp
                                     <button type="button"
-                                            class="setup-choice text-left"
-                                            data-select-business-mode="{{ $preset['key'] }}">
-                                        <span class="text-sm font-semibold text-slate-900">{{ $preset['short_label'] }}</span>
+                                            class="setup-choice text-left {{ $selectedModeKey === $preset['key'] ? 'is-selected' : '' }}"
+                                            data-select-business-mode="{{ $preset['key'] }}"
+                                            data-catalog-label="{{ $preset['catalog_label'] }}"
+                                            data-primary-item="{{ $preset['primary_item'] }}"
+                                            data-book-label="{{ $preset['type_labels']['book'] }}"
+                                            data-supply-label="{{ $preset['type_labels']['supply'] }}">
+                                        <span class="flex items-center justify-between gap-3">
+                                            <span class="text-sm font-semibold text-slate-900">{{ $preset['short_label'] }}</span>
+                                            <span class="preset-check grid size-5 shrink-0 place-items-center rounded-full text-white opacity-0 transition" style="background:var(--brand);transform:scale(.85)">
+                                                <svg class="size-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                            </span>
+                                        </span>
                                         <span class="mt-1 block text-xs leading-5 text-slate-500">{{ $preset['subtitle'] }}</span>
+                                        <span class="mt-3 flex flex-wrap gap-1.5">
+                                            <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">{{ $preset['type_labels']['book'] }}</span>
+                                            <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">{{ $preset['type_labels']['supply'] }}</span>
+                                        </span>
                                     </button>
                                 @endforeach
                             </div>
-                            <p class="mt-3 text-xs leading-5 text-slate-500">Le type d’activité prépare les catégories, unités et libellés adaptés. Vous pouvez tout modifier plus tard.</p>
+                            <div id="business-mode-preview" class="mt-4 rounded-xl border border-indigo-100 bg-indigo-50/70 p-3 text-xs leading-5 text-indigo-900">
+                                <span class="font-bold">Adaptation active :</span>
+                                <span data-preview-catalog>{{ $selectedBusinessMode['catalog_label'] }}</span>
+                                · type principal <span class="font-bold" data-preview-primary>{{ $selectedBusinessMode['primary_item'] }}</span>
+                                · labels <span class="font-bold" data-preview-labels>{{ $selectedBusinessMode['type_labels']['book'] }} / {{ $selectedBusinessMode['type_labels']['supply'] }}</span>.
+                            </div>
+                            <p class="mt-3 text-xs leading-5 text-slate-500">Le type d’activité prépare les catégories, unités, libellés catalogue et recherche. Vous pouvez tout modifier plus tard.</p>
                         </div>
 
                         <div class="flex flex-wrap justify-end gap-3 pt-2">
@@ -1102,6 +1130,30 @@ if (enablePasswordButton) {
         var password = document.getElementById('password');
         if (password) password.focus();
     });
+}
+
+function updateBusinessPresetState(mode) {
+    document.querySelectorAll('[data-select-business-mode]').forEach(function(button) {
+        var selected = button.getAttribute('data-select-business-mode') === mode;
+        button.classList.toggle('is-selected', selected);
+
+        if (selected) {
+            var catalog = document.querySelector('[data-preview-catalog]');
+            var primary = document.querySelector('[data-preview-primary]');
+            var labels = document.querySelector('[data-preview-labels]');
+            if (catalog) catalog.textContent = button.getAttribute('data-catalog-label') || '';
+            if (primary) primary.textContent = button.getAttribute('data-primary-item') || '';
+            if (labels) labels.textContent = (button.getAttribute('data-book-label') || '') + ' / ' + (button.getAttribute('data-supply-label') || '');
+        }
+    });
+}
+
+var businessModeSelect = document.getElementById('business_mode');
+if (businessModeSelect) {
+    businessModeSelect.addEventListener('change', function() {
+        updateBusinessPresetState(businessModeSelect.value);
+    });
+    updateBusinessPresetState(businessModeSelect.value);
 }
 
 document.querySelectorAll('[data-select-business-mode]').forEach(function(button) {

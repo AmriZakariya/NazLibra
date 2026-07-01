@@ -2,6 +2,7 @@
     $locale = \App\Support\Locale::current($tenant);
     $direction = \App\Support\Locale::dir($locale);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
+    $productName = config('app.name', 'Kivo POS');
 @endphp
 <!DOCTYPE html>
 <html lang="{{ $locale }}" dir="{{ $direction }}">
@@ -9,7 +10,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
-        <title>{{ $tr('Session verrouillée') }} · LibrairePro</title>
+        <title>{{ $tr('Session verrouillée') }} · {{ $productName }}</title>
         <link rel="icon" type="image/png" sizes="32x32" href="{{ route('app.icon', 32) }}">
         <link rel="shortcut icon" href="{{ route('app.icon', 32) }}" type="image/x-icon">
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -33,7 +34,7 @@
                         </svg>
                     </div>
                     <h1 class="lock-title">{{ $tr('Session verrouillée') }}</h1>
-                    <p class="lock-subtitle">LibrairePro</p>
+                    <p class="lock-subtitle">{{ $productName }}</p>
                 </div>
 
                 {{-- User info --}}

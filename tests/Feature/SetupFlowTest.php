@@ -42,6 +42,7 @@ class SetupFlowTest extends TestCase
             'timezone' => 'Africa/Casablanca',
             'language' => 'fr',
             'business_mode' => 'coffee',
+            'costing_method' => 'lifo',
         ])->assertRedirect(route('setup.owner'));
 
         $this->post(route('setup.owner.save'), [
@@ -86,6 +87,8 @@ class SetupFlowTest extends TestCase
         $this->assertSame('coffee', $tenant->business_mode);
         $this->assertSame('coffee', $tenant->mode);
         $this->assertSame('coffee', data_get($tenant->settings, 'company_profile.business_mode'));
+        $this->assertSame('Menu café & snacks', data_get($tenant->settings, 'catalog.label'));
+        $this->assertSame('Boisson / snack', data_get($tenant->settings, 'catalog.type_labels.book'));
         $this->assertTrue(data_get($tenant->settings, 'features.virtual_devices'));
         $this->assertSame('MAD', $tenant->currency);
 
@@ -120,6 +123,7 @@ class SetupFlowTest extends TestCase
                 'timezone' => 'Africa/Casablanca',
                 'language' => 'fr',
                 'business_mode' => 'bookstore',
+                'costing_method' => 'lifo',
             ])->assertRedirect(route('setup.owner'));
 
         $this->assertSame('library', session('setup.store.business_mode'));
@@ -136,6 +140,7 @@ class SetupFlowTest extends TestCase
                 'timezone' => 'Africa/Casablanca',
                 'language' => 'fr',
                 'business_mode' => 'spaceship',
+                'costing_method' => 'lifo',
             ])->assertSessionHasErrors('business_mode');
     }
 

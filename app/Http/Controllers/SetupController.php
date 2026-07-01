@@ -493,6 +493,7 @@ class SetupController extends Controller
         DB::transaction(function () use ($tenant, $storeData, $ownerData, $locationsData, $categoriesData, $devicesData): void {
             $storeData['business_mode'] = BusinessMode::normalize($storeData['business_mode'] ?? null);
             $categoriesData = $categoriesData ?: $this->defaultCategoriesForMode($storeData['business_mode']);
+            $businessMode = BusinessMode::get($storeData['business_mode']);
             $slug     = Str::slug($storeData['name']) ?: Str::slug($tenant->name);
             $locale   = $storeData['language'] === 'ar' ? 'ar_MA' : 'fr_MA';
             $storeKey = $slug;
@@ -519,6 +520,12 @@ class SetupController extends Controller
                     'timezone'           => $storeData['timezone'],
                     'currency'           => $storeData['currency'],
                     'language_id'        => $storeData['language'],
+                ]),
+                'catalog' => array_merge($existingSettings['catalog'] ?? [], [
+                    'label' => $businessMode['catalog_label'],
+                    'primary_item' => $businessMode['primary_item'],
+                    'search_placeholder' => $businessMode['search_placeholder'],
+                    'type_labels' => $businessMode['type_labels'],
                 ]),
             ]);
 
@@ -690,6 +697,7 @@ class SetupController extends Controller
     private function buildTenant(array $storeData, array $locationsData): array
     {
         $storeData['business_mode'] = BusinessMode::normalize($storeData['business_mode'] ?? null);
+        $businessMode = BusinessMode::get($storeData['business_mode']);
         $slug     = $this->uniqueTenantSlug(Str::slug($storeData['name']) ?: 'store');
         $locale   = $storeData['language'] === 'ar' ? 'ar_MA' : 'fr_MA';
         $storeKey = $slug;
@@ -724,6 +732,7 @@ class SetupController extends Controller
                 'current_store'   => $storeKey,
                 'stores'          => $locationsList,
                 'company_profile' => ['store_code' => strtoupper(substr($slug, 0, 8)), 'store_name' => $storeData['name'], 'business_mode' => $storeData['business_mode'], 'email' => $storeData['email'] ?? null, 'phone' => $storeData['phone'] ?? null, 'country' => 'Maroc', 'timezone' => $storeData['timezone'], 'date_format' => 'dd/mm/yyyy', 'time_format' => '24', 'currency' => $storeData['currency'], 'currency_placement' => 'Right', 'decimals' => 2, 'qty_decimals' => 2, 'language_id' => $storeData['language']],
+                'catalog'         => ['label' => $businessMode['catalog_label'], 'primary_item' => $businessMode['primary_item'], 'search_placeholder' => $businessMode['search_placeholder'], 'type_labels' => $businessMode['type_labels']],
                 'number_format'   => ['currency_placement' => 'Right', 'decimals' => 2, 'qty_decimals' => 2, 'round_off' => false],
                 'payment_types'   => [
                     ['key' => 'cash', 'name' => 'Espèces', 'code' => 'cash', 'description' => 'Paiement comptoir', 'is_active' => true],
