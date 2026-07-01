@@ -414,6 +414,17 @@
                         {{ $isMaintenance ? 'Modifiez les informations du tenant. Ces changements s\'appliquent immédiatement.' : 'Ces données définissent l\'identité de votre tenant dans le système.' }}
                     </p>
 
+                    {{-- ── Demo quick-fill ──────────────────────────────────── --}}
+                    <div class="mt-4 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                        <svg class="size-4 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        <p class="flex-1 text-xs font-medium text-amber-800">Environnement de démonstration — données pré-configurées disponibles.</p>
+                        <button type="button" onclick="fillOubraLibrary()"
+                                class="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-bold text-amber-800 shadow-sm transition hover:bg-amber-100">
+                            ⚡ Oubra Library
+                        </button>
+                    </div>
+                    {{-- ────────────────────────────────────────────────────── --}}
+
                     <form action="{{ route('setup.store.save') }}" method="POST" class="mt-7 space-y-4">
                         @csrf
                         <div class="grid gap-4 sm:grid-cols-2">
@@ -1128,6 +1139,29 @@
 
 <script>
 var categoryPresets = @json($categoryPresets);
+
+// ── Demo quick-fill: Oubra Library ────────────────────────────────────────────
+function fillOubraLibrary() {
+    var set = function(id, val) { var el = document.getElementById(id); if (el) el.value = val; };
+    set('name',    'Oubra Store');
+    set('email',   'oubrastore@gmail.com');
+    set('phone',   '0609240487');
+    set('address', '75 BD ANFA ANGLE RUE CLOS DE PROVENCE 8EME ETAGE APPT B103 CASABLANCA');
+    // Select fields
+    var bm = document.getElementById('business_mode');
+    if (bm) { bm.value = 'library'; bm.dispatchEvent(new Event('change', { bubbles: true })); }
+    var cur = document.getElementById('currency');  if (cur) cur.value = 'MAD';
+    var tz  = document.getElementById('timezone');  if (tz)  tz.value  = 'Africa/Casablanca';
+    var lng = document.getElementById('language');  if (lng) lng.value  = 'fr';
+    // Pre-select LIFO costing (default)
+    var lifo = document.querySelector('input[name="costing_method"][value="lifo"]');
+    if (lifo) { lifo.checked = true; }
+    // Highlight the "library" business-mode preset card
+    updateBusinessPresetState('library');
+    // Scroll to top of form so user sees the filled values
+    document.getElementById('name')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 var enablePasswordButton = document.getElementById('enable-password-change');
 if (enablePasswordButton) {
