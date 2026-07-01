@@ -498,8 +498,10 @@ class SyncController extends Controller
             'allow_oversell'          => (bool) data_get($tenant->settings, 'pos.allow_oversell', false),
             'receipt_header'          => data_get($tenant->settings, 'receipt.header'),
             'receipt_footer'          => data_get($tenant->settings, 'receipt.footer'),
-            'features_virtual_devices'=> (bool) data_get($tenant->settings, 'features.virtual_devices', false),
-            'business_mode'           => $tenant->business_mode ?? 'retail',
+            'features_virtual_devices'  => (bool) data_get($tenant->settings, 'features.virtual_devices', false),
+            'business_mode'             => $tenant->business_mode ?? 'retail',
+            'business_activity'         => (string) data_get($tenant->settings, 'store.business_activity', \App\Support\ItemTypes::defaultActivity()),
+            'inventory_costing_method'  => (string) data_get($tenant->settings, 'inventory.costing_method', 'lifo'),
         ]);
     }
 
