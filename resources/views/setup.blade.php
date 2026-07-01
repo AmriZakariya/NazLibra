@@ -54,6 +54,19 @@
             --soft: #f8fafc;
         }
         * { box-sizing: border-box; }
+
+        /* Allow text selection everywhere in setup */
+        body, p, h1, h2, h3, h4, h5, span, label, li, strong, em, code, pre, td, th, div {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            user-select: text;
+        }
+        input, textarea, select {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            user-select: text;
+        }
+
         body {
             margin: 0;
             background:
