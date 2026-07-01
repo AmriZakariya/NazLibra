@@ -9698,7 +9698,7 @@ class LibraireProController extends Controller
             'warehouse' => $request->input('warehouse', $request->input('warehouse_id')),
         ]);
 
-        foreach (['price', 'purchase_price', 'sale_price', 'reseller_sale_price', 'mrp', 'discount'] as $moneyField) {
+        foreach (['price', 'purchase_price', 'sale_price', 'reseller_sale_price', 'discount'] as $moneyField) {
             if ($request->has($moneyField)) {
                 $request->merge([$moneyField => $this->normalizeMoneyInput($request->input($moneyField))]);
             }
@@ -9737,11 +9737,8 @@ class LibraireProController extends Controller
             ],
             'sku' => ['nullable', 'string', 'max:120'],
             'custom_barcode1' => ['nullable', 'string', 'max:120'],
-            'sac' => ['nullable', 'string', 'max:120'],
-            'hsn' => ['nullable', 'string', 'max:120'],
             'author' => ['nullable', 'string', 'max:255'],
             'editor' => ['nullable', 'string', 'max:255'],
-            'verifier' => ['nullable', 'string', 'max:255'],
             'translator' => ['nullable', 'string', 'max:255'],
             'edition_year' => ['nullable', 'string', 'max:32'],
             'edition_number' => ['nullable', 'string', 'max:64'],
@@ -9761,11 +9758,10 @@ class LibraireProController extends Controller
             'discount' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:999999'],
             'price' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
             'tax_type' => ['nullable', 'in:Inclusive,Exclusive'],
-            'profit_margin' => ['nullable', 'numeric', 'min:0', 'max:9999'],
+            'profit_margin' => ['nullable', 'numeric', 'min:-100', 'max:9999'],
             'purchase_price' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
             'sale_price' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
             'reseller_sale_price' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
-            'mrp' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
             'warehouse' => ['nullable', 'string', 'max:255'],
             'opening_stock' => ['nullable', 'integer', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
