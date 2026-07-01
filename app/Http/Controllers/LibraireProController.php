@@ -2355,17 +2355,52 @@ class LibraireProController extends Controller
                 'location' => $this->rowValue($row, ['location', 'emplacement']),
             ];
 
+            $wasCreated = false;
+
             if ($barcode || $isbn) {
                 $match = ['tenant_id' => $tenant->id];
                 $barcode ? $match['barcode'] = $barcode : $match['isbn'] = $isbn;
-                $existing = Item::where($match)->first();
+                // Include soft-deleted items so a re-import restores them instead
+                // of failing with a unique constraint on item_code.
+                $existing = Item::withTrashed()->where($match)->first();
                 $beforeStock = $existing ? (int) $existing->stock_quantity : 0;
-                $model = Item::updateOrCreate($match, $payload);
-                $model->wasRecentlyCreated ? $created++ : $updated++;
+                if ($existing) {
+                    if ($existing->trashed()) {
+                        $existing->restore();
+                    }
+                    $existing->update($payload);
+                    $model = $existing->fresh();
+                    $updated++;
+                } else {
+                    $model = Item::create($payload);
+                    $wasCreated = true;
+                    $created++;
+                }
             } else {
-                $model = Item::create($payload);
-                $beforeStock = 0;
-                $created++;
+                // No barcode/isbn — try to match by item_code (including trashed)
+                // so a re-import of soft-deleted items doesn't violate the unique index.
+                $itemCode = $payload['item_code'] ?? null;
+                $existing = $itemCode
+                    ? Item::withTrashed()
+                        ->where('tenant_id', $tenant->id)
+                        ->where('item_code', $itemCode)
+                        ->first()
+                    : null;
+
+                if ($existing) {
+                    $beforeStock = (int) $existing->stock_quantity;
+                    if ($existing->trashed()) {
+                        $existing->restore();
+                    }
+                    $existing->update($payload);
+                    $model = $existing->fresh();
+                    $updated++;
+                } else {
+                    $model = Item::create($payload);
+                    $wasCreated = true;
+                    $beforeStock = 0;
+                    $created++;
+                }
             }
 
             if ($model->type !== 'service' && $stock > 0 && $defaultLocation) {
@@ -2383,7 +2418,7 @@ class LibraireProController extends Controller
                         'itemId'              => $model->id,
                         'variantId'           => null,
                         'locationId'          => $defaultLocation->id,
-                        'type'                => $model->wasRecentlyCreated ? 'opening_stock' : 'adjustment_in',
+                        'type'                => $wasCreated ? 'opening_stock' : 'adjustment_in',
                         'quantity'            => $delta,
                         'unitCost'            => (float) $model->purchase_price,
                         'occurredAt'          => now(),
