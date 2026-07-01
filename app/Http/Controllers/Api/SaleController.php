@@ -807,7 +807,7 @@ class SaleController extends Controller
         // Bulk-check which items actually have cache > layers before entering
         // per-item transactions. In a healthy system (all purchases going through
         // the ledger) this subquery returns nothing and we skip all 10+ transactions.
-        $shortfallItemIds = DB::table('item_location_stocks as s')
+        $shortfallItemIds = DB::table('item_location_stock as s')
             ->where('s.tenant_id', $tenantId)
             ->where('s.location_id', $locationId)
             ->whereIn('s.item_id', $itemIds)
