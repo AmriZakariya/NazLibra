@@ -885,6 +885,7 @@ class LibraireProController extends Controller
             'currentStore' => $currentStore,
             'currentStoreLocation' => $currentStoreLocation,
             'suggestedItemCode' => $this->nextItemCode($tenant->id),
+            'inventoryCostingMethod' => data_get($tenant->settings, 'inventory.costing_method', 'lifo'),
             'stockStats' => [
                 'adjustments' => StockAdjustment::where('tenant_id', $tenant->id)->count(),
                 'transfers' => StockTransfer::where('tenant_id', $tenant->id)->count(),
@@ -2835,8 +2836,12 @@ class LibraireProController extends Controller
             'inventory_cycle_days' => ['nullable', 'integer', 'in:7,15,30,90'],
             'default_min_stock_threshold' => ['nullable', 'integer', 'min:0', 'max:9999'],
             'online_pickup_store' => ['nullable', Rule::in($storeKeys)],
+            'costing_method' => ['required', 'in:lifo,fifo,wac'],
         ]);
         $settings = $tenant->settings ?? [];
+        $settings['inventory'] = array_merge($settings['inventory'] ?? [], [
+            'costing_method' => $data['costing_method'],
+        ]);
         $settings['pos'] = array_merge($settings['pos'] ?? [], [
             'editable_price' => $request->boolean('editable_price'),
             'allow_sale_edit' => $request->boolean('allow_sale_edit', true),

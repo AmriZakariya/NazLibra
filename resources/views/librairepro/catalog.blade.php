@@ -370,7 +370,20 @@
                     <div class="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-wide text-brand">Inventaire courant</p>
-                            <h2 class="mt-1 text-lg font-semibold text-slate-950 dark:text-white">Stock par article</h2>
+                            <div class="mt-1 flex items-center gap-2">
+                                <h2 class="text-lg font-semibold text-slate-950 dark:text-white">Stock par article</h2>
+                                @php
+                                    $costingMethodLabel = match($inventoryCostingMethod) {
+                                        'fifo' => 'FIFO',
+                                        'wac'  => 'CMP',
+                                        default => 'LIFO',
+                                    };
+                                @endphp
+                                <a href="{{ route('module', ['module' => 'settings', 'section' => 'store']) }}" title="Méthode de valorisation · Cliquer pour modifier" class="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 transition hover:border-indigo-400 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
+                                    <svg class="size-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5"/></svg>
+                                    {{ $costingMethodLabel }}
+                                </a>
+                            </div>
                             <p class="mt-1 text-sm text-slate-500">Tous les articles physiques avec volume, valeur d'achat, valeur de vente et accès direct à l'historique.</p>
                         </div>
                         <form method="GET" action="{{ route('stock') }}" class="grid w-full gap-2 sm:grid-cols-[minmax(220px,1fr)_180px_auto_auto] xl:max-w-4xl"

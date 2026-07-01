@@ -44,7 +44,7 @@ class StatisticsController extends Controller
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->where('sales.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
-            ->whereIn('sales.status', ['paid', 'completed'])
+            ->whereIn('sales.status', ['paid', 'completed', 'refunded', 'partial_refund'])
             ->whereBetween('sales.sold_at', [$fromDt, $toDt])
             ->selectRaw('
                 COUNT(DISTINCT sales.id)   AS sale_count,
@@ -58,7 +58,7 @@ class StatisticsController extends Controller
         $discountTotal = (float) DB::table('sales')
             ->where('tenant_id', $tenant->id)
             ->whereNull('deleted_at')
-            ->whereIn('status', ['paid', 'completed'])
+            ->whereIn('status', ['paid', 'completed', 'refunded', 'partial_refund'])
             ->whereBetween('sold_at', [$fromDt, $toDt])
             ->sum('discount_amount');
 
@@ -118,7 +118,7 @@ class StatisticsController extends Controller
             ->join('sales', 'sale_payments.sale_id', '=', 'sales.id')
             ->where('sales.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
-            ->whereIn('sales.status', ['paid', 'completed'])
+            ->whereIn('sales.status', ['paid', 'completed', 'refunded', 'partial_refund'])
             ->whereBetween('sales.sold_at', [$fromDt, $toDt])
             ->selectRaw('
                 sale_payments.method,
@@ -155,7 +155,7 @@ class StatisticsController extends Controller
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->where('sales.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
-            ->whereIn('sales.status', ['paid', 'completed'])
+            ->whereIn('sales.status', ['paid', 'completed', 'refunded', 'partial_refund'])
             ->whereBetween('sales.sold_at', [$fromDt, $toDt])
             ->selectRaw('
                 sale_items.item_id,
@@ -201,7 +201,7 @@ class StatisticsController extends Controller
         $rows = DB::table('sales')
             ->where('tenant_id', $tenant->id)
             ->whereNull('deleted_at')
-            ->whereIn('status', ['paid', 'completed'])
+            ->whereIn('status', ['paid', 'completed', 'refunded', 'partial_refund'])
             ->whereBetween('sold_at', [$fromDt, $toDt])
             ->selectRaw("
                 user_id,
@@ -245,7 +245,7 @@ class StatisticsController extends Controller
             ->leftJoin('categories', 'items.category_id', '=', 'categories.id')
             ->where('sales.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
-            ->whereIn('sales.status', ['paid', 'completed'])
+            ->whereIn('sales.status', ['paid', 'completed', 'refunded', 'partial_refund'])
             ->whereBetween('sales.sold_at', [$fromDt, $toDt])
             ->selectRaw("
                 categories.id                                       AS category_id,
@@ -293,7 +293,7 @@ class StatisticsController extends Controller
         $rows = DB::table('sales')
             ->where('tenant_id', $tenant->id)
             ->whereNull('deleted_at')
-            ->whereIn('status', ['paid', 'completed'])
+            ->whereIn('status', ['paid', 'completed', 'refunded', 'partial_refund'])
             ->whereBetween('sold_at', [$fromDt, $toDt])
             ->selectRaw("$hourExpr AS hr, COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS revenue")
             ->groupBy('hr')
