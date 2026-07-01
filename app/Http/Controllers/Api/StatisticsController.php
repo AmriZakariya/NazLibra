@@ -62,13 +62,30 @@ class StatisticsController extends Controller
             ->whereBetween('sold_at', [$fromDt, $toDt])
             ->sum('discount_amount');
 
+        $salesTaxTotal = (float) DB::table('sales')
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('deleted_at')
+            ->whereIn('status', ['paid', 'completed', 'refunded', 'partial_refund'])
+            ->whereBetween('sold_at', [$fromDt, $toDt])
+            ->sum('tax_amount');
+
         // Returns — use returned_at (matches when the return was actually processed)
         $returnsRow = DB::table('sale_returns')
             ->join('sales', 'sale_returns.sale_id', '=', 'sales.id')
             ->where('sales.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
             ->whereBetween('sale_returns.returned_at', [$fromDt, $toDt])
-            ->selectRaw('COUNT(*) AS cnt, COALESCE(SUM(sale_returns.total_amount), 0) AS total')
+            ->selectRaw('
+                COUNT(*) AS cnt,
+                COALESCE(SUM(sale_returns.total_amount), 0) AS total,
+                COALESCE(SUM(
+                    CASE
+                        WHEN sales.total_amount > 0
+                        THEN sale_returns.total_amount * sales.tax_amount / sales.total_amount
+                        ELSE 0
+                    END
+                ), 0) AS tax_total
+            ')
             ->first();
 
         // Cancellations
@@ -82,9 +99,13 @@ class StatisticsController extends Controller
 
         $gross      = (float) ($salesLine->gross_revenue ?? 0);
         $returns    = (float) ($returnsRow->total ?? 0);
+        $returnTax  = (float) ($returnsRow->tax_total ?? 0);
+        $tax        = min(max(0.0, $salesTaxTotal - $returnTax), $gross);
         $cogs       = (float) ($salesLine->cogs ?? 0);
-        $net        = max(0.0, $gross - $returns);
-        $profit     = $net - $cogs;
+        $net        = max(0.0, $gross - $discountTotal - $returns);
+        $tax        = min($tax, $net);
+        $netExTax   = max(0.0, $net - $tax);
+        $profit     = $netExTax - $cogs;
         $saleCount  = (int) ($salesLine->sale_count ?? 0);
 
         return response()->json([
@@ -94,12 +115,13 @@ class StatisticsController extends Controller
                 'items_sold'      => (int) ($salesLine->items_sold ?? 0),
                 'gross_revenue'   => round($gross, 2),
                 'discount_total'  => round($discountTotal, 2),
+                'tax_total'       => round($tax, 2),
                 'returns_total'   => round($returns, 2),
                 'return_count'    => (int) ($returnsRow->cnt ?? 0),
                 'net_revenue'     => round($net, 2),
                 'cogs'            => round($cogs, 2),
                 'gross_profit'    => round($profit, 2),
-                'margin_percent'  => $net > 0 ? round($profit / $net * 100, 2) : 0.0,
+                'margin_percent'  => $netExTax > 0 ? round($profit / $netExTax * 100, 2) : 0.0,
                 'avg_ticket'      => $saleCount > 0 ? round($net / $saleCount, 2) : 0.0,
                 'cancel_count'    => (int) ($cancelRow->cnt ?? 0),
                 'cancel_amount'   => round((float) ($cancelRow->amount ?? 0), 2),

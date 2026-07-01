@@ -105,17 +105,46 @@ class DashboardController extends Controller
         $saleCount    = (int) ($salesData->sale_count ?? 0);
         $itemsSold    = (int) ($salesData->items_sold ?? 0);
 
+        $salesTaxTotal = (float) DB::table('sales')
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('deleted_at')
+            ->whereIn('status', $confirmedStatuses)
+            ->whereBetween('sold_at', [$from, $to])
+            ->sum('tax_amount');
+
+        $discountTotal = (float) DB::table('sales')
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('deleted_at')
+            ->whereIn('status', $confirmedStatuses)
+            ->whereBetween('sold_at', [$from, $to])
+            ->sum('discount_amount');
+
         // Returns.
-        $returnsTotal = (float) DB::table('sale_returns')
+        $returnsRow = DB::table('sale_returns')
             ->join('sales', 'sale_returns.sale_id', '=', 'sales.id')
             ->where('sales.tenant_id', $tenant->id)
             ->whereNull('sales.deleted_at')
             ->whereBetween('sale_returns.created_at', [$from, $to])
-            ->sum('sale_returns.total_amount');
+            ->selectRaw('
+                COALESCE(SUM(sale_returns.total_amount), 0) AS total,
+                COALESCE(SUM(
+                    CASE
+                        WHEN sales.total_amount > 0
+                        THEN sale_returns.total_amount * sales.tax_amount / sales.total_amount
+                        ELSE 0
+                    END
+                ), 0) AS tax_total
+            ')
+            ->first();
 
-        $netRevenue  = max(0, $grossRevenue - $returnsTotal);
-        $grossProfit = $netRevenue - $cogs;
-        $margin      = $netRevenue > 0 ? round($grossProfit / $netRevenue * 100, 2) : 0;
+        $returnsTotal = (float) ($returnsRow->total ?? 0);
+        $returnsTax   = (float) ($returnsRow->tax_total ?? 0);
+        $taxTotal     = min(max(0.0, $salesTaxTotal - $returnsTax), $grossRevenue);
+        $netRevenue   = max(0, $grossRevenue - $discountTotal - $returnsTotal);
+        $taxTotal     = min($taxTotal, $netRevenue);
+        $netRevenueExTax = max(0, $netRevenue - $taxTotal);
+        $grossProfit  = $netRevenueExTax - $cogs;
+        $margin       = $netRevenueExTax > 0 ? round($grossProfit / $netRevenueExTax * 100, 2) : 0;
         $avgTicket   = $saleCount > 0 ? round($netRevenue / $saleCount, 2) : 0;
 
         // Payment method breakdown — only from confirmed sales.
@@ -171,6 +200,7 @@ class DashboardController extends Controller
                 'items_sold'       => $itemsSold,
                 'gross_revenue'    => round($grossRevenue, 2),
                 'returns_total'    => round($returnsTotal, 2),
+                'tax_total'        => round($taxTotal, 2),
                 'net_revenue'      => round($netRevenue, 2),
                 'cogs'             => round($cogs, 2),
                 'gross_profit'     => round($grossProfit, 2),

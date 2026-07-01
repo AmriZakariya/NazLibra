@@ -725,7 +725,15 @@ class ApiTest extends TestCase
 
         // COGS should still be 50 (the snapshot), not 999.
         $this->assertEquals(50.0, $response->json('kpis.cogs'));
-        $this->assertEquals(30.0, $response->json('kpis.gross_profit')); // 80 - 50
+        $this->assertEquals(13.33, $response->json('kpis.tax_total')); // 80 TTC at 20%
+        $this->assertEquals(16.67, $response->json('kpis.gross_profit')); // 66.67 HT - 50
+
+        $stats = $this->withToken($this->apiToken())
+            ->getJson('/api/v1/statistics/overview')
+            ->assertOk();
+
+        $this->assertEquals(13.33, $stats->json('kpis.tax_total'));
+        $this->assertEquals(16.67, $stats->json('kpis.gross_profit'));
     }
 
     // ── Sales list ────────────────────────────────────────────────────────────

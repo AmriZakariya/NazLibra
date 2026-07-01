@@ -189,7 +189,7 @@ class SaleController extends Controller
         // Load catalog items for lines that reference them.
         $itemIds   = collect($data['items'])->pluck('item_id')->filter()->unique()->all();
         $items     = $itemIds
-            ? Item::where('tenant_id', $tenant->id)->whereIn('id', $itemIds)->get()->keyBy('id')
+            ? Item::with('tax')->where('tenant_id', $tenant->id)->whereIn('id', $itemIds)->get()->keyBy('id')
             : collect();
 
         // Validate catalog items exist and are active.
@@ -240,6 +240,7 @@ class SaleController extends Controller
                     'note'        => $line['note'] ?? null,
                     'avg_cost'    => 0.0,
                     'line_cogs'   => 0.0,
+                    'tax_rate'    => 0.0,
                 ];
                 continue;
             }
@@ -272,6 +273,7 @@ class SaleController extends Controller
                 'note'        => $line['note'] ?? null,
                 'avg_cost'    => $avgCost,
                 'line_cogs'   => $lineCogs,
+                'tax_rate'    => max(0.0, min(100.0, (float) ($item->tax?->rate ?? 0))),
             ];
         }
 
@@ -319,6 +321,18 @@ class SaleController extends Controller
         }
 
         $total = max(0, round($afterDiscount - $loyaltyDiscount, 2));
+        $discountFactor = $subtotal > 0 ? min(1.0, max(0.0, $total / $subtotal)) : 1.0;
+        $taxTotal = 0.0;
+        foreach ($saleLines as $line) {
+            $rate = (float) ($line['tax_rate'] ?? 0);
+            if ($rate <= 0 || $line['total_price'] <= 0) {
+                continue;
+            }
+
+            $discountedLineTotal = (float) $line['total_price'] * $discountFactor;
+            $taxTotal += $discountedLineTotal - ($discountedLineTotal / (1 + $rate / 100));
+        }
+        $taxTotal = round(min($taxTotal, $total), 2);
         $paid  = round(array_sum($payments), 2);
 
         if ($paid + 0.001 < $total) {
@@ -389,7 +403,7 @@ class SaleController extends Controller
         $transactionFn = function () use (
             $tenant, $locationId, $contact, $payments, $saleLines,
             $subtotal, $discount, $loyaltyDiscount, $total, $paid, $data,
-            $totalCogs, $allowOversell, $action, $soldAt,
+            $discountFactor, $taxTotal, $totalCogs, $allowOversell, $action, $soldAt,
             $pointsToRedeem, $loyaltyCfg, $loyaltyEnabled, $sourceOnlineOrder,
             &$saleNumber
         ): Sale {
@@ -442,7 +456,7 @@ class SaleController extends Controller
                 'payment_method'  => $paymentMethod,
                 'subtotal_amount' => $subtotal,
                 'discount_amount' => round($discount + $loyaltyDiscount, 2),
-                'tax_amount'      => round($total * 0.2 / 1.2, 2),
+                'tax_amount'      => $taxTotal,
                 'total_amount'    => $total,
                 'loyalty_points_earned'   => $pointsEarned,
                 'loyalty_points_redeemed' => $pointsToRedeem,
@@ -465,15 +479,25 @@ class SaleController extends Controller
                         'total'    => round($totalCogs, 4),
                         'currency' => $tenant->currency ?? 'MAD',
                     ],
-                    'line_adjustments' => collect($saleLines)->map(fn ($l) => [
-                        'item_id'     => $l['item']?->id,
-                        'name'        => $l['item'] ? $l['item']->title : $l['custom_name'],
-                        'quantity'    => $l['quantity'],
-                        'unit_price'  => $l['unit_price'],
-                        'average_cost' => $l['avg_cost'],
-                        'cogs'        => $l['line_cogs'],
-                        'note'        => $l['note'],
-                    ])->values()->all(),
+                    'line_adjustments' => collect($saleLines)->map(function ($l) use ($discountFactor) {
+                        $rate = (float) ($l['tax_rate'] ?? 0);
+                        $discountedLineTotal = (float) $l['total_price'] * $discountFactor;
+                        $lineTax = $rate > 0
+                            ? $discountedLineTotal - ($discountedLineTotal / (1 + $rate / 100))
+                            : 0.0;
+
+                        return [
+                            'item_id'      => $l['item']?->id,
+                            'name'         => $l['item'] ? $l['item']->title : $l['custom_name'],
+                            'quantity'     => $l['quantity'],
+                            'unit_price'   => $l['unit_price'],
+                            'average_cost' => $l['avg_cost'],
+                            'cogs'         => $l['line_cogs'],
+                            'tax_rate'     => $rate,
+                            'tax_amount'   => round($lineTax, 2),
+                            'note'         => $l['note'],
+                        ];
+                    })->values()->all(),
                     'note' => $data['note'] ?? null,
                     'discount' => ['type' => $data['discount']['type'] ?? 'fixed', 'value' => $data['discount']['value'] ?? 0, 'amount' => $discount],
                     'loyalty' => $pointsToRedeem > 0 ? [
