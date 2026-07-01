@@ -522,6 +522,14 @@ class SaleController extends Controller
                 if ($line['item'] && $line['item']->type !== ItemType::Service->value) {
                     // InventoryLedgerService::createOutgoingMovement() handles LIFO
                     // layer consumption, COGS computation, and stock cache sync.
+                    //
+                    // Use now() for the ledger occurrence, not $soldAt. Offline sales
+                    // can have a sold_at that pre-dates stock layers (e.g. a sale made
+                    // before an import was processed). Using sold_at triggers rebuildFrom
+                    // which replays the sale before the import layer exists → no
+                    // consumption, cache stays at pre-sale value. now() ensures the
+                    // outgoing movement is always non-backdated relative to any existing
+                    // layers. sold_at is preserved on the Sale record for receipts/reports.
                     $ledgerResult = $this->ledger->createOutgoingMovement([
                         'tenantId'             => $tenant->id,
                         'itemId'               => $line['item']->id,
@@ -529,8 +537,8 @@ class SaleController extends Controller
                         'locationId'           => $locationId,
                         'type'                 => InventoryMovementType::SALE,
                         'quantity'             => $line['quantity'],
-                        'occurredAt'           => $soldAt,
-                        'syncedAt'             => null,
+                        'occurredAt'           => now()->utc(),
+                        'syncedAt'             => $soldAt,
                         'userId'               => $action->actor->id,
                         'idempotencyKey'       => 'api-sale-'.$sale->id.'-item-'.$line['item']->id,
                         'referenceType'        => Sale::class,
