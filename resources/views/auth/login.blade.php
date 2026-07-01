@@ -186,7 +186,7 @@
                                 {{ $tr('Connexion sécurisée') }}
                             </span>
                             <h2 class="mt-3 text-[1.9rem] font-bold tracking-[-0.02em] text-slate-950">{{ $tr('Bienvenue') }}</h2>
-                            <p class="mt-1.5 text-sm leading-6 text-slate-500">{{ $tr('Utilisez votre compte équipe pour accéder à l'espace de gestion.') }}</p>
+                            <p class="mt-1.5 text-sm leading-6 text-slate-500">{{ $tr('Utilisez votre compte équipe pour accéder à l\'espace de gestion.') }}</p>
                         </div>
 
                         {{-- alerts --}}
