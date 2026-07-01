@@ -711,25 +711,52 @@
         @else
         @php
             $salesAllowEdit = (bool) data_get($tenant->settings, 'pos.allow_sale_edit', true);
+            $salesSort = $salesSort ?? request('sort', 'sold_at');
+            $salesDirection = $salesDirection ?? (request('direction') === 'asc' ? 'asc' : 'desc');
+            $salesSortUrl = function (string $column) use ($salesSort, $salesDirection): string {
+                return request()->fullUrlWithQuery([
+                    'sort' => $column,
+                    'direction' => ($salesSort === $column && $salesDirection === 'asc') ? 'desc' : 'asc',
+                    'page' => 1,
+                ]);
+            };
+            $salesSortIndicator = fn (string $column): string => $salesSort === $column ? ($salesDirection === 'asc' ? '↑' : '↓') : '↕';
+            $salesHeaderClass = 'inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-black text-slate-500 transition hover:bg-white hover:text-brand dark:hover:bg-white/10';
         @endphp
         <section class="mt-6 space-y-5">
-            <div class="grid gap-3 md:grid-cols-3">
-                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <span class="text-xs font-semibold uppercase text-slate-500">Total ventes</span>
-                    <p class="mt-2 text-2xl font-semibold">{{ $money($salesTotals['total'] ?? 0) }}</p>
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Résultats filtrés</span>
+                    <p class="mt-2 text-2xl font-black">{{ number_format($sales->total(), 0, ',', ' ') }}</p>
+                    <p class="mt-1 text-xs text-slate-500">tickets trouvés</p>
                 </article>
-                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <span class="text-xs font-semibold uppercase text-slate-500">Paiement payé</span>
-                    <p class="mt-2 text-2xl font-semibold text-emerald-600">{{ $money($salesTotals['paid'] ?? 0) }}</p>
+                <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Page affichée</span>
+                    <p class="mt-2 text-2xl font-black">{{ $sales->firstItem() ?? 0 }}-{{ $sales->lastItem() ?? 0 }}</p>
+                    <p class="mt-1 text-xs text-slate-500">sur {{ number_format($sales->total(), 0, ',', ' ') }}</p>
                 </article>
-                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <span class="text-xs font-semibold uppercase text-slate-500">Reste client</span>
-                    <p class="mt-2 text-2xl font-semibold text-rose-600">{{ $money($salesTotals['due'] ?? 0) }}</p>
+                <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <span class="text-xs font-semibold uppercase text-slate-500">Total filtré</span>
+                    <p class="mt-2 text-2xl font-black">{{ $money($salesTotals['total'] ?? 0) }}</p>
+                    <p class="mt-1 text-xs text-slate-500">toutes pages</p>
+                </article>
+                <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-500/10">
+                    <span class="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-200">Total page</span>
+                    <p class="mt-2 text-2xl font-black text-emerald-700 dark:text-emerald-200">{{ $money($salesPageTotals['total'] ?? 0) }}</p>
+                    <p class="mt-1 text-xs text-emerald-700/75 dark:text-emerald-200/75">uniquement lignes visibles</p>
+                </article>
+                <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-sm dark:border-rose-500/20 dark:bg-rose-500/10">
+                    <span class="text-xs font-semibold uppercase text-rose-700 dark:text-rose-200">Reste client</span>
+                    <p class="mt-2 text-2xl font-black text-rose-700 dark:text-rose-200">{{ $money($salesTotals['due'] ?? 0) }}</p>
+                    <p class="mt-1 text-xs text-rose-700/75 dark:text-rose-200/75">sur filtres actifs</p>
                 </article>
             </div>
 
-            <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+            <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 <form class="flex flex-wrap items-end gap-3" method="GET" action="{{ route('module', 'sales') }}">
+                    <input type="hidden" name="section" value="list">
+                    <input type="hidden" name="sort" value="{{ $salesSort }}">
+                    <input type="hidden" name="direction" value="{{ $salesDirection }}">
                     <input name="q" value="{{ request('q') }}" class="h-11 min-w-[220px] flex-[1_1_260px] rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="Rechercher N° ticket, client, paiement...">
                     <input name="from" value="{{ request('from') }}" type="date" class="h-11 min-w-[150px] flex-[1_1_150px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                     <input name="to" value="{{ request('to') }}" type="date" class="h-11 min-w-[150px] flex-[1_1_150px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
@@ -758,6 +785,11 @@
                     </select>
                     <input name="min_total" value="{{ request('min_total') }}" inputmode="decimal" class="h-11 min-w-[105px] flex-[1_1_110px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Min DH">
                     <input name="max_total" value="{{ request('max_total') }}" inputmode="decimal" class="h-11 min-w-[105px] flex-[1_1_110px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Max DH">
+                    <select name="per_page" class="h-11 min-w-[120px] flex-[0_1_130px] rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-900" onchange="this.form.submit()">
+                        @foreach ([10, 25, 50, 100] as $pageSize)
+                            <option value="{{ $pageSize }}" @selected((int) ($salesPerPage ?? 25) === $pageSize)>{{ $pageSize }} / page</option>
+                        @endforeach
+                    </select>
                     <div class="grid min-w-[180px] flex-[0_1_220px] grid-cols-2 gap-2 max-sm:flex-1">
                         <button class="h-11 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">Filtrer</button>
                         <a href="{{ route('module', 'sales') }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a>
@@ -765,24 +797,34 @@
                 </form>
             </article>
 
-            <article class="overflow-visible rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+            <article class="overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10">
+                    <div>
+                        <h3 class="text-base font-black tracking-tight">Datatable ventes</h3>
+                        <p class="mt-0.5 text-xs text-slate-500">Recherche serveur, tri par colonne, pagination et totaux visibles.</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                        <span class="rounded-full bg-slate-100 px-3 py-1.5 dark:bg-white/10">Tri: {{ $salesSort }} {{ $salesDirection === 'asc' ? '↑' : '↓' }}</span>
+                        <span class="rounded-full bg-slate-100 px-3 py-1.5 dark:bg-white/10">{{ $sales->count() }} ligne(s) chargée(s)</span>
+                    </div>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[1460px] text-left text-sm">
                         <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
                             <tr>
                                 <th class="px-3 py-3"><input type="checkbox" class="rounded border-slate-300"></th>
                                 <th class="px-3 py-3 whitespace-nowrap">N° facture</th>
-                                <th class="px-3 py-3 whitespace-nowrap">Date de vente</th>
+                                <th class="px-3 py-3 whitespace-nowrap"><a href="{{ $salesSortUrl('sold_at') }}" class="{{ $salesHeaderClass }}">Date de vente <span>{{ $salesSortIndicator('sold_at') }}</span></a></th>
                                 <th class="px-3 py-3 whitespace-nowrap">Date d'échéance</th>
-                                <th class="px-3 py-3 whitespace-nowrap">Code de vente</th>
+                                <th class="px-3 py-3 whitespace-nowrap"><a href="{{ $salesSortUrl('number') }}" class="{{ $salesHeaderClass }}">Code de vente <span>{{ $salesSortIndicator('number') }}</span></a></th>
                                 <th class="px-3 py-3 whitespace-nowrap">Numéro de référence</th>
-                                <th class="px-3 py-3 whitespace-nowrap">Nom du client</th>
+                                <th class="px-3 py-3 whitespace-nowrap"><a href="{{ $salesSortUrl('client') }}" class="{{ $salesHeaderClass }}">Nom du client <span>{{ $salesSortIndicator('client') }}</span></a></th>
                                 <th class="px-3 py-3 whitespace-nowrap">Créé par</th>
                                 <th class="px-3 py-3 whitespace-nowrap">Mis à jour par</th>
-                                <th class="px-3 py-3 whitespace-nowrap">Créé le / Modifié le</th>
-                                <th class="px-3 py-3 text-right whitespace-nowrap">Total</th>
+                                <th class="px-3 py-3 whitespace-nowrap"><a href="{{ $salesSortUrl('updated_at') }}" class="{{ $salesHeaderClass }}">Créé le / Modifié le <span>{{ $salesSortIndicator('updated_at') }}</span></a></th>
+                                <th class="px-3 py-3 text-right whitespace-nowrap"><a href="{{ $salesSortUrl('total') }}" class="{{ $salesHeaderClass }} ml-auto">Total <span>{{ $salesSortIndicator('total') }}</span></a></th>
                                 <th class="px-3 py-3 text-right whitespace-nowrap">Paiement payé</th>
-                                <th class="px-3 py-3 whitespace-nowrap">Statut de paiement</th>
+                                <th class="px-3 py-3 whitespace-nowrap"><a href="{{ $salesSortUrl('status') }}" class="{{ $salesHeaderClass }}">Statut de paiement <span>{{ $salesSortIndicator('status') }}</span></a></th>
                                 <th class="sticky right-0 bg-slate-50 px-3 py-3 text-right whitespace-nowrap dark:bg-slate-900">Action</th>
                             </tr>
                         </thead>
@@ -1552,7 +1594,13 @@
                         </tbody>
                         <tfoot class="bg-slate-50 text-sm font-semibold dark:bg-white/5">
                             <tr>
-                                <td colspan="9" class="px-3 py-3 text-right">Totaux filtrés</td>
+                                <td colspan="10" class="px-3 py-3 text-right">Total page affichée</td>
+                                <td class="px-3 py-3 text-right">{{ $money($salesPageTotals['total'] ?? 0) }}</td>
+                                <td class="px-3 py-3 text-right">{{ $money($salesPageTotals['paid'] ?? 0) }}</td>
+                                <td colspan="2" class="px-3 py-3">{{ $money($salesPageTotals['due'] ?? 0) }} restant</td>
+                            </tr>
+                            <tr class="border-t border-slate-200 dark:border-white/10">
+                                <td colspan="10" class="px-3 py-3 text-right">Totaux filtrés toutes pages</td>
                                 <td class="px-3 py-3 text-right">{{ $money($salesTotals['total'] ?? 0) }}</td>
                                 <td class="px-3 py-3 text-right">{{ $money($salesTotals['paid'] ?? 0) }}</td>
                                 <td colspan="2" class="px-3 py-3">{{ $money($salesTotals['due'] ?? 0) }} restant</td>
@@ -1560,7 +1608,10 @@
                         </tfoot>
                     </table>
                 </div>
-                <div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 dark:border-white/10">
+                    <p class="text-xs font-semibold text-slate-500">
+                        Affichage {{ $sales->firstItem() ?? 0 }} à {{ $sales->lastItem() ?? 0 }} sur {{ number_format($sales->total(), 0, ',', ' ') }} vente(s)
+                    </p>
                     {{ $sales->links() }}
                 </div>
             </article>

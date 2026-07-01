@@ -6853,7 +6853,11 @@ class LibraireProController extends Controller
             ]));
         }
         abort_unless(AppModules::enabled($tenant, AppModules::keyForModulePage($module, $section) ?? $module), 404);
-        $sales = $this->salesListQuery($tenant, $request)->paginate(25)->withQueryString();
+        $salesPerPage = (int) $request->integer('per_page', 25);
+        if (! in_array($salesPerPage, [10, 25, 50, 100], true)) {
+            $salesPerPage = 25;
+        }
+        $sales = $this->salesListQuery($tenant, $request)->paginate($salesPerPage)->withQueryString();
         $saleInvoices = SaleInvoice::query()
             ->with(['sale.contact', 'contact', 'user'])
             ->where('tenant_id', $tenant->id)
@@ -6980,8 +6984,7 @@ class LibraireProController extends Controller
             ->paginate(25, ['*'], 'commercial_estimates_page')
             ->withQueryString();
         $quotations = $this->quotationsQuery($tenant, $request)->paginate(25, ['*'], 'quotes_page')->withQueryString();
-        $salesTotals = (clone $this->salesListQuery($tenant, $request))
-            ->get()
+        $salesPageTotals = $sales->getCollection()
             ->reduce(function (array $carry, Sale $sale): array {
                 $paid = $this->salePaidAmount($sale);
                 $carry['total'] += (float) $sale->total_amount;
@@ -6990,6 +6993,7 @@ class LibraireProController extends Controller
 
                 return $carry;
             }, ['total' => 0.0, 'paid' => 0.0, 'due' => 0.0]);
+        $salesTotals = $this->salesListTotals($tenant, $request);
         $purchaseList = $this->purchasesQuery($tenant, $request)->paginate(25, ['*'], 'purchases_page')->withQueryString();
         $onlineOrders = $this->onlineOrdersQuery($tenant, $request)->paginate(25, ['*'], 'online_orders_page')->withQueryString();
         $selectedOnlineOrder = null;
@@ -7047,6 +7051,10 @@ class LibraireProController extends Controller
             'salePrefillOnlineOrder' => $salePrefillOnlineOrder,
             'commercialEstimates' => $commercialEstimates,
             'salesTotals' => $salesTotals,
+            'salesPageTotals' => $salesPageTotals,
+            'salesPerPage' => $salesPerPage,
+            'salesSort' => $request->query('sort', 'sold_at'),
+            'salesDirection' => strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc',
             'nextSaleNumber' => $module === 'sales' ? $this->peekSaleNumber($tenant) : null,
             'salesClients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
             'quotations' => $quotations,
@@ -8267,8 +8275,10 @@ class LibraireProController extends Controller
         $paymentMethod = $request->query('payment_method');
         $minTotal = $request->query('min_total');
         $maxTotal = $request->query('max_total');
+        $sort = (string) $request->query('sort', 'sold_at');
+        $direction = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        return Sale::query()
+        $builder = Sale::query()
             ->with(['contact', 'items', 'payments', 'deliveryOrders', 'returns', 'user', 'invoice.user', 'sourceInvoice.creator', 'sourceOnlineOrder'])
             ->where('tenant_id', $tenant->id)
             ->when($detailSale > 0, fn (Builder $builder) => $builder->whereKey($detailSale))
@@ -8312,9 +8322,48 @@ class LibraireProController extends Controller
                 } else {
                     $builder->where('status', 'partial');
                 }
-            })
-            ->latest('sold_at')
-            ->latest('id');
+            });
+
+        match ($sort) {
+            'number' => $builder->orderBy('sales.number', $direction),
+            'client' => $builder->orderBy(
+                Contact::query()
+                    ->select('name')
+                    ->whereColumn('contacts.id', 'sales.contact_id')
+                    ->limit(1),
+                $direction
+            ),
+            'status' => $builder->orderBy('sales.status', $direction),
+            'payment_method' => $builder->orderBy('sales.payment_method', $direction),
+            'total' => $builder->orderBy('sales.total_amount', $direction),
+            'created_at' => $builder->orderBy('sales.created_at', $direction),
+            'updated_at' => $builder->orderBy('sales.updated_at', $direction),
+            default => $builder->orderBy('sales.sold_at', $direction),
+        };
+
+        return $builder->orderBy('sales.id', $direction);
+    }
+
+    private function salesListTotals(Tenant $tenant, Request $request): array
+    {
+        $totals = ['total' => 0.0, 'paid' => 0.0, 'due' => 0.0];
+
+        $this->salesListQuery($tenant, $request)
+            ->setEagerLoads([
+                'payments' => fn ($query) => $query->select('id', 'sale_id', 'amount'),
+            ])
+            ->select(['id', 'tenant_id', 'total_amount', 'status', 'metadata'])
+            ->reorder('sales.id')
+            ->chunkById(500, function ($sales) use (&$totals): void {
+                foreach ($sales as $sale) {
+                    $paid = $this->salePaidAmount($sale);
+                    $totals['total'] += (float) $sale->total_amount;
+                    $totals['paid'] += $paid;
+                    $totals['due'] += max(0, (float) $sale->total_amount - $paid);
+                }
+            }, 'sales.id', 'id');
+
+        return array_map(fn (float $value): float => round($value, 2), $totals);
     }
 
     private function salePaymentsQuery(Tenant $tenant, Request $request): Builder
