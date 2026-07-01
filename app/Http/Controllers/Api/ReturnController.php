@@ -17,7 +17,9 @@ use App\Services\Documents\DocumentNumberGenerator;
 use App\Services\Inventory\InventoryLedgerService;
 use App\Services\Inventory\InventoryMovementType;
 use App\Services\Inventory\InventoryService;
+use App\Rules\ExplicitOffsetDateTime;
 use App\Support\ApiActionContext;
+use App\Support\UtcDateTime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -131,6 +133,7 @@ class ReturnController extends Controller
             'return_lines.*.quantity'      => ['required_with:return_lines', 'integer', 'min:1'],
             'return_lines.*.stock_action'  => ['nullable', 'in:restock,no_restock,damaged,lost,waste'],
             'return_lines.*.reason'        => ['nullable', 'string', 'max:500'],
+            'returned_at'                  => ['nullable', 'string', new ExplicitOffsetDateTime],
         ]);
 
         /** @var Tenant $tenant */
@@ -276,7 +279,9 @@ class ReturnController extends Controller
                     'reason'           => $data['refund_reason'] ?? null,
                     'restock'          => in_array('restock', $stockActions, true),
                     'stock_disposition' => $stockDisposition,
-                    'returned_at'      => now(),
+                    'returned_at'      => ! empty($data['returned_at'])
+                        ? UtcDateTime::parse($data['returned_at'])
+                        : now()->utc(),
                     'idempotency_key'  => $data['idempotency_key'],
                     'metadata'         => [
                         'source'                        => 'mobile_api',
