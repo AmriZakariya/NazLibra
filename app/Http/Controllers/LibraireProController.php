@@ -2269,6 +2269,8 @@ class LibraireProController extends Controller
     public function importItems(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();
+        $ledger = app(\App\Services\Inventory\InventoryLedgerService::class);
+        $defaultLocation = Location::where('tenant_id', $tenant->id)->where('is_default', true)->first();
         $data = $request->validate([
             'catalog_file' => ['required', 'file', 'max:20480'],
             'kind' => ['required', 'in:items,services,categories,brands,variants'],
@@ -2366,16 +2368,33 @@ class LibraireProController extends Controller
                 $created++;
             }
 
-            if ($model->type !== 'service' && (int) $model->stock_quantity !== $beforeStock) {
-                $this->recordStockMovement(
-                    $tenant,
-                    $model,
-                    $model->wasRecentlyCreated ? 'import_opening_stock' : 'import_stock_update',
-                    (int) $model->stock_quantity - $beforeStock,
-                    Item::class,
-                    $model->id,
-                    ($model->wasRecentlyCreated ? 'Import stock initial ' : 'Import mise à jour stock ').($model->item_code ?? $model->barcode ?? $model->title)
+            if ($model->type !== 'service' && $stock > 0 && $defaultLocation) {
+                // Compute the delta against what the ledger already tracks for this
+                // item at the default location. This self-heals items previously
+                // imported without ledger layers (e.g. Excel import via old path).
+                $currentLedgerQty = $ledger->availableQuantity(
+                    $tenant->id, $model->id, null, $defaultLocation->id
                 );
+                $delta = $stock - $currentLedgerQty;
+
+                if ($delta > 0) {
+                    $ledger->createIncomingMovement([
+                        'tenantId'            => $tenant->id,
+                        'itemId'              => $model->id,
+                        'variantId'           => null,
+                        'locationId'          => $defaultLocation->id,
+                        'type'                => $model->wasRecentlyCreated ? 'opening_stock' : 'adjustment_in',
+                        'quantity'            => $delta,
+                        'unitCost'            => (float) $model->purchase_price,
+                        'occurredAt'          => now(),
+                        'syncedAt'            => null,
+                        'userId'              => auth()->id(),
+                        'idempotencyKey'      => null,
+                        'referenceType'       => Item::class,
+                        'referenceId'         => $model->id,
+                        'note'                => ($model->wasRecentlyCreated ? 'Import stock initial ' : 'Import mise à jour stock ').($model->item_code ?? $model->barcode ?? $model->title),
+                    ]);
+                }
             }
         }
 
