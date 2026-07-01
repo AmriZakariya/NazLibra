@@ -3816,6 +3816,8 @@
             $posInventoryCycleDays = (int) data_get($tenant->settings, 'pos.inventory_cycle_days', 30);
             $posDefaultMinStock = (int) data_get($tenant->settings, 'pos.default_min_stock_threshold', 3);
             $inventoryCostingMethod = (string) data_get($tenant->settings, 'inventory.costing_method', 'lifo');
+            $businessActivity = (string) data_get($tenant->settings, 'store.business_activity', \App\Support\ItemTypes::defaultActivity());
+            $activityOptions  = \App\Support\ItemTypes::activityOptions();
             $themePresets = [
                 'default' => ['name' => 'LibrairePro', 'hint' => 'Bleu moderne, accent vert, recommandé', 'colors' => ['#3157D5', '#0F9F8A', '#FFFFFF', '#F4F7FB']],
                 'classic' => ['name' => 'Indigo classic', 'hint' => 'Plus proche du thème initial', 'colors' => ['#4F46E5', '#0EA5E9', '#FFFFFF', '#F8FAFC']],
@@ -4101,7 +4103,7 @@
                                         </span>
                                     </label>
                                 </div>
-                                <div class="mt-3 grid gap-3 md:grid-cols-3">
+                                <div class="mt-3 grid gap-3 md:grid-cols-4">
                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Seuil stock faible par défaut</span><input name="default_min_stock_threshold" type="number" min="0" max="9999" value="{{ old('default_min_stock_threshold', $posDefaultMinStock) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Cycle inventaire conseillé</span><select name="inventory_cycle_days" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="7" @selected($posInventoryCycleDays === 7)>Chaque semaine</option><option value="15" @selected($posInventoryCycleDays === 15)>Tous les 15 jours</option><option value="30" @selected($posInventoryCycleDays === 30)>Chaque mois</option><option value="90" @selected($posInventoryCycleDays === 90)>Chaque trimestre</option></select></label>
                                     <label class="space-y-1.5">
@@ -4110,6 +4112,14 @@
                                             <option value="lifo" @selected(old('costing_method', $inventoryCostingMethod) === 'lifo')>LIFO — Dernier entré, premier sorti</option>
                                             <option value="fifo" @selected(old('costing_method', $inventoryCostingMethod) === 'fifo')>FIFO — Premier entré, premier sorti</option>
                                             <option value="wac" @selected(old('costing_method', $inventoryCostingMethod) === 'wac')>CMP — Coût moyen pondéré</option>
+                                        </select>
+                                    </label>
+                                    <label class="space-y-1.5">
+                                        <span class="text-xs font-semibold uppercase text-slate-500">Activité principale</span>
+                                        <select name="business_activity" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                            @foreach ($activityOptions as $key => $label)
+                                                <option value="{{ $key }}" @selected(old('business_activity', $businessActivity) === $key)>{{ $label }}</option>
+                                            @endforeach
                                         </select>
                                     </label>
                                 </div>

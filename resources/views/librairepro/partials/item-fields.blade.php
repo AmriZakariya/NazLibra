@@ -5,12 +5,16 @@
     $select = 'mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900';
     $section = 'lg:col-span-4 mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-500 shadow-sm dark:border-white/10 dark:bg-white/5';
     $required = '<span class="ms-1 text-rose-500">*</span>';
-    $typeValue = old('type', $item?->type ?? 'book');
-    $typeOptions = [
-        'book'    => ['label' => $tr('Livre'), 'hint' => $tr('ISBN, auteur, édition')],
-        'supply'  => ['label' => $tr('Produit'), 'hint' => $tr('Stock physique')],
-        'service' => ['label' => $tr('Service'), 'hint' => $tr('Sans stock')],
-    ];
+    // $itemTypeConfig is passed from the controller (activity-aware physical types, no service).
+    // Fall back to bookstore types when the variable is absent (e.g. partial includes).
+    $typeConfig  = $itemTypeConfig ?? \App\Support\ItemTypes::physicalTypes(\App\Support\ItemTypes::defaultActivity());
+    $defaultType = array_key_first($typeConfig) ?? 'supply';
+    $typeValue   = old('type', $item?->type ?? $defaultType);
+    // Ensure the current item's type is always an option even if activity changed.
+    if ($item && ! isset($typeConfig[$item->type]) && $item->type !== 'service') {
+        $typeConfig[$item->type] = ['label' => ucfirst($item->type), 'hint' => '', 'fields' => null];
+    }
+    $typeOptions = $typeConfig;
     $storeOptions = collect($stores ?? [])->filter(fn ($store) => data_get($store, 'is_active', true));
     $defaultStoreName = data_get($currentStore ?? [], 'name', 'Magasin principal');
     $warehouseValue = old('warehouse', $item?->warehouse ?? $defaultStoreName);
@@ -39,7 +43,8 @@
 
 <div class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Type d'élément {!! $required !!}</span>
-    <div class="mt-1 grid gap-2 sm:grid-cols-3" data-type-selector>
+    @php $typeCols = match(count($typeOptions)) { 1 => 'sm:grid-cols-1', 2 => 'sm:grid-cols-2', default => 'sm:grid-cols-3' }; @endphp
+    <div class="mt-1 grid gap-2 {{ $typeCols }}" data-type-selector>
         @foreach ($typeOptions as $value => $option)
             <label class="app-type-choice">
                 <input type="radio" name="type" value="{{ $value }}" @checked($typeValue === $value)>
@@ -404,7 +409,7 @@
                 <span class="catalog-file-button">{{ $tr('Choisir une image') }}</span>
                 <span class="catalog-file-name" data-file-name data-empty-label="{{ $tr('Aucun fichier choisi') }}">{{ $tr('Aucun fichier choisi') }}</span>
             </label>
-            <span class="mt-1 block text-xs text-slate-500">{{ $tr('Max 1 Mo. Une nouvelle image devient l'image principale de la fiche.') }}</span>
+            <span class="mt-1 block text-xs text-slate-500">{{ $tr('Max 1 Mo. Une nouvelle image devient image principale de la fiche.') }}</span>
             @if ($currentImage)
                 <label class="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
                     <input type="checkbox" name="remove_item_image" value="1" class="rounded border-slate-300 text-brand focus:ring-brand">

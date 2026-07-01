@@ -52,6 +52,7 @@ use App\Services\Documents\DocumentNumberGenerator;
 use App\Services\Documents\InvoiceService;
 use App\Support\AppModules;
 use App\Support\BusinessMode;
+use App\Support\ItemTypes;
 use App\Support\Locale;
 use App\Support\TenantContext;
 use App\Support\TenantClock;
@@ -886,6 +887,8 @@ class LibraireProController extends Controller
             'currentStoreLocation' => $currentStoreLocation,
             'suggestedItemCode' => $this->nextItemCode($tenant->id),
             'inventoryCostingMethod' => data_get($tenant->settings, 'inventory.costing_method', 'lifo'),
+            'businessActivity' => (string) data_get($tenant->settings, 'store.business_activity', ItemTypes::defaultActivity()),
+            'itemTypeConfig' => ItemTypes::physicalTypes((string) data_get($tenant->settings, 'store.business_activity', ItemTypes::defaultActivity())),
             'stockStats' => [
                 'adjustments' => StockAdjustment::where('tenant_id', $tenant->id)->count(),
                 'transfers' => StockTransfer::where('tenant_id', $tenant->id)->count(),
@@ -2837,10 +2840,14 @@ class LibraireProController extends Controller
             'default_min_stock_threshold' => ['nullable', 'integer', 'min:0', 'max:9999'],
             'online_pickup_store' => ['nullable', Rule::in($storeKeys)],
             'costing_method' => ['required', 'in:lifo,fifo,wac'],
+            'business_activity' => ['required', Rule::in(ItemTypes::activityKeys())],
         ]);
         $settings = $tenant->settings ?? [];
         $settings['inventory'] = array_merge($settings['inventory'] ?? [], [
             'costing_method' => $data['costing_method'],
+        ]);
+        $settings['store'] = array_merge($settings['store'] ?? [], [
+            'business_activity' => $data['business_activity'],
         ]);
         $settings['pos'] = array_merge($settings['pos'] ?? [], [
             'editable_price' => $request->boolean('editable_price'),
@@ -9704,8 +9711,15 @@ class LibraireProController extends Controller
             }
         }
 
+        $activity = (string) data_get($tenant->settings, 'store.business_activity', ItemTypes::defaultActivity());
+        $validTypes = ItemTypes::validTypes($activity);
+        // When editing, always allow the item's existing type (activity may have changed since creation).
+        if ($item && ! in_array($item->type, $validTypes, true)) {
+            $validTypes[] = $item->type;
+        }
+
         $data = $request->validate([
-            'type' => ['required', 'in:book,supply,service'],
+            'type' => ['required', Rule::in($validTypes)],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
             'item_code' => array_filter([

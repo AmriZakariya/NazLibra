@@ -141,6 +141,9 @@ Route::prefix('v1')->group(function (): void {
         Route::put('contacts/{contact}',    [ContactController::class, 'update']);
         Route::delete('contacts/{contact}', [ContactController::class, 'destroy']);
 
+        // ── Catalog configuration ─────────────────────────────────────────────
+        Route::get('catalog/item-types', [ItemController::class, 'itemTypes']);
+
         // ── Item lookup & CRUD ────────────────────────────────────────────────
         Route::get('items/search',         [ItemController::class, 'search']);
         Route::post('items',                [ItemController::class, 'store']);

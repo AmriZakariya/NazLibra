@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Enums\ItemStatus;
 use App\Enums\ItemType;
 use App\Http\Controllers\Controller;
+use App\Support\ItemTypes;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Item;
@@ -361,6 +362,42 @@ class ItemController extends Controller
     /**
      * POST /api/v1/items/{item}/images — upload or replace the item's image.
      */
+    /**
+     * GET /api/v1/catalog/item-types
+     *
+     * Returns the available item types and activity label for this tenant.
+     * Used by the mobile app to show the correct type picker on Add Item / Add Service.
+     */
+    public function itemTypes(Request $request): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant   = $request->attributes->get('api_tenant');
+        $activity = (string) data_get($tenant->settings, 'store.business_activity', ItemTypes::defaultActivity());
+
+        $rawTypes = ItemTypes::physicalTypes($activity);
+        $physical = array_values(array_map(fn ($key, $type) => [
+            'value'        => $key,
+            'label'        => $type['label'],
+            'hint'         => $type['hint'],
+            'tracks_stock' => true,
+        ], array_keys($rawTypes), $rawTypes));
+
+        return response()->json([
+            'ok'       => true,
+            'activity' => [
+                'key'   => $activity,
+                'label' => ItemTypes::activityLabel($activity),
+            ],
+            'physical_types' => $physical,
+            'service_type' => [
+                'value'        => 'service',
+                'label'        => 'Service',
+                'hint'         => 'Prestation sans stock',
+                'tracks_stock' => false,
+            ],
+        ]);
+    }
+
     public function uploadImage(Request $request, Item $item): JsonResponse
     {
         /** @var Tenant $tenant */
