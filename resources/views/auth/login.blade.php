@@ -19,6 +19,11 @@
     $direction = \App\Support\Locale::dir($locale);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
     $productName = config('app.name', 'NAZ POS');
+    $productInitials = collect(preg_split('/\s+/', trim($productName)))
+        ->filter()
+        ->take(2)
+        ->map(fn ($word) => mb_strtoupper(mb_substr($word, 0, 1)))
+        ->join('') ?: 'NP';
     $tenantName = $tenant?->name ?? $tr('Votre commerce');
     $appVersion = config('app.version', '1.0.0-beta.5');
     $releaseLabel = app()->environment('production') ? $tr('Production') : \Illuminate\Support\Str::headline(app()->environment());
@@ -37,6 +42,12 @@
         </script>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         <style>
+            body {
+                background:
+                    radial-gradient(circle at top left, color-mix(in srgb, var(--brand-primary) 18%, transparent), transparent 34rem),
+                    radial-gradient(circle at bottom right, color-mix(in srgb, var(--brand-accent) 18%, transparent), transparent 32rem),
+                    linear-gradient(135deg, #f8fbff 0%, #eef4fb 48%, #f6faf8 100%);
+            }
             .login-grid-bg {
                 background-image:
                     linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
@@ -47,6 +58,18 @@
                 background: radial-gradient(circle at 20% 20%, color-mix(in srgb, var(--brand-accent) 32%, transparent), transparent 55%),
                             radial-gradient(circle at 80% 80%, color-mix(in srgb, var(--brand-primary) 28%, transparent), transparent 50%),
                             linear-gradient(135deg, color-mix(in srgb, var(--brand-primary) 90%, #020617) 0%, #0f172a 55%, #020617 100%);
+            }
+            .login-frame {
+                box-shadow:
+                    0 38px 120px rgba(15, 23, 42, 0.18),
+                    0 0 0 1px rgba(255, 255, 255, 0.7) inset;
+            }
+            .login-orb {
+                position: absolute;
+                border-radius: 999px;
+                filter: blur(1px);
+                opacity: 0.55;
+                pointer-events: none;
             }
             .naz-wordmark {
                 font-size: 22px;
@@ -59,6 +82,16 @@
                 font-weight: 600;
                 font-size: 13px;
                 letter-spacing: 0.01em;
+            }
+            .login-version-badge {
+                border-radius: 999px;
+                border: 1px solid rgba(255,255,255,0.16);
+                background: rgba(255,255,255,0.08);
+                padding: 9px 13px;
+                font-size: 11px;
+                font-weight: 800;
+                color: rgba(255,255,255,0.76);
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
             }
             .feature-card {
                 background: rgba(255,255,255,0.07);
@@ -98,59 +131,125 @@
                 box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 14%, transparent);
                 background: #fff;
             }
+            .login-pos-preview {
+                background: linear-gradient(180deg, rgba(255,255,255,0.13), rgba(255,255,255,0.07));
+                border: 1px solid rgba(255,255,255,0.16);
+                border-radius: 26px;
+                box-shadow: 0 24px 70px rgba(2, 6, 23, 0.24);
+                backdrop-filter: blur(18px);
+            }
+            .login-metric {
+                border-radius: 18px;
+                background: rgba(255,255,255,0.08);
+                border: 1px solid rgba(255,255,255,0.12);
+                padding: 14px;
+            }
+            .login-form-card {
+                background:
+                    linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.98)),
+                    radial-gradient(circle at top right, color-mix(in srgb, var(--brand-primary) 10%, transparent), transparent 18rem);
+                box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+            }
+            .login-primary-button {
+                background: linear-gradient(135deg, var(--brand-primary), color-mix(in srgb, var(--brand-primary) 72%, var(--brand-accent)));
+                box-shadow: 0 15px 30px color-mix(in srgb, var(--brand-primary) 28%, transparent);
+            }
+            .login-primary-button:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 18px 38px color-mix(in srgb, var(--brand-primary) 34%, transparent);
+            }
+            @media (max-width: 1023px) {
+                .login-frame {
+                    border-radius: 24px;
+                }
+            }
         </style>
     </head>
     <body class="min-h-screen bg-[var(--app-bg)] text-slate-950 antialiased">
         <main class="min-h-screen px-4 py-5 sm:px-6 lg:px-8 flex items-center justify-center">
-            <section class="w-full max-w-6xl overflow-hidden rounded-[28px] border border-slate-200/80 bg-white shadow-[0_32px_100px_rgba(15,23,42,0.13)] lg:grid lg:grid-cols-[1.08fr_0.92fr]" style="min-height: min(760px, calc(100vh - 2.5rem))">
+            <section class="login-frame w-full max-w-7xl overflow-hidden rounded-[34px] border border-white/80 bg-white/90 backdrop-blur lg:grid lg:grid-cols-[1.08fr_0.92fr]" style="min-height: min(800px, calc(100vh - 2.5rem))">
 
                 {{-- ── Left panel ─────────────────────────────────────────────── --}}
-                <div class="login-glow login-grid-bg relative flex min-h-[420px] flex-col justify-between overflow-hidden p-7 text-white sm:p-9 lg:p-11">
+                <div class="login-glow login-grid-bg relative flex min-h-[500px] flex-col justify-between overflow-hidden p-7 text-white sm:p-9 lg:p-12">
+                    <span class="login-orb -left-20 top-16 size-56 bg-white/10"></span>
+                    <span class="login-orb bottom-24 right-8 size-40" style="background: color-mix(in srgb, var(--brand-accent) 20%, transparent);"></span>
+                    <span class="login-orb -bottom-28 left-1/3 size-72" style="background: color-mix(in srgb, var(--brand-primary) 18%, transparent);"></span>
 
                     {{-- header --}}
                     <div class="relative flex items-center justify-between gap-4">
                         <div class="flex items-center gap-3.5">
                             {{-- Logo mark --}}
-                            <div class="relative flex size-11 items-center justify-center rounded-[14px] bg-white shadow-md">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <rect width="24" height="24" rx="6" fill="url(#np-grad)"/>
-                                    <path d="M5 17V7l7 10V7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M14 12h5" stroke="white" stroke-width="2" stroke-linecap="round"/>
-                                    <circle cx="16.5" cy="8.5" r="1.5" fill="white"/>
-                                    <circle cx="16.5" cy="15.5" r="1.5" fill="white"/>
-                                    <defs>
-                                        <linearGradient id="np-grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                                            <stop stop-color="{{ $theme['primary'] }}"/>
-                                            <stop offset="1" stop-color="{{ $theme['accent'] }}"/>
-                                        </linearGradient>
-                                    </defs>
-                                </svg>
+                            <div class="relative flex size-12 items-center justify-center rounded-2xl bg-white text-lg font-black tracking-[-0.08em] text-slate-950 shadow-xl shadow-black/10">
+                                {{ $productInitials }}
                             </div>
                             <div>
                                 <p class="naz-wordmark text-white">{{ $productName }}</p>
-                                <p class="mt-0.5 text-xs font-medium text-white/50 tracking-wide">{{ $tenantName }}</p>
+                                <p class="mt-1 text-xs font-semibold text-white/50 tracking-wide">{{ $tr('Plateforme POS') }} · {{ $tenantName }}</p>
                             </div>
                         </div>
                         <span class="login-version-badge shrink-0">{{ $tr('Version') }} {{ $appVersion }}</span>
                     </div>
 
                     {{-- hero --}}
-                    <div class="relative mt-10 max-w-lg">
-                        <p class="text-[11px] font-bold uppercase tracking-[0.2em] text-white/45">{{ $tr('Caisse · Stock · Clients · Rapports') }}</p>
-                        <h1 class="mt-4 text-[2.4rem] font-bold leading-[1.12] tracking-[-0.02em] text-white sm:text-5xl">
-                            {{ $tr('Une caisse moderne pour vendre plus vite.') }}
-                        </h1>
-                        <p class="mt-5 text-[15px] leading-7 text-white/60">
-                            {{ $tr('Pilotez vos ventes, terminaux, stocks, clients et paiements depuis une plateforme POS claire, rapide et prête pour plusieurs activités.') }}
-                        </p>
+                    <div class="relative mt-10 grid items-end gap-8 xl:grid-cols-[0.95fr_1.05fr]">
+                        <div class="max-w-xl">
+                            <p class="inline-flex rounded-full border border-white/[0.12] bg-white/[0.08] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-white/[0.55]">
+                                {{ $tr('Caisse · Stock · Clients · Rapports') }}
+                            </p>
+                            <h1 class="mt-5 text-[2.65rem] font-black leading-[1.05] tracking-[-0.045em] text-white sm:text-6xl">
+                                {{ $tr('Votre point de vente, prêt pour chaque journée.') }}
+                            </h1>
+                            <p class="mt-5 text-[15px] leading-7 text-white/[0.66]">
+                                {{ $tr('Vendez, suivez le stock, gérez les clients et connectez vos terminaux depuis une interface rapide et claire, pensée pour tout type de commerce.') }}
+                            </p>
+                            <div class="mt-7 flex flex-wrap gap-2.5">
+                                @foreach ([$tr('Multi-activité'), $tr('Terminaux web & mobile'), $tr('Données sécurisées')] as $pill)
+                                    <span class="rounded-full border border-white/[0.12] bg-white/[0.08] px-3.5 py-2 text-xs font-bold text-white/[0.72]">{{ $pill }}</span>
+                                @endforeach
+                            </div>
+                        </div>
+
+                        <div class="login-pos-preview hidden p-5 xl:block">
+                            <div class="flex items-center justify-between gap-4">
+                                <div>
+                                    <p class="text-xs font-bold uppercase tracking-[0.18em] text-white/[0.42]">{{ $tr('Aujourd’hui') }}</p>
+                                    <p class="mt-1 text-3xl font-black tracking-[-0.04em] text-white">12 480 DH</p>
+                                </div>
+                                <span class="rounded-full bg-emerald-400/[0.16] px-3 py-1.5 text-xs font-black text-emerald-100 ring-1 ring-emerald-200/[0.18]">{{ $tr('Ouvert') }}</span>
+                            </div>
+                            <div class="mt-5 grid grid-cols-3 gap-2.5">
+                                @foreach ([
+                                    [$tr('Tickets'), '84'],
+                                    [$tr('Panier moyen'), '148'],
+                                    [$tr('Stock OK'), '97%'],
+                                ] as [$label, $value])
+                                    <div class="login-metric">
+                                        <p class="text-[10px] font-bold uppercase tracking-widest text-white/[0.36]">{{ $label }}</p>
+                                        <p class="mt-2 text-xl font-black text-white">{{ $value }}</p>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <div class="mt-5 space-y-2.5">
+                                @foreach ([
+                                    [$tr('Caisse principale'), $tr('Synchronisée')],
+                                    [$tr('Mobile POS'), $tr('Prêt')],
+                                    [$tr('Catalogue'), $tr('À jour')],
+                                ] as [$label, $state])
+                                    <div class="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-3">
+                                        <span class="text-sm font-bold text-white/[0.82]">{{ $label }}</span>
+                                        <span class="text-xs font-bold text-white/[0.48]">{{ $state }}</span>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
                     </div>
 
                     {{-- feature cards --}}
-                    <div class="relative mt-10 grid gap-2.5 sm:grid-cols-3">
+                    <div class="relative mt-10 grid gap-3 sm:grid-cols-3">
                         @foreach ([
-                            ['icon' => 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z', 'label' => $tr('Caisse')],
-                            ['icon' => 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', 'label' => $tr('Stock')],
-                            ['icon' => 'M17 20h5v-2a3 3 0 0 0-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 0 1 5.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 0 1 9.288 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0z', 'label' => $tr('Clients')],
+                            ['icon' => 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm-8 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z', 'label' => $tr('Encaissement rapide'), 'copy' => $tr('Caisse fluide pour les pics.')],
+                            ['icon' => 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', 'label' => $tr('Stock maîtrisé'), 'copy' => $tr('Alertes et mouvements clairs.')],
+                            ['icon' => 'M17 20h5v-2a3 3 0 0 0-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 0 1 5.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 0 1 9.288 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0z', 'label' => $tr('Équipe connectée'), 'copy' => $tr('Rôles, PIN et terminaux.')],
                         ] as $card)
                             <div class="feature-card">
                                 <div class="feature-icon">
@@ -158,8 +257,8 @@
                                         <path d="{{ $card['icon'] }}"/>
                                     </svg>
                                 </div>
-                                <p class="text-[10px] font-bold uppercase tracking-widest text-white/40">{{ $tr('Module') }}</p>
-                                <strong class="mt-1 block text-[15px] font-semibold">{{ $card['label'] }}</strong>
+                                <strong class="block text-[15px] font-bold">{{ $card['label'] }}</strong>
+                                <p class="mt-1 text-xs leading-5 text-white/[0.46]">{{ $card['copy'] }}</p>
                             </div>
                         @endforeach
 
@@ -167,26 +266,26 @@
                             <div class="flex items-center justify-between gap-3">
                                 <div>
                                     <p class="text-[10px] font-bold uppercase tracking-widest text-white/40">{{ $tr('Accès rapide') }}</p>
-                                    <strong class="mt-1 block text-[15px] font-semibold">{{ $tr('Caisse, catalogue et rapports') }}</strong>
+                                    <strong class="mt-1 block text-[15px] font-semibold">{{ $tr('Caisse, catalogue, clients et rapports') }}</strong>
                                 </div>
-                                <span class="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-black tracking-wide text-white ring-1 ring-white/20">MAD · DH</span>
+                                <span class="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-black tracking-wide text-slate-950 shadow-lg shadow-black/10">MAD · DH</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 {{-- ── Right panel (login form) ──────────────────────────────── --}}
-                <div class="flex items-center justify-center bg-[var(--surface)] p-6 sm:p-8 lg:p-10">
-                    <section class="w-full max-w-[400px]">
+                <div class="flex items-center justify-center bg-[var(--surface)] p-6 sm:p-8 lg:p-12">
+                    <section class="w-full max-w-[430px]">
 
                         {{-- heading --}}
-                        <div class="mb-7">
+                        <div class="mb-7 text-center sm:text-left">
                             <span class="inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--brand-primary)_10%,transparent)] px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[var(--brand-primary)]">
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                                 {{ $tr('Connexion sécurisée') }}
                             </span>
-                            <h2 class="mt-3 text-[1.9rem] font-bold tracking-[-0.02em] text-slate-950">{{ $tr('Bienvenue') }}</h2>
-                            <p class="mt-1.5 text-sm leading-6 text-slate-500">{{ $tr('Utilisez votre compte équipe pour accéder à l\'espace de gestion.') }}</p>
+                            <h2 class="mt-4 text-[2.2rem] font-black tracking-[-0.045em] text-slate-950">{{ $tr('Accédez à votre espace POS') }}</h2>
+                            <p class="mt-2 text-sm leading-6 text-slate-500">{{ $tr('Utilisez votre compte équipe pour gérer les ventes, le stock et les rapports.') }}</p>
                         </div>
 
                         {{-- alerts --}}
@@ -204,7 +303,7 @@
                         @endif
 
                         {{-- form --}}
-                        <form action="{{ route('login.store') }}" method="POST" class="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_2px_16px_rgba(15,23,42,0.06)]">
+                        <form action="{{ route('login.store') }}" method="POST" class="login-form-card space-y-4 rounded-[24px] border border-slate-200/90 p-5 sm:p-6">
                             @csrf
 
                             <label class="block space-y-2">
@@ -216,6 +315,8 @@
                                     required
                                     autofocus
                                     autocomplete="email"
+                                    autocapitalize="none"
+                                    spellcheck="false"
                                     class="login-form-input"
                                     placeholder="vous@entreprise.ma"
                                 >
@@ -240,8 +341,8 @@
                                         tabindex="-1"
                                         aria-label="{{ $tr('Afficher/masquer le mot de passe') }}"
                                     >
-                                        <svg class="size-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                        <svg class="size-4.5 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                        <svg class="size-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                        <svg class="size-[18px] hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                                     </button>
                                 </div>
                             </label>
@@ -254,7 +355,7 @@
                                 <a href="{{ route('password.request') }}" class="text-[12px] font-semibold text-[var(--brand-primary)] hover:brightness-110 transition">{{ $tr('Mot de passe oublié ?') }}</a>
                             </div>
 
-                            <button class="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--brand-primary)] px-4 text-sm font-semibold text-white shadow-[0_4px_14px_color-mix(in_srgb,var(--brand-primary)_30%,transparent)] transition hover:brightness-110 active:scale-[0.98]">
+                            <button class="login-primary-button flex h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold text-white transition active:scale-[0.98]">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
                                 {{ $tr('Se connecter') }}
                             </button>
