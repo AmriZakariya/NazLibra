@@ -435,7 +435,7 @@
                         {{-- Footer --}}
                         <div class="mt-5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
                             <span class="font-semibold text-slate-500">{{ $productName }} {{ $appVersion }}</span>
-                            <span>{{ $releaseLabel }} · {{ now()->format('d/m/Y') }}</span>
+                            <span>{{ $releaseLabel }} · {{ \App\Support\TenantClock::format(now(), $tenant, 'd/m/Y') }}</span>
                         </div>
                     </div>
                 </div>

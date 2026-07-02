@@ -1,11 +1,7 @@
 @php
     $money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' DH';
     $tr = fn (string $text): string => \App\Support\Locale::t($text);
-    $tenantTimezone = \App\Support\TenantClock::timezone($tenant);
-    $tzDate = fn ($date, string $fmt = 'd/m/Y H:i'): string =>
-        $date instanceof \Carbon\Carbon || $date instanceof \Carbon\CarbonImmutable || $date instanceof \Carbon\CarbonInterface
-            ? $date->copy()->setTimezone($tenantTimezone)->format($fmt)
-            : ($date ? \Illuminate\Support\Carbon::parse($date)->setTimezone($tenantTimezone)->format($fmt) : '—');
+    $tzDate = fn ($date, string $fmt = 'd/m/Y H:i'): string => \App\Support\TenantClock::format($date, $tenant, $fmt);
     $requiredNoticeHtml = new \Illuminate\Support\HtmlString(str_replace(
         '*',
         '<span class="font-black text-rose-500">*</span>',

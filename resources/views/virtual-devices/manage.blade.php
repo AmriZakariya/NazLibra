@@ -1,6 +1,7 @@
 @php
     $locale = \App\Support\Locale::current($tenant);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
+    $tzDate = fn ($date, string $format = 'd/m/Y H:i'): string => \App\Support\TenantClock::format($date, $tenant, $format);
 @endphp
 <x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · {{ $tr('Appareils virtuels') }}">
     <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -110,7 +111,8 @@
                                         <span class="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700 dark:bg-sky-500/15 dark:text-sky-400">
                                             <span class="size-1.5 rounded-full bg-current animate-pulse"></span> {{ $tr('Connecté') }}
                                         </span>
-                                        <p class="mt-0.5 text-xs text-slate-400">{{ $session->created_at?->diffForHumans() }}</p>
+                                        <p class="mt-0.5 text-xs text-slate-400">{{ $tr('Depuis') }} {{ $tzDate($session->connected_at) }}</p>
+                                        <p class="mt-0.5 text-xs text-slate-400">{{ $tr('Dernière activité') }} {{ $tzDate($session->last_seen_at) }}</p>
                                     @else
                                         <span class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-500 dark:bg-white/10 dark:text-slate-400">
                                             {{ $tr('Libre') }}
@@ -129,7 +131,8 @@
                                     @if ($session)
                                         <div class="space-y-0.5">
                                             <p class="text-xs">{{ $session->platform }} · {{ $session->browser }}</p>
-                                            <p class="text-xs text-slate-400 truncate max-w-[180px]" title="{{ $session->ip_address }}">{{ $session->ip_address }}</p>
+                                            <p class="text-xs text-slate-400 truncate max-w-[180px]" title="{{ $session->ip_address }}">IP {{ $session->ip_address }}</p>
+                                            <p class="text-xs text-slate-400 truncate max-w-[180px]" title="{{ $session->user_agent }}">{{ \Illuminate\Support\Str::limit($session->user_agent, 42) }}</p>
                                         </div>
                                     @else
                                         <span class="text-xs text-slate-400">—</span>
@@ -147,6 +150,14 @@
                                                 {{ $device->is_active ? $tr('Désactiver') : $tr('Activer') }}
                                             </button>
                                         </form>
+                                        @if ($session)
+                                            <form action="{{ route('devices.disconnect', $device) }}" method="POST" class="inline" onsubmit="return confirm('{{ $tr('Libérer cet appareil et déconnecter sa session active ?') }}')">
+                                                @csrf
+                                                <button class="inline-flex items-center gap-1 rounded-lg border border-sky-200 px-3 py-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-50 dark:border-sky-500/30 dark:text-sky-400">
+                                                    {{ $tr('Libérer') }}
+                                                </button>
+                                            </form>
+                                        @endif
                                         <form action="{{ route('devices.destroy', $device) }}" method="POST" class="inline" onsubmit="return confirm('{{ $tr('Supprimer cet appareil ? Les sessions actives seront déconnectées.') }}')">
                                             @csrf @method('DELETE')
                                             <button class="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-500/30 dark:text-rose-400">

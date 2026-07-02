@@ -6,6 +6,7 @@ use App\Models\Tenant;
 use App\Models\VirtualDevice;
 use App\Models\VirtualDeviceSession;
 use App\Support\TenantContext;
+use App\Support\TenantClock;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -17,8 +18,6 @@ use Illuminate\Validation\ValidationException;
 
 class VirtualDeviceController extends Controller
 {
-    private int $heartbeatTimeoutSeconds = 120;
-
     private function tenant(): Tenant
     {
         return TenantContext::require(request(), auth()->user());
@@ -58,7 +57,6 @@ class VirtualDeviceController extends Controller
 
         $tenant = $this->tenant();
         $this->ensureModuleEnabled($tenant);
-        $this->cleanStaleConnections($tenant);
 
         $devices = VirtualDevice::where('tenant_id', $tenant->id)
             ->with(['activeSession.user'])
@@ -166,8 +164,6 @@ class VirtualDeviceController extends Controller
             return redirect()->intended(route('dashboard'))->with('status', 'Le module appareils virtuels est désactivé.');
         }
 
-        $this->cleanStaleConnections($tenant);
-
         $currentSession = $this->currentDeviceSession($tenant, $user);
         $preferredDeviceId = $this->preferredDeviceId($tenant, $request);
 
@@ -175,17 +171,19 @@ class VirtualDeviceController extends Controller
             return redirect()->intended(route('dashboard'));
         }
 
-        $activeSessionIds = VirtualDeviceSession::where('tenant_id', $tenant->id)
+        $activeSessions = VirtualDeviceSession::where('tenant_id', $tenant->id)
             ->whereNull('disconnected_at')
-            ->where('last_seen_at', '>=', now()->subSeconds($this->heartbeatTimeoutSeconds))
-            ->pluck('virtual_device_id');
+            ->with('user')
+            ->get()
+            ->keyBy('virtual_device_id');
 
         $devices = VirtualDevice::where('tenant_id', $tenant->id)
             ->where('is_active', true)
             ->orderBy('name')
             ->get()
-            ->map(function (VirtualDevice $device) use ($activeSessionIds) {
-                $device->is_in_use = $activeSessionIds->contains($device->id);
+            ->map(function (VirtualDevice $device) use ($activeSessions) {
+                $device->active_session = $activeSessions->get($device->id);
+                $device->is_in_use = (bool) $device->active_session;
 
                 return $device;
             });
@@ -217,25 +215,31 @@ class VirtualDeviceController extends Controller
         }
 
         return DB::transaction(function () use ($tenant, $user, $device, $request) {
-            $this->cleanStaleConnections($tenant);
+            $existingSession = $this->currentDeviceSession($tenant, $user);
+
+            if ($existingSession) {
+                if ((int) $existingSession->virtual_device_id === (int) $device->id) {
+                    $request->session()->put('preferred_virtual_device_id', $device->id);
+
+                    return redirect()->intended(route('dashboard'))->with('status', 'Connecté à '.$device->name.'.');
+                }
+
+                throw ValidationException::withMessages([
+                    'virtual_device_id' => 'Vous utilisez déjà '.$existingSession->virtualDevice?->name.'. Déconnectez cet appareil avant d’en choisir un autre.',
+                ]);
+            }
 
             $alreadyConnected = VirtualDeviceSession::where('tenant_id', $tenant->id)
                 ->where('virtual_device_id', $device->id)
                 ->whereNull('disconnected_at')
-                ->where('last_seen_at', '>=', now()->subSeconds($this->heartbeatTimeoutSeconds))
+                ->with('user')
                 ->lockForUpdate()
-                ->exists();
+                ->first();
 
             if ($alreadyConnected) {
                 throw ValidationException::withMessages([
-                    'virtual_device_id' => 'Cet appareil est déjà connecté par un autre utilisateur.',
+                    'virtual_device_id' => 'Cet appareil est déjà connecté par '.($alreadyConnected->user?->name ?? 'un autre utilisateur').' depuis '.TenantClock::format($alreadyConnected->connected_at, $tenant).'.',
                 ]);
-            }
-
-            $existingSession = $this->currentDeviceSession($tenant, $user);
-
-            if ($existingSession) {
-                $this->disconnectSession($existingSession, 'switched_device');
             }
 
             $info = $this->detectDeviceInfo($request);
@@ -309,6 +313,18 @@ class VirtualDeviceController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    public function disconnectDeviceSessions(VirtualDevice $device): RedirectResponse
+    {
+        abort_unless($this->isOwner(), 403);
+        $tenant = $this->tenant();
+        $this->ensureModuleEnabled($tenant);
+        abort_unless((int) $device->tenant_id === (int) $tenant->id, 404);
+
+        $this->disconnectAllSessions($device, 'admin_released');
+
+        return back()->with('status', 'Appareil '.$device->name.' libéré.');
+    }
+
     // ─── Helpers ─────────────────────────────────────────────────────
 
     private function currentDeviceSession(Tenant $tenant, $user): ?VirtualDeviceSession
@@ -326,15 +342,10 @@ class VirtualDeviceController extends Controller
             ->with('virtualDevice')
             ->first();
 
-        if ($session && $session->isActive($this->heartbeatTimeoutSeconds)) {
+        if ($session) {
             session()->put('preferred_virtual_device_id', $session->virtual_device_id);
 
             return $session;
-        }
-
-        if ($session) {
-            session()->put('preferred_virtual_device_id', $session->virtual_device_id);
-            $this->disconnectSession($session, 'stale');
         }
 
         session()->forget('virtual_device_session_id');
@@ -377,18 +388,6 @@ class VirtualDeviceController extends Controller
                 'disconnected_at' => now(),
                 'disconnect_reason' => $reason,
             ]);
-    }
-
-    private function cleanStaleConnections(Tenant $tenant): void
-    {
-        $stale = VirtualDeviceSession::where('tenant_id', $tenant->id)
-            ->whereNull('disconnected_at')
-            ->where('last_seen_at', '<', now()->subSeconds($this->heartbeatTimeoutSeconds))
-            ->get();
-
-        foreach ($stale as $session) {
-            $session->disconnect('stale');
-        }
     }
 
     private function detectDeviceInfo(Request $request): array

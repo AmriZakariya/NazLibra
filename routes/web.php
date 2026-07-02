@@ -303,5 +303,6 @@ Route::get('/appareils', [VirtualDeviceController::class, 'index'])->name('devic
 Route::post('/appareils', [VirtualDeviceController::class, 'store'])->name('devices.store');
 Route::put('/appareils/{device}', [VirtualDeviceController::class, 'update'])->name('devices.update');
 Route::put('/appareils/{device}/statut', [VirtualDeviceController::class, 'toggleStatus'])->name('devices.toggle');
+Route::post('/appareils/{device}/deconnecter', [VirtualDeviceController::class, 'disconnectDeviceSessions'])->name('devices.disconnect');
 Route::delete('/appareils/{device}', [VirtualDeviceController::class, 'destroy'])->name('devices.destroy');
 });

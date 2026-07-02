@@ -10,8 +10,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class EnsureVirtualDeviceSelected
 {
-    private int $heartbeatTimeoutSeconds = 120;
-
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
@@ -22,7 +20,7 @@ class EnsureVirtualDeviceSelected
 
         $routeName = $request->route()?->getName();
 
-        if (in_array($routeName, ['device.select', 'device.connect', 'device.disconnect', 'device.heartbeat', 'devices.index', 'devices.store', 'devices.update', 'devices.toggle', 'devices.destroy', 'profile.activity.data'], true)) {
+        if (in_array($routeName, ['device.select', 'device.connect', 'device.disconnect', 'device.heartbeat', 'devices.index', 'devices.store', 'devices.update', 'devices.toggle', 'devices.disconnect', 'devices.destroy', 'profile.activity.data'], true)) {
             return $next($request);
         }
 
@@ -64,16 +62,6 @@ class EnsureVirtualDeviceSelected
                     'disconnect_reason' => 'device_unavailable',
                 ]);
             }
-
-            return $this->requireDeviceSelection($request);
-        }
-
-        if ($session->last_seen_at?->diffInSeconds(now()) > $this->heartbeatTimeoutSeconds) {
-            $session->update([
-                'disconnected_at' => now(),
-                'disconnect_reason' => 'stale',
-            ]);
-            $request->session()->forget('virtual_device_session_id');
 
             return $this->requireDeviceSelection($request);
         }

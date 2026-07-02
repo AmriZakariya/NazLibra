@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Tenant;
 use App\Support\TenantContext;
+use App\Support\TenantClock;
 use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -50,6 +51,7 @@ class RecordUserActivity
             $subject = $this->subject($request);
             $device = $this->deviceInfo($request);
             $action = $request->route()?->getName() ?: $request->method().' '.$request->path();
+            $tenant = $tenantId ? Tenant::find($tenantId) : null;
 
             // For store/create actions that don't have route parameters, try to extract subject from response
             if (empty($subject['type']) && $response->isRedirect()) {
@@ -82,7 +84,7 @@ class RecordUserActivity
                     'route' => $action,
                     'route_action' => $request->route()?->getActionName(),
                     'status_code' => $response->getStatusCode(),
-                    'timezone' => config('app.timezone'),
+                    'timezone' => TenantClock::timezone($tenant),
                     'ip' => $request->ip(),
                     'referer' => $request->headers->get('referer'),
                     'content_type' => $request->headers->get('content-type'),

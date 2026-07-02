@@ -5,6 +5,7 @@
     $hasCurrent = $currentSession && $currentSession->virtualDevice?->is_active;
     $preferredDeviceId = isset($preferredDeviceId) ? (int) $preferredDeviceId : null;
     $devicePersistenceKey = 'librairepro.virtual_device.' . $tenant->id . '.' . (auth()->id() ?? 'guest');
+    $tzDate = fn ($date, string $format = 'd/m/Y H:i'): string => \App\Support\TenantClock::format($date, $tenant, $format);
 @endphp
 <!DOCTYPE html>
 <html lang="{{ $locale }}" dir="{{ \App\Support\Locale::dir($locale) }}">
@@ -74,6 +75,8 @@
         }
         .device-type { font-size: 0.75rem; color: #818cf8; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; }
         .device-name { font-weight: 600; }
+        .device-meta { display:block;font-size:0.75rem;color:#64748b;margin-top:0.15rem;line-height:1.45; }
+        .device-lock { display:block;font-size:0.72rem;color:#fbbf24;margin-top:0.35rem;line-height:1.45; }
         .device-badge {
             margin-left: auto; flex-shrink: 0;
             font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
@@ -130,6 +133,9 @@
                         $isDisabled = $device->is_in_use && ! $isCurrent;
                         $isRemembered = ! $isCurrent && $preferredDeviceId === $device->id;
                         $isSelected = $isCurrent || ($isRemembered && ! $isDisabled);
+                        $session = $device->active_session ?? null;
+                        $sessionUser = $session?->user;
+                        $realDevice = trim(collect([$session?->platform, $session?->browser])->filter()->join(' · '));
                     @endphp
                     <label class="device-item {{ $isDisabled ? 'is-disabled' : '' }} {{ $isSelected ? 'is-selected' : '' }}" data-device-id="{{ $device->id }}">
                         <input type="radio" name="virtual_device_id" value="{{ $device->id }}" {{ $isDisabled ? 'disabled' : '' }} {{ $isSelected ? 'checked' : '' }}>
@@ -143,7 +149,17 @@
                             <span class="device-type">{{ $tr(ucfirst($device->type)) }}</span>
                             <span class="device-name" style="display:block;">{{ $device->name }}</span>
                             @if ($device->description)
-                                <span style="display:block;font-size:0.75rem;color:#64748b;margin-top:0.15rem;">{{ \Illuminate\Support\Str::limit($device->description, 60) }}</span>
+                                <span class="device-meta">{{ \Illuminate\Support\Str::limit($device->description, 60) }}</span>
+                            @endif
+                            @if ($session)
+                                <span class="device-lock">
+                                    {{ $tr('Utilisé par') }} {{ $sessionUser?->name ?? $tr('Utilisateur inconnu') }}
+                                    @if ($realDevice !== '') · {{ $realDevice }} @endif
+                                    @if ($session->ip_address) · IP {{ $session->ip_address }} @endif
+                                    <br>
+                                    {{ $tr('Connecté le') }} {{ $tzDate($session->connected_at) }}
+                                    · {{ $tr('Dernière activité') }} {{ $tzDate($session->last_seen_at) }}
+                                </span>
                             @endif
                         </span>
                         @if ($isCurrent)

@@ -10,6 +10,7 @@ use App\Notifications\ResetPasswordNotification;
 use App\Notifications\ResetPinNotification;
 use App\Rules\FourDigitPin;
 use App\Support\TenantContext;
+use App\Support\TenantClock;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -380,7 +381,7 @@ class AuthController extends Controller
         };
 
         return DataTables::eloquent($query)
-            ->editColumn('created_at', fn (AuditLog $log) => $log->created_at?->format('d/m/Y H:i'))
+            ->editColumn('created_at', fn (AuditLog $log) => TenantClock::format($log->created_at, $tenant))
             ->editColumn('action', function (AuditLog $log) use ($actionLabels) {
                 $friendly = $log->friendly_action ?: ($actionLabels[$log->action] ?? null);
                 return view('partials.activity-action-cell', [

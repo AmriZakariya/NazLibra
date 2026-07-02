@@ -1,6 +1,7 @@
 @php
     $locale = \App\Support\Locale::current($tenant);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
+    $tzDate = fn ($date, string $format = 'd/m/Y H:i'): string => \App\Support\TenantClock::format($date, $tenant, $format);
 @endphp
 <x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · {{ $tr('Mon profil') }}">
     <section class="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-white/[0.03] lg:flex-row lg:items-center lg:justify-between">
@@ -42,7 +43,7 @@
                             <span class="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] font-bold text-slate-500 dark:bg-slate-950/60">{{ data_get($log->properties, 'method', '—') }}</span>
                         </div>
                         <p class="mt-2 truncate text-xs text-slate-500">{{ $log->user?->name ?? $tr('Système') }} · {{ data_get($log->properties, 'path', '—') }}</p>
-                        <p class="mt-2 text-xs font-semibold text-slate-400">{{ $log->created_at?->format('d/m/Y H:i') }}</p>
+                        <p class="mt-2 text-xs font-semibold text-slate-400">{{ $tzDate($log->created_at) }}</p>
                     </a>
                 @empty
                     <div class="rounded-xl border border-dashed border-slate-200 p-5 text-sm text-slate-500 dark:border-white/10 lg:col-span-5">{{ $tr('Aucune action enregistrée pour le moment.') }}</div>
@@ -143,7 +144,7 @@
                     <div class="flex justify-between gap-3"><dt class="text-slate-500">{{ $tr('Rôle') }}</dt><dd class="font-semibold">{{ $roleName }}</dd></div>
                     <div class="flex justify-between gap-3"><dt class="text-slate-500">{{ $tr('Statut') }}</dt><dd class="font-semibold">{{ $user->is_active ? $tr('Actif') : $tr('Désactivé') }}</dd></div>
                     <div class="flex justify-between gap-3"><dt class="text-slate-500">{{ $tr('Téléphone') }}</dt><dd class="font-semibold">{{ $user->phone ?: '—' }}</dd></div>
-                    <div class="flex justify-between gap-3"><dt class="text-slate-500">{{ $tr('Compte créé') }}</dt><dd class="font-semibold">{{ $user->created_at?->format('d/m/Y') }}</dd></div>
+                    <div class="flex justify-between gap-3"><dt class="text-slate-500">{{ $tr('Compte créé') }}</dt><dd class="font-semibold">{{ $tzDate($user->created_at, 'd/m/Y') }}</dd></div>
                     @if ($user->pin_hash)
                         <div class="flex justify-between gap-3"><dt class="text-slate-500">{{ $tr('Code PIN') }}</dt><dd class="font-semibold text-emerald-600">{{ $tr('Actif') }}</dd></div>
                     @endif

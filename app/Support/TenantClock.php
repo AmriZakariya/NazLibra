@@ -3,6 +3,8 @@
 namespace App\Support;
 
 use App\Models\Tenant;
+use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use DateTimeZone;
 
 class TenantClock
@@ -51,6 +53,19 @@ class TenantClock
     public static function currentTimeLabel(Tenant|string|null $tenant = null): string
     {
         return now(self::timezone($tenant))->format('d/m/Y H:i');
+    }
+
+    public static function format(mixed $value, Tenant|string|null $tenant = null, string $format = 'd/m/Y H:i', string $empty = '—'): string
+    {
+        if ($value === null || $value === '') {
+            return $empty;
+        }
+
+        $date = $value instanceof CarbonInterface
+            ? $value
+            : Carbon::parse($value);
+
+        return $date->copy()->setTimezone(self::timezone($tenant))->format($format);
     }
 
     public static function isValid(?string $timezone): bool

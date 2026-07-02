@@ -3,11 +3,7 @@
     $pageTitle = 'LibrairePro · '.$meta['title'];
     $locale = \App\Support\Locale::current($tenant);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
-    $tenantTimezone = \App\Support\TenantClock::timezone($tenant);
-    $tzDate = fn ($date, string $fmt = 'd/m/Y H:i'): string =>
-        $date instanceof \Carbon\Carbon || $date instanceof \Carbon\CarbonImmutable || $date instanceof \Carbon\CarbonInterface
-            ? $date->copy()->setTimezone($tenantTimezone)->format($fmt)
-            : ($date ? \Illuminate\Support\Carbon::parse($date)->setTimezone($tenantTimezone)->format($fmt) : '—');
+    $tzDate = fn ($date, string $fmt = 'd/m/Y H:i'): string => \App\Support\TenantClock::format($date, $tenant, $fmt);
 @endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" :title="$pageTitle">

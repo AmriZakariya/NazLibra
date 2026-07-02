@@ -470,7 +470,7 @@
                     <span class="sidebar-release-mark">v</span>
                     <span class="sidebar-label min-w-0">
                         <strong>{{ $appVersion }}</strong>
-                        <small>{{ $releaseLabel }} · {{ now()->format('d/m/Y') }}</small>
+                        <small>{{ $releaseLabel }} · {{ \App\Support\TenantClock::format(now(), $tenant, 'd/m/Y') }}</small>
                     </span>
                 </div>
                 <button class="sidebar-peek-toggle mx-3 mb-3" type="button" data-sidebar-peek-toggle aria-pressed="true" title="Afficher automatiquement le menu au survol">
