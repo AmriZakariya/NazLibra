@@ -3908,6 +3908,7 @@
                     'items' => [
                         'virtual-devices' => 'Appareils virtuels',
                         'hardware' => 'Matériel POS',
+                        'printer-groups' => 'Groupes d’impression',
                     ],
                 ],
                 'operations' => [
@@ -5500,6 +5501,272 @@
                     </div>
                 </article>
 
+                @elseif ($settingsSection === 'printer-groups')
+                    @php
+                        $printerDevices = $settingsVirtualDevices->values();
+                        $activePrinterDevices = $printerDevices->where('is_active', true)->values();
+                        $printersByDevice = $settingsPrinters->groupBy(fn ($printer) => (string) $printer->virtual_device_id);
+                        $printerDeviceNames = $settingsVirtualDevices->keyBy('id');
+                        $newGroupDialog = 'printer-group-create';
+                    @endphp
+                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                                <p class="text-sm font-semibold text-brand">Impression · routage</p>
+                                <h2 class="mt-1 text-xl font-semibold">Groupes d’impression</h2>
+                                <p class="mt-1 max-w-3xl text-sm text-slate-500">Créez des groupes indépendants puis liez-y les imprimantes nécessaires. Une même règle peut piloter plusieurs imprimantes, même sur plusieurs terminaux.</p>
+                            </div>
+                            <button type="button" onclick="document.getElementById('{{ $newGroupDialog }}').showModal()" class="inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">Nouveau groupe</button>
+                        </div>
+
+                        <div class="mt-5 grid gap-4 md:grid-cols-3">
+                            <div class="rounded-xl border border-teal-200 bg-teal-50 p-4 dark:border-teal-500/20 dark:bg-teal-500/10">
+                                <p class="text-xs font-bold uppercase tracking-wide text-teal-700 dark:text-teal-300">Terminaux actifs</p>
+                                <p class="mt-2 text-2xl font-semibold text-teal-900 dark:text-teal-100">{{ $activePrinterDevices->count() }}</p>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Imprimantes liées</p>
+                                <p class="mt-2 text-2xl font-semibold">{{ $settingsPrinters->count() }}</p>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Groupes configurés</p>
+                                <p class="mt-2 text-2xl font-semibold">{{ $settingsPrinterGroups->count() }}</p>
+                            </div>
+                        </div>
+
+                        @if ($settingsPrinters->isEmpty())
+                            <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+                                Aucune imprimante synchronisée. Ajoutez les imprimantes depuis Flutter sur chaque terminal, synchronisez, puis assignez-les aux groupes ici.
+                            </div>
+                        @else
+                            <div class="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+                                <div class="space-y-3">
+                                    @forelse ($settingsPrinterGroups as $group)
+                                        @php
+                                            $editDialog = 'printer-group-edit-'.$group->id;
+                                            $selectedPrinterIds = $group->printerGroupPrinters->pluck('printer_id')->all();
+                                            $selectedCategoryIds = $group->printerGroupCategories->pluck('category_id')->filter(fn ($id) => $id !== null)->map(fn ($id) => (int) $id)->all();
+                                            $hasCatchAll = $group->printerGroupCategories->contains(fn ($mapping) => $mapping->category_id === null);
+                                            $assignedPrinters = $group->printerGroupPrinters->sortBy('priority')->map(fn ($mapping) => $mapping->printer)->filter()->values();
+                                            $assignedCategoryNames = $group->printerGroupCategories->map(fn ($mapping) => $mapping->category_id === null ? 'Catch-all' : $mapping->category?->name)->filter()->values();
+                                            $assignedByDevice = $assignedPrinters->groupBy(fn ($printer) => (string) $printer->virtual_device_id);
+                                        @endphp
+                                        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
+                                            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                                <div class="min-w-0">
+                                                    <div class="flex flex-wrap items-center gap-2">
+                                                        <h3 class="font-semibold">{{ $group->name }}</h3>
+                                                        <x-status-pill :tone="$group->is_receipt_group ? 'success' : 'info'">{{ $group->is_receipt_group ? 'Ticket' : 'Station' }}</x-status-pill>
+                                                        <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">{{ $group->print_mode === 'simultaneous' ? 'Simultané' : 'Priorité + secours' }}</span>
+                                                        <span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-white/10">{{ $assignedPrinters->count() }} imprimante(s)</span>
+                                                    </div>
+                                                    <div class="mt-3 space-y-2">
+                                                        @forelse ($assignedByDevice as $deviceId => $printers)
+                                                            <div class="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-white/5">
+                                                                <strong>{{ optional($printerDeviceNames->get((int) $deviceId))->name ?? 'Terminal inconnu' }}</strong>
+                                                                <span class="mt-0.5 block text-xs text-slate-500">{{ $printers->pluck('name')->join(', ') }}</span>
+                                                            </div>
+                                                        @empty
+                                                            <p class="text-sm text-slate-500">Aucune imprimante liée.</p>
+                                                        @endforelse
+                                                    </div>
+                                                    <p class="mt-3 text-sm text-slate-500">Catégories: {{ $assignedCategoryNames->isNotEmpty() ? $assignedCategoryNames->join(', ') : 'aucune' }}</p>
+                                                </div>
+                                                <div class="flex shrink-0 flex-wrap gap-2">
+                                                    <button type="button" onclick="document.getElementById('{{ $editDialog }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Modifier</button>
+                                                    <form action="{{ route('settings.printer-groups.destroy', $group) }}" method="POST" onsubmit="return confirm('Supprimer ce groupe d’impression ?')">
+                                                        @csrf @method('DELETE')
+                                                        <button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 dark:border-rose-500/30">Supprimer</button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <dialog id="{{ $editDialog }}" class="app-dialog w-[min(920px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                            <form action="{{ route('settings.printer-groups.update', $group) }}" method="POST" class="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+                                                @csrf @method('PUT')
+                                                @include('librairepro.partials.printer-group-form', ['printersByDevice' => $printersByDevice, 'devices' => $settingsVirtualDevices, 'categories' => $settingsPrinterCategories, 'group' => $group, 'selectedPrinterIds' => $selectedPrinterIds, 'selectedCategoryIds' => $selectedCategoryIds, 'hasCatchAll' => $hasCatchAll])
+                                            </form>
+                                        </dialog>
+                                    @empty
+                                        <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center dark:border-white/10 dark:bg-white/5">
+                                            <p class="font-semibold">Aucun groupe d’impression</p>
+                                            <p class="mt-1 text-sm text-slate-500">Créez un groupe ticket, cuisine ou rayon puis assignez les imprimantes.</p>
+                                        </div>
+                                    @endforelse
+                                </div>
+
+                                <aside class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                    <h3 class="font-semibold">Imprimantes & groupes liés</h3>
+                                    <p class="mt-1 text-sm text-slate-500">Vue par terminal. Les liens se modifient depuis chaque groupe.</p>
+                                    <div class="mt-4 space-y-4">
+                                        @foreach ($printerDevices as $device)
+                                            @php $devicePrinters = $printersByDevice->get((string) $device->id, collect()); @endphp
+                                            <section>
+                                                <div class="flex items-center gap-2">
+                                                    <strong class="text-sm">{{ $device->name }}</strong>
+                                                    <x-status-pill :tone="$device->is_active ? 'success' : 'danger'">{{ $device->is_active ? 'Actif' : 'Inactif' }}</x-status-pill>
+                                                </div>
+                                                <div class="mt-2 space-y-2">
+                                                    @forelse ($devicePrinters as $printer)
+                                                        @php
+                                                            $linkedGroups = $settingsPrinterGroups->filter(fn ($group) => $group->printerGroupPrinters->contains('printer_id', $printer->id));
+                                                        @endphp
+                                                        <div class="rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-white/10">
+                                                            <strong>{{ $printer->name }}</strong>
+                                                            <span class="mt-0.5 block text-xs text-slate-500">{{ $linkedGroups->pluck('name')->join(', ') ?: 'aucun groupe' }}</span>
+                                                        </div>
+                                                    @empty
+                                                        <p class="text-xs text-slate-500">Aucune imprimante.</p>
+                                                    @endforelse
+                                                </div>
+                                            </section>
+                                        @endforeach
+                                    </div>
+                                </aside>
+                            </div>
+                        @endif
+
+                        <dialog id="{{ $newGroupDialog }}" class="app-dialog w-[min(920px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                            <form action="{{ route('settings.printer-groups.store') }}" method="POST" class="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+                                @csrf
+                                @include('librairepro.partials.printer-group-form', ['printersByDevice' => $printersByDevice, 'devices' => $settingsVirtualDevices, 'categories' => $settingsPrinterCategories, 'group' => null, 'selectedPrinterIds' => [], 'selectedCategoryIds' => [], 'hasCatchAll' => false])
+                            </form>
+                        </dialog>
+                    </article>
+
+                @elseif (false && $settingsSection === 'printer-groups')
+                    @php
+                        $printerDevices = $settingsVirtualDevices->values();
+                        $activePrinterDevices = $printerDevices->where('is_active', true)->values();
+                        $printersByDevice = $settingsPrinters->groupBy(fn ($printer) => (string) $printer->virtual_device_id);
+                        $groupsByDevice = $settingsPrinterGroups->groupBy(fn ($group) => (string) $group->virtual_device_id);
+                    @endphp
+                    <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                                <p class="text-sm font-semibold text-brand">Impression · routage</p>
+                                <h2 class="mt-1 text-xl font-semibold">Groupes d’impression</h2>
+                                <p class="mt-1 max-w-3xl text-sm text-slate-500">Créez les stations d’impression par terminal: ticket de caisse, cuisine, rayon ou toute règle basée sur les catégories. Le mobile consulte ces règles mais ne les modifie pas.</p>
+                            </div>
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'hardware']) }}" class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">Tester le matériel</a>
+                        </div>
+
+                        <div class="mt-5 grid gap-4 md:grid-cols-3">
+                            <div class="rounded-xl border border-teal-200 bg-teal-50 p-4 dark:border-teal-500/20 dark:bg-teal-500/10">
+                                <p class="text-xs font-bold uppercase tracking-wide text-teal-700 dark:text-teal-300">Terminaux actifs</p>
+                                <p class="mt-2 text-2xl font-semibold text-teal-900 dark:text-teal-100">{{ $activePrinterDevices->count() }}</p>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Imprimantes liées</p>
+                                <p class="mt-2 text-2xl font-semibold">{{ $settingsPrinters->count() }}</p>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Groupes configurés</p>
+                                <p class="mt-2 text-2xl font-semibold">{{ $settingsPrinterGroups->count() }}</p>
+                            </div>
+                        </div>
+
+                        @if ($printerDevices->isEmpty())
+                            <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+                                Aucun terminal. Créez un appareil virtuel avant de configurer les groupes d’impression.
+                            </div>
+                        @else
+                            <div class="mt-6 space-y-5">
+                                @foreach ($printerDevices as $device)
+                                    @php
+                                        $devicePrinters = $printersByDevice->get((string) $device->id, collect());
+                                        $deviceGroups = $groupsByDevice->get((string) $device->id, collect());
+                                        $newGroupDialog = 'printer-group-create-'.$device->id;
+                                    @endphp
+                                    <section class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
+                                        <div class="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5 lg:flex-row lg:items-center lg:justify-between">
+                                            <div class="min-w-0">
+                                                <div class="flex flex-wrap items-center gap-2">
+                                                    <h3 class="font-semibold">{{ $device->name }}</h3>
+                                                    <x-status-pill :tone="$device->is_active ? 'success' : 'danger'">{{ $device->is_active ? 'Actif' : 'Inactif' }}</x-status-pill>
+                                                    <span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-white/10">{{ $devicePrinters->count() }} imprimante(s)</span>
+                                                    <span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-white/10">{{ $deviceGroups->count() }} groupe(s)</span>
+                                                </div>
+                                                <p class="mt-1 text-sm text-slate-500">{{ $device->code }} · {{ $device->type }}</p>
+                                            </div>
+                                            <button type="button" onclick="document.getElementById('{{ $newGroupDialog }}').showModal()" class="inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">Nouveau groupe</button>
+                                        </div>
+
+                                        <div class="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                                            <div class="space-y-3">
+                                                @forelse ($deviceGroups as $group)
+                                                    @php
+                                                        $editDialog = 'printer-group-edit-'.$group->id;
+                                                        $selectedPrinterIds = $group->printerGroupPrinters->pluck('printer_id')->all();
+                                                        $selectedCategoryIds = $group->printerGroupCategories->pluck('category_id')->filter(fn ($id) => $id !== null)->map(fn ($id) => (int) $id)->all();
+                                                        $hasCatchAll = $group->printerGroupCategories->contains(fn ($mapping) => $mapping->category_id === null);
+                                                        $assignedPrinterNames = $group->printerGroupPrinters->sortBy('priority')->map(fn ($mapping) => $mapping->printer?->name)->filter()->values();
+                                                        $assignedCategoryNames = $group->printerGroupCategories->map(fn ($mapping) => $mapping->category_id === null ? 'Catch-all' : $mapping->category?->name)->filter()->values();
+                                                    @endphp
+                                                    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
+                                                        <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                                            <div class="min-w-0">
+                                                                <div class="flex flex-wrap items-center gap-2">
+                                                                    <h4 class="font-semibold">{{ $group->name }}</h4>
+                                                                    <x-status-pill :tone="$group->is_receipt_group ? 'success' : 'info'">{{ $group->is_receipt_group ? 'Ticket' : 'Station' }}</x-status-pill>
+                                                                    <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-300">{{ $group->print_mode === 'simultaneous' ? 'Simultané' : 'Priorité + secours' }}</span>
+                                                                </div>
+                                                                <p class="mt-2 text-sm text-slate-500">Imprimantes: {{ $assignedPrinterNames->isNotEmpty() ? $assignedPrinterNames->join(', ') : 'aucune' }}</p>
+                                                                <p class="mt-1 text-sm text-slate-500">Catégories: {{ $assignedCategoryNames->isNotEmpty() ? $assignedCategoryNames->join(', ') : 'aucune' }}</p>
+                                                            </div>
+                                                            <div class="flex shrink-0 flex-wrap gap-2">
+                                                                <button type="button" onclick="document.getElementById('{{ $editDialog }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Modifier</button>
+                                                                <form action="{{ route('settings.printer-groups.destroy', $group) }}" method="POST" onsubmit="return confirm('Supprimer ce groupe d’impression ?')">
+                                                                    @csrf @method('DELETE')
+                                                                    <button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 dark:border-rose-500/30">Supprimer</button>
+                                                                </form>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <dialog id="{{ $editDialog }}" class="app-dialog w-[min(860px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                                        <form action="{{ route('settings.printer-groups.update', $group) }}" method="POST" class="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+                                                            @csrf @method('PUT')
+                                                            @include('librairepro.partials.printer-group-form', ['device' => $device, 'devicePrinters' => $devicePrinters, 'categories' => $settingsPrinterCategories, 'group' => $group, 'selectedPrinterIds' => $selectedPrinterIds, 'selectedCategoryIds' => $selectedCategoryIds, 'hasCatchAll' => $hasCatchAll])
+                                                        </form>
+                                                    </dialog>
+                                                @empty
+                                                    <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center dark:border-white/10 dark:bg-white/5">
+                                                        <p class="font-semibold">Aucun groupe sur ce terminal</p>
+                                                        <p class="mt-1 text-sm text-slate-500">Créez un groupe ticket ou station pour router les impressions.</p>
+                                                    </div>
+                                                @endforelse
+                                            </div>
+
+                                            <aside class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                                                <h4 class="text-sm font-semibold">Imprimantes du terminal</h4>
+                                                <div class="mt-3 space-y-2">
+                                                    @forelse ($devicePrinters as $printer)
+                                                        <div class="rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-slate-200 dark:bg-slate-950 dark:ring-white/10">
+                                                            <strong>{{ $printer->name }}</strong>
+                                                            <span class="mt-0.5 block text-xs text-slate-500">{{ strtoupper($printer->connection_type) }} · {{ $printer->address ?: 'adresse non définie' }}</span>
+                                                        </div>
+                                                    @empty
+                                                        <p class="text-sm text-slate-500">Aucune imprimante mobile synchronisée pour ce terminal.</p>
+                                                    @endforelse
+                                                </div>
+                                                <p class="mt-4 text-xs leading-5 text-slate-500">Les imprimantes sont créées depuis Flutter sur chaque terminal. Le web gère seulement les groupes, les priorités et le routage.</p>
+                                            </aside>
+                                        </div>
+                                    </section>
+
+                                    <dialog id="{{ $newGroupDialog }}" class="app-dialog w-[min(860px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                                        <form action="{{ route('settings.printer-groups.store') }}" method="POST" class="max-h-[calc(100dvh-2rem)] overflow-y-auto">
+                                            @csrf
+                                            @include('librairepro.partials.printer-group-form', ['device' => $device, 'devicePrinters' => $devicePrinters, 'categories' => $settingsPrinterCategories, 'group' => null, 'selectedPrinterIds' => [], 'selectedCategoryIds' => [], 'hasCatchAll' => false])
+                                        </form>
+                                    </dialog>
+                                @endforeach
+                            </div>
+                        @endif
+                    </article>
+
                 @elseif ($settingsSection === 'hardware')
                 <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="flex items-start justify-between gap-4">
@@ -5533,7 +5800,7 @@
                             </div>
 
                             {{-- Printer --}}
-                            <div class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                            <div id="printer-groups" class="scroll-mt-24 rounded-xl border border-slate-200 p-4 dark:border-white/10">
                                 <div class="flex items-center gap-3">
                                     <span class="grid size-10 place-items-center rounded-xl bg-brand/10 text-lg text-brand">🖨️</span>
                                     <div class="min-w-0 flex-1">

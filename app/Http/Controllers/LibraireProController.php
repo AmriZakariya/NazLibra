@@ -26,6 +26,10 @@ use App\Models\Location;
 use App\Models\OnlineOrder;
 use App\Models\OnlineOrderItem;
 use App\Models\PosTicket;
+use App\Models\Printer;
+use App\Models\PrinterGroup;
+use App\Models\PrinterGroupCategory;
+use App\Models\PrinterGroupPrinter;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\PurchasePayment;
@@ -3123,6 +3127,154 @@ class LibraireProController extends Controller
         return redirect()
             ->route('module', ['module' => 'settings', 'section' => 'hardware'])
             ->with('status', $enabled ? 'Module appareils virtuels activé.' : 'Module appareils virtuels désactivé.');
+    }
+
+    public function storePrinterGroup(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $data = $this->validatePrinterGroupPayload($request, $tenant);
+
+        DB::transaction(function () use ($tenant, $data): void {
+            $group = PrinterGroup::create([
+                'id' => Str::uuid()->toString(),
+                'tenant_id' => $tenant->id,
+                'virtual_device_id' => null,
+                'name' => $data['name'],
+                'is_receipt_group' => $data['is_receipt_group'],
+                'print_mode' => $data['print_mode'],
+            ]);
+
+            $this->replacePrinterGroupAssignments($group, $data);
+        });
+
+        return redirect()
+            ->route('module', ['module' => 'settings', 'section' => 'printer-groups'])
+            ->with('status', 'Groupe d’impression créé.');
+    }
+
+    public function updatePrinterGroup(Request $request, PrinterGroup $group): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless((int) $group->tenant_id === (int) $tenant->id, 404);
+
+        $data = $this->validatePrinterGroupPayload($request, $tenant);
+
+        DB::transaction(function () use ($group, $data): void {
+            $group->update([
+                'virtual_device_id' => null,
+                'name' => $data['name'],
+                'is_receipt_group' => $data['is_receipt_group'],
+                'print_mode' => $data['print_mode'],
+            ]);
+
+            $this->replacePrinterGroupAssignments($group, $data);
+        });
+
+        return redirect()
+            ->route('module', ['module' => 'settings', 'section' => 'printer-groups'])
+            ->with('status', 'Groupe d’impression mis à jour.');
+    }
+
+    public function destroyPrinterGroup(PrinterGroup $group): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless((int) $group->tenant_id === (int) $tenant->id, 404);
+
+        DB::transaction(function () use ($group): void {
+            $group->printerGroupPrinters()->delete();
+            $group->printerGroupCategories()->delete();
+            $group->delete();
+        });
+
+        return redirect()
+            ->route('module', ['module' => 'settings', 'section' => 'printer-groups'])
+            ->with('status', 'Groupe d’impression supprimé.');
+    }
+
+    private function validatePrinterGroupPayload(Request $request, Tenant $tenant): array
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'is_receipt_group' => ['nullable', 'boolean'],
+            'print_mode' => ['required', Rule::in(['primary_fallback', 'simultaneous'])],
+            'printer_ids' => ['nullable', 'array'],
+            'printer_ids.*' => ['string', 'size:36'],
+            'category_ids' => ['nullable', 'array'],
+            'category_ids.*' => ['nullable', 'integer'],
+            'catch_all' => ['nullable', 'boolean'],
+        ]);
+
+        $printerIds = collect($data['printer_ids'] ?? [])
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($printerIds->isNotEmpty()) {
+            $validPrinterCount = Printer::query()
+                ->where('tenant_id', $tenant->id)
+                ->whereIn('id', $printerIds)
+                ->count();
+
+            if ($validPrinterCount !== $printerIds->count()) {
+                throw ValidationException::withMessages([
+                    'printer_ids' => 'Une imprimante sélectionnée est invalide.',
+                ]);
+            }
+        }
+
+        $categoryIds = collect($data['category_ids'] ?? [])
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($categoryIds->isNotEmpty()) {
+            $validCategoryCount = Category::query()
+                ->where('tenant_id', $tenant->id)
+                ->whereIn('id', $categoryIds)
+                ->count();
+
+            if ($validCategoryCount !== $categoryIds->count()) {
+                throw ValidationException::withMessages([
+                    'category_ids' => 'Une catégorie sélectionnée est invalide.',
+                ]);
+            }
+        }
+
+        return [
+            'name' => trim($data['name']),
+            'is_receipt_group' => $request->boolean('is_receipt_group'),
+            'print_mode' => $data['print_mode'],
+            'printer_ids' => $printerIds->all(),
+            'category_ids' => $categoryIds->all(),
+            'catch_all' => $request->boolean('catch_all'),
+        ];
+    }
+
+    private function replacePrinterGroupAssignments(PrinterGroup $group, array $data): void
+    {
+        $group->printerGroupPrinters()->delete();
+        foreach ($data['printer_ids'] as $index => $printerId) {
+            PrinterGroupPrinter::create([
+                'group_id' => $group->id,
+                'printer_id' => $printerId,
+                'priority' => $index + 1,
+            ]);
+        }
+
+        $group->printerGroupCategories()->delete();
+        if ($data['catch_all']) {
+            PrinterGroupCategory::create([
+                'group_id' => $group->id,
+                'category_id' => null,
+            ]);
+        }
+        foreach ($data['category_ids'] as $categoryId) {
+            PrinterGroupCategory::create([
+                'group_id' => $group->id,
+                'category_id' => $categoryId,
+            ]);
+        }
     }
 
     public function updateDocumentSettings(Request $request): RedirectResponse
@@ -7160,6 +7312,18 @@ class LibraireProController extends Controller
             'settingsUnits' => Unit::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'settingsVirtualDevices' => VirtualDevice::where('tenant_id', $tenant->id)
                 ->with(['activeSession.user'])
+                ->orderBy('name')
+                ->get(),
+            'settingsPrinters' => Printer::where('tenant_id', $tenant->id)
+                ->orderBy('virtual_device_id')
+                ->orderBy('name')
+                ->get(),
+            'settingsPrinterGroups' => PrinterGroup::where('tenant_id', $tenant->id)
+                ->with(['virtualDevice', 'printerGroupPrinters.printer', 'printerGroupCategories.category'])
+                ->orderBy('virtual_device_id')
+                ->orderBy('name')
+                ->get(),
+            'settingsPrinterCategories' => Category::where('tenant_id', $tenant->id)
                 ->orderBy('name')
                 ->get(),
             'settingsTaxGroups' => $this->settingsRecords($tenant, 'tax_groups'),

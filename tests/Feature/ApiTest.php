@@ -8,6 +8,7 @@ use App\Models\CashRegisterMovement;
 use App\Models\Location;
 use App\Models\Printer;
 use App\Models\PrinterGroup;
+use App\Models\PrinterGroupPrinter;
 use App\Models\Role;
 use App\Models\Sale;
 use App\Models\SaleReturn;
@@ -233,18 +234,35 @@ class ApiTest extends TestCase
             'virtual_device_id' => $firstDevice->id,
         ]);
 
+        $group = PrinterGroup::create([
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'tenant_id' => $this->tenant->id,
+            'virtual_device_id' => null,
+            'name' => 'Independent routing group',
+        ]);
+        PrinterGroupPrinter::create([
+            'group_id' => $group->id,
+            'printer_id' => $printerId,
+            'priority' => 1,
+        ]);
+
         $this->withToken($token)
             ->withHeader('X-Virtual-Device-Id', (string) $firstDevice->id)
             ->getJson('/api/v1/printers')
             ->assertOk()
             ->assertJsonCount(1, 'printers')
-            ->assertJsonPath('printers.0.id', $printerId);
+            ->assertJsonPath('printers.0.id', $printerId)
+            ->assertJsonPath('printer_groups.0.id', $group->id)
+            ->assertJsonPath('printer_group_printers.0.printer_id', $printerId);
 
         $this->withToken($token)
             ->withHeader('X-Virtual-Device-Id', (string) $secondDevice->id)
             ->getJson('/api/v1/printers')
             ->assertOk()
-            ->assertJsonCount(0, 'printers');
+            ->assertJsonCount(0, 'printers')
+            ->assertJsonCount(1, 'printer_groups')
+            ->assertJsonPath('printer_groups.0.id', $group->id)
+            ->assertJsonPath('printer_group_printers.0.printer_id', $printerId);
 
         $this->withToken($token)
             ->withHeader('X-Virtual-Device-Id', (string) $secondDevice->id)
@@ -303,7 +321,7 @@ class ApiTest extends TestCase
         $group = PrinterGroup::create([
             'id' => \Illuminate\Support\Str::uuid()->toString(),
             'tenant_id' => $this->tenant->id,
-            'virtual_device_id' => $device->id,
+            'virtual_device_id' => null,
             'name' => 'Web-managed group',
             'is_receipt_group' => true,
         ]);
@@ -333,7 +351,58 @@ class ApiTest extends TestCase
         $this->assertDatabaseHas('printer_groups', [
             'id' => $group->id,
             'tenant_id' => $this->tenant->id,
-            'virtual_device_id' => $device->id,
+            'virtual_device_id' => null,
+        ]);
+    }
+
+    public function test_mobile_printer_can_be_linked_to_global_printer_groups(): void
+    {
+        $token = $this->apiToken();
+        $device = VirtualDevice::create([
+            'tenant_id' => $this->tenant->id,
+            'location_id' => $this->location->id,
+            'name' => 'Printer terminal with groups',
+            'code' => 'PRN-D',
+            'type' => 'mobile',
+            'is_active' => true,
+        ]);
+        $printerId = \Illuminate\Support\Str::uuid()->toString();
+        $group = PrinterGroup::create([
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'tenant_id' => $this->tenant->id,
+            'virtual_device_id' => null,
+            'name' => 'Shared receipts',
+            'is_receipt_group' => true,
+        ]);
+
+        $this->withToken($token)
+            ->withHeader('X-Virtual-Device-Id', (string) $device->id)
+            ->postJson('/api/v1/printers', [
+                'id' => $printerId,
+                'name' => 'Counter printer',
+                'group_ids' => [$group->id],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('printer.id', $printerId);
+
+        $this->assertDatabaseHas('printer_group_printers', [
+            'group_id' => $group->id,
+            'printer_id' => $printerId,
+            'priority' => 0,
+        ]);
+
+        $this->withToken($token)
+            ->withHeader('X-Virtual-Device-Id', (string) $device->id)
+            ->putJson('/api/v1/printers/'.$printerId, [
+                'name' => 'Counter printer updated',
+                'group_ids' => [],
+            ])
+            ->assertOk()
+            ->assertJsonPath('printer.name', 'Counter printer updated');
+
+        $this->assertDatabaseMissing('printer_group_printers', [
+            'group_id' => $group->id,
+            'printer_id' => $printerId,
         ]);
     }
 

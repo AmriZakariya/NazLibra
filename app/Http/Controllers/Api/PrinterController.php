@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class PrinterController extends Controller
 {
@@ -60,21 +61,19 @@ class PrinterController extends Controller
      */
     private function buildConfig(int $tenantId, int $virtualDeviceId): array
     {
-        $printers = Printer::withTrashed()
+        $printerModels = Printer::withTrashed()
             ->where('tenant_id', $tenantId)
             ->where('virtual_device_id', $virtualDeviceId)
             ->orderBy('name')
-            ->get()
-            ->toArray();
+            ->get();
 
         $printerGroupIds = PrinterGroup::withTrashed()
             ->where('tenant_id', $tenantId)
-            ->where('virtual_device_id', $virtualDeviceId)
             ->pluck('id');
 
         $printerGroups = PrinterGroup::withTrashed()
             ->where('tenant_id', $tenantId)
-            ->where('virtual_device_id', $virtualDeviceId)
+            ->whereIn('id', $printerGroupIds)
             ->orderBy('name')
             ->get()
             ->toArray();
@@ -88,7 +87,7 @@ class PrinterController extends Controller
             : [];
 
         return [
-            'printers'                => $printers,
+            'printers'                => $printerModels->toArray(),
             'printer_groups'          => $printerGroups,
             'printer_group_printers'  => $printerGroupPrinters,
             'printer_group_categories'=> $printerGroupCategories,
@@ -127,12 +126,23 @@ class PrinterController extends Controller
             'cut_paper'              => ['sometimes', 'boolean'],
             'copies'                 => ['sometimes', 'integer', 'min:1', 'max:255'],
             'auto_print_on_checkout' => ['sometimes', 'boolean'],
+            'group_ids'              => ['sometimes', 'array'],
+            'group_ids.*'            => ['string', 'size:36'],
         ]);
 
-        $printer = Printer::withTrashed()->updateOrCreate(
-            ['id' => $data['id'], 'tenant_id' => $tenant->id, 'virtual_device_id' => $virtualDeviceId],
-            array_merge($data, ['tenant_id' => $tenant->id, 'virtual_device_id' => $virtualDeviceId, 'deleted_at' => null])
-        );
+        $groupIds = $this->validatedPrinterGroupIds($tenant->id, $data['group_ids'] ?? []);
+        unset($data['group_ids']);
+
+        $printer = DB::transaction(function () use ($tenant, $virtualDeviceId, $data, $groupIds): Printer {
+            $printer = Printer::withTrashed()->updateOrCreate(
+                ['id' => $data['id'], 'tenant_id' => $tenant->id, 'virtual_device_id' => $virtualDeviceId],
+                array_merge($data, ['tenant_id' => $tenant->id, 'virtual_device_id' => $virtualDeviceId, 'deleted_at' => null])
+            );
+
+            $this->replacePrinterGroups($tenant->id, $printer->id, $groupIds);
+
+            return $printer;
+        });
 
         return response()->json(['ok' => true, 'printer' => $printer], 201);
     }
@@ -159,9 +169,22 @@ class PrinterController extends Controller
             'cut_paper'              => ['sometimes', 'boolean'],
             'copies'                 => ['sometimes', 'integer', 'min:1', 'max:255'],
             'auto_print_on_checkout' => ['sometimes', 'boolean'],
+            'group_ids'              => ['sometimes', 'array'],
+            'group_ids.*'            => ['string', 'size:36'],
         ]);
 
-        $printer->update($data);
+        $groupIds = array_key_exists('group_ids', $data)
+            ? $this->validatedPrinterGroupIds($tenant->id, $data['group_ids'] ?? [])
+            : null;
+        unset($data['group_ids']);
+
+        DB::transaction(function () use ($tenant, $printer, $data, $groupIds): void {
+            $printer->update($data);
+
+            if ($groupIds !== null) {
+                $this->replacePrinterGroups($tenant->id, $printer->id, $groupIds);
+            }
+        });
 
         return response()->json(['ok' => true, 'printer' => $printer->fresh()]);
     }
@@ -312,6 +335,8 @@ class PrinterController extends Controller
             'printers.*.cut_paper'                => ['sometimes', 'boolean'],
             'printers.*.copies'                   => ['sometimes', 'integer', 'min:1', 'max:255'],
             'printers.*.auto_print_on_checkout'   => ['sometimes', 'boolean'],
+            'printers.*.group_ids'                => ['sometimes', 'array'],
+            'printers.*.group_ids.*'              => ['string', 'size:36'],
         ]);
 
         DB::transaction(function () use ($tenant, $virtualDeviceId, $data): void {
@@ -339,9 +364,14 @@ class PrinterController extends Controller
                     'created_at'       => $now,
                     'updated_at'       => $now,
                     'deleted_at'       => null,
-                ]), $data['printers']);
+                ], collect($p)->except('group_ids')->all()), $data['printers']);
 
                 Printer::insert($rows);
+
+                foreach ($data['printers'] as $printerData) {
+                    $groupIds = $this->validatedPrinterGroupIds($tenant->id, $printerData['group_ids'] ?? []);
+                    $this->replacePrinterGroups($tenant->id, $printerData['id'], $groupIds);
+                }
             }
         });
 
@@ -365,5 +395,48 @@ class PrinterController extends Controller
         });
 
         return response()->json(['ok' => true]);
+    }
+
+    private function validatedPrinterGroupIds(int $tenantId, array $groupIds): array
+    {
+        if ($groupIds === []) {
+            return [];
+        }
+
+        $groupIds = array_values(array_unique($groupIds));
+
+        $validIds = PrinterGroup::query()
+            ->where('tenant_id', $tenantId)
+            ->whereIn('id', $groupIds)
+            ->pluck('id')
+            ->all();
+
+        if (count($validIds) !== count($groupIds)) {
+            throw ValidationException::withMessages([
+                'group_ids' => 'Un groupe d’impression est invalide.',
+            ]);
+        }
+
+        return $groupIds;
+    }
+
+    private function replacePrinterGroups(int $tenantId, string $printerId, array $groupIds): void
+    {
+        $tenantGroupIds = PrinterGroup::query()
+            ->where('tenant_id', $tenantId)
+            ->pluck('id');
+
+        PrinterGroupPrinter::query()
+            ->where('printer_id', $printerId)
+            ->whereIn('group_id', $tenantGroupIds)
+            ->delete();
+
+        foreach ($groupIds as $index => $groupId) {
+            PrinterGroupPrinter::create([
+                'group_id' => $groupId,
+                'printer_id' => $printerId,
+                'priority' => $index,
+            ]);
+        }
     }
 }
