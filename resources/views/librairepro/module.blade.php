@@ -3863,7 +3863,7 @@
             $posInventoryCycleDays = (int) data_get($tenant->settings, 'pos.inventory_cycle_days', 30);
             $posDefaultMinStock = (int) data_get($tenant->settings, 'pos.default_min_stock_threshold', 3);
             $inventoryCostingMethod = (string) data_get($tenant->settings, 'inventory.costing_method', 'lifo');
-            $businessActivity = (string) data_get($tenant->settings, 'store.business_activity', \App\Support\ItemTypes::defaultActivity());
+            $businessActivity = \App\Support\ItemTypes::activityForTenant($tenant);
             $activityOptions  = \App\Support\ItemTypes::activityOptions();
             $themePresets = [
                 'default' => ['name' => 'LibrairePro', 'hint' => 'Bleu moderne, accent vert, recommandé', 'colors' => ['#3157D5', '#0F9F8A', '#FFFFFF', '#F4F7FB']],
@@ -3874,28 +3874,59 @@
             $currentBusinessMode = \App\Support\BusinessMode::current($tenant);
             $appModuleSettings = \App\Support\AppModules::settings($tenant);
             $storeTypeLabels = ['store' => 'Magasin', 'warehouse' => 'Dépôt', 'area' => 'Rayon', 'branch' => 'Succursale'];
-            $settingsSection = request('section', 'warehouses');
-            $settingsTabs = [
-                'company' => 'Société',
-                'modules' => 'Modules',
-                'warehouses' => 'Magasins',
-                'store' => 'Caisse & stock',
-                'documents' => 'PDF',
-                'users' => 'Utilisateurs',
-                'roles' => 'Rôles',
-                'taxes' => 'Taxes',
-                'units' => 'Unités',
-                'payment-types' => 'Paiement',
-                'countries' => 'Pays',
-                'states' => 'États',
-                'password' => 'Mot de passe',
-                'messaging' => 'Messagerie',
-                'message-templates' => 'Modèles',
-                'sms-api' => 'API messages',
-                'demo-data' => 'Données démo',
-                'theme' => 'Thème',
-                'hardware' => 'Matériel',
+            $settingsSection = request('section', 'overview');
+            $settingsGroups = [
+                'overview' => [
+                    'title' => 'Vue d’ensemble',
+                    'description' => 'Lire rapidement l’état actuel.',
+                    'items' => ['overview' => 'Résumé'],
+                ],
+                'store' => [
+                    'title' => 'Store & activité',
+                    'description' => 'Identité, activité, magasins et règles de vente.',
+                    'items' => [
+                        'company' => 'Société',
+                        'warehouses' => 'Magasins',
+                        'store' => 'Caisse & stock',
+                        'documents' => 'PDF',
+                        'theme' => 'Thème',
+                        'modules' => 'Modules',
+                    ],
+                ],
+                'account' => [
+                    'title' => 'Compte & équipe',
+                    'description' => 'Utilisateurs, rôles et accès.',
+                    'items' => [
+                        'users' => 'Utilisateurs',
+                        'roles' => 'Rôles',
+                        'password' => 'Mot de passe',
+                    ],
+                ],
+                'devices' => [
+                    'title' => 'Appareils',
+                    'description' => 'Terminaux virtuels et matériel POS.',
+                    'items' => [
+                        'virtual-devices' => 'Appareils virtuels',
+                        'hardware' => 'Matériel POS',
+                    ],
+                ],
+                'operations' => [
+                    'title' => 'Référentiels & communication',
+                    'description' => 'Taxes, unités, paiements, messages et maintenance.',
+                    'items' => [
+                        'taxes' => 'Taxes',
+                        'units' => 'Unités',
+                        'payment-types' => 'Paiement',
+                        'countries' => 'Pays',
+                        'states' => 'États',
+                        'messaging' => 'Messagerie',
+                        'message-templates' => 'Modèles',
+                        'sms-api' => 'API messages',
+                        'demo-data' => 'Données démo',
+                    ],
+                ],
             ];
+            $settingsTabs = collect($settingsGroups)->flatMap(fn (array $group) => $group['items'])->all();
             $settingsReferenceSections = ['taxes', 'units', 'payment-types', 'countries', 'states', 'password'];
             $companyProfile = array_merge([
                 'store_code' => $tenant->slug,
@@ -3964,20 +3995,125 @@
             $timezoneOptions = \App\Support\TenantClock::options();
             $tenantTimezoneLabel = \App\Support\TenantClock::label($tenant);
             $tenantTimezoneOffset = \App\Support\TenantClock::offset($tenant);
+            $settingsCurrentGroupKey = collect($settingsGroups)->search(fn (array $group) => array_key_exists($settingsSection, $group['items']));
+            $settingsCurrentGroupKey = $settingsCurrentGroupKey === false ? 'overview' : $settingsCurrentGroupKey;
+            $settingsCurrentGroup = $settingsGroups[$settingsCurrentGroupKey] ?? $settingsGroups['overview'];
+            $settingsVirtualDevices = $settingsVirtualDevices ?? collect();
+            $settingsVirtualDeviceCount = $settingsVirtualDevices->count();
+            $settingsVirtualDeviceActiveCount = $settingsVirtualDevices->where('is_active', true)->count();
+            $settingsVirtualDeviceConnectedCount = $settingsVirtualDevices->filter(fn ($device) => (bool) $device->activeSession)->count();
         @endphp
-        <details class="app-collapsible-menu mt-6" data-collapsible-menu data-menu-key="module-settings-menu">
-            <summary class="app-collapsible-menu-summary">
-                <span><strong>Menu paramètres</strong><small>{{ $settingsTabs[$settingsSection] ?? 'Général' }}</small></span>
-                <em data-collapsible-menu-state>Afficher</em>
-            </summary>
-            <nav class="app-tab-nav">
-                @foreach ($settingsTabs as $key => $label)
-                    <a href="{{ route('module', ['module' => 'settings', 'section' => $key]) }}" class="app-tab-link {{ $settingsSection === $key ? 'is-active' : '' }}">{{ $label }}</a>
-                @endforeach
-            </nav>
-        </details>
+        <section class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950">
+            <div class="p-4">
+                <div class="overflow-x-auto">
+                    <nav class="flex min-w-max gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-white/10 dark:bg-slate-900" aria-label="Groupes de paramètres">
+                        @foreach ($settingsGroups as $groupKey => $group)
+                            @php
+                                $groupDefaultSection = array_key_first($group['items']);
+                                $groupIsActive = $settingsCurrentGroupKey === $groupKey;
+                            @endphp
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => $groupDefaultSection]) }}" class="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition {{ $groupIsActive ? 'bg-white text-blue-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-950 dark:text-blue-300 dark:ring-white/10' : 'text-slate-600 hover:bg-white hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-950 dark:hover:text-white' }}">
+                                {{ $group['title'] }}
+                            </a>
+                        @endforeach
+                    </nav>
+                </div>
+
+                <div class="mt-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-950">
+                    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-slate-900 dark:text-white">{{ $settingsCurrentGroup['title'] }}</p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">{{ $settingsCurrentGroup['description'] }}</p>
+                        </div>
+                        <nav class="flex flex-wrap gap-2" aria-label="Options du groupe actif">
+                            @foreach ($settingsCurrentGroup['items'] as $key => $label)
+                                <a href="{{ route('module', ['module' => 'settings', 'section' => $key]) }}" @if ($settingsSection === $key) style="background-color:#2563eb;color:#ffffff;border-color:#2563eb;box-shadow:0 8px 18px rgba(37,99,235,.18);" @endif class="inline-flex items-center rounded-lg border px-3 py-2 text-xs font-semibold transition {{ $settingsSection === $key ? 'text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-400/50 dark:hover:bg-blue-950/30 dark:hover:text-blue-300' }}">
+                                    {{ $label }}
+                                </a>
+                            @endforeach
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </section>
         <section class="mt-6 grid gap-6 {{ $settingsSection === 'company' ? 'xl:grid-cols-[minmax(0,1fr)_360px]' : '' }}">
-            @if (in_array($settingsSection, $settingsReferenceSections, true))
+            @if ($settingsSection === 'overview')
+                <div class="xl:col-span-2 grid gap-5">
+                    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                            <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Société</p>
+                            <h3 class="mt-2 text-lg font-semibold">{{ $companyProfile['store_name'] ?: $tenant->name }}</h3>
+                            <p class="mt-1 text-sm text-slate-500">{{ $companyProfile['city'] ?: 'Ville non définie' }} · {{ $companyProfile['country'] ?: 'Pays non défini' }}</p>
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'company']) }}" class="mt-4 inline-flex text-sm font-semibold text-brand">Modifier l’identité →</a>
+                        </article>
+                        <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                            <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Activité</p>
+                            <h3 class="mt-2 text-lg font-semibold">{{ $currentBusinessMode['label'] ?? 'Commerce' }}</h3>
+                            <p class="mt-1 text-sm text-slate-500">{{ $activityOptions[$businessActivity]['label'] ?? $businessActivity }} · {{ $tenant->currency }}</p>
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'store']) }}" class="mt-4 inline-flex text-sm font-semibold text-brand">Règles caisse & stock →</a>
+                        </article>
+                        <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                            <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Fuseau horaire</p>
+                            <h3 class="mt-2 text-lg font-semibold">{{ $tenantTimezoneLabel }}</h3>
+                            <p class="mt-1 text-sm text-slate-500">Affichage {{ $tenantTimezoneOffset }} · stockage UTC</p>
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'company']) }}" class="mt-4 inline-flex text-sm font-semibold text-brand">Ajuster →</a>
+                        </article>
+                        <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                            <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Modules</p>
+                            <h3 class="mt-2 text-lg font-semibold">{{ collect($appModuleSettings)->where('enabled', true)->count() }} actif(s)</h3>
+                            <p class="mt-1 text-sm text-slate-500">{{ count($appModuleSettings) }} module(s) configurables</p>
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'modules']) }}" class="mt-4 inline-flex text-sm font-semibold text-brand">Gérer les modules →</a>
+                        </article>
+                    </div>
+
+                    <div class="grid gap-5 xl:grid-cols-3">
+                        <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-sm font-semibold text-brand">Store & opération</p>
+                                    <h3 class="mt-1 text-lg font-semibold">Règles principales</h3>
+                                </div>
+                                <x-status-pill tone="primary">{{ $onlineStoreEnabled ? 'Online actif' : 'Online off' }}</x-status-pill>
+                            </div>
+                            <dl class="mt-4 space-y-3 text-sm">
+                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Prix modifiable en caisse</dt><dd class="font-semibold">{{ $posEditablePrice ? 'Oui' : 'Non' }}</dd></div>
+                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Vente hors stock</dt><dd class="font-semibold">{{ $posAllowOversell ? 'Autorisée' : 'Bloquée' }}</dd></div>
+                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Stock bas dashboard</dt><dd class="font-semibold">{{ $posLowStockDashboard ? 'Visible' : 'Masqué' }}</dd></div>
+                            </dl>
+                        </article>
+                        <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-sm font-semibold text-brand">Compte</p>
+                                    <h3 class="mt-1 text-lg font-semibold">Équipe & sécurité</h3>
+                                </div>
+                                <x-status-pill tone="info">{{ $settingsRoles->count() }} rôle(s)</x-status-pill>
+                            </div>
+                            <dl class="mt-4 space-y-3 text-sm">
+                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Utilisateurs</dt><dd class="font-semibold">{{ $settingsUsers->count() }}</dd></div>
+                                <div class="flex justify-between gap-3"><dt class="text-slate-500">PIN opérateur</dt><dd class="font-semibold">4 chiffres</dd></div>
+                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Accès</dt><dd class="font-semibold">Rôles & permissions</dd></div>
+                            </dl>
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'users']) }}" class="mt-4 inline-flex text-sm font-semibold text-brand">Gérer l’équipe →</a>
+                        </article>
+                        <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="text-sm font-semibold text-brand">Appareils</p>
+                                    <h3 class="mt-1 text-lg font-semibold">Terminaux virtuels</h3>
+                                </div>
+                                <x-status-pill :tone="$virtualDevicesEnabled ? 'success' : 'neutral'">{{ $virtualDevicesEnabled ? 'Activé' : 'Désactivé' }}</x-status-pill>
+                            </div>
+                            <dl class="mt-4 space-y-3 text-sm">
+                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Terminaux</dt><dd class="font-semibold">{{ $settingsVirtualDeviceCount }}</dd></div>
+                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Actifs</dt><dd class="font-semibold">{{ $settingsVirtualDeviceActiveCount }}</dd></div>
+                                <div class="flex justify-between gap-3"><dt class="text-slate-500">Connectés</dt><dd class="font-semibold">{{ $settingsVirtualDeviceConnectedCount }}</dd></div>
+                            </dl>
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'virtual-devices']) }}" class="mt-4 inline-flex text-sm font-semibold text-brand">Configurer les terminaux →</a>
+                        </article>
+                    </div>
+                </div>
+            @elseif (in_array($settingsSection, $settingsReferenceSections, true))
                 <div class="xl:col-span-2">
                     @if ($settingsSection === 'taxes')
                         <div class="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
@@ -5249,6 +5385,121 @@
                     </form>
                 </article>
 
+                @elseif ($settingsSection === 'virtual-devices')
+                <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <p class="text-sm font-semibold text-brand">{{ $tr('Appareils') }}</p>
+                            <h2 class="mt-1 text-xl font-semibold">{{ $tr('Appareils virtuels') }}</h2>
+                            <p class="mt-1 max-w-3xl text-sm text-slate-500">
+                                {{ $tr('Chaque navigateur, caisse ou mobile doit choisir un terminal une seule fois. Le terminal reste verrouillé jusqu’à la déconnexion ou libération par un administrateur.') }}
+                            </p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            @if ($virtualDevicesEnabled)
+                                <a href="{{ route('devices.index') }}" class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">
+                                    {{ $tr('Gestion avancée') }}
+                                </a>
+                            @endif
+                            <form action="{{ route('settings.virtual-devices.update') }}" method="POST">
+                                @csrf
+                                <input type="hidden" name="virtual_devices_enabled" value="{{ $virtualDevicesEnabled ? '0' : '1' }}">
+                                <button class="inline-flex items-center justify-center rounded-lg {{ $virtualDevicesEnabled ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300' : 'bg-brand text-white shadow-sm shadow-indigo-500/20 hover:brightness-110' }} px-4 py-2.5 text-sm font-semibold transition" type="submit">
+                                    {{ $virtualDevicesEnabled ? $tr('Désactiver le module') : $tr('Activer le module') }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Statut</p>
+                            <div class="mt-2"><x-status-pill :tone="$virtualDevicesEnabled ? 'success' : 'neutral'">{{ $virtualDevicesEnabled ? 'Activé' : 'Désactivé' }}</x-status-pill></div>
+                            <p class="mt-3 text-sm text-slate-500">{{ $virtualDevicesEnabled ? 'Sélection obligatoire pour vendre et tracer les actions.' : 'La caisse fonctionne sans terminal obligatoire.' }}</p>
+                        </div>
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Terminaux</p>
+                            <p class="mt-2 text-3xl font-semibold">{{ $settingsVirtualDeviceCount }}</p>
+                            <p class="mt-1 text-sm text-slate-500">{{ $settingsVirtualDeviceActiveCount }} actif(s)</p>
+                        </div>
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Connexion</p>
+                            <p class="mt-2 text-3xl font-semibold">{{ $settingsVirtualDeviceConnectedCount }}</p>
+                            <p class="mt-1 text-sm text-slate-500">terminal(aux) occupé(s)</p>
+                        </div>
+                        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                            <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Règle</p>
+                            <p class="mt-2 text-sm font-semibold">Pas de changement silencieux</p>
+                            <p class="mt-1 text-sm text-slate-500">L’utilisateur doit se déconnecter ou libérer le terminal.</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
+                        <div class="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h3 class="font-semibold">État des appareils</h3>
+                                <p class="text-sm text-slate-500">Qui utilise quel terminal, depuis quand et dernière activité.</p>
+                            </div>
+                            <a href="{{ route('devices.index') }}" class="inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">
+                                Ajouter / modifier
+                            </a>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[920px] text-left text-sm">
+                                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:bg-white/5">
+                                    <tr>
+                                        <th class="px-4 py-3">Terminal</th>
+                                        <th class="px-4 py-3">Type</th>
+                                        <th class="px-4 py-3">Statut</th>
+                                        <th class="px-4 py-3">Connexion</th>
+                                        <th class="px-4 py-3">Utilisateur</th>
+                                        <th class="px-4 py-3">Depuis</th>
+                                        <th class="px-4 py-3">Dernière activité</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                    @forelse ($settingsVirtualDevices as $device)
+                                        @php
+                                            $session = $device->activeSession;
+                                        @endphp
+                                        <tr>
+                                            <td class="px-4 py-3">
+                                                <div class="font-semibold">{{ $device->name }}</div>
+                                                <div class="text-xs text-slate-500">{{ $device->code }}</div>
+                                            </td>
+                                            <td class="px-4 py-3">{{ ucfirst($device->type ?? 'terminal') }}</td>
+                                            <td class="px-4 py-3">
+                                                <x-status-pill :tone="$device->is_active ? 'success' : 'danger'">{{ $device->is_active ? 'Actif' : 'Inactif' }}</x-status-pill>
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <x-status-pill :tone="$session ? 'info' : 'neutral'">{{ $session ? 'Connecté' : 'Libre' }}</x-status-pill>
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                @if ($session)
+                                                    <div class="font-semibold">{{ optional($session->user)->name ?? 'Utilisateur inconnu' }}</div>
+                                                    <div class="text-xs text-slate-500">
+                                                        {{ collect([$session->platform, $session->browser, $session->ip_address])->filter()->implode(' · ') ?: \Illuminate\Support\Str::limit($session->user_agent ?: 'Appareil réel non identifié', 44) }}
+                                                    </div>
+                                                @else
+                                                    <span class="text-slate-500">—</span>
+                                                @endif
+                                            </td>
+                                            <td class="px-4 py-3">{{ $session ? $tzDate($session->connected_at) : '—' }}</td>
+                                            <td class="px-4 py-3">{{ $session ? $tzDate($session->last_seen_at) : '—' }}</td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="7" class="px-4 py-12 text-center text-slate-500">
+                                                Aucun terminal virtuel. Créez vos caisses web et appareils mobiles depuis la gestion avancée.
+                                            </td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </article>
+
                 @elseif ($settingsSection === 'hardware')
                 <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="flex items-start justify-between gap-4">
@@ -5267,26 +5518,17 @@
                                         <span class="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-900 text-lg text-white dark:bg-white dark:text-slate-950">🖥</span>
                                         <div>
                                             <div class="flex flex-wrap items-center gap-2">
-                                                <h3 class="font-semibold">{{ $tr('Appareils virtuels') }}</h3>
+                                                <h3 class="font-semibold">{{ $tr('Terminaux virtuels') }}</h3>
                                                 <x-status-pill :tone="$virtualDevicesEnabled ? 'success' : 'neutral'">{{ $virtualDevicesEnabled ? $tr('Activé') : $tr('Désactivé') }}</x-status-pill>
                                             </div>
                                             <p class="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-                                                {{ $tr('Associez chaque session à une caisse, tablette ou poste précis. Utile pour tracer les actions par terminal, mais optionnel pour les petites équipes.') }}
+                                                {{ $tr('La configuration des caisses web et mobiles possède maintenant sa propre section pour éviter de mélanger terminaux et matériel physique.') }}
                                             </p>
                                         </div>
                                     </div>
-                                    <div class="flex flex-wrap gap-2">
-                                        @if ($virtualDevicesEnabled)
-                                            <a href="{{ route('devices.index') }}" class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">{{ $tr('Gérer') }}</a>
-                                        @endif
-                                        <form action="{{ route('settings.virtual-devices.update') }}" method="POST">
-                                            @csrf
-                                            <input type="hidden" name="virtual_devices_enabled" value="{{ $virtualDevicesEnabled ? '0' : '1' }}">
-                                            <button class="inline-flex items-center justify-center rounded-lg {{ $virtualDevicesEnabled ? 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300' : 'bg-brand text-white shadow-sm shadow-indigo-500/20 hover:brightness-110' }} px-4 py-2.5 text-sm font-semibold transition" type="submit">
-                                                {{ $virtualDevicesEnabled ? $tr('Désactiver le module') : $tr('Activer le module') }}
-                                            </button>
-                                        </form>
-                                    </div>
+                                    <a href="{{ route('module', ['module' => 'settings', 'section' => 'virtual-devices']) }}" class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-950 dark:text-slate-200">
+                                        {{ $tr('Ouvrir les terminaux') }}
+                                    </a>
                                 </div>
                             </div>
 

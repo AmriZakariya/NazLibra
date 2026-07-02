@@ -500,7 +500,7 @@ class SyncController extends Controller
             'receipt_footer'          => data_get($tenant->settings, 'receipt.footer'),
             'features_virtual_devices'  => (bool) data_get($tenant->settings, 'features.virtual_devices', false),
             'business_mode'             => $tenant->business_mode ?? 'retail',
-            'business_activity'         => (string) data_get($tenant->settings, 'store.business_activity', \App\Support\ItemTypes::defaultActivity()),
+            'business_activity'         => \App\Support\ItemTypes::activityForTenant($tenant),
             'inventory_costing_method'  => (string) data_get($tenant->settings, 'inventory.costing_method', 'lifo'),
         ]);
     }

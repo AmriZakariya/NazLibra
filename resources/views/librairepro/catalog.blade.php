@@ -20,7 +20,9 @@
     ]));
     $exportLink = route('catalog.export', request()->query());
     $statusLabel = fn ($status) => ['active' => 'Actif', 'archived' => 'Archivé', 'out_of_stock' => 'Rupture'][$status] ?? $status;
-    $typeLabel = fn ($type) => ['book' => 'Livre', 'supply' => 'Produit', 'service' => 'Service'][$type] ?? $type;
+    $catalogTypeLabels = collect($itemTypeConfig ?? [])->mapWithKeys(fn ($config, $key) => [$key => $config['label'] ?? $key])->all() + ['service' => 'Service'];
+    $physicalTypeSummary = collect($itemTypeConfig ?? [])->pluck('label')->filter()->implode(' / ') ?: 'Article physique';
+    $typeLabel = fn ($type) => $catalogTypeLabels[$type] ?? $type;
     $sortIndicator = fn ($key) => $sort === $key ? ($direction === 'asc' ? ' ↑' : ' ↓') : '';
     $importLabels = [
         'items' => ['title' => 'Importer articles', 'hint' => "Fichier Liste d'articles .xlsx", 'example' => 'Exemple articles'],
@@ -35,7 +37,7 @@
             'services' => ['label' => 'Services', 'hint' => 'Prestations', 'href' => route('catalog', ['panel' => 'services'])],
         ],
         'Créer' => [
-            'ajouter' => ['label' => 'Ajouter article', 'hint' => 'Livre ou produit', 'href' => route('catalog', ['panel' => 'ajouter'])],
+            'ajouter' => ['label' => 'Ajouter article', 'hint' => $physicalTypeSummary, 'href' => route('catalog', ['panel' => 'ajouter'])],
             'ajouter-service' => ['label' => 'Ajouter service', 'hint' => 'Non physique', 'href' => route('catalog', ['panel' => 'ajouter-service'])],
             'import' => ['label' => 'Importer', 'hint' => 'Excel / CSV', 'href' => route('catalog', ['panel' => 'import', 'kind' => request('kind', 'items')])],
         ],
@@ -980,7 +982,7 @@
                 <form action="{{ route('catalog') }}" class="flex flex-wrap items-end gap-3">
                     <input type="hidden" name="panel" value="{{ $panel }}">
                     <label class="block min-w-[220px] flex-[1_1_280px]"><span class="text-xs font-semibold uppercase text-slate-500">Recherche rapide</span><input name="q" value="{{ $query }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="Nom, code barre, ISBN, SKU"></label>
-                    <label class="block min-w-[135px] flex-[1_1_145px]"><span class="text-xs font-semibold uppercase text-slate-500">Type</span><select name="type" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" @disabled($panel === 'services')><option value="all" @selected($type === 'all')>Tous</option><option value="book" @selected($type === 'book')>Livre</option><option value="supply" @selected($type === 'supply')>Papeterie</option><option value="service" @selected($type === 'service')>Service</option></select></label>
+                    <label class="block min-w-[135px] flex-[1_1_145px]"><span class="text-xs font-semibold uppercase text-slate-500">Type</span><select name="type" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" @disabled($panel === 'services')><option value="all" @selected($type === 'all')>Tous</option>@foreach ($catalogTypeLabels as $typeKey => $typeName)<option value="{{ $typeKey }}" @selected($type === $typeKey)>{{ $typeName }}</option>@endforeach</select></label>
                     <label class="block min-w-[180px] flex-[1_1_210px]"><span class="text-xs font-semibold uppercase text-slate-500">Catégorie</span><select name="category" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Toutes</option><option value="uncategorized" @selected($categoryFilter === 'uncategorized')>Sans catégorie</option>@foreach ($categories as $category)<option value="{{ $category->id }}" @selected((string) $categoryFilter === (string) $category->id)>{{ $category->name }}</option>@endforeach</select></label>
                     <label class="block min-w-[170px] flex-[1_1_190px]"><span class="text-xs font-semibold uppercase text-slate-500">Marque / éditeur</span><select name="brand" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Toutes</option>@foreach ($brands as $brand)<option value="{{ $brand->id }}" @selected((string) $brandFilter === (string) $brand->id)>{{ $brand->name }}</option>@endforeach</select></label>
                     <label class="block min-w-[140px] flex-[1_1_150px]"><span class="text-xs font-semibold uppercase text-slate-500">Unité</span><select name="unit" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Toutes</option>@foreach ($units as $unit)<option value="{{ $unit->id }}" @selected((string) $unitFilter === (string) $unit->id)>{{ $unit->name }}</option>@endforeach</select></label>
@@ -1197,11 +1199,11 @@
                             <div>
                                 <p class="text-xs font-semibold uppercase tracking-wide text-brand">{{ $tr('Catalogue · création') }}</p>
                                 <h2 class="mt-1 text-xl font-semibold text-slate-950 dark:text-white">{{ $tr('Ajouter un article') }}</h2>
-                                <p class="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-300">{{ $tr('Créez un livre ou produit physique avec les champs utiles à la caisse, au stock, aux étiquettes et aux imports depuis l’ancienne solution.') }}</p>
+                                <p class="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-300">{{ $tr('Créez un article physique adapté à votre activité avec les champs utiles à la caisse, au stock, aux étiquettes et aux imports.') }}</p>
                             </div>
                         </div>
                         <div class="app-action-row">
-                            <x-status-pill tone="primary">{{ $tr('Livre / produit') }}</x-status-pill>
+                            <x-status-pill tone="primary">{{ $physicalTypeSummary }}</x-status-pill>
                             <x-status-pill tone="info">{{ $tr('Référentiels rapides') }}</x-status-pill>
                         </div>
                     </div>

@@ -372,7 +372,7 @@ class ItemController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant   = $request->attributes->get('api_tenant');
-        $activity = (string) data_get($tenant->settings, 'store.business_activity', ItemTypes::defaultActivity());
+        $activity = ItemTypes::activityForTenant($tenant);
 
         $rawTypes = ItemTypes::physicalTypes($activity);
         $physical = array_values(array_map(fn ($key, $type) => [

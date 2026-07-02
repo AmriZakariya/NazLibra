@@ -269,20 +269,32 @@
                 ['key' => 'reports', 'label' => 'Rapports', 'icon' => '▥', 'href' => route('module', 'reports')],
                 ['key' => 'stores', 'label' => 'Magasin', 'icon' => '▣', 'href' => route('module', ['module' => 'settings', 'section' => 'warehouses'])],
                 ['key' => 'settings', 'label' => 'Paramètres', 'icon' => '⚙', 'href' => route('module', 'settings'), 'children' => [
-                    ['label' => 'Société', 'icon' => '▣', 'href' => route('module', ['module' => 'settings', 'section' => 'company'])],
-                    ['label' => 'Mode d’activité', 'icon' => '⌁', 'href' => route('module', ['module' => 'settings', 'section' => 'company']).'#business-mode'],
-                    ['label' => 'Modules', 'icon' => '☷', 'href' => route('module', ['module' => 'settings', 'section' => 'modules'])],
-                    ['label' => 'API SMS/WhatsApp', 'icon' => '▦', 'href' => route('module', ['module' => 'settings', 'section' => 'sms-api'])],
-                    ['label' => 'Liste des taxes', 'icon' => '%', 'href' => route('module', ['module' => 'settings', 'section' => 'taxes'])],
-                    ['label' => 'Liste des unités', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'units'])],
-                    ['label' => 'Types de paiement', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'payment-types'])],
-                    ['label' => 'Liste des pays', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'countries'])],
-                    ['label' => 'Liste des états', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'states'])],
-                    ['label' => 'Données démo', 'icon' => '🧹', 'href' => route('module', ['module' => 'settings', 'section' => 'demo-data'])],
-                    ['label' => 'Changer le mot de passe', 'icon' => '⌐', 'href' => route('module', ['module' => 'settings', 'section' => 'password'])],
+                    ['label' => 'Vue d’ensemble', 'icon' => '◉', 'href' => route('module', ['module' => 'settings', 'section' => 'overview'])],
+                    ['label' => 'Store & activité', 'icon' => '▣', 'href' => route('module', ['module' => 'settings', 'section' => 'company'])],
+                    ['label' => 'Société', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'company'])],
+                    ['label' => 'Magasins', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'warehouses'])],
+                    ['label' => 'Caisse & stock', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'store'])],
+                    ['label' => 'PDF', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'documents'])],
+                    ['label' => 'Thème', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'theme'])],
+                    ['label' => 'Modules', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'modules'])],
+                    ['label' => 'Compte & équipe', 'icon' => '♙', 'href' => route('module', ['module' => 'settings', 'section' => 'users'])],
+                    ['label' => 'Utilisateurs', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'users'])],
+                    ['label' => 'Rôles', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'roles'])],
+                    ['label' => 'Mot de passe', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'password'])],
+                    ['label' => 'Appareils', 'icon' => '🖥', 'href' => route('module', ['module' => 'settings', 'section' => 'virtual-devices'])],
+                    ['label' => 'Appareils virtuels', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'virtual-devices'])],
+                    ['label' => 'Matériel POS', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'hardware'])],
+                    ['label' => 'Référentiels & communication', 'icon' => '▦', 'href' => route('module', ['module' => 'settings', 'section' => 'taxes'])],
+                    ['label' => 'Taxes', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'taxes'])],
+                    ['label' => 'Unités', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'units'])],
+                    ['label' => 'Paiement', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'payment-types'])],
+                    ['label' => 'Pays', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'countries'])],
+                    ['label' => 'États', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'states'])],
+                    ['label' => 'Messagerie', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'messaging'])],
+                    ['label' => 'Modèles', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'message-templates'])],
+                    ['label' => 'API messages', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'sms-api'])],
+                    ['label' => 'Données démo', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'demo-data'])],
                     ...($isOwner ? [['label' => "Journal d'activité", 'icon' => '▥', 'href' => route('profile.activity')]] : []),
-                    ...($virtualDevicesEnabled ? [['label' => 'Appareils virtuels', 'icon' => '🖥', 'href' => route('devices.index')]] : []),
-                    ['label' => 'Matériel', 'icon' => '🖨', 'href' => route('module', ['module' => 'settings', 'section' => 'hardware'])],
                 ]],
             ];
             $nav = collect($nav)
@@ -679,6 +691,10 @@
                                 $accountTimezoneLabel = \App\Support\TenantClock::label($accountTenant);
                                 $accountTimezoneOffset = \App\Support\TenantClock::offset($accountTenant);
                                 $accountCurrentTime = \App\Support\TenantClock::currentTimeLabel($accountTenant);
+                                $accountBusinessMode = \App\Support\BusinessMode::current($accountTenant);
+                                $accountActivityKey = \App\Support\ItemTypes::activityForTenant($accountTenant);
+                                $accountActivityOptions = \App\Support\ItemTypes::activityOptions();
+                                $accountActivityLabel = $accountActivityOptions[$accountActivityKey]['label'] ?? \Illuminate\Support\Str::headline($accountActivityKey);
                                 $accountTenantUser = $accountTenant?->users()->whereKey($accountUser?->id)->first();
                                 $accountRoleKey = (string) ($accountTenantUser?->pivot?->role ?? '');
                                 $accountRoleName = \App\Models\Role::where('tenant_id', $accountTenant?->id)->where('key', $accountRoleKey)->value('name') ?: ucfirst($accountRoleKey ?: 'Aucun rôle');
@@ -707,6 +723,14 @@
                                         <span class="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">{{ $tr('Heure locale') }}: {{ $accountCurrentTime }}</span>
                                     </span>
                                 <span class="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand">{{ $accountTimezoneOffset }}</span>
+                            </a>
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'store']) }}" class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+                                <span class="min-w-0">
+                                    <span class="block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr("Type d'activité") }}</span>
+                                    <strong class="mt-0.5 block truncate text-slate-900 dark:text-white">{{ $accountActivityLabel }}</strong>
+                                    <span class="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">{{ $accountBusinessMode['label'] ?? $tr('Mode commerce') }}</span>
+                                </span>
+                                <span class="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20">{{ $accountBusinessMode['short_label'] ?? 'POS' }}</span>
                             </a>
                             @if ($virtualDevicesEnabled)
                                 @php

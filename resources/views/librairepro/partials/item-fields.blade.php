@@ -15,6 +15,7 @@
         $typeConfig[$item->type] = ['label' => ucfirst($item->type), 'hint' => '', 'fields' => null];
     }
     $typeOptions = $typeConfig;
+    $hasBookFieldProfile = collect($typeOptions)->contains(fn ($option) => ($option['fields'] ?? null) === 'book');
     $storeOptions = collect($stores ?? [])->filter(fn ($store) => data_get($store, 'is_active', true));
     $defaultStoreName = data_get($currentStore ?? [], 'name', 'Magasin principal');
     $warehouseValue = old('warehouse', $item?->warehouse ?? $defaultStoreName);
@@ -47,7 +48,7 @@
     <div class="mt-1 grid gap-2 {{ $typeCols }}" data-type-selector>
         @foreach ($typeOptions as $value => $option)
             <label class="app-type-choice">
-                <input type="radio" name="type" value="{{ $value }}" @checked($typeValue === $value)>
+                <input type="radio" name="type" value="{{ $value }}" data-fields="{{ $option['fields'] ?? '' }}" @checked($typeValue === $value)>
                 <span class="app-type-choice-card">{{ $option['label'] }}<small>{{ $option['hint'] }}</small></span>
             </label>
         @endforeach
@@ -146,6 +147,7 @@
     <input name="nb_item" type="number" min="0" value="{{ old('nb_item', $item?->nb_item) }}" class="{{ $input }}" placeholder="Qté dans le pack">
 </label>
 
+@if ($hasBookFieldProfile)
 {{-- ══ FICHE LIVRE (book-only fields) ══════════════════════════════════════════ --}}
 <div class="{{ $section }} item-book-field">Fiche livre</div>
 
@@ -193,6 +195,7 @@
     <span class="text-xs font-semibold uppercase text-slate-500">Collection / Série</span>
     <input name="collection" value="{{ old('collection', $item?->collection) }}" class="{{ $input }}">
 </label>
+@endif
 
 {{-- ══ PRIX, TVA & STOCK ════════════════════════════════════════════════════════ --}}
 <div class="{{ $section }}">Prix, TVA &amp; stock</div>
@@ -492,9 +495,10 @@
         var packField  = form.querySelector('[data-pack-field]');
 
         function updateVisibility() {
-            var type = Array.from(typeRadios).find(r => r.checked)?.value || 'book';
+            var selectedType = Array.from(typeRadios).find(r => r.checked);
+            var fieldProfile = selectedType?.dataset?.fields || '';
             bookFields.forEach(function (el) {
-                el.style.display = type === 'book' ? '' : 'none';
+                el.style.display = fieldProfile === 'book' ? '' : 'none';
             });
         }
 

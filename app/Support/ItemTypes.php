@@ -13,12 +13,18 @@ class ItemTypes
                 'supply' => ['label' => 'Produit',  'hint' => 'Fournitures, papeterie', 'fields' => null],
             ],
         ],
-        'cafe' => [
-            'label' => 'Café / Restaurant',
+        'restaurant' => [
+            'label' => 'Restaurant',
             'types' => [
-                'drink'  => ['label' => 'Boisson',      'hint' => 'Café, thé, jus, eau…',   'fields' => null],
-                'food'   => ['label' => 'Plat / Snack', 'hint' => 'Nourriture préparée',    'fields' => null],
-                'supply' => ['label' => 'Produit',      'hint' => 'Stock physique divers',  'fields' => null],
+                'book'   => ['label' => 'Plat / menu',     'hint' => 'Menu, assiette, snack…', 'fields' => null],
+                'supply' => ['label' => 'Produit cuisine', 'hint' => 'Ingrédients, stock divers', 'fields' => null],
+            ],
+        ],
+        'cafe' => [
+            'label' => 'Café / Coffee shop',
+            'types' => [
+                'book'   => ['label' => 'Boisson / snack', 'hint' => 'Café, thé, jus, snack…', 'fields' => null],
+                'supply' => ['label' => 'Produit comptoir', 'hint' => 'Stock physique divers', 'fields' => null],
             ],
         ],
         'pharmacy' => [
@@ -52,6 +58,8 @@ class ItemTypes
     /** Label for an activity key. */
     public static function activityLabel(string $key): string
     {
+        $key = self::normalizeActivity($key);
+
         return self::$activities[$key]['label'] ?? 'Commerce général';
     }
 
@@ -64,6 +72,8 @@ class ItemTypes
     /** Physical item types for a given activity (excludes Service). */
     public static function physicalTypes(string $activity): array
     {
+        $activity = self::normalizeActivity($activity);
+
         return (self::$activities[$activity] ?? self::$activities['general'])['types'];
     }
 
@@ -71,6 +81,67 @@ class ItemTypes
     public static function validTypes(string $activity): array
     {
         return array_merge(array_keys(self::physicalTypes($activity)), ['service']);
+    }
+
+    public static function normalizeActivity(?string $activity): string
+    {
+        $activity = str_replace([' ', '-'], '_', strtolower(trim((string) $activity)));
+
+        $aliases = [
+            'library' => 'bookstore',
+            'book' => 'bookstore',
+            'books' => 'bookstore',
+            'livrairie' => 'bookstore',
+            'restaurant' => 'restaurant',
+            'resto' => 'restaurant',
+            'coffee' => 'cafe',
+            'coffee_shop' => 'cafe',
+            'café' => 'cafe',
+            'pharmacie' => 'pharmacy',
+            'drugstore' => 'general',
+            'droguerie' => 'general',
+            'retail' => 'general',
+            'commerce' => 'general',
+        ];
+
+        $activity = $aliases[$activity] ?? $activity;
+
+        return array_key_exists($activity, self::$activities) ? $activity : self::defaultActivity();
+    }
+
+    public static function activityFromBusinessMode(?string $businessMode): string
+    {
+        return match (BusinessMode::normalize($businessMode)) {
+            'restaurant' => 'restaurant',
+            'coffee' => 'cafe',
+            'pharmacy' => 'pharmacy',
+            'library' => 'bookstore',
+            'drugstore', 'retail' => 'general',
+            default => self::defaultActivity(),
+        };
+    }
+
+    public static function activityForTenant(mixed $tenant): string
+    {
+        $explicit = data_get($tenant?->settings, 'store.business_activity');
+        $derived = self::activityFromBusinessMode(
+            data_get($tenant?->settings, 'company_profile.business_mode')
+            ?? $tenant?->business_mode
+            ?? $tenant?->mode
+            ?? null
+        );
+
+        if (is_string($explicit) && trim($explicit) !== '') {
+            $normalized = self::normalizeActivity($explicit);
+
+            if ($normalized === self::defaultActivity() && $derived !== self::defaultActivity()) {
+                return $derived;
+            }
+
+            return $normalized;
+        }
+
+        return $derived;
     }
 
     /** Default activity key when tenant setting is absent. */

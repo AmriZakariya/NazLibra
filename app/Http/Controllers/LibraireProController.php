@@ -45,6 +45,7 @@ use App\Models\Tax;
 use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\VariantOption;
+use App\Models\VirtualDevice;
 use App\Models\VirtualDeviceSession;
 use App\Rules\FourDigitPin;
 use App\Services\CashRegisterService;
@@ -887,8 +888,8 @@ class LibraireProController extends Controller
             'currentStoreLocation' => $currentStoreLocation,
             'suggestedItemCode' => $this->nextItemCode($tenant->id),
             'inventoryCostingMethod' => data_get($tenant->settings, 'inventory.costing_method', 'lifo'),
-            'businessActivity' => (string) data_get($tenant->settings, 'store.business_activity', ItemTypes::defaultActivity()),
-            'itemTypeConfig' => ItemTypes::physicalTypes((string) data_get($tenant->settings, 'store.business_activity', ItemTypes::defaultActivity())),
+            'businessActivity' => ItemTypes::activityForTenant($tenant),
+            'itemTypeConfig' => ItemTypes::physicalTypes(ItemTypes::activityForTenant($tenant)),
             'stockStats' => [
                 'adjustments' => StockAdjustment::where('tenant_id', $tenant->id)->count(),
                 'transfers' => StockTransfer::where('tenant_id', $tenant->id)->count(),
@@ -2802,6 +2803,11 @@ class LibraireProController extends Controller
             'search_placeholder' => $businessMode['search_placeholder'],
             'type_labels' => $businessMode['type_labels'],
         ]);
+        $settings['store'] = array_merge($settings['store'] ?? [], [
+            'business_activity' => data_get($settings, 'store.business_activity')
+                ? ItemTypes::normalizeActivity(data_get($settings, 'store.business_activity'))
+                : ItemTypes::activityFromBusinessMode($businessMode['key']),
+        ]);
         $settings['receipt_header'] = $data['store_name'];
         $settings['locale'] = $data['language_id'] === 'ar' ? 'ar_MA' : ($data['language_id'] === 'en' ? 'en_US' : 'fr_MA');
         $settings['number_format'] = [
@@ -2993,7 +2999,7 @@ class LibraireProController extends Controller
             'costing_method' => $data['costing_method'],
         ]);
         $settings['store'] = array_merge($settings['store'] ?? [], [
-            'business_activity' => $data['business_activity'],
+            'business_activity' => ItemTypes::normalizeActivity($data['business_activity']),
         ]);
         $settings['pos'] = array_merge($settings['pos'] ?? [], [
             'editable_price' => $request->boolean('editable_price'),
@@ -7137,6 +7143,10 @@ class LibraireProController extends Controller
             'permissionCatalog' => $this->permissionCatalog(),
             'settingsTaxes' => Tax::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'settingsUnits' => Unit::where('tenant_id', $tenant->id)->orderBy('name')->get(),
+            'settingsVirtualDevices' => VirtualDevice::where('tenant_id', $tenant->id)
+                ->with(['activeSession.user'])
+                ->orderBy('name')
+                ->get(),
             'settingsTaxGroups' => $this->settingsRecords($tenant, 'tax_groups'),
             'paymentTypes' => $this->settingsRecords($tenant, 'payment_types'),
             'countries' => $this->settingsRecords($tenant, 'countries'),
@@ -9908,7 +9918,7 @@ class LibraireProController extends Controller
             }
         }
 
-        $activity = (string) data_get($tenant->settings, 'store.business_activity', ItemTypes::defaultActivity());
+        $activity = ItemTypes::activityForTenant($tenant);
         $validTypes = ItemTypes::validTypes($activity);
         // When editing, always allow the item's existing type (activity may have changed since creation).
         if ($item && ! in_array($item->type, $validTypes, true)) {
