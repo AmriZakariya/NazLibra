@@ -176,16 +176,16 @@ Route::prefix('v1')->group(function (): void {
 
         // ── Users & PIN ───────────────────────────────────────────────────────
         Route::get('users',                 [UserController::class, 'index']);
-        Route::put('users/{user}',          [UserController::class, 'update']);
-        Route::post('users/set-pin',        [UserController::class, 'setPin']);
-        Route::delete('users/pin',          [UserController::class, 'removePin']);
+        Route::put('users/{user}',          [UserController::class, 'readOnlyMutation']);
+        Route::post('users/set-pin',        [UserController::class, 'readOnlyMutation']);
+        Route::delete('users/pin',          [UserController::class, 'readOnlyMutation']);
         Route::post('auth/pin-verify',      [UserController::class, 'pinVerify']);
 
         // ── Roles ─────────────────────────────────────────────────────────────
         Route::get('roles',           [RoleController::class, 'index']);
-        Route::post('roles',          [RoleController::class, 'store']);
-        Route::put('roles/{role}',    [RoleController::class, 'update']);
-        Route::delete('roles/{role}', [RoleController::class, 'destroy']);
+        Route::post('roles',          [RoleController::class, 'readOnlyMutation']);
+        Route::put('roles/{role}',    [RoleController::class, 'readOnlyMutation']);
+        Route::delete('roles/{role}', [RoleController::class, 'readOnlyMutation']);
 
         // ── Virtual devices ───────────────────────────────────────────────────
         Route::get('virtual-devices', [VirtualDeviceApiController::class, 'index']);
@@ -202,8 +202,8 @@ Route::prefix('v1')->group(function (): void {
 
         // ── Printer groups ────────────────────────────────────────────────────
         Route::get('printer-groups',             [PrinterController::class, 'indexGroups']);
-        Route::post('printer-groups',            [PrinterController::class, 'storeGroup']);
-        Route::put('printer-groups/{id}',        [PrinterController::class, 'updateGroup']);
-        Route::delete('printer-groups/{id}',     [PrinterController::class, 'destroyGroup']);
+        Route::post('printer-groups',            [PrinterController::class, 'readOnlyGroupMutation']);
+        Route::put('printer-groups/{id}',        [PrinterController::class, 'readOnlyGroupMutation']);
+        Route::delete('printer-groups/{id}',     [PrinterController::class, 'readOnlyGroupMutation']);
     });
 });

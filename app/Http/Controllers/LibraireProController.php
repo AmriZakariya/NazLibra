@@ -3631,7 +3631,22 @@ class LibraireProController extends Controller
         abort_unless($role->tenant_id === $tenant->id, 403);
         abort_if($role->isProtected(), 403, 'Ce rôle système ne peut pas être modifié.');
 
-        $role->update($this->validateRole($request, $tenant, $role));
+        $oldKey = $role->key;
+        $data = $this->validateRole($request, $tenant, $role);
+
+        DB::transaction(function () use ($role, $tenant, $oldKey, $data): void {
+            $role->update($data);
+
+            if ($oldKey !== $role->key) {
+                DB::table('tenant_user')
+                    ->where('tenant_id', $tenant->id)
+                    ->where('role', $oldKey)
+                    ->update([
+                        'role' => $role->key,
+                        'updated_at' => now(),
+                    ]);
+            }
+        });
 
         return redirect()
             ->route('module', ['module' => 'settings', 'section' => 'roles'])

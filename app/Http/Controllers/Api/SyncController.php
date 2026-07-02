@@ -690,7 +690,7 @@ class SyncController extends Controller
      * GET /api/v1/sync/printers
      *
      * Returns the full printer configuration for the requesting virtual device.
-     * Reads X-Virtual-Device-Id header; null means tenant-wide (no device scope).
+     * Reads X-Virtual-Device-Id header; the terminal scope is required.
      */
     public function printers(Request $request): JsonResponse
     {

@@ -21,7 +21,24 @@ class RoleController extends Controller
 
         $roles = $tenant->roles()->get()->map(fn ($r) => $this->formatRole($r));
 
-        return response()->json(['ok' => true, 'roles' => $roles]);
+        return response()
+            ->json(['ok' => true, 'roles' => $roles])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
+    }
+
+    /**
+     * Mobile POS role management is intentionally read-only.
+     * Role changes must be done from the web back-office.
+     */
+    public function readOnlyMutation(): JsonResponse
+    {
+        return response()->json([
+            'ok' => false,
+            'error' => 'mobile_user_management_read_only',
+            'message' => 'La gestion des rôles se fait depuis le web.',
+        ], 405);
     }
 
     /**

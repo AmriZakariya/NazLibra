@@ -8,6 +8,7 @@ use App\Models\PrinterGroup;
 use App\Models\PrinterGroupCategory;
 use App\Models\PrinterGroupPrinter;
 use App\Models\Tenant;
+use App\Models\VirtualDevice;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,22 +20,45 @@ class PrinterController extends Controller
 
     /**
      * Resolve the virtual device ID from the X-Virtual-Device-Id header.
-     * Returns null when the header is absent (scopes to all devices for tenant).
+     * Printers are terminal-owned, so every printer endpoint must be scoped.
      */
-    private function resolveVirtualDeviceId(Request $request): ?int
+    private function resolveVirtualDeviceId(Request $request): int
     {
+        /** @var Tenant $tenant */
+        $tenant = $request->attributes->get('api_tenant');
         $header = trim((string) $request->header('X-Virtual-Device-Id', ''));
-        if ($header === '') {
-            return null;
+
+        if ($header === '' || ! ctype_digit($header)) {
+            abort(response()->json([
+                'ok' => false,
+                'error' => 'virtual_device_required',
+                'message' => 'Un terminal valide est requis pour gérer les imprimantes.',
+            ], 422));
         }
 
-        return ctype_digit($header) ? (int) $header : null;
+        $id = (int) $header;
+
+        $exists = VirtualDevice::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereKey($id)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $exists) {
+            abort(response()->json([
+                'ok' => false,
+                'error' => 'invalid_virtual_device',
+                'message' => 'Le terminal sélectionné est invalide ou inactif.',
+            ], 422));
+        }
+
+        return $id;
     }
 
     /**
      * Build the full config payload for the given tenant + virtual_device_id.
      */
-    private function buildConfig(int $tenantId, ?int $virtualDeviceId): array
+    private function buildConfig(int $tenantId, int $virtualDeviceId): array
     {
         $printers = Printer::withTrashed()
             ->where('tenant_id', $tenantId)
@@ -106,7 +130,7 @@ class PrinterController extends Controller
         ]);
 
         $printer = Printer::withTrashed()->updateOrCreate(
-            ['id' => $data['id'], 'tenant_id' => $tenant->id],
+            ['id' => $data['id'], 'tenant_id' => $tenant->id, 'virtual_device_id' => $virtualDeviceId],
             array_merge($data, ['tenant_id' => $tenant->id, 'virtual_device_id' => $virtualDeviceId, 'deleted_at' => null])
         );
 
@@ -118,9 +142,11 @@ class PrinterController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
+        $virtualDeviceId = $this->resolveVirtualDeviceId($request);
 
         $printer = Printer::withTrashed()
             ->where('tenant_id', $tenant->id)
+            ->where('virtual_device_id', $virtualDeviceId)
             ->findOrFail($id);
 
         $data = $request->validate([
@@ -145,8 +171,11 @@ class PrinterController extends Controller
     {
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
+        $virtualDeviceId = $this->resolveVirtualDeviceId($request);
 
-        $printer = Printer::where('tenant_id', $tenant->id)->findOrFail($id);
+        $printer = Printer::where('tenant_id', $tenant->id)
+            ->where('virtual_device_id', $virtualDeviceId)
+            ->findOrFail($id);
         $printer->delete();
 
         return response()->json(['ok' => true]);
@@ -164,6 +193,15 @@ class PrinterController extends Controller
         $config = $this->buildConfig($tenant->id, $virtualDeviceId);
 
         return response()->json(['ok' => true, ...$config]);
+    }
+
+    public function readOnlyGroupMutation(): JsonResponse
+    {
+        return response()->json([
+            'ok' => false,
+            'error' => 'mobile_printer_groups_read_only',
+            'message' => 'La gestion des groupes d’impression se fait depuis le web.',
+        ], 405);
     }
 
     /** POST /api/v1/printer-groups */
@@ -274,50 +312,17 @@ class PrinterController extends Controller
             'printers.*.cut_paper'                => ['sometimes', 'boolean'],
             'printers.*.copies'                   => ['sometimes', 'integer', 'min:1', 'max:255'],
             'printers.*.auto_print_on_checkout'   => ['sometimes', 'boolean'],
-
-            'printer_groups'                      => ['sometimes', 'array'],
-            'printer_groups.*.id'                 => ['required', 'string', 'size:36'],
-            'printer_groups.*.name'               => ['required', 'string', 'max:255'],
-            'printer_groups.*.is_receipt_group'   => ['sometimes', 'boolean'],
-            'printer_groups.*.print_mode'         => ['sometimes', Rule::in(['primary_fallback', 'simultaneous'])],
-
-            'printer_group_printers'              => ['sometimes', 'array'],
-            'printer_group_printers.*.group_id'   => ['required', 'string', 'size:36'],
-            'printer_group_printers.*.printer_id' => ['required', 'string', 'size:36'],
-            'printer_group_printers.*.priority'   => ['sometimes', 'integer', 'min:0', 'max:255'],
-
-            'printer_group_categories'              => ['sometimes', 'array'],
-            'printer_group_categories.*.group_id'   => ['required', 'string', 'size:36'],
-            'printer_group_categories.*.category_id'=> ['nullable', 'integer'],
         ]);
 
         DB::transaction(function () use ($tenant, $virtualDeviceId, $data): void {
-            // Get group IDs belonging to this scope before deleting
-            $existingGroupIds = PrinterGroup::withTrashed()
-                ->where('tenant_id', $tenant->id)
-                ->where('virtual_device_id', $virtualDeviceId)
-                ->pluck('id');
-
-            // Delete pivot data for existing groups
-            if ($existingGroupIds->isNotEmpty()) {
-                PrinterGroupPrinter::whereIn('group_id', $existingGroupIds)->delete();
-                PrinterGroupCategory::whereIn('group_id', $existingGroupIds)->delete();
-            }
-
-            // Hard-delete existing printers and groups for this scope
+            // Mobile owns only the terminal printer list. Groups/routing stay web-managed.
             Printer::withTrashed()
-                ->where('tenant_id', $tenant->id)
-                ->where('virtual_device_id', $virtualDeviceId)
-                ->forceDelete();
-
-            PrinterGroup::withTrashed()
                 ->where('tenant_id', $tenant->id)
                 ->where('virtual_device_id', $virtualDeviceId)
                 ->forceDelete();
 
             $now = now()->toDateTimeString();
 
-            // Insert printers
             if (! empty($data['printers'])) {
                 $rows = array_map(fn ($p) => array_merge([
                     'connection_type'        => 'tcp',
@@ -338,43 +343,6 @@ class PrinterController extends Controller
 
                 Printer::insert($rows);
             }
-
-            // Insert printer groups
-            if (! empty($data['printer_groups'])) {
-                $rows = array_map(fn ($g) => array_merge([
-                    'is_receipt_group' => false,
-                    'print_mode'       => 'primary_fallback',
-                ], $g, [
-                    'tenant_id'        => $tenant->id,
-                    'virtual_device_id'=> $virtualDeviceId,
-                    'created_at'       => $now,
-                    'updated_at'       => $now,
-                    'deleted_at'       => null,
-                ]), $data['printer_groups']);
-
-                PrinterGroup::insert($rows);
-            }
-
-            // Insert pivot: printer_group_printers
-            if (! empty($data['printer_group_printers'])) {
-                $rows = array_map(fn ($gp) => [
-                    'group_id'   => $gp['group_id'],
-                    'printer_id' => $gp['printer_id'],
-                    'priority'   => $gp['priority'] ?? 0,
-                ], $data['printer_group_printers']);
-
-                PrinterGroupPrinter::insert($rows);
-            }
-
-            // Insert pivot: printer_group_categories
-            if (! empty($data['printer_group_categories'])) {
-                $rows = array_map(fn ($gc) => [
-                    'group_id'    => $gc['group_id'],
-                    'category_id' => $gc['category_id'] ?? null,
-                ], $data['printer_group_categories']);
-
-                PrinterGroupCategory::insert($rows);
-            }
         });
 
         $config = $this->buildConfig($tenant->id, $virtualDeviceId);
@@ -390,22 +358,7 @@ class PrinterController extends Controller
         $virtualDeviceId = $this->resolveVirtualDeviceId($request);
 
         DB::transaction(function () use ($tenant, $virtualDeviceId): void {
-            $existingGroupIds = PrinterGroup::withTrashed()
-                ->where('tenant_id', $tenant->id)
-                ->where('virtual_device_id', $virtualDeviceId)
-                ->pluck('id');
-
-            if ($existingGroupIds->isNotEmpty()) {
-                PrinterGroupPrinter::whereIn('group_id', $existingGroupIds)->delete();
-                PrinterGroupCategory::whereIn('group_id', $existingGroupIds)->delete();
-            }
-
             Printer::withTrashed()
-                ->where('tenant_id', $tenant->id)
-                ->where('virtual_device_id', $virtualDeviceId)
-                ->forceDelete();
-
-            PrinterGroup::withTrashed()
                 ->where('tenant_id', $tenant->id)
                 ->where('virtual_device_id', $virtualDeviceId)
                 ->forceDelete();

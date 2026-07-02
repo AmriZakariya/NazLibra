@@ -29,46 +29,39 @@ class PinValidationTest extends TestCase
         $this->cashier = User::where('email', 'caisse@librairie-atlas.ma')->firstOrFail();
     }
 
-    public function test_api_accepts_0000_and_other_exact_four_digit_pins(): void
+    public function test_web_user_pin_management_accepts_0000_and_other_exact_four_digit_pins(): void
     {
-        $token = $this->ownerToken();
-
         foreach (['0000', '2468'] as $pin) {
-            $this->withToken($token)->postJson('/api/v1/users/set-pin', [
+            $this->actingAs($this->owner)->put(route('settings.users.pin', $this->owner), [
                 'pin' => $pin,
                 'pin_confirmation' => $pin,
-            ])->assertOk();
+            ])->assertRedirect(route('module', ['module' => 'settings', 'section' => 'users']));
 
             $this->assertTrue(Hash::check($pin, $this->owner->fresh()->pin_hash));
         }
     }
 
-    public function test_api_rejects_every_non_exact_ascii_four_digit_pin(): void
+    public function test_web_user_pin_management_rejects_every_non_exact_ascii_four_digit_pin(): void
     {
-        $token = $this->ownerToken();
-
         foreach (['123', '12345', '12a4', ' 1234', '1234 ', '+123', '-123', '12.3', '١٢٣٤'] as $pin) {
-            $this->withToken($token)->postJson('/api/v1/users/set-pin', [
+            $this->actingAs($this->owner)->put(route('settings.users.pin', $this->owner), [
                 'pin' => $pin,
                 'pin_confirmation' => $pin,
-            ])->assertUnprocessable()
-                ->assertJsonValidationErrors('pin');
+            ])->assertSessionHasErrors('pin');
         }
     }
 
-    public function test_api_rejects_non_string_pin_and_confirmation_mismatch(): void
+    public function test_web_user_pin_management_rejects_non_string_pin_and_confirmation_mismatch(): void
     {
-        $token = $this->ownerToken();
-
-        $this->withToken($token)->postJson('/api/v1/users/set-pin', [
+        $this->actingAs($this->owner)->put(route('settings.users.pin', $this->owner), [
             'pin' => 1234,
             'pin_confirmation' => 1234,
-        ])->assertUnprocessable()->assertJsonValidationErrors('pin');
+        ])->assertSessionHasErrors('pin');
 
-        $this->withToken($token)->postJson('/api/v1/users/set-pin', [
+        $this->actingAs($this->owner)->put(route('settings.users.pin', $this->owner), [
             'pin' => '1234',
             'pin_confirmation' => '4321',
-        ])->assertUnprocessable()->assertJsonValidationErrors('pin');
+        ])->assertSessionHasErrors('pin');
     }
 
     public function test_pin_verify_rejects_bad_format_without_revoking_current_token(): void

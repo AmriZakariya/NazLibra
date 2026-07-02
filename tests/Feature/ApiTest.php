@@ -6,6 +6,8 @@ use App\Models\Item;
 use App\Models\ItemLocationStock;
 use App\Models\CashRegisterMovement;
 use App\Models\Location;
+use App\Models\Printer;
+use App\Models\PrinterGroup;
 use App\Models\Role;
 use App\Models\Sale;
 use App\Models\SaleReturn;
@@ -130,6 +132,209 @@ class ApiTest extends TestCase
 
         $this->assertSame('owner', data_get($listedOwner, 'role'));
         $this->assertSame(['*'], data_get($listedOwner, 'abilities'));
+    }
+
+    public function test_mobile_user_and_role_management_api_is_read_only(): void
+    {
+        $token = $this->apiToken();
+        $role = $this->tenant->roles()->create([
+            'name' => 'API read-only test',
+            'key' => 'api_read_only_test',
+            'permissions' => ['sales.view'],
+            'is_system' => false,
+        ]);
+
+        $this->withToken($token)
+            ->putJson('/api/v1/users/'.$this->user->id, ['role' => 'cashier'])
+            ->assertStatus(405)
+            ->assertJsonPath('error', 'mobile_user_management_read_only');
+
+        $this->withToken($token)
+            ->postJson('/api/v1/users/set-pin', [
+                'pin' => '1234',
+                'pin_confirmation' => '1234',
+            ])
+            ->assertStatus(405)
+            ->assertJsonPath('error', 'mobile_user_management_read_only');
+
+        $this->withToken($token)
+            ->deleteJson('/api/v1/users/pin')
+            ->assertStatus(405)
+            ->assertJsonPath('error', 'mobile_user_management_read_only');
+
+        $this->withToken($token)
+            ->postJson('/api/v1/roles', [
+                'name' => 'Mobile role',
+                'key' => 'mobile_role',
+                'permissions' => ['sales.view'],
+            ])
+            ->assertStatus(405)
+            ->assertJsonPath('error', 'mobile_user_management_read_only');
+
+        $this->withToken($token)
+            ->putJson('/api/v1/roles/'.$role->id, ['name' => 'Changed'])
+            ->assertStatus(405)
+            ->assertJsonPath('error', 'mobile_user_management_read_only');
+
+        $this->withToken($token)
+            ->deleteJson('/api/v1/roles/'.$role->id)
+            ->assertStatus(405)
+            ->assertJsonPath('error', 'mobile_user_management_read_only');
+    }
+
+    public function test_printers_are_scoped_to_selected_virtual_device(): void
+    {
+        $token = $this->apiToken();
+        $firstDevice = VirtualDevice::create([
+            'tenant_id' => $this->tenant->id,
+            'location_id' => $this->location->id,
+            'name' => 'Printer terminal A',
+            'code' => 'PRN-A',
+            'type' => 'mobile',
+            'is_active' => true,
+        ]);
+        $secondDevice = VirtualDevice::create([
+            'tenant_id' => $this->tenant->id,
+            'location_id' => $this->location->id,
+            'name' => 'Printer terminal B',
+            'code' => 'PRN-B',
+            'type' => 'mobile',
+            'is_active' => true,
+        ]);
+
+        $printerId = \Illuminate\Support\Str::uuid()->toString();
+
+        $this->withToken($token)
+            ->postJson('/api/v1/printers', [
+                'id' => $printerId,
+                'name' => 'Kitchen A',
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'virtual_device_required');
+
+        $this->withToken($token)
+            ->getJson('/api/v1/sync/printers')
+            ->assertStatus(422)
+            ->assertJsonPath('error', 'virtual_device_required');
+
+        $this->withToken($token)
+            ->withHeader('X-Virtual-Device-Id', (string) $firstDevice->id)
+            ->postJson('/api/v1/printers', [
+                'id' => $printerId,
+                'name' => 'Kitchen A',
+                'connection_type' => 'tcp',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('printer.virtual_device_id', $firstDevice->id);
+
+        $this->assertDatabaseHas('printers', [
+            'id' => $printerId,
+            'tenant_id' => $this->tenant->id,
+            'virtual_device_id' => $firstDevice->id,
+        ]);
+
+        $this->withToken($token)
+            ->withHeader('X-Virtual-Device-Id', (string) $firstDevice->id)
+            ->getJson('/api/v1/printers')
+            ->assertOk()
+            ->assertJsonCount(1, 'printers')
+            ->assertJsonPath('printers.0.id', $printerId);
+
+        $this->withToken($token)
+            ->withHeader('X-Virtual-Device-Id', (string) $secondDevice->id)
+            ->getJson('/api/v1/printers')
+            ->assertOk()
+            ->assertJsonCount(0, 'printers');
+
+        $this->withToken($token)
+            ->withHeader('X-Virtual-Device-Id', (string) $secondDevice->id)
+            ->putJson('/api/v1/printers/'.$printerId, ['name' => 'Wrong terminal'])
+            ->assertNotFound();
+
+        $this->withToken($token)
+            ->withHeader('X-Virtual-Device-Id', (string) $secondDevice->id)
+            ->deleteJson('/api/v1/printers/'.$printerId)
+            ->assertNotFound();
+    }
+
+    public function test_mobile_printer_group_management_api_is_read_only(): void
+    {
+        $token = $this->apiToken();
+
+        $this->withToken($token)
+            ->postJson('/api/v1/printer-groups', [
+                'id' => \Illuminate\Support\Str::uuid()->toString(),
+                'name' => 'Mobile group',
+            ])
+            ->assertStatus(405)
+            ->assertJsonPath('error', 'mobile_printer_groups_read_only');
+
+        $this->withToken($token)
+            ->putJson('/api/v1/printer-groups/'.\Illuminate\Support\Str::uuid()->toString(), [
+                'name' => 'Changed',
+            ])
+            ->assertStatus(405)
+            ->assertJsonPath('error', 'mobile_printer_groups_read_only');
+
+        $this->withToken($token)
+            ->deleteJson('/api/v1/printer-groups/'.\Illuminate\Support\Str::uuid()->toString())
+            ->assertStatus(405)
+            ->assertJsonPath('error', 'mobile_printer_groups_read_only');
+    }
+
+    public function test_printer_config_push_replaces_only_terminal_printers_and_keeps_web_groups(): void
+    {
+        $token = $this->apiToken();
+        $device = VirtualDevice::create([
+            'tenant_id' => $this->tenant->id,
+            'location_id' => $this->location->id,
+            'name' => 'Printer terminal',
+            'code' => 'PRN-C',
+            'type' => 'mobile',
+            'is_active' => true,
+        ]);
+
+        $oldPrinter = Printer::create([
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'tenant_id' => $this->tenant->id,
+            'virtual_device_id' => $device->id,
+            'name' => 'Old printer',
+        ]);
+        $group = PrinterGroup::create([
+            'id' => \Illuminate\Support\Str::uuid()->toString(),
+            'tenant_id' => $this->tenant->id,
+            'virtual_device_id' => $device->id,
+            'name' => 'Web-managed group',
+            'is_receipt_group' => true,
+        ]);
+        $newPrinterId = \Illuminate\Support\Str::uuid()->toString();
+
+        $this->withToken($token)
+            ->withHeader('X-Virtual-Device-Id', (string) $device->id)
+            ->postJson('/api/v1/printers/push-config', [
+                'printers' => [
+                    ['id' => $newPrinterId, 'name' => 'New terminal printer'],
+                ],
+                'printer_groups' => [
+                    ['id' => \Illuminate\Support\Str::uuid()->toString(), 'name' => 'Ignored mobile group'],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonCount(1, 'printers')
+            ->assertJsonPath('printers.0.id', $newPrinterId)
+            ->assertJsonFragment(['id' => $group->id, 'name' => $group->name]);
+
+        $this->assertDatabaseMissing('printers', ['id' => $oldPrinter->id]);
+        $this->assertDatabaseHas('printers', [
+            'id' => $newPrinterId,
+            'tenant_id' => $this->tenant->id,
+            'virtual_device_id' => $device->id,
+        ]);
+        $this->assertDatabaseHas('printer_groups', [
+            'id' => $group->id,
+            'tenant_id' => $this->tenant->id,
+            'virtual_device_id' => $device->id,
+        ]);
     }
 
     public function test_logout_returns_ok(): void
@@ -584,10 +789,12 @@ class ApiTest extends TestCase
         $this->assertSame($cashier->name, data_get($syncedSale, 'created_by.name'));
         $this->assertSame($device->name, data_get($syncedSale, 'virtual_device.name'));
 
-        // The switched cashier token cannot inherit the owner's wildcard ability.
+        // Mobile POS user management is read-only regardless of the switched
+        // operator's abilities. Management is done through the web back-office.
         $this->withToken($operatorToken)
             ->putJson('/api/v1/users/'.$this->user->id, ['role' => 'cashier'])
-            ->assertForbidden();
+            ->assertStatus(405)
+            ->assertJsonPath('error', 'mobile_user_management_read_only');
     }
 
     public function test_sale_rejected_when_insufficient_stock(): void

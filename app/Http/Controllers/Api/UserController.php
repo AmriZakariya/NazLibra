@@ -30,7 +30,24 @@ class UserController extends Controller
             ->get()
             ->map(fn ($u) => $this->formatUser($u, $roles));
 
-        return response()->json(['ok' => true, 'users' => $users]);
+        return response()
+            ->json(['ok' => true, 'users' => $users])
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
+    }
+
+    /**
+     * Mobile POS user management is intentionally read-only.
+     * Users, roles and PINs must be managed from the web back-office.
+     */
+    public function readOnlyMutation(): JsonResponse
+    {
+        return response()->json([
+            'ok' => false,
+            'error' => 'mobile_user_management_read_only',
+            'message' => 'La gestion des utilisateurs et des PIN se fait depuis le web.',
+        ], 405);
     }
 
     /**

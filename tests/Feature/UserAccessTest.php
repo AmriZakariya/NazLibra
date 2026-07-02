@@ -94,6 +94,47 @@ class UserAccessTest extends TestCase
         ]);
     }
 
+    public function test_role_key_update_keeps_assigned_users_on_new_role_key(): void
+    {
+        $this->seed();
+        $tenant = Tenant::firstOrFail();
+
+        $role = Role::create([
+            'tenant_id' => $tenant->id,
+            'name' => 'Support',
+            'key' => 'support',
+            'permissions' => ['contacts.view'],
+            'is_system' => false,
+        ]);
+
+        $user = User::create([
+            'current_tenant_id' => $tenant->id,
+            'name' => 'Support User',
+            'email' => 'support-user@example.test',
+            'password' => bcrypt('password-test'),
+            'avatar_color' => '#3157D5',
+            'is_active' => true,
+        ]);
+
+        $tenant->users()->attach($user->id, [
+            'role' => 'support',
+            'store_access' => json_encode(['Magasin principal']),
+        ]);
+
+        $this->put(route('settings.roles.update', $role), [
+            'name' => 'Support client',
+            'key' => 'support_client',
+            'permissions' => ['contacts.view', 'contacts.create'],
+        ])->assertRedirect(route('module', ['module' => 'settings', 'section' => 'roles']));
+
+        $pivot = $tenant->users()->whereKey($user->id)->firstOrFail()->pivot;
+        $this->assertSame('support_client', $pivot->role);
+        $this->assertDatabaseHas('roles', [
+            'id' => $role->id,
+            'key' => 'support_client',
+        ]);
+    }
+
     public function test_store_can_be_created_and_selected_as_current_store(): void
     {
         $this->seed();
