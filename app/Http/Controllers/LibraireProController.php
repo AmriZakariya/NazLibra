@@ -3009,6 +3009,7 @@ class LibraireProController extends Controller
             'editable_price' => $request->boolean('editable_price'),
             'allow_sale_edit' => $request->boolean('allow_sale_edit', true),
             'allow_oversell' => $request->boolean('allow_oversell'),
+            'confirm_cart_line_removal' => $request->boolean('confirm_cart_line_removal', true),
             'show_out_of_stock' => $request->boolean('show_out_of_stock'),
             'show_cash_drawer_navbar' => $request->boolean('show_cash_drawer_navbar'),
             'require_adjustment_reason' => $request->boolean('require_adjustment_reason'),

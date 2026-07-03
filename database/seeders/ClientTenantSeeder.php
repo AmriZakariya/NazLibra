@@ -96,6 +96,7 @@ class ClientTenantSeeder extends Seeder
                             'editable_price' => true,
                             'allow_sale_edit' => true,
                             'allow_oversell' => false,
+                            'confirm_cart_line_removal' => true,
                             'show_out_of_stock' => false,
                             'show_cash_drawer_navbar' => true,
                             'require_adjustment_reason' => true,

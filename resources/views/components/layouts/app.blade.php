@@ -543,7 +543,7 @@
                                             };
                                             $commandSearch = Str::lower($commandLink['label'].' '.$commandLink['translated_label'].' '.$commandLink['section'].' '.$commandLink['translated_section'].' '.$commandLink['kind'].' '.$labelAliases.' '.$sectionAliases.' '.$moduleAliases.' '.$hrefAliases);
                                         @endphp
-                                        <a href="{{ $commandLink['href'] }}" class="app-command-item" data-command-item data-command-kind="{{ $commandLink['kind'] }}" data-command-key="{{ $commandLink['key'] }}" data-command-title="{{ Str::lower($commandLink['label']) }}" data-command-label="{{ Str::lower($commandLink['label'].' '.$commandLink['translated_label']) }}" data-command-module="{{ $commandLink['section'] }}" data-command-search="{{ $commandSearch }}">
+                                        <a href="{{ $commandLink['href'] }}" class="app-command-item" data-command-item data-command-kind="{{ $commandLink['kind'] }}" data-command-key="{{ $commandLink['key'] }}" data-command-title="{{ Str::lower($commandLink['label']) }}" data-command-label="{{ Str::lower($commandLink['label'].' '.$commandLink['translated_label']) }}" data-command-module="{{ $commandLink['section'] }}" data-command-aliases="{{ Str::lower($labelAliases.' '.$sectionAliases.' '.$moduleAliases.' '.$hrefAliases) }}" data-command-search="{{ $commandSearch }}">
                                             <span class="app-command-item-icon">{{ $commandLink['icon'] }}</span>
                                             <span class="min-w-0 flex-1">
                                                 <strong>{{ $commandLink['translated_label'] }}</strong>

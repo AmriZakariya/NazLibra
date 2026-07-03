@@ -462,6 +462,7 @@ class SyncController extends Controller
                     new OA\Property(property: 'tenant_name', type: 'string'),
                     new OA\Property(property: 'location_name', type: 'string', nullable: true),
                     new OA\Property(property: 'allow_oversell', type: 'boolean'),
+                    new OA\Property(property: 'confirm_cart_line_removal', type: 'boolean'),
                     new OA\Property(property: 'receipt_footer', type: 'string', nullable: true),
                     new OA\Property(property: 'receipt_header', type: 'string', nullable: true),
                 ])
@@ -496,6 +497,7 @@ class SyncController extends Controller
             'tenant_address'          => $tenant->address,
             'location_name'           => $location?->name,
             'allow_oversell'          => (bool) data_get($tenant->settings, 'pos.allow_oversell', false),
+            'confirm_cart_line_removal' => (bool) data_get($tenant->settings, 'pos.confirm_cart_line_removal', true),
             'receipt_header'          => data_get($tenant->settings, 'receipt.header'),
             'receipt_footer'          => data_get($tenant->settings, 'receipt.footer'),
             'features_virtual_devices'  => (bool) data_get($tenant->settings, 'features.virtual_devices', false),

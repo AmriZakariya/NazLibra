@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\CouponApiController;
 use App\Http\Controllers\Api\DiscountRuleApiController;
 use App\Http\Controllers\Api\StatisticsController;
 use App\Http\Controllers\Api\VirtualDeviceApiController;
+use App\Http\Controllers\Api\SettingsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -64,6 +65,9 @@ Route::prefix('v1')->group(function (): void {
 
         // Dashboard KPIs
         Route::get('dashboard', [DashboardController::class, 'index']);
+
+        // Settings mutations
+        Route::put('settings/pos', [SettingsController::class, 'updatePos']);
 
         // Statistics breakdowns
         Route::prefix('statistics')->group(function (): void {

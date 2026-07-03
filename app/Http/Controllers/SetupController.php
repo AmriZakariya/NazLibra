@@ -743,7 +743,7 @@ class SetupController extends Controller
                 'features'  => ['virtual_devices' => true],
                 'inventory' => ['costing_method' => $storeData['costing_method'] ?? 'lifo'],
                 'store' => ['business_activity' => \App\Support\ItemTypes::activityFromBusinessMode($storeData['business_mode'])],
-                'pos' => ['editable_price' => true, 'allow_sale_edit' => true, 'allow_oversell' => false, 'show_out_of_stock' => false, 'show_cash_drawer_navbar' => true, 'require_adjustment_reason' => true, 'update_cost_on_purchase' => true, 'low_stock_dashboard' => true, 'auto_reorder_draft' => false, 'inventory_cycle_days' => 30, 'default_min_stock_threshold' => 3],
+                'pos' => ['editable_price' => true, 'allow_sale_edit' => true, 'allow_oversell' => false, 'confirm_cart_line_removal' => true, 'show_out_of_stock' => false, 'show_cash_drawer_navbar' => true, 'require_adjustment_reason' => true, 'update_cost_on_purchase' => true, 'low_stock_dashboard' => true, 'auto_reorder_draft' => false, 'inventory_cycle_days' => 30, 'default_min_stock_threshold' => 3],
             ],
         ]);
 

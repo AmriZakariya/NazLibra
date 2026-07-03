@@ -342,6 +342,9 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
         remise: ['discount', 'rabais', 'reduction', 'خصم'],
         printer: ['imprimante', 'thermal', 'thermique', 'طابعة'],
         imprimante: ['printer', 'thermal', 'thermique', 'طابعة'],
+        impression: ['print', 'printer', 'imprimante', 'ticket', 'receipt'],
+        groupes: ['groups', 'groupes', 'group', 'groupe'],
+        groupe: ['group', 'groups', 'groupes'],
     };
     const expandTokenGroups = (tokens) => {
         return tokens.map((token) => {
@@ -355,27 +358,135 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
 
     const visibleItems = () => items.filter((item) => !item.classList.contains('is-hidden'));
 
-    const scoreItem = (haystack, tokenGroups, title, label, moduleName, kind, originalTokens) => {
+    const fieldHasToken = (field, group) => group.find((candidate) => field.includes(candidate));
+    const fieldWordStartsWith = (field, token) => field.split(' ').some((part) => part.startsWith(token));
+
+    const scoreItem = (haystack, tokenGroups, title, label, moduleName, kind, aliases, originalTokens) => {
         if (tokenGroups.length === 0) return 1;
         let score = 0;
         const query = originalTokens.join(' ');
 
-        if (title === query) score += 80;
-        if (title.startsWith(query)) score += 35;
+        if (title === query || label === query) score += 300;
+        if (title.startsWith(query) || label.startsWith(query)) score += 180;
+        if (title.includes(query) || label.includes(query)) score += 105;
+        if (moduleName === query) score += 60;
+        if (moduleName.startsWith(query)) score += 35;
+        if (aliases.includes(query)) score += 16;
 
         for (const group of tokenGroups) {
-            const token = group.find((candidate) => haystack.includes(candidate));
+            const token = fieldHasToken(haystack, group);
             if (!token) return -1;
-            score += label === token ? 40 : 0;
-            score += label.startsWith(token) ? 22 : 0;
-            score += moduleName === token ? 18 : 0;
-            score += moduleName.startsWith(token) ? 12 : 0;
-            score += kind === 'module' ? 3 : 0;
-            score += haystack.startsWith(token) ? 8 : 1;
-            score += haystack.split(' ').some((part) => part.startsWith(token)) ? 4 : 0;
+
+            if (title === token) score += 90;
+            if (title.startsWith(token)) score += 62;
+            if (fieldWordStartsWith(title, token)) score += 44;
+            if (title.includes(token)) score += 30;
+
+            if (label === token) score += 56;
+            if (label.startsWith(token)) score += 38;
+            if (fieldWordStartsWith(label, token)) score += 28;
+
+            if (moduleName === token) score += 18;
+            if (moduleName.startsWith(token)) score += 12;
+            if (fieldWordStartsWith(moduleName, token)) score += 8;
+
+            if (aliases.includes(token)) score += 4;
+            score += kind === 'module' ? 2 : 8;
+            score += haystack.startsWith(token) ? 6 : 1;
         }
 
         return score;
+    };
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+
+    const normalizedCharacterMap = (text) => {
+        const map = [];
+        let normalized = '';
+
+        [...String(text ?? '')].forEach((char, index) => {
+            const clean = normalize(char);
+            if (!clean) return;
+
+            [...clean].forEach((normalizedChar) => {
+                normalized += normalizedChar;
+                map.push(index);
+            });
+        });
+
+        return { normalized, map };
+    };
+
+    const highlightText = (text, tokens) => {
+        const rawText = String(text ?? '');
+        const searchableTokens = tokens
+            .filter((token) => token.length >= 2)
+            .sort((a, b) => b.length - a.length);
+
+        if (rawText === '' || searchableTokens.length === 0) {
+            return escapeHtml(rawText);
+        }
+
+        const { normalized, map } = normalizedCharacterMap(rawText);
+        const ranges = [];
+
+        searchableTokens.forEach((token) => {
+            const normalizedToken = normalize(token);
+            if (!normalizedToken) return;
+
+            const start = normalized.indexOf(normalizedToken);
+            if (start < 0) return;
+
+            const end = start + normalizedToken.length - 1;
+            ranges.push([map[start], (map[end] ?? map[start]) + 1]);
+        });
+
+        if (ranges.length === 0) {
+            return escapeHtml(rawText);
+        }
+
+        ranges.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+        const merged = [];
+        ranges.forEach((range) => {
+            const previous = merged[merged.length - 1];
+            if (!previous || range[0] > previous[1]) {
+                merged.push([...range]);
+                return;
+            }
+            previous[1] = Math.max(previous[1], range[1]);
+        });
+
+        let html = '';
+        let cursor = 0;
+        merged.forEach(([start, end]) => {
+            html += escapeHtml(rawText.slice(cursor, start));
+            html += `<mark>${escapeHtml(rawText.slice(start, end))}</mark>`;
+            cursor = end;
+        });
+        html += escapeHtml(rawText.slice(cursor));
+
+        return html;
+    };
+
+    items.forEach((item) => {
+        const title = item.querySelector('strong');
+        const meta = item.querySelector('small');
+        item.dataset.commandDisplayTitle = title?.textContent || '';
+        item.dataset.commandDisplayMeta = meta?.textContent || '';
+    });
+
+    const updateHighlights = (tokens) => {
+        items.forEach((item) => {
+            const title = item.querySelector('strong');
+            const meta = item.querySelector('small');
+            if (title) title.innerHTML = highlightText(item.dataset.commandDisplayTitle || title.textContent || '', tokens);
+            if (meta) meta.innerHTML = highlightText(item.dataset.commandDisplayMeta || meta.textContent || '', tokens);
+        });
     };
 
     const setActive = (nextIndex) => {
@@ -416,7 +527,8 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
             const label = normalize(item.dataset.commandLabel);
             const moduleName = normalize(item.dataset.commandModule);
             const kind = normalize(item.dataset.commandKind);
-            const score = scoreItem(haystack, tokenGroups, title, label, moduleName, kind, originalTokens);
+            const aliases = normalize(item.dataset.commandAliases);
+            const score = scoreItem(haystack, tokenGroups, title, label, moduleName, kind, aliases, originalTokens);
             item.dataset.commandScore = String(score);
             item.classList.toggle('is-hidden', score < 0);
             item.classList.remove('is-active');
@@ -429,6 +541,7 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
 
         count && (count.textContent = scored.length.toLocaleString(appLocale === 'ar' ? 'ar-MA' : 'fr-FR'));
         empty?.classList.toggle('hidden', scored.length !== 0);
+        updateHighlights(originalTokens);
         setActive(0);
     };
 
@@ -486,6 +599,47 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
     document.addEventListener('click', (event) => {
         if (!menu.contains(event.target)) close();
     });
+});
+
+document.querySelectorAll('[data-printer-group-routing]').forEach((routing) => {
+    const catchAll = routing.querySelector('[data-printer-catch-all]');
+    const hint = routing.querySelector('[data-printer-catch-all-hint]');
+    const categoryCheckboxes = [...routing.querySelectorAll('[data-printer-category-checkbox]')];
+
+    if (!catchAll) return;
+
+    const applyCatchAllState = () => {
+        const enabled = catchAll.checked;
+        hint?.classList.toggle('hidden', !enabled);
+
+        categoryCheckboxes.forEach((checkbox) => {
+            const option = checkbox.closest('[data-printer-category-option]');
+
+            if (enabled && checkbox.dataset.beforeCatchAll === undefined) {
+                checkbox.dataset.beforeCatchAll = checkbox.checked ? '1' : '0';
+            }
+
+            if (enabled) {
+                checkbox.checked = true;
+                checkbox.disabled = true;
+            } else {
+                checkbox.disabled = false;
+                checkbox.checked = (checkbox.dataset.beforeCatchAll ?? checkbox.dataset.originalChecked) === '1';
+                delete checkbox.dataset.beforeCatchAll;
+            }
+
+            option?.classList.toggle('printer-category-covered', enabled);
+        });
+    };
+
+    categoryCheckboxes.forEach((checkbox) => {
+        checkbox.addEventListener('change', () => {
+            checkbox.dataset.originalChecked = checkbox.checked ? '1' : '0';
+        });
+    });
+
+    catchAll.addEventListener('change', applyCatchAllState);
+    applyCatchAllState();
 });
 
 document.querySelectorAll('[data-product-search]').forEach((search) => {

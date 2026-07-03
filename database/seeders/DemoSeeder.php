@@ -152,6 +152,7 @@ class DemoSeeder extends Seeder
                         'editable_price' => true,
                         'allow_sale_edit' => true,
                         'allow_oversell' => false,
+                        'confirm_cart_line_removal' => true,
                         'show_out_of_stock' => false,
                     ],
                 ],

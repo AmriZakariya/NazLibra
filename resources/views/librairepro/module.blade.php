@@ -3851,6 +3851,7 @@
             $posEditablePrice = (bool) data_get($tenant->settings, 'pos.editable_price', true);
             $posAllowSaleEdit = (bool) data_get($tenant->settings, 'pos.allow_sale_edit', true);
             $posAllowOversell = (bool) data_get($tenant->settings, 'pos.allow_oversell', false);
+            $posConfirmCartLineRemoval = (bool) data_get($tenant->settings, 'pos.confirm_cart_line_removal', true);
             $posShowOutOfStock = (bool) data_get($tenant->settings, 'pos.show_out_of_stock', false);
             $posShowCashDrawerNavbar = (bool) data_get($tenant->settings, 'pos.show_cash_drawer_navbar', true);
             $posRequireAdjustmentReason = (bool) data_get($tenant->settings, 'pos.require_adjustment_reason', true);
@@ -4200,6 +4201,7 @@
                             <input type="hidden" name="editable_price" value="0">
                             <input type="hidden" name="allow_sale_edit" value="0">
                             <input type="hidden" name="allow_oversell" value="0">
+                            <input type="hidden" name="confirm_cart_line_removal" value="0">
                             <input type="hidden" name="show_out_of_stock" value="0">
                             <input type="hidden" name="show_cash_drawer_navbar" value="0">
                             <input type="hidden" name="require_adjustment_reason" value="0">
@@ -4236,6 +4238,15 @@
                                         <span>
                                             <span class="block text-sm font-semibold">Autoriser la vente hors stock</span>
                                             <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Permet d’encaisser une quantité supérieure au stock disponible. Le stock peut devenir négatif et devra être régularisé ensuite.</span>
+                                        </span>
+                                    </span>
+                                </label>
+                                <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                    <span class="flex items-start gap-3">
+                                        <input name="confirm_cart_line_removal" value="1" type="checkbox" @checked($posConfirmCartLineRemoval) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                        <span>
+                                            <span class="block text-sm font-semibold">Confirmer la suppression d’une ligne panier</span>
+                                            <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Sur mobile, demande une confirmation quand le bouton moins retire le dernier exemplaire ou quand une ligne est balayée.</span>
                                         </span>
                                     </span>
                                 </label>
@@ -5520,9 +5531,9 @@
                         </div>
 
                         <div class="mt-5 grid gap-4 md:grid-cols-3">
-                            <div class="rounded-xl border border-teal-200 bg-teal-50 p-4 dark:border-teal-500/20 dark:bg-teal-500/10">
-                                <p class="text-xs font-bold uppercase tracking-wide text-teal-700 dark:text-teal-300">Terminaux actifs</p>
-                                <p class="mt-2 text-2xl font-semibold text-teal-900 dark:text-teal-100">{{ $activePrinterDevices->count() }}</p>
+                            <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40">
+                                <p class="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Terminaux actifs</p>
+                                <p class="mt-2 text-2xl font-semibold text-slate-950 dark:text-slate-100">{{ $activePrinterDevices->count() }}</p>
                             </div>
                             <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                                 <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Imprimantes liées</p>
@@ -5534,12 +5545,7 @@
                             </div>
                         </div>
 
-                        @if ($settingsPrinters->isEmpty())
-                            <div class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
-                                Aucune imprimante synchronisée. Ajoutez les imprimantes depuis Flutter sur chaque terminal, synchronisez, puis assignez-les aux groupes ici.
-                            </div>
-                        @else
-                            <div class="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+                        <div class="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
                                 <div class="space-y-3">
                                     @forelse ($settingsPrinterGroups as $group)
                                         @php
@@ -5570,7 +5576,27 @@
                                                             <p class="text-sm text-slate-500">Aucune imprimante liée.</p>
                                                         @endforelse
                                                     </div>
-                                                    <p class="mt-3 text-sm text-slate-500">Catégories: {{ $assignedCategoryNames->isNotEmpty() ? $assignedCategoryNames->join(', ') : 'aucune' }}</p>
+                                                    <div class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5">
+                                                        <div class="flex flex-wrap items-center gap-2">
+                                                            <span class="text-xs font-bold uppercase tracking-wide text-slate-500">Routage</span>
+                                                            @if ($hasCatchAll)
+                                                                <span class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-100">
+                                                                    Tout le reste
+                                                                    <span class="font-semibold normal-case">catégories non assignées</span>
+                                                                </span>
+                                                            @endif
+                                                            @forelse ($assignedCategoryNames->reject(fn ($name) => $name === 'Catch-all') as $categoryName)
+                                                                <span class="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 dark:bg-slate-950 dark:text-slate-300 dark:ring-white/10">{{ $categoryName }}</span>
+                                                            @empty
+                                                                @unless ($hasCatchAll)
+                                                                    <span class="text-xs font-semibold text-slate-500">Aucune catégorie configurée</span>
+                                                                @endunless
+                                                            @endforelse
+                                                        </div>
+                                                        @if ($hasCatchAll)
+                                                            <p class="mt-2 text-xs text-amber-800 dark:text-amber-100/80">Ce groupe imprime tout ce qui n’est pas déjà envoyé à un groupe spécifique.</p>
+                                                        @endif
+                                                    </div>
                                                 </div>
                                                 <div class="flex shrink-0 flex-wrap gap-2">
                                                     <button type="button" onclick="document.getElementById('{{ $editDialog }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Modifier</button>
@@ -5624,8 +5650,7 @@
                                         @endforeach
                                     </div>
                                 </aside>
-                            </div>
-                        @endif
+                        </div>
 
                         <dialog id="{{ $newGroupDialog }}" class="app-dialog w-[min(920px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
                             <form action="{{ route('settings.printer-groups.store') }}" method="POST" class="max-h-[calc(100dvh-2rem)] overflow-y-auto">
