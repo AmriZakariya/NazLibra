@@ -221,18 +221,19 @@ class StatisticsController extends Controller
         [$fromDt, $toDt]  = $this->dateRange($request);
 
         $rows = DB::table('sales')
-            ->where('tenant_id', $tenant->id)
-            ->whereNull('deleted_at')
-            ->whereIn('status', ['paid', 'completed', 'refunded', 'partial_refund'])
-            ->whereBetween('sold_at', [$fromDt, $toDt])
+            ->leftJoin('users', 'users.id', '=', 'sales.user_id')
+            ->where('sales.tenant_id', $tenant->id)
+            ->whereNull('sales.deleted_at')
+            ->whereIn('sales.status', ['paid', 'completed', 'refunded', 'partial_refund'])
+            ->whereBetween('sales.sold_at', [$fromDt, $toDt])
             ->selectRaw("
-                user_id,
-                COALESCE(actor_name_snapshot, 'Inconnu') AS operator_name,
+                sales.user_id,
+                COALESCE(sales.actor_name_snapshot, users.name, 'Opérateur inconnu') AS operator_name,
                 COUNT(*) AS sale_count,
-                SUM(total_amount)    AS revenue,
-                SUM(discount_amount) AS discount_total
+                SUM(sales.total_amount)    AS revenue,
+                SUM(sales.discount_amount) AS discount_total
             ")
-            ->groupBy('user_id', 'actor_name_snapshot')
+            ->groupBy('sales.user_id', 'sales.actor_name_snapshot', 'users.name')
             ->orderByDesc('revenue')
             ->get();
 
