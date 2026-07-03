@@ -83,6 +83,8 @@ class InventoryController extends Controller
 
         $q = Item::where('tenant_id', $tenant->id)
             ->whereIn('status', ['active', 'out_of_stock'])
+            ->where('type', '!=', 'service')
+            ->where('track_inventory', true)
             ->when($query, function ($q) use ($query) {
                 $q->where(function ($inner) use ($query) {
                     $inner->where('title', 'like', "%{$query}%")

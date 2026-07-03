@@ -1933,24 +1933,33 @@ class LibraireProController extends Controller
         $data['tenant_id'] = $tenant->id;
         $data['status'] = ($data['status'] ?? 'active') !== 'archived' && $data['stock_quantity'] <= 0 && ($data['type'] ?? 'book') !== 'service' ? 'out_of_stock' : ($data['status'] ?? 'active');
 
+        // Services never track inventory; products default to tracking unless explicitly disabled.
+        if ($data['type'] === 'service') {
+            $data['track_inventory'] = false;
+        } else {
+            $data['track_inventory'] = (bool) ($data['track_inventory'] ?? true);
+        }
+
         $item = Item::create($data);
 
-        if ($item->type !== 'service' && (int) $item->stock_quantity !== 0) {
+        if ($item->type !== 'service' && $item->track_inventory && (int) $item->stock_quantity > 0) {
             $inventoryService = app(\App\Services\Inventory\InventoryService::class);
             $locationId = $inventoryService->locationIdFromName($tenant->id, null);
-            $inventoryService->move(new \App\Services\Inventory\MovementDTO(
-                tenantId: $tenant->id,
-                itemId: $item->id,
-                variantId: null,
-                locationId: $locationId,
-                type: \App\Services\Inventory\InventoryMovementType::OPENING_STOCK,
-                quantityChanged: (int) $item->stock_quantity,
-                unitCost: (float) $item->purchase_price,
-                referenceType: Item::class,
-                referenceId: $item->id,
-                referenceNumber: $item->item_code,
-                note: 'Stock initial article '.$item->item_code,
-            ));
+            $ledger = app(\App\Services\Inventory\InventoryLedgerService::class);
+            $ledger->createIncomingMovement([
+                'tenantId'      => $tenant->id,
+                'itemId'        => $item->id,
+                'variantId'     => null,
+                'locationId'    => $locationId,
+                'type'          => \App\Services\Inventory\InventoryMovementType::OPENING_STOCK,
+                'quantity'      => (int) $item->stock_quantity,
+                'unitCost'      => (float) $item->purchase_price,
+                'occurredAt'    => now(),
+                'referenceType' => Item::class,
+                'referenceId'   => $item->id,
+                'referenceNumber' => $item->item_code,
+                'note'          => 'Stock initial article '.$item->item_code,
+            ]);
         }
 
         return back()->with('status', 'Article ajouté au catalogue.');
@@ -1968,22 +1977,41 @@ class LibraireProController extends Controller
         $item->update($data);
         $item->refresh();
 
-        if ($beforeType !== 'service' && $item->type !== 'service' && $beforeStock !== (int) $item->stock_quantity) {
+        if ($beforeType !== 'service' && $item->type !== 'service' && $item->track_inventory && $beforeStock !== (int) $item->stock_quantity) {
             $inventoryService = app(\App\Services\Inventory\InventoryService::class);
             $locationId = $inventoryService->locationIdFromName($tenant->id, null);
-            $inventoryService->move(new \App\Services\Inventory\MovementDTO(
-                tenantId: $tenant->id,
-                itemId: $item->id,
-                variantId: null,
-                locationId: $locationId,
-                type: \App\Services\Inventory\InventoryMovementType::ITEM_UPDATE,
-                quantityChanged: (int) $item->stock_quantity - $beforeStock,
-                unitCost: (float) $item->purchase_price,
-                referenceType: Item::class,
-                referenceId: $item->id,
-                referenceNumber: $item->item_code,
-                note: 'Modification fiche article '.$item->item_code,
-            ));
+            $delta = (int) $item->stock_quantity - $beforeStock;
+            if ($delta > 0) {
+                $ledger = app(\App\Services\Inventory\InventoryLedgerService::class);
+                $ledger->createIncomingMovement([
+                    'tenantId'      => $tenant->id,
+                    'itemId'        => $item->id,
+                    'variantId'     => null,
+                    'locationId'    => $locationId,
+                    'type'          => \App\Services\Inventory\InventoryMovementType::ITEM_UPDATE,
+                    'quantity'      => $delta,
+                    'unitCost'      => (float) $item->purchase_price,
+                    'occurredAt'    => now(),
+                    'referenceType' => Item::class,
+                    'referenceId'   => $item->id,
+                    'referenceNumber' => $item->item_code,
+                    'note'          => 'Modification fiche article '.$item->item_code,
+                ]);
+            } else {
+                $inventoryService->move(new \App\Services\Inventory\MovementDTO(
+                    tenantId: $tenant->id,
+                    itemId: $item->id,
+                    variantId: null,
+                    locationId: $locationId,
+                    type: \App\Services\Inventory\InventoryMovementType::ITEM_UPDATE,
+                    quantityChanged: $delta,
+                    unitCost: (float) $item->purchase_price,
+                    referenceType: Item::class,
+                    referenceId: $item->id,
+                    referenceNumber: $item->item_code,
+                    note: 'Modification fiche article '.$item->item_code,
+                ));
+            }
         }
 
         return back()->with('status', 'Article mis à jour.');
@@ -10174,6 +10202,7 @@ class LibraireProController extends Controller
             'is_enabled' => ['nullable', 'boolean'],
             'checkout_visible' => ['nullable', 'boolean'],
             'online_store_visible' => ['nullable', 'boolean'],
+            'track_inventory' => ['nullable', 'boolean'],
             'remove_item_image' => ['nullable', 'boolean'],
             'item_image' => ['nullable', 'image', 'max:1024'],
         ]);

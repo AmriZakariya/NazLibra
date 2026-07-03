@@ -318,6 +318,17 @@
            class="{{ $input }}" placeholder="3">
 </label>
 
+<div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+    <input type="hidden" name="track_inventory" value="0">
+    <input type="checkbox" id="track_inventory_toggle" name="track_inventory" value="1"
+           @checked(old('track_inventory', $item?->track_inventory ?? true))
+           class="h-4 w-4 rounded border-slate-300 text-brand accent-brand">
+    <label for="track_inventory_toggle" class="cursor-pointer select-none">
+        <span class="text-sm font-semibold text-slate-800 dark:text-slate-100">Suivre le stock</span>
+        <span class="block text-xs text-slate-400">Décochez pour exclure cet article de la gestion d'inventaire.</span>
+    </label>
+</div>
+
 @unless ($item)
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Stock d'ouverture</span>

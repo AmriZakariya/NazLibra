@@ -736,6 +736,23 @@
                                 </span>
                                 <span class="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20">{{ $accountBusinessMode['short_label'] ?? 'POS' }}</span>
                             </a>
+                            @php
+                                $accountCostingMethod = data_get($accountTenant?->settings, 'inventory.costing_method', 'lifo');
+                                $accountCostingLabels = [
+                                    'lifo' => ['label' => 'LIFO', 'sub' => 'Dernier entré, premier sorti', 'color' => 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/10 dark:text-violet-300 dark:ring-violet-500/20'],
+                                    'fifo' => ['label' => 'FIFO', 'sub' => 'Premier entré, premier sorti', 'color' => 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300 dark:ring-sky-500/20'],
+                                    'wac'  => ['label' => 'CMP', 'sub' => 'Coût moyen pondéré', 'color' => 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20'],
+                                ];
+                                $accountCostingInfo = $accountCostingLabels[$accountCostingMethod] ?? $accountCostingLabels['lifo'];
+                            @endphp
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'store']) }}#inventory" class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+                                <span class="min-w-0">
+                                    <span class="block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr('Valorisation du stock') }}</span>
+                                    <strong class="mt-0.5 block truncate text-slate-900 dark:text-white">{{ $accountCostingInfo['label'] }}</strong>
+                                    <span class="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">{{ $accountCostingInfo['sub'] }}</span>
+                                </span>
+                                <span class="shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ring-1 {{ $accountCostingInfo['color'] }}">{{ $accountCostingInfo['label'] }}</span>
+                            </a>
                             @if ($virtualDevicesEnabled)
                                 @php
                                     $deviceSessionId = session('virtual_device_session_id');
@@ -794,6 +811,7 @@
                                 <a href="{{ route('profile.activity') }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr("Journal d'activité") }}</a>
                             @endif
                                     <a href="{{ route('module', ['module' => 'settings', 'section' => 'users']) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Utilisateurs & rôles') }}</a>
+                                    <a href="{{ route('module', 'settings') }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5">{{ $tr('Paramètres') }}</a>
                                     <button class="app-theme-toggle w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="button">
                                         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
                                         {{ $tr('Thème') }}
