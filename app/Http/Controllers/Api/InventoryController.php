@@ -120,7 +120,11 @@ class InventoryController extends Controller
             ->keyBy('item_id');
 
         $items = collect($paginator->items())->map(function (Item $item) use ($layerValues) {
-            $layer = $layerValues->get($item->id);
+            $layer           = $layerValues->get($item->id);
+            $layerStockValue = round((float) ($layer?->stock_value ?? 0), 2);
+            // Fall back to purchase_price × stock_quantity for items whose layers
+            // pre-date the unit_cost tracking (layers have unit_cost = 0).
+            $stockValue = $layerStockValue ?: round((float) $item->purchase_price * (float) $item->stock_quantity, 2);
             return [
                 'id'                  => $item->id,
                 'type'                => $item->type,
@@ -135,7 +139,7 @@ class InventoryController extends Controller
                 'stock_quantity'      => (float) $item->stock_quantity,
                 'min_stock_threshold' => (float) $item->min_stock_threshold,
                 'average_cost'        => round((float) ($layer?->average_cost ?? 0), 4),
-                'stock_value'         => round((float) ($layer?->stock_value ?? 0), 2),
+                'stock_value'         => $stockValue,
             ];
         });
 
