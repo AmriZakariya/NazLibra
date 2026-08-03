@@ -1215,22 +1215,29 @@ class LibraireProController extends Controller
         $tenant = $this->tenant();
         $query = trim((string) $request->query('q'));
         $context = (string) $request->query('context', 'default');
+        $tokens = $this->quickSearchTokens($query);
 
         $items = $tenant->items()
             ->with(['category', 'brand', 'tax', 'unit'])
             ->when($context === 'variants', fn (Builder $builder) => $builder->where('type', '!=', 'service'))
-            ->when($query !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($query): void {
-                $builder->where('title', 'like', "%{$query}%")
-                    ->orWhere('item_code', 'like', "%{$query}%")
-                    ->orWhere('sku', 'like', "%{$query}%")
-                    ->orWhere('isbn', 'like', "%{$query}%")
-                    ->orWhere('barcode', 'like', "%{$query}%")
-                    ->orWhere('custom_barcode1', 'like', "%{$query}%")
-                    ->orWhere('author', 'like', "%{$query}%")
-                    ->orWhere('editor', 'like', "%{$query}%")
-                    ->orWhere('description', 'like', "%{$query}%")
-                    ->orWhereHas('category', fn (Builder $category) => $category->where('name', 'like', "%{$query}%"))
-                    ->orWhereHas('brand', fn (Builder $brand) => $brand->where('name', 'like', "%{$query}%"));
+            ->when($tokens !== [], fn (Builder $builder) => $builder->where(function (Builder $builder) use ($tokens): void {
+                foreach ($tokens as $token) {
+                    $like = "%{$token}%";
+
+                    $builder->where(function (Builder $builder) use ($like): void {
+                        $builder->where('title', 'like', $like)
+                            ->orWhere('item_code', 'like', $like)
+                            ->orWhere('sku', 'like', $like)
+                            ->orWhere('isbn', 'like', $like)
+                            ->orWhere('barcode', 'like', $like)
+                            ->orWhere('custom_barcode1', 'like', $like)
+                            ->orWhere('author', 'like', $like)
+                            ->orWhere('editor', 'like', $like)
+                            ->orWhere('description', 'like', $like)
+                            ->orWhereHas('category', fn (Builder $category) => $category->where('name', 'like', $like))
+                            ->orWhereHas('brand', fn (Builder $brand) => $brand->where('name', 'like', $like));
+                    });
+                }
             }))
             ->orderByRaw("case when type = 'service' then 1 when stock_quantity <= 0 then 2 else 0 end")
             ->orderBy('title')
@@ -1263,6 +1270,16 @@ class LibraireProController extends Controller
             'items' => $items,
             'count' => $items->count(),
         ]);
+    }
+
+    private function quickSearchTokens(string $query): array
+    {
+        return collect(preg_split('/\s+/u', trim($query)) ?: [])
+            ->map(fn (string $token) => trim($token))
+            ->filter(fn (string $token) => $token !== '')
+            ->take(8)
+            ->values()
+            ->all();
     }
 
     public function storeStockTransfer(Request $request): RedirectResponse
@@ -2843,6 +2860,9 @@ class LibraireProController extends Controller
                 : ItemTypes::activityFromBusinessMode($businessMode['key']),
         ]);
         $settings['receipt_header'] = $data['store_name'];
+        if (isset($data['receipt_footer'])) {
+            $settings['receipt_footer'] = trim($data['receipt_footer']) ?: null;
+        }
         $settings['locale'] = $data['language_id'] === 'ar' ? 'ar_MA' : ($data['language_id'] === 'en' ? 'en_US' : 'fr_MA');
         $settings['number_format'] = [
             'currency_placement' => $data['currency_placement'],

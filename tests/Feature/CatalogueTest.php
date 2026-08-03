@@ -439,11 +439,34 @@ class CatalogueTest extends TestCase
             'stock_quantity' => 0,
             'min_stock_threshold' => 0,
         ]);
+        $tokenMatchedArticle = Item::create([
+            'tenant_id' => $tenant->id,
+            'category_id' => Category::where('name', 'Papeterie')->value('id') ?: $category->id,
+            'unit_id' => $unit->id,
+            'tax_id' => $tax->id,
+            'type' => 'supply',
+            'status' => 'active',
+            'is_enabled' => true,
+            'checkout_visible' => true,
+            'item_code' => 'IT-NEW-FIXED-001',
+            'title' => 'new one fixed',
+            'barcode' => 'NEW-FIXED-BAR',
+            'purchase_price' => 5,
+            'sale_price' => 20,
+            'stock_quantity' => 100,
+            'min_stock_threshold' => 0,
+        ]);
 
         $articleResponse = $this->getJson(route('catalog.quick-search', ['q' => $article->title]))->assertOk();
         $this->assertEquals(
             route('catalog', ['panel' => 'articles', 'edit' => $article->id]).'#edit-item',
             collect($articleResponse->json('items'))->firstWhere('id', $article->id)['url'] ?? null
+        );
+
+        $tokenResponse = $this->getJson(route('catalog.quick-search', ['q' => 'new fix']))->assertOk();
+        $this->assertEquals(
+            route('catalog', ['panel' => 'articles', 'edit' => $tokenMatchedArticle->id]).'#edit-item',
+            collect($tokenResponse->json('items'))->firstWhere('id', $tokenMatchedArticle->id)['url'] ?? null
         );
 
         $serviceResponse = $this->getJson(route('catalog.quick-search', ['q' => 'navbar']))->assertOk();

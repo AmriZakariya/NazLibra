@@ -359,40 +359,83 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
     const visibleItems = () => items.filter((item) => !item.classList.contains('is-hidden'));
 
     const fieldHasToken = (field, group) => group.find((candidate) => field.includes(candidate));
-    const fieldWordStartsWith = (field, token) => field.split(' ').some((part) => part.startsWith(token));
+    const words = (field) => field.split(' ').filter(Boolean);
+    const fieldWordStartsWith = (field, token) => words(field).some((part) => part.startsWith(token));
+    const fieldHasExactWord = (field, token) => words(field).includes(token);
+    const fieldHasOrderedTokens = (field, tokens) => {
+        if (tokens.length === 0) return false;
+
+        let cursor = 0;
+        return tokens.every((token) => {
+            const index = field.indexOf(token, cursor);
+            if (index < 0) return false;
+            cursor = index + token.length;
+            return true;
+        });
+    };
+
+    const bestTokenScore = (field, group, weights) => {
+        let best = 0;
+
+        group.forEach((token) => {
+            if (!field.includes(token)) return;
+
+            let score = weights.contains;
+            if (field === token) score = Math.max(score, weights.exact);
+            if (field.startsWith(token)) score = Math.max(score, weights.starts);
+            if (fieldHasExactWord(field, token)) score = Math.max(score, weights.word);
+            if (fieldWordStartsWith(field, token)) score = Math.max(score, weights.wordStart);
+            best = Math.max(best, score);
+        });
+
+        return best;
+    };
 
     const scoreItem = (haystack, tokenGroups, title, label, moduleName, kind, aliases, originalTokens) => {
         if (tokenGroups.length === 0) return 1;
         let score = 0;
         const query = originalTokens.join(' ');
 
-        if (title === query || label === query) score += 300;
-        if (title.startsWith(query) || label.startsWith(query)) score += 180;
-        if (title.includes(query) || label.includes(query)) score += 105;
-        if (moduleName === query) score += 60;
-        if (moduleName.startsWith(query)) score += 35;
-        if (aliases.includes(query)) score += 16;
+        if (title === query) score += 700;
+        if (label === query) score += 620;
+        if (title.startsWith(query)) score += 430;
+        if (label.startsWith(query)) score += 360;
+        if (title.includes(query)) score += 260;
+        if (label.includes(query)) score += 220;
+        if (moduleName === query) score += 150;
+        if (moduleName.startsWith(query)) score += 110;
+        if (aliases.includes(query)) score += 32;
+        if (fieldHasOrderedTokens(title, originalTokens)) score += 190;
+        if (fieldHasOrderedTokens(label, originalTokens)) score += 150;
 
         for (const group of tokenGroups) {
             const token = fieldHasToken(haystack, group);
             if (!token) return -1;
 
-            if (title === token) score += 90;
-            if (title.startsWith(token)) score += 62;
-            if (fieldWordStartsWith(title, token)) score += 44;
-            if (title.includes(token)) score += 30;
+            score += bestTokenScore(title, group, { exact: 180, starts: 140, word: 120, wordStart: 100, contains: 70 });
+            score += bestTokenScore(label, group, { exact: 140, starts: 110, word: 92, wordStart: 76, contains: 52 });
+            score += bestTokenScore(moduleName, group, { exact: 48, starts: 34, word: 28, wordStart: 22, contains: 12 });
+            score += bestTokenScore(aliases, group, { exact: 12, starts: 10, word: 8, wordStart: 6, contains: 3 });
+            score += kind === 'module' ? 3 : 18;
+            score += haystack.startsWith(token) ? 4 : 0;
+        }
 
-            if (label === token) score += 56;
-            if (label.startsWith(token)) score += 38;
-            if (fieldWordStartsWith(label, token)) score += 28;
+        const originalTokenCountInTitle = originalTokens.filter((token) => title.includes(token)).length;
+        const originalTokenCountInLabel = originalTokens.filter((token) => label.includes(token)).length;
+        const originalTokenCountInModule = originalTokens.filter((token) => moduleName.includes(token)).length;
+        const originalTokenCountInAliases = originalTokens.filter((token) => aliases.includes(token)).length;
 
-            if (moduleName === token) score += 18;
-            if (moduleName.startsWith(token)) score += 12;
-            if (fieldWordStartsWith(moduleName, token)) score += 8;
-
-            if (aliases.includes(token)) score += 4;
-            score += kind === 'module' ? 2 : 8;
-            score += haystack.startsWith(token) ? 6 : 1;
+        if (originalTokenCountInTitle === originalTokens.length) score += 260;
+        if (originalTokenCountInLabel === originalTokens.length) score += 210;
+        if (originalTokenCountInModule === originalTokens.length) score += 70;
+        if (originalTokenCountInAliases === originalTokens.length) score += 12;
+        if (
+            originalTokenCountInTitle === 0
+            && originalTokenCountInLabel === 0
+            && originalTokenCountInModule === 0
+            && originalTokenCountInAliases > 0
+        ) {
+            score -= 35;
         }
 
         return score;
@@ -473,9 +516,10 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
         return html;
     };
 
-    items.forEach((item) => {
+    items.forEach((item, index) => {
         const title = item.querySelector('strong');
         const meta = item.querySelector('small');
+        item.dataset.commandIndex = String(index);
         item.dataset.commandDisplayTitle = title?.textContent || '';
         item.dataset.commandDisplayMeta = meta?.textContent || '';
     });
@@ -536,7 +580,11 @@ document.querySelectorAll('[data-command-menu]').forEach((menu) => {
         });
 
         scored
-            .sort((a, b) => Number(b.dataset.commandScore) - Number(a.dataset.commandScore))
+            .sort((a, b) => {
+                const scoreDiff = Number(b.dataset.commandScore) - Number(a.dataset.commandScore);
+                if (scoreDiff !== 0) return scoreDiff;
+                return Number(a.dataset.commandIndex) - Number(b.dataset.commandIndex);
+            })
             .forEach((item) => item.parentElement?.insertBefore(item, empty || null));
 
         count && (count.textContent = scored.length.toLocaleString(appLocale === 'ar' ? 'ar-MA' : 'fr-FR'));
