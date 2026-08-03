@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Castlit\MarketingController;
+use App\Http\Controllers\Castlit\SubscriptionAdminController;
+use App\Http\Controllers\Castlit\SubscriptionController;
 use App\Http\Controllers\CommercialDocumentController;
 use App\Http\Controllers\LibraireProController;
 use App\Http\Controllers\OnlineStoreController;
@@ -8,6 +11,31 @@ use App\Http\Controllers\SetupController;
 use App\Http\Controllers\VariantController;
 use App\Http\Controllers\VirtualDeviceController;
 use Illuminate\Support\Facades\Route;
+
+// ─── CastLit SaaS (marketing + subscription + platform admin) ────────────────
+// Active ONLY on the master install (castlitpos.com). Registered before the
+// authenticated app group so the public landing wins the `/` route on master;
+// on client installs the flag is false and `/` stays the normal POS dashboard.
+if (config('castlit.is_master')) {
+    // NOTE: the public landing at `/` is registered at the BOTTOM of this file.
+    // Two routes sharing method+URI collide in the RouteCollection and the LAST
+    // one registered wins, so the landing must be declared after the app's own
+    // `/` dashboard route to take over `/` on the master install.
+    Route::post('/inscription', [SubscriptionController::class, 'store'])
+        ->middleware('throttle:10,1')->name('castlit.subscribe');
+    Route::get('/inscription/merci', [MarketingController::class, 'success'])->name('castlit.subscribe.success');
+
+    Route::middleware(['auth', 'platform.admin'])
+        ->prefix('castlit-admin')
+        ->name('castlit.admin.')
+        ->group(function (): void {
+            Route::get('/', [SubscriptionAdminController::class, 'index'])->name('index');
+            Route::get('/{subscription}', [SubscriptionAdminController::class, 'show'])->name('show');
+            Route::post('/{subscription}/approuver', [SubscriptionAdminController::class, 'approve'])->name('approve');
+            Route::post('/{subscription}/rejeter', [SubscriptionAdminController::class, 'reject'])->name('reject');
+            Route::post('/{subscription}/relancer', [SubscriptionAdminController::class, 'retry'])->name('retry');
+        });
+}
 
 // ─── Setup / maintenance wizard (always gated by SETUP_SECRET) ───────────────
 Route::prefix('setup')->name('setup.')->group(function (): void {
@@ -309,3 +337,8 @@ Route::put('/appareils/{device}/statut', [VirtualDeviceController::class, 'toggl
 Route::post('/appareils/{device}/deconnecter', [VirtualDeviceController::class, 'disconnectDeviceSessions'])->name('devices.disconnect');
 Route::delete('/appareils/{device}', [VirtualDeviceController::class, 'destroy'])->name('devices.destroy');
 });
+
+// ─── CastLit master: public landing takes over `/` (must be last — see note above) ──
+if (config('castlit.is_master')) {
+    Route::get('/', [MarketingController::class, 'landing'])->name('castlit.landing');
+}

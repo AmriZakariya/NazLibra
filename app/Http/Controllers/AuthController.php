@@ -76,6 +76,12 @@ class AuthController extends Controller
         $request->session()->regenerate();
         $request->session()->forget(['pos_session_locked', 'pos_session_locked_at']);
 
+        // On the CastLit master install, platform admins go straight to the
+        // subscription approvals area (there is no tenant/dashboard there).
+        if (config('castlit.is_master') && $user && $user->is_platform_admin) {
+            return redirect()->intended(route('castlit.admin.index'))->with('status', 'Connexion réussie.');
+        }
+
         return redirect()->intended(route('dashboard'))->with('status', 'Connexion réussie.');
     }
 

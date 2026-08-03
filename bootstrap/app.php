@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'device.selected' => \App\Http\Middleware\EnsureVirtualDeviceSelected::class,
             'api.context'    => \App\Http\Middleware\ResolveApiContext::class,
             'api.action'     => \App\Http\Middleware\ResolveApiActionContext::class,
+            'platform.admin' => \App\Http\Middleware\EnsurePlatformAdmin::class,
         ]);
 
         $middleware->web(append: [
