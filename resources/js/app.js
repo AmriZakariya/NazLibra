@@ -264,11 +264,16 @@ fullscreenButtons.forEach((button) => {
 });
 
 document.addEventListener('fullscreenchange', () => {
-    if (fullscreenEnabled()) {
-        scheduleFullscreenRestore(60);
-    } else {
-        setAppFullscreen(false);
+    if (document.fullscreenElement) {
+        // Entered native fullscreen — cancel any pending "restore on next click".
         detachFullscreenRestoreListener();
+    } else if (fullscreenEnabled()) {
+        // Native fullscreen was dropped — either the user pressed Esc, or a full
+        // page navigation unloaded the document (the browser always exits native
+        // fullscreen on navigation). Keep the immersive CSS layout, but do NOT
+        // grab the screen back on the user's next click: re-entry is intentional
+        // only — via the toggle, or the one-shot armed on a fresh page load.
+        setAppFullscreen(true);
     }
 
     fullscreenButtons.forEach((button) => {
@@ -276,16 +281,13 @@ document.addEventListener('fullscreenchange', () => {
     });
 });
 
-// When navigating back/forward from bfcache.
-window.addEventListener('pageshow', () => {
-    if (fullscreenEnabled()) {
-        scheduleFullscreenRestore(60);
+// After a back/forward (bfcache) restore, behave like a fresh navigation: keep
+// the immersive layout and re-enter native fullscreen on the first click.
+window.addEventListener('pageshow', (event) => {
+    if (event.persisted && fullscreenEnabled()) {
+        setAppFullscreen(true);
+        attachFullscreenRestoreListener();
     }
-});
-
-window.addEventListener('focus', () => scheduleFullscreenRestore(80));
-document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) scheduleFullscreenRestore(80);
 });
 
 document.querySelectorAll('[data-pos-close-success]').forEach((link) => {

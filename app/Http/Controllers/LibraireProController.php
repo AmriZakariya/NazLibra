@@ -291,9 +291,12 @@ class LibraireProController extends Controller
         $ticketCount = (clone $salesQuery)->count();
         $averageTicket = $ticketCount > 0 ? $periodRevenue / $ticketCount : 0;
         $openReceivables = (float) $tenant->sales()->whereIn('status', ['partial', 'unpaid'])->sum('total_amount');
-        $cashDrawerIn = (float) (clone $salesQuery)->get()->sum(fn (Sale $sale) => (float) data_get($sale->metadata, 'cash_register.cash_drawer_in', 0));
-        $cashReceived = (float) (clone $salesQuery)->get()->sum(fn (Sale $sale) => (float) data_get($sale->metadata, 'cash_register.cash_received', 0));
-        $cashChange = (float) (clone $salesQuery)->get()->sum(fn (Sale $sale) => (float) data_get($sale->metadata, 'cash_register.cash_change', 0));
+        // Single pass over the period's sales metadata (was 3 separate ->get()
+        // calls hydrating every Sale model for the period three times over).
+        $cashMetaSales = (clone $salesQuery)->get(['id', 'metadata']);
+        $cashDrawerIn = (float) $cashMetaSales->sum(fn (Sale $sale) => (float) data_get($sale->metadata, 'cash_register.cash_drawer_in', 0));
+        $cashReceived = (float) $cashMetaSales->sum(fn (Sale $sale) => (float) data_get($sale->metadata, 'cash_register.cash_received', 0));
+        $cashChange = (float) $cashMetaSales->sum(fn (Sale $sale) => (float) data_get($sale->metadata, 'cash_register.cash_change', 0));
         $periodLabels = [
             'today' => 'Aujourd’hui',
             'yesterday' => 'Hier',
@@ -2903,7 +2906,12 @@ class LibraireProController extends Controller
             'short_name' => $tenant?->name ?? 'LibrairePro',
             'description' => 'Caisse, stock, ventes et achats pour '.$businessMode['short_label'],
             'start_url' => '/',
-            'display' => 'standalone',
+            // Prefer edge-to-edge fullscreen for the POS; fall back gracefully.
+            // Installed this way, in-app navigation never loses the immersive
+            // view (there is no browser chrome to lose) — unlike a browser tab,
+            // where native fullscreen is dropped on every full page load.
+            'display' => 'fullscreen',
+            'display_override' => ['fullscreen', 'standalone', 'minimal-ui'],
             'background_color' => '#F4F7FB',
             'theme_color' => $theme,
             'orientation' => 'any',
