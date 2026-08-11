@@ -120,6 +120,11 @@ class VirtualDevicePersistenceTest extends TestCase
 
     public function test_occupied_device_is_locked_and_shows_real_connection_context(): void
     {
+        // Freeze "now" just after the occupant's last heartbeat so it counts as a
+        // live session (a device is only locked while its holder is actually
+        // connected — see the stale-session regression test below).
+        Carbon::setTestNow(Carbon::parse('2026-07-02 10:06:30', 'UTC'));
+
         [$user, $tenant, $device] = $this->enabledDeviceFixture();
         $otherUser = User::factory()->create(['current_tenant_id' => $tenant->id]);
         $tenant->users()->attach($otherUser->id, ['role' => 'cashier']);
@@ -152,6 +157,50 @@ class VirtualDevicePersistenceTest extends TestCase
         $this->actingAs($otherUser)
             ->post(route('device.connect'), ['virtual_device_id' => $device->id])
             ->assertSessionHasErrors('virtual_device_id');
+
+        Carbon::setTestNow();
+    }
+
+    public function test_stale_session_frees_the_device_and_can_be_reclaimed(): void
+    {
+        // Regression: a holder whose heartbeat lapsed (closed tab, dropped
+        // network, expired cookie) must NOT lock the device forever. It should
+        // read as available and be claimable by anyone.
+        [$user, $tenant, $device] = $this->enabledDeviceFixture();
+        $otherUser = User::factory()->create(['current_tenant_id' => $tenant->id]);
+        $tenant->users()->attach($otherUser->id, ['role' => 'cashier']);
+
+        $stale = VirtualDeviceSession::create([
+            'tenant_id' => $tenant->id,
+            'virtual_device_id' => $device->id,
+            'user_id' => $user->id,
+            'session_id' => 'ghost-session',
+            'connection_token' => 'ghost-token',
+            'user_agent' => 'Mozilla/5.0 Chrome/120',
+            'platform' => 'Windows',
+            'browser' => 'Chrome',
+            'ip_address' => '10.0.0.8',
+            'connected_at' => now()->subHours(3),
+            'last_seen_at' => now()->subMinutes(10), // well past STALE_AFTER_SECONDS
+        ]);
+
+        // The selection screen no longer shows it as occupied…
+        $this->actingAs($otherUser)
+            ->get(route('device.select'))
+            ->assertOk()
+            ->assertDontSee('Occupé');
+
+        // …the stale row is reaped…
+        $this->assertDatabaseHas('virtual_device_sessions', [
+            'id' => $stale->id,
+            'disconnect_reason' => 'stale',
+        ]);
+
+        // …and another user can claim the freed device.
+        $this->actingAs($otherUser)
+            ->post(route('device.connect'), ['virtual_device_id' => $device->id])
+            ->assertRedirect(route('dashboard'))
+            ->assertSessionHasNoErrors();
     }
 
     public function test_owner_can_release_locked_virtual_device(): void

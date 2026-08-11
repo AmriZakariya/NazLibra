@@ -164,6 +164,10 @@ class VirtualDeviceController extends Controller
             return redirect()->intended(route('dashboard'))->with('status', 'Le module appareils virtuels est désactivé.');
         }
 
+        // Free any devices whose holder's heartbeat has lapsed (closed tab,
+        // dropped network, expired cookie) so they no longer show as occupied.
+        $this->reapStaleSessions($tenant);
+
         $currentSession = $this->currentDeviceSession($tenant, $user);
         $preferredDeviceId = $this->preferredDeviceId($tenant, $request);
 
@@ -172,7 +176,7 @@ class VirtualDeviceController extends Controller
         }
 
         $activeSessions = VirtualDeviceSession::where('tenant_id', $tenant->id)
-            ->whereNull('disconnected_at')
+            ->live()
             ->with('user')
             ->get()
             ->keyBy('virtual_device_id');
@@ -229,9 +233,13 @@ class VirtualDeviceController extends Controller
                 ]);
             }
 
+            // Reap the target device's dead holder (if any) before the occupancy
+            // check, so a ghost session can't lock a device forever.
+            $this->reapStaleSessions($tenant, $device->id);
+
             $alreadyConnected = VirtualDeviceSession::where('tenant_id', $tenant->id)
                 ->where('virtual_device_id', $device->id)
-                ->whereNull('disconnected_at')
+                ->live()
                 ->with('user')
                 ->lockForUpdate()
                 ->first();
@@ -329,20 +337,23 @@ class VirtualDeviceController extends Controller
 
     private function currentDeviceSession(Tenant $tenant, $user): ?VirtualDeviceSession
     {
+        $base = VirtualDeviceSession::where('tenant_id', $tenant->id)
+            ->where('user_id', $user->id)
+            ->whereNull('disconnected_at') // lenient: the owner keeps their seat across idle
+            ->with('virtualDevice');
+
         $sessionId = session('virtual_device_session_id');
 
-        if (! $sessionId) {
-            return null;
+        $session = $sessionId ? (clone $base)->whereKey($sessionId)->first() : null;
+
+        // Cookie may have rotated/expired: recover the owner's most recent live
+        // session and rebind it, instead of forcing a pointless re-selection.
+        if (! $session) {
+            $session = (clone $base)->live()->latest('last_seen_at')->first();
         }
 
-        $session = VirtualDeviceSession::where('tenant_id', $tenant->id)
-            ->where('user_id', $user->id)
-            ->where('id', $sessionId)
-            ->whereNull('disconnected_at')
-            ->with('virtualDevice')
-            ->first();
-
         if ($session) {
+            session()->put('virtual_device_session_id', $session->id);
             session()->put('preferred_virtual_device_id', $session->virtual_device_id);
 
             return $session;
@@ -351,6 +362,24 @@ class VirtualDeviceController extends Controller
         session()->forget('virtual_device_session_id');
 
         return null;
+    }
+
+    /**
+     * Mark heartbeat-lapsed sessions disconnected so their devices free up.
+     * Scope to one device when reclaiming a specific device.
+     */
+    private function reapStaleSessions(Tenant $tenant, ?int $deviceId = null): void
+    {
+        $query = VirtualDeviceSession::where('tenant_id', $tenant->id)->stale();
+
+        if ($deviceId !== null) {
+            $query->where('virtual_device_id', $deviceId);
+        }
+
+        $query->update([
+            'disconnected_at' => now(),
+            'disconnect_reason' => 'stale',
+        ]);
     }
 
     private function preferredDeviceId(Tenant $tenant, Request $request): ?int

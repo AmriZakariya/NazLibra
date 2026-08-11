@@ -40,23 +40,26 @@ class EnsureVirtualDeviceSelected
             return $next($request);
         }
 
+        $base = VirtualDeviceSession::where('tenant_id', $tenant->id)
+            ->where('user_id', $user->id)
+            ->whereNull('disconnected_at') // lenient: don't evict an idle owner mid-work
+            ->with('virtualDevice');
+
         $sessionId = $request->session()->get('virtual_device_session_id');
 
-        if (! $sessionId) {
-            return $this->requireDeviceSelection($request);
-        }
+        $session = $sessionId ? (clone $base)->whereKey($sessionId)->first() : null;
 
-        $session = VirtualDeviceSession::where('tenant_id', $tenant->id)
-            ->where('user_id', $user->id)
-            ->where('id', $sessionId)
-            ->whereNull('disconnected_at')
-            ->with('virtualDevice')
-            ->first();
+        // The Laravel session cookie can rotate or expire (regenerate on login,
+        // lifetime, etc.). Rather than bounce a user who is still actively
+        // connected, recover their most recent live session and rebind it.
+        if (! $session) {
+            $session = (clone $base)->live()->latest('last_seen_at')->first();
+        }
 
         if (! $session || ! $session->virtualDevice?->is_active) {
             $request->session()->forget('virtual_device_session_id');
 
-            if ($session) {
+            if ($session && ! $session->virtualDevice?->is_active) {
                 $session->update([
                     'disconnected_at' => now(),
                     'disconnect_reason' => 'device_unavailable',
@@ -65,6 +68,9 @@ class EnsureVirtualDeviceSelected
 
             return $this->requireDeviceSelection($request);
         }
+
+        // Keep the cookie pointing at the recovered/confirmed session.
+        $request->session()->put('virtual_device_session_id', $session->id);
 
         return $next($request);
     }
