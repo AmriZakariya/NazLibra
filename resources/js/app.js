@@ -2736,20 +2736,47 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
     };
 
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+    // Tactile feedback so the cashier sees a tap register on a product card:
+    // a quick press-pulse + a floating "+1". No-op under reduced-motion.
+    const flashProduct = (button) => {
+        if (!button || prefersReducedMotion) return;
+
+        button.classList.remove('pos-product-ping');
+        void button.offsetWidth; // force reflow so the animation restarts on rapid taps
+        button.classList.add('pos-product-ping');
+        button.addEventListener('animationend', () => button.classList.remove('pos-product-ping'), { once: true });
+
+        const bump = document.createElement('span');
+        bump.className = 'pos-product-bump';
+        bump.setAttribute('aria-hidden', 'true');
+        bump.textContent = '+1';
+        button.appendChild(bump);
+        bump.addEventListener('animationend', () => bump.remove(), { once: true });
+    };
+
     const addProduct = (button) => {
         if (button.dataset.sellable === '0') {
             openStockDialog(button);
-            return;
+            return null;
         }
+
+        flashProduct(button);
 
         const id = Number(button.dataset.id || 0);
         const stock = Number(button.dataset.stock || 0);
-        const existing = cart.find((item) => item.id === id);
+        // Merge only into a line that is still at its original price. Once a
+        // line's price has been edited, re-adding the same item starts a NEW
+        // line instead — so the cart can hold several entries of the same item
+        // at different prices.
+        const existing = cart.find((item) => item.id === id && item.price === item.originalPrice);
+        let line;
         if (existing) {
-            const nextQuantity = normalizeQuantity(existing, existing.quantity + 1, true);
-            existing.quantity = nextQuantity;
+            existing.quantity = normalizeQuantity(existing, existing.quantity + 1, true);
+            line = existing;
         } else {
-            cart.push({
+            line = {
                 id,
                 name: button.dataset.name,
                 price: Number(button.dataset.price || 0),
@@ -2759,9 +2786,11 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 barcode: button.dataset.barcode || '',
                 quantity: 1,
                 note: '',
-            });
+            };
+            cart.push(line);
         }
         renderCart();
+        return line;
     };
 
     const openStockDialog = (button) => {
@@ -3561,8 +3590,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             const product = products.find((item) => Number(item.dataset.id) === Number(line.item_id || line.id));
             const quantity = Math.max(1, Number(line.quantity || 1));
             if (product) {
-                addProduct(product);
-                const added = cart.find((item) => item.id === Number(product.dataset.id));
+                // Use the exact line addProduct created/updated — a plain
+                // find-by-id would target the wrong entry once the same item
+                // appears on several lines (e.g. different prices).
+                const added = addProduct(product);
                 if (added) {
                     added.quantity = Math.min(added.stock, quantity);
                     added.quantity = normalizeQuantity(added, quantity, false);

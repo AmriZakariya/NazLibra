@@ -6965,3 +6965,65 @@
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
 }
+
+/* ── POS: tap feedback on product cards ─────────────────────────────────────
+   A quick press-pulse + brand ring and a floating "+1" so the cashier can see
+   a tap registered on a product. Driven by the `pos-product-ping` class and the
+   injected `.pos-product-bump` element in app.js (addProduct → flashProduct). */
+.pos-product {
+    position: relative;
+    cursor: pointer; /* signal the whole card is tappable to add */
+}
+
+/* Out-of-stock cards open the stock dialog rather than adding — show it's not a normal add. */
+.pos-product[data-sellable="0"] {
+    cursor: not-allowed;
+}
+
+@keyframes pos-product-ping {
+    0%   { transform: scale(1); }
+    35%  { transform: scale(0.955); }
+    100% { transform: scale(1); }
+}
+
+.pos-product-ping {
+    animation: pos-product-ping 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    border-color: var(--brand-primary) !important;
+    box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--brand-primary) 30%, transparent),
+        0 12px 28px color-mix(in srgb, var(--brand-primary) 22%, transparent) !important;
+}
+
+.pos-product-bump {
+    position: absolute;
+    top: 8px;
+    inset-inline-end: 8px;
+    z-index: 5;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: var(--brand-primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--brand-primary) 40%, transparent);
+    animation: pos-product-bump 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes pos-product-bump {
+    0%   { opacity: 0; transform: translateY(4px) scale(0.6); }
+    25%  { opacity: 1; transform: translateY(-2px) scale(1.05); }
+    60%  { opacity: 1; transform: translateY(-10px) scale(1); }
+    100% { opacity: 0; transform: translateY(-22px) scale(0.9); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pos-product-ping { animation: none; }
+    .pos-product-bump { display: none; }
+}
