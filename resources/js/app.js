@@ -2185,6 +2185,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         const isService = item.type === 'service';
         const isOutOfStock = Boolean(item.out_of_stock);
         const isSellable = Boolean(item.sellable);
+        // Stock-tracked = we can show a live "remaining" countdown for it.
+        const stockTracked = isSellable && !isService && Number(stock) > 0 && Number(stock) < 999999;
         const statusTone = isOutOfStock ? 'danger' : (isService ? 'info' : (stock <= lowThreshold ? 'warning' : 'success'));
         const statusLabel = isOutOfStock ? translate('Rupture') : (isService ? translate('Service') : stock);
         const statusClasses = {
@@ -2225,7 +2227,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 data-search="${escapeHtml(normalizeText(item.search || `${item.name} ${item.barcode || ''} ${item.category_name || ''} ${item.brand_name || ''} ${item.unit_name || ''}`))}">
                 <div class="pos-product-top flex items-start justify-between gap-3">
                     ${image}
-                    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${statusClasses}">${escapeHtml(statusLabel)}</span>
+                    <div class="flex flex-col items-end gap-1">
+                        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${statusClasses}" title="${translate('Stock actuel')}">${escapeHtml(statusLabel)}</span>
+                        ${stockTracked ? `<span class="pos-live-badge" data-live-badge hidden title="${translate('Stock en direct (panier déduit)')}"></span>` : ''}
+                    </div>
                 </div>
                 <div class="pos-product-name mt-3 flex items-start gap-2">
                     <button class="pos-favorite-star text-base text-slate-300" data-product-id="${escapeHtml(item.id)}" type="button" aria-label="${translate('Basculer favori')}" title="${translate('Basculer favori')}">★</button>
@@ -2374,11 +2379,9 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
     const canExceedStock = (item) => allowOversell || item.type === 'service' || item.stock >= 999999;
 
-    const stockLimitTimers = new Map();
-
-    // On a stock-cap hit: keep ONE toast per product (deduped) and flag the
-    // product card with a persistent red border, instead of stacking a new
-    // toast on every extra click.
+    // On a stock-cap hit, show just ONE toast per product (deduped). The red
+    // border on the card is handled by refreshProductStockStates(), so it stays
+    // as long as the item is actually at its cap — no per-click stacking.
     const flagProductStockLimit = (item) => {
         showToast(
             translate('Stock disponible atteint pour') + ' ' + item.name + ': ' + stockLabel(item) + ' ' + translate('unité(s).'),
@@ -2386,17 +2389,42 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             null,
             'stock-limit:' + item.id,
         );
+    };
 
-        const selectorId = window.CSS && CSS.escape ? CSS.escape(String(item.id)) : item.id;
-        const card = screen.querySelector('.pos-product[data-id="' + selectorId + '"]');
-        if (!card) return;
+    // Reflect the cart onto the product grid: a persistent red border while an
+    // item is at its stock cap, plus a live "remaining" badge that counts down
+    // as units are added. Both are gated by the oversell config via
+    // canExceedStock (no cap / no red border when overselling is allowed).
+    const refreshProductStockStates = () => {
+        const qtyById = new Map();
+        cart.forEach((it) => qtyById.set(it.id, (qtyById.get(it.id) || 0) + Number(it.quantity || 0)));
 
-        card.classList.add('pos-product-blocked');
-        if (stockLimitTimers.has(item.id)) window.clearTimeout(stockLimitTimers.get(item.id));
-        stockLimitTimers.set(item.id, window.setTimeout(() => {
-            card.classList.remove('pos-product-blocked');
-            stockLimitTimers.delete(item.id);
-        }, 2500));
+        products.forEach((card) => {
+            const id = Number(card.dataset.id || 0);
+            const stock = Number(card.dataset.stock || 0);
+            const lowThreshold = Number(card.dataset.lowThreshold || 0);
+            const pseudo = { type: card.dataset.type || 'book', stock };
+            const inCart = qtyById.get(id) || 0;
+
+            // Red border: only when a cap actually applies (respects oversell).
+            const atCap = !canExceedStock(pseudo) && inCart >= stock;
+            card.classList.toggle('pos-product-blocked', atCap);
+
+            // Live remaining badge (stock-tracked items only).
+            const liveEl = card.querySelector('[data-live-badge]');
+            if (liveEl) {
+                if (inCart > 0) {
+                    const remaining = stock - inCart;
+                    liveEl.textContent = translate('Reste') + ' ' + remaining;
+                    liveEl.hidden = false;
+                    liveEl.classList.toggle('is-empty', remaining <= 0);
+                    liveEl.classList.toggle('is-low', remaining > 0 && remaining <= lowThreshold);
+                } else {
+                    liveEl.hidden = true;
+                    liveEl.classList.remove('is-empty', 'is-low');
+                }
+            }
+        });
     };
 
     const normalizeQuantity = (item, quantity, warn = false) => {
@@ -2728,6 +2756,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
         screen.dataset.cartDirty = cart.length > 0 ? '1' : '0';
 
+        refreshProductStockStates();
+
         const total = totals();
         if (discountInput && !selectedDiscountRule()) {
             const maxValue = total.discountType === 'percentage' ? 100 : Math.max(0, total.subtotal - total.couponAmount);
@@ -2782,6 +2812,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     };
 
     const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    let flashSuppressed = false; // silences the "+1" during bulk operations (e.g. ticket resume)
 
     // Tactile feedback so the cashier sees a tap register on a product card:
     // a quick press-pulse + a floating "+1". No-op under reduced-motion.
@@ -2807,8 +2838,6 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             return null;
         }
 
-        flashProduct(button);
-
         const id = Number(button.dataset.id || 0);
         const stock = Number(button.dataset.stock || 0);
         // Merge only into a line that is still at its original price. Once a
@@ -2817,9 +2846,12 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         // at different prices.
         const existing = cart.find((item) => item.id === id && item.price === item.originalPrice);
         let line;
+        let added; // did a unit actually get added? (false when the stock cap blocked it)
         if (existing) {
+            const before = existing.quantity;
             existing.quantity = normalizeQuantity(existing, existing.quantity + 1, true);
             line = existing;
+            added = existing.quantity > before;
         } else {
             line = {
                 id,
@@ -2833,7 +2865,14 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 note: '',
             };
             cart.push(line);
+            added = true;
         }
+
+        // Only celebrate a real add — no "+1" when the stock cap already blocked it.
+        if (added && !flashSuppressed) {
+            flashProduct(button);
+        }
+
         renderCart();
         return line;
     };
@@ -3050,6 +3089,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         products.forEach(bindProductInteractions);
         refreshFavorites();
         filterProducts();
+        refreshProductStockStates(); // reflect the current cart onto freshly-rendered cards
     };
 
     const fetchServerProducts = async () => {
@@ -3631,6 +3671,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     filterProducts();
     try {
         const resumeCart = JSON.parse(screen.dataset.resumeCart || '[]');
+        flashSuppressed = true; // restoring a held ticket shouldn't fire a burst of "+1" animations
         resumeCart.forEach((line) => {
             const product = products.find((item) => Number(item.dataset.id) === Number(line.item_id || line.id));
             const quantity = Math.max(1, Number(line.quantity || 1));
@@ -3650,6 +3691,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         });
     } catch {
         // Ignore malformed resume payloads; the server still owns the ticket.
+    } finally {
+        flashSuppressed = false;
     }
     renderCart();
 });
