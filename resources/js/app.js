@@ -1024,7 +1024,7 @@ document.querySelectorAll('[data-async-item-picker]').forEach((picker) => {
     });
 });
 
-const showToast = (message, actionLabel = null, action = null) => {
+const showToast = (message, actionLabel = null, action = null, key = null) => {
     let container = document.querySelector('.app-toast-stack');
     if (!container) {
         container = document.createElement('div');
@@ -1032,9 +1032,26 @@ const showToast = (message, actionLabel = null, action = null) => {
         document.body.appendChild(container);
     }
 
+    const escapeAttr = (value) => (window.CSS && CSS.escape ? CSS.escape(value) : value);
+
+    // Deduplicate: a toast with the same key is refreshed in place instead of
+    // stacking a new copy (e.g. repeated "stock limit reached" on one product).
+    if (key) {
+        const existing = container.querySelector(`[data-toast-key="${escapeAttr(key)}"]`);
+        if (existing) {
+            const existingText = existing.querySelector('.app-toast-text');
+            if (existingText) existingText.textContent = message;
+            if (existing._toastTimer) window.clearTimeout(existing._toastTimer);
+            existing._toastTimer = window.setTimeout(() => existing.remove(), 6000);
+            return;
+        }
+    }
+
     const toast = document.createElement('div');
     toast.className = 'app-toast';
+    if (key) toast.setAttribute('data-toast-key', key);
     const text = document.createElement('span');
+    text.className = 'app-toast-text';
     text.textContent = message;
     toast.appendChild(text);
 
@@ -1054,13 +1071,16 @@ const showToast = (message, actionLabel = null, action = null) => {
     toast.appendChild(closeButton);
     container.appendChild(toast);
 
-    const close = () => toast.remove();
+    const close = () => {
+        if (toast._toastTimer) window.clearTimeout(toast._toastTimer);
+        toast.remove();
+    };
     toast.querySelector('.app-toast-close')?.addEventListener('click', close);
     toast.querySelector('.app-toast-action')?.addEventListener('click', () => {
         action?.();
         close();
     });
-    window.setTimeout(close, 6000);
+    toast._toastTimer = window.setTimeout(close, 6000);
 };
 
 document.querySelectorAll('[data-app-toast-message]').forEach((element) => {
@@ -2354,13 +2374,38 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
     const canExceedStock = (item) => allowOversell || item.type === 'service' || item.stock >= 999999;
 
+    const stockLimitTimers = new Map();
+
+    // On a stock-cap hit: keep ONE toast per product (deduped) and flag the
+    // product card with a persistent red border, instead of stacking a new
+    // toast on every extra click.
+    const flagProductStockLimit = (item) => {
+        showToast(
+            translate('Stock disponible atteint pour') + ' ' + item.name + ': ' + stockLabel(item) + ' ' + translate('unité(s).'),
+            null,
+            null,
+            'stock-limit:' + item.id,
+        );
+
+        const selectorId = window.CSS && CSS.escape ? CSS.escape(String(item.id)) : item.id;
+        const card = screen.querySelector('.pos-product[data-id="' + selectorId + '"]');
+        if (!card) return;
+
+        card.classList.add('pos-product-blocked');
+        if (stockLimitTimers.has(item.id)) window.clearTimeout(stockLimitTimers.get(item.id));
+        stockLimitTimers.set(item.id, window.setTimeout(() => {
+            card.classList.remove('pos-product-blocked');
+            stockLimitTimers.delete(item.id);
+        }, 2500));
+    };
+
     const normalizeQuantity = (item, quantity, warn = false) => {
         const requested = Math.max(1, Number(quantity || 1));
         if (canExceedStock(item)) return requested;
 
         const limited = Math.min(item.stock, requested);
         if (warn && requested > limited) {
-            showToast(translate('Stock disponible atteint pour') + ' ' + item.name + ': ' + stockLabel(item) + ' ' + translate('unité(s).'));
+            flagProductStockLimit(item);
         }
 
         return limited;

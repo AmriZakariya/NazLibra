@@ -6980,6 +6980,21 @@
     cursor: not-allowed;
 }
 
+/* Give hover lift + ring/shadow room inside the scroll container so edge cards
+   aren't visually clipped (the grid is overflow-y:auto, which also clips X). */
+.pos-products {
+    padding: 10px;
+    scroll-padding-block: 10px;
+}
+
+/* Stock cap reached: a persistent red border on the product itself, instead of
+   a pile of identical toasts. Re-clicking just keeps it red (see flagProductStockLimit). */
+.pos-product-blocked {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, #ef4444 45%, transparent) !important;
+    background: color-mix(in srgb, #ef4444 7%, var(--surface, #ffffff)) !important;
+}
+
 @keyframes pos-product-ping {
     0%   { transform: scale(1); }
     35%  { transform: scale(0.955); }
@@ -6991,7 +7006,7 @@
     border-color: var(--brand-primary) !important;
     box-shadow:
         0 0 0 3px color-mix(in srgb, var(--brand-primary) 30%, transparent),
-        0 12px 28px color-mix(in srgb, var(--brand-primary) 22%, transparent) !important;
+        0 6px 16px color-mix(in srgb, var(--brand-primary) 20%, transparent) !important;
 }
 
 .pos-product-bump {
