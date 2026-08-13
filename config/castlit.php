@@ -57,6 +57,11 @@ return [
         // Switch to MySQL later by setting CASTLIT_DB_DRIVER=mysql — no code change.
         'db_driver'   => env('CASTLIT_DB_DRIVER', 'sqlite'),
 
+        // This LWS plan has no cPanel `uapi`, so the subdomain is created by hand
+        // in the panel; the job fills the directory. Set false once `uapi` exists
+        // (or a wildcard vhost) to hide the manual-step reminder in the admin.
+        'subdomain_manual' => (bool) env('CASTLIT_SUBDOMAIN_MANUAL', true),
+
         // cPanel account layout.
         'public_html' => env('CASTLIT_PUBLIC_HTML', '/home/castlit/public_html'),
         'db_prefix'   => env('CASTLIT_DB_PREFIX', 'castlit_'),

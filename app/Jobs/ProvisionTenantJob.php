@@ -127,13 +127,10 @@ class ProvisionTenantJob implements ShouldQueue
         return [
             'MAIN_DOMAIN' => config('castlit.main_domain'),
             'BASE_DIR'    => $cfg['public_html'],
+            // Provision by copying THIS (master) install — already vendored + built.
+            'SOURCE_DIR'  => base_path(),
             'DB_DRIVER'   => $cfg['db_driver'] ?? 'sqlite',
             'DB_PREFIX'   => $cfg['db_prefix'],
-            'REPO_DIR'    => $cfg['repo_dir'],
-            'BRANCH'      => $cfg['repo_branch'],
-            'REPO_OWNER'  => $cfg['repo_owner'],
-            'REPO_NAME'   => $cfg['repo_name'],
-            'GH_TOKEN'    => $cfg['github_token'],
             'PHP_BIN'     => $cfg['php_bin'],
             'PATH'        => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin',
         ];

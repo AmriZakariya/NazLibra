@@ -36,6 +36,14 @@
 
         <div class="card">
             <div class="body">
+                @if (config('castlit.provision.subdomain_manual'))
+                    <div class="info" style="background:var(--warn-bg); border-color:color-mix(in srgb, var(--warn) 30%, transparent); color:var(--warn)">
+                        <strong>Étape préalable (une fois) :</strong> créez d'abord le sous-domaine
+                        <strong>&lt;sous-domaine&gt;.{{ config('castlit.main_domain') }}</strong> dans le panneau LWS
+                        (dossier <code>~/&lt;sous-domaine&gt;.{{ config('castlit.main_domain') }}</code>), puis enregistrez ici :
+                        l'installation remplit ce dossier automatiquement.
+                    </div>
+                @endif
                 <div class="info">L'enregistrement lance aussitôt le provisioning de <strong>sousdomaine.{{ config('castlit.main_domain') }}</strong> et envoie les accès au client par email.</div>
 
                 <form method="POST" action="{{ route('castlit.admin.store') }}" novalidate>

@@ -1,211 +1,174 @@
 #!/bin/bash
 # ============================================================================
-#  CastLit POS — Client Provisioning Script (Laravel, Git-based, cPanel/LWS)
+#  Castl-it-POS — Client provisioning by COPYING the master install.
 # ----------------------------------------------------------------------------
-#  Provisions a brand-new NazLibra client install from the Git code cache:
-#    subdomain → docroot/public, MySQL DB+user, code, vendor/, .env, key,
-#    migrate, tenant+owner seed, storage link.
+#  The master (~/htdocs) is already a working, vendored, asset-built checkout.
+#  Each client is a filesystem copy of it into $BASE_DIR/<sub>, with its own
+#  .env + SQLite database and the LWS root .htaccess. No git clone, no composer,
+#  no vendor cache — those all fought the shared-host process/thread limits.
 #
-#  Modeled on eInvoiceTrack/deploy/deploy.sh but adapted for a Laravel app:
-#   • subdomain docroot points at <docroot>/public
-#   • vendor/ (git-ignored) is rsynced from the repo cache (composer install
-#     is run once in the cache, not per client)
-#   • config is .env (rendered here) + `php artisan key:generate`
-#   • schema via `php artisan migrate --force`; tenant seeded via
-#     `php artisan castlit:install-tenant`
-#
-#  Usage:
-#    ./provision.sh <subdomain> <payload_b64> [git_ref]
-#      <subdomain>    sanitized [a-z0-9], 2..30 chars
-#      <payload_b64>  base64 JSON subscription payload (passed to install-tenant)
-#      [git_ref]      defaults to origin/<branch>
-#
-#  Emits progress to stderr; the LAST stdout line is a single JSON object the
-#  caller parses. All tunables come from environment variables set by the
-#  ProvisionTenantJob (which reads config/castlit.php):
-#    MAIN_DOMAIN BASE_DIR DB_PREFIX REPO_DIR BRANCH REPO_OWNER REPO_NAME
-#    GH_TOKEN PHP_BIN
+#  Usage:  ./provision.sh <subdomain> <payload_b64>
+#  Env (set by ProvisionTenantJob):
+#    SOURCE_DIR  master app root (base_path())     BASE_DIR   parent of client dirs
+#    MAIN_DOMAIN DB_DRIVER DB_PREFIX PHP_BIN
+#  Emits "▸ …" progress to stderr; the LAST stdout line is one JSON object.
 # ============================================================================
 set -uo pipefail
-
-# Shared hosting often runs this under a minimal PATH (missing /usr/bin) — make
-# the common tools resolvable regardless of how the queue worker was launched.
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:${PATH:-}"
-
-# Keep git single-threaded + low-memory: shared accounts cap processes/threads
-# ("unable to create thread: Resource temporarily unavailable" otherwise).
-export GIT_CONFIG_COUNT=2
-export GIT_CONFIG_KEY_0=pack.threads   GIT_CONFIG_VALUE_0=1
-export GIT_CONFIG_KEY_1=index.threads  GIT_CONFIG_VALUE_1=1
 
 emit()  { printf '%s\n' "$1" >&2; }
 final() { printf '%s\n' "$1"; exit "${2:-0}"; }
 
-# --- Defaults (overridable via env) -----------------------------------------
 : "${MAIN_DOMAIN:=castlitpos.com}"
-: "${BASE_DIR:=/home/castlit/public_html}"
+: "${BASE_DIR:=/home/castlit}"
+: "${SOURCE_DIR:=}"
 : "${DB_PREFIX:=castlit_}"
-: "${REPO_DIR:=$(cd "$(dirname "$0")" && pwd)/repo}"
-: "${BRANCH:=main}"
-: "${REPO_OWNER:=AmriZakariya}"
-: "${REPO_NAME:=NazLibra}"
-: "${GH_TOKEN:=}"
+: "${DB_DRIVER:=sqlite}"
 : "${PHP_BIN:=php}"
-: "${DB_DRIVER:=sqlite}"   # sqlite (default) | mysql
 
 SUB_NAME="${1:-}"
 PAYLOAD_B64="${2:-}"
-GIT_REF="${3:-origin/$BRANCH}"
 
-if [ -z "$SUB_NAME" ]; then
-  final '{"status":"error","step":"input","message":"No subdomain provided."}' 1
-fi
-# Defense in depth — never trust the caller; only [a-z0-9], 2..30.
-if ! printf '%s' "$SUB_NAME" | grep -Eq '^[a-z0-9]{2,30}$'; then
-  final '{"status":"error","step":"input","message":"Invalid subdomain (need 2-30 chars a-z0-9)."}' 1
-fi
+[ -n "$SUB_NAME" ] || final '{"status":"error","step":"input","message":"No subdomain provided."}' 1
+printf '%s' "$SUB_NAME" | grep -Eq '^[a-z0-9]{2,30}$' \
+  || final '{"status":"error","step":"input","message":"Invalid subdomain (2-30 chars a-z0-9)."}' 1
+[ -n "$SOURCE_DIR" ] && [ -d "$SOURCE_DIR" ] \
+  || final '{"status":"error","step":"source","message":"SOURCE_DIR not set or missing."}' 1
+[ -d "$SOURCE_DIR/vendor" ] \
+  || final '{"status":"error","step":"source","message":"Master vendor/ missing — run composer install in ~/htdocs."}' 1
 
 FULL_DOMAIN="$SUB_NAME.$MAIN_DOMAIN"
-DOC_ROOT="$BASE_DIR/$SUB_NAME"
-PUBLIC_DIR="$DOC_ROOT/public"
+# LWS names each subdomain's directory after the FULL hostname (~/<sub>.<domain>),
+# so the client install must live there for the subdomain to serve it.
+DOC_ROOT="$BASE_DIR/$FULL_DOMAIN"
+SQLITE_PATH="$DOC_ROOT/database/database.sqlite"
 NEW_DB_NAME="${DB_PREFIX}${SUB_NAME}"
 NEW_DB_USER="${DB_PREFIX}$(printf '%s' "$SUB_NAME" | cut -c1-8)"
-# Password only matters for MySQL; generate it with PHP (no openssl/tr dependency).
 NEW_DB_PASS=""
 
 # ============================================================================
-# STEP 0 — Ensure the Git code cache (auto-clone if missing) + vendor present
+# STEP 1 — Subdomain (best-effort: uapi if present, else create it in the panel)
 # ============================================================================
-emit "▸ Ensuring code cache at $REPO_DIR"
-if [ ! -d "$REPO_DIR/.git" ]; then
-  if [ -z "$GH_TOKEN" ]; then
-    final '{"status":"error","step":"cache","message":"Code cache missing and no GH_TOKEN set. Pre-clone ~/repo via SSH."}' 1
+emit "▸ Creating subdomain $FULL_DOMAIN → $DOC_ROOT"
+mkdir -p "$DOC_ROOT"
+SUBDOMAIN_STATUS="manual_required"
+if command -v uapi >/dev/null 2>&1; then
+  if uapi SubDomain addsubdomain domain="$SUB_NAME" rootdomain="$MAIN_DOMAIN" dir="$DOC_ROOT" disallowdot=1 >&2 2>&1; then
+    SUBDOMAIN_STATUS="created"
+  else
+    SUBDOMAIN_STATUS="uapi_failed"
+    emit "  (uapi subdomain create failed — point $SUB_NAME.$MAIN_DOMAIN at $DOC_ROOT in the panel)"
   fi
-  # Shallow + single-branch keeps the clone light enough for capped accounts.
-  # Clean any half-finished clone from a previous failed attempt first.
-  rm -rf "$REPO_DIR" 2>/dev/null || true
-  git clone --depth 1 --single-branch --branch "$BRANCH" \
-    "https://${GH_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git" "$REPO_DIR" >&2 2>&1 \
-    || final '{"status":"error","step":"cache","message":"git clone failed (token/repo/host limits?). Pre-clone ~/repo via SSH."}' 1
-  git -C "$REPO_DIR" config credential.helper store >/dev/null 2>&1
-fi
-# Shallow fetch of just the tracked branch (light + avoids tag/pack thread churn).
-git -C "$REPO_DIR" fetch --depth 1 origin "$BRANCH" >&2 2>&1 \
-  || emit "  (fetch failed — using the cache as-is)"
-DEPLOY_SHA="$(git -C "$REPO_DIR" rev-parse "$GIT_REF" 2>/dev/null || git -C "$REPO_DIR" rev-parse FETCH_HEAD 2>/dev/null)"
-[ -n "$DEPLOY_SHA" ] || final "{\"status\":\"error\",\"step\":\"cache\",\"message\":\"Git ref not found: $GIT_REF\"}" 1
-
-# vendor/ is git-ignored, so it must already exist in the cache (run
-# `composer install --no-dev -o` in the cache once, kept warm between deploys).
-if [ ! -d "$REPO_DIR/vendor" ]; then
-  final '{"status":"error","step":"cache","message":"repo/vendor missing — run composer install in the cache first."}' 1
+else
+  emit "  (uapi absent — point $SUB_NAME.$MAIN_DOMAIN at $DOC_ROOT in the LWS panel)"
 fi
 
 # ============================================================================
-# STEP 1 — Create subdomain (docroot → Laravel public/)
+# STEP 2 — Database (SQLite by default; MySQL via uapi when DB_DRIVER=mysql)
 # ============================================================================
-emit "▸ Creating subdomain $FULL_DOMAIN → $PUBLIC_DIR"
-mkdir -p "$PUBLIC_DIR"
-uapi SubDomain addsubdomain domain="$SUB_NAME" rootdomain="$MAIN_DOMAIN" dir="$PUBLIC_DIR" disallowdot=1 >&2 2>&1 \
-  || emit "  (subdomain create returned non-zero — may already exist, continuing)"
-
-# ============================================================================
-# STEP 2 — Prepare the database (engine chosen by DB_DRIVER)
-# ============================================================================
-SQLITE_PATH="$DOC_ROOT/database/database.sqlite"
 if [ "$DB_DRIVER" = "mysql" ]; then
+  command -v uapi >/dev/null 2>&1 || final '{"status":"error","step":"database","message":"uapi required for the mysql driver."}' 1
   NEW_DB_PASS="$("$PHP_BIN" -r 'echo bin2hex(random_bytes(12));' 2>/dev/null)"
   emit "▸ [mysql] Creating database $NEW_DB_NAME and user $NEW_DB_USER"
-  uapi Mysql create_database name="$NEW_DB_NAME" >&2 2>&1 \
-    || final '{"status":"error","step":"database","message":"create_database failed."}' 1
-  uapi Mysql create_user name="$NEW_DB_USER" password="$NEW_DB_PASS" >&2 2>&1 \
-    || final '{"status":"error","step":"database","message":"create_user failed."}' 1
-  uapi Mysql set_privileges_on_database user="$NEW_DB_USER" database="$NEW_DB_NAME" privileges=ALL >&2 2>&1 \
-    || final '{"status":"error","step":"database","message":"grant privileges failed."}' 1
-else
-  emit "▸ [sqlite] Database file will be created after code export"
+  uapi Mysql create_database name="$NEW_DB_NAME" >&2 2>&1 || final '{"status":"error","step":"database","message":"create_database failed."}' 1
+  uapi Mysql create_user name="$NEW_DB_USER" password="$NEW_DB_PASS" >&2 2>&1 || final '{"status":"error","step":"database","message":"create_user failed."}' 1
+  uapi Mysql set_privileges_on_database user="$NEW_DB_USER" database="$NEW_DB_NAME" privileges=ALL >&2 2>&1 || final '{"status":"error","step":"database","message":"grant privileges failed."}' 1
 fi
 
 # ============================================================================
-# STEP 3 — Deploy application code from Git + vendor/ from cache
+# STEP 3 — Copy the master install (code + vendor + built assets) into the client
 # ============================================================================
-emit "▸ Exporting commit ${DEPLOY_SHA:0:8} into $DOC_ROOT"
-git -C "$REPO_DIR" archive "$DEPLOY_SHA" | tar -x -C "$DOC_ROOT" \
-  || final '{"status":"error","step":"code","message":"git archive export failed."}' 1
-# vendor/ ships from the warm cache (composer not run per client).
-rsync -a "$REPO_DIR/vendor/" "$DOC_ROOT/vendor/" >&2 2>&1 \
-  || final '{"status":"error","step":"code","message":"vendor rsync failed."}' 1
+emit "▸ Copying application from master ($SOURCE_DIR)"
+# tar-pipe: one pass, honours excludes, needs no rsync. Skip per-install files,
+# the master's caches (would carry the master's config!), git and node_modules.
+( cd "$SOURCE_DIR" && tar \
+    --exclude='./.git' \
+    --exclude='./.env' \
+    --exclude='./node_modules' \
+    --exclude='./bootstrap/cache/*' \
+    --exclude='./storage/logs/*' \
+    --exclude='./storage/framework/cache/*' \
+    --exclude='./storage/framework/sessions/*' \
+    --exclude='./storage/framework/views/*' \
+    --exclude='./public/storage' \
+    --exclude='./database/*.sqlite' \
+    -cf - . ) | ( tar -xf - -C "$DOC_ROOT" ) \
+  || final '{"status":"error","step":"copy","message":"copy from master failed."}' 1
 
-# SQLite: create the database file now that the database/ dir exists.
+# Remove any LWS placeholder page that would shadow the app at "/".
+rm -f "$DOC_ROOT/index.html" "$DOC_ROOT/default_index.html" "$DOC_ROOT/index.htm" 2>/dev/null || true
+
+# ── STEP 3b — Client root .htaccess (docroot is the client dir → forward to public/)
+cat > "$DOC_ROOT/.htaccess" <<'HT'
+Options -Indexes
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+    RewriteRule (^|/)\.(?!well-known) - [F,L]
+    RewriteRule ^(app|bootstrap|config|database|lang|resources|routes|scripts|tests|vendor)(/|$) - [F,L]
+    RewriteRule ^(composer\.(json|lock)|package(-lock)?\.json|artisan|phpunit\.xml|vite\.config\.js)$ - [F,L]
+    RewriteRule \.(md|sqlite)$ - [F,L]
+    RewriteRule ^(build|css|fonts|js|storage)/(.*)$ public/$1/$2 [L]
+    RewriteRule ^favicon\.ico$ public/favicon.ico [L]
+</IfModule>
+FallbackResource /public/index.php
+HT
+
+# ── STEP 3c — SQLite DB file + writable runtime dirs
 if [ "$DB_DRIVER" != "mysql" ]; then
   mkdir -p "$DOC_ROOT/database"
   : > "$SQLITE_PATH"
   chmod 664 "$SQLITE_PATH" 2>/dev/null || true
-  chmod 775 "$DOC_ROOT/database" 2>/dev/null || true
 fi
+mkdir -p "$DOC_ROOT/storage/framework/cache" "$DOC_ROOT/storage/framework/sessions" \
+         "$DOC_ROOT/storage/framework/views" "$DOC_ROOT/storage/logs" "$DOC_ROOT/bootstrap/cache"
+chmod -R 775 "$DOC_ROOT/storage" "$DOC_ROOT/bootstrap/cache" 2>/dev/null || true
 
 # ============================================================================
-# STEP 4 — Render .env
+# STEP 4 — Render .env (from the copied .env.example)
 # ============================================================================
 emit "▸ Writing .env"
-APP_KEY_PLACEHOLDER=""
-ENV_SRC="$DOC_ROOT/.env.example"
 ENV_DST="$DOC_ROOT/.env"
-if [ -f "$ENV_SRC" ]; then
-  cp "$ENV_SRC" "$ENV_DST"
-else
-  : > "$ENV_DST"
-fi
-# DB connection values depend on the driver.
+[ -f "$DOC_ROOT/.env.example" ] && cp "$DOC_ROOT/.env.example" "$ENV_DST" || : > "$ENV_DST"
+
 if [ "$DB_DRIVER" = "mysql" ]; then
   DB_CONN="mysql"; DB_DATABASE_VAL="$NEW_DB_NAME"; DB_USER_VAL="$NEW_DB_USER"; DB_PASS_VAL="$NEW_DB_PASS"
 else
   DB_CONN="sqlite"; DB_DATABASE_VAL="$SQLITE_PATH"; DB_USER_VAL=""; DB_PASS_VAL=""
 fi
 
-# Overwrite/append the keys we control. Uses a PHP helper so quoting is safe.
 "$PHP_BIN" -r '
-  $f = $argv[1];
-  $set = [
-    "APP_ENV"       => "production",
-    "APP_DEBUG"     => "false",
-    "APP_URL"       => $argv[2],
-    "CASTLIT_MASTER"=> "false",
-    "DB_CONNECTION" => $argv[6],
-    "DB_HOST"       => "127.0.0.1",
-    "DB_PORT"       => "3306",
-    "DB_DATABASE"   => $argv[3],
-    "DB_USERNAME"   => $argv[4],
-    "DB_PASSWORD"   => $argv[5],
-    "SESSION_DRIVER"=> "database",
-    "QUEUE_CONNECTION" => "database",
-    "MAIL_MAILER"   => "log",
+  $f=$argv[1];
+  $set=[
+    "APP_ENV"=>"production","APP_DEBUG"=>"false","APP_URL"=>$argv[2],
+    "CASTLIT_MASTER"=>"false",
+    "DB_CONNECTION"=>$argv[6],"DB_HOST"=>"127.0.0.1","DB_PORT"=>"3306",
+    "DB_DATABASE"=>$argv[3],"DB_USERNAME"=>$argv[4],"DB_PASSWORD"=>$argv[5],
+    "SESSION_DRIVER"=>"database","QUEUE_CONNECTION"=>"database","CACHE_STORE"=>"database",
+    "MAIL_MAILER"=>"log",
   ];
-  $c = is_file($f) ? file_get_contents($f) : "";
-  foreach ($set as $k => $v) {
-    $line = $k."=".$v;
-    if (preg_match("/^".preg_quote($k,"/")."=.*$/m", $c)) {
-      $c = preg_replace("/^".preg_quote($k,"/")."=.*$/m", $line, $c);
-    } else {
-      $c .= (str_ends_with($c, "\n") || $c === "" ? "" : "\n").$line."\n";
-    }
-  }
-  file_put_contents($f, $c);
+  $c=is_file($f)?file_get_contents($f):"";
+  foreach($set as $k=>$v){$l=$k."=".$v;
+    if(preg_match("/^".preg_quote($k,"/")."=.*$/m",$c)) $c=preg_replace("/^".preg_quote($k,"/")."=.*$/m",$l,$c);
+    else $c.=(str_ends_with($c,"\n")||$c===""?"":"\n").$l."\n";}
+  file_put_contents($f,$c);
 ' "$ENV_DST" "https://$FULL_DOMAIN" "$DB_DATABASE_VAL" "$DB_USER_VAL" "$DB_PASS_VAL" "$DB_CONN" >&2 2>&1 \
   || final '{"status":"error","step":"env","message":".env render failed."}' 1
 
 # ============================================================================
-# STEP 5 — Key, migrate, storage link
+# STEP 5 — Key, clear stale caches, migrate, storage link
 # ============================================================================
 emit "▸ artisan key:generate / migrate / storage:link"
+( cd "$DOC_ROOT" && "$PHP_BIN" artisan config:clear ) >&2 2>&1 || true
 ( cd "$DOC_ROOT" && "$PHP_BIN" artisan key:generate --force ) >&2 2>&1 \
   || final '{"status":"error","step":"key","message":"key:generate failed."}' 1
 ( cd "$DOC_ROOT" && "$PHP_BIN" artisan migrate --force ) >&2 2>&1 \
   || final '{"status":"error","step":"migrate","message":"migrate failed."}' 1
+rm -f "$DOC_ROOT/public/storage" 2>/dev/null || true
 ( cd "$DOC_ROOT" && "$PHP_BIN" artisan storage:link ) >&2 2>&1 || true
 
 # ============================================================================
-# STEP 6 — Seed tenant + owner from the subscription payload
+# STEP 6 — Seed the tenant + owner from the subscription payload
 # ============================================================================
 emit "▸ Seeding tenant + owner"
 INSTALL_JSON="$( cd "$DOC_ROOT" && "$PHP_BIN" artisan castlit:install-tenant --payload="$PAYLOAD_B64" 2>/dev/null | tail -n 1 )"
@@ -213,18 +176,13 @@ case "$INSTALL_JSON" in
   *'"status":"success"'*|*'"status":"skipped"'*) : ;;
   *) final "{\"status\":\"error\",\"step\":\"seed\",\"message\":\"tenant seed failed\",\"detail\":$(printf '%s' "${INSTALL_JSON:-\"\"}" | sed 's/\\/\\\\/g;s/"/\\"/g;s/^/"/;s/$/"/')}" 1 ;;
 esac
-
-# Extract owner credentials from the install JSON (best-effort).
 OWNER_EMAIL="$(printf '%s' "$INSTALL_JSON"    | sed -n 's/.*"owner_email":"\([^"]*\)".*/\1/p')"
 OWNER_PASSWORD="$(printf '%s' "$INSTALL_JSON" | sed -n 's/.*"owner_password":"\([^"]*\)".*/\1/p')"
 
 # ============================================================================
-# STEP 7 — Cache config/routes + stamp the deployed commit
+# STEP 7 — Stamp version
 # ============================================================================
-( cd "$DOC_ROOT" && "$PHP_BIN" artisan config:cache && "$PHP_BIN" artisan route:cache ) >&2 2>&1 || true
+DEPLOY_SHA="$(git -C "$SOURCE_DIR" rev-parse --short HEAD 2>/dev/null || echo master)"
 printf '%s' "$DEPLOY_SHA" > "$DOC_ROOT/.version"
 
-# ============================================================================
-# OUTPUT — single JSON line
-# ============================================================================
-final "{\"status\":\"success\",\"url\":\"https://$FULL_DOMAIN\",\"docroot\":\"$DOC_ROOT\",\"db_driver\":\"$DB_DRIVER\",\"db\":\"$DB_DATABASE_VAL\",\"db_user\":\"$DB_USER_VAL\",\"commit\":\"${DEPLOY_SHA:0:8}\",\"owner_email\":\"$OWNER_EMAIL\",\"owner_password\":\"$OWNER_PASSWORD\"}" 0
+final "{\"status\":\"success\",\"url\":\"https://$FULL_DOMAIN\",\"docroot\":\"$DOC_ROOT\",\"db_driver\":\"$DB_DRIVER\",\"db\":\"$DB_DATABASE_VAL\",\"db_user\":\"$DB_USER_VAL\",\"commit\":\"$DEPLOY_SHA\",\"subdomain\":\"$SUBDOMAIN_STATUS\",\"owner_email\":\"$OWNER_EMAIL\",\"owner_password\":\"$OWNER_PASSWORD\"}" 0

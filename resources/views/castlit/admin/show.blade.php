@@ -89,6 +89,12 @@
                     <div class="card">
                         <h2>Provisioning</h2>
                         <div class="body">
+                            @if (config('castlit.provision.subdomain_manual') && $subscription->install->status !== \App\Models\TenantInstall::STATUS_LIVE)
+                                <div class="fail-banner" style="background:var(--warn-bg); color:var(--warn); border-color:color-mix(in srgb, var(--warn) 30%, transparent)">
+                                    Créez le sous-domaine dans le panneau LWS pointant vers
+                                    <code>~/{{ $subscription->install->domain }}</code> — l'installation remplit ce dossier.
+                                </div>
+                            @endif
                             @if ($subscription->install->status === \App\Models\TenantInstall::STATUS_FAILED)
                                 <div class="fail-banner">✗ {{ $subscription->install->current_step ?: 'Le provisioning a échoué — voir le journal ci-dessous.' }}</div>
                             @endif
