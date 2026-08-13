@@ -107,12 +107,16 @@
 
     /* Play Store / store buttons */
     .store-btns { display: flex; gap: 12px; flex-wrap: wrap; }
-    .store-btn { display: inline-flex; align-items: center; gap: 11px; background: var(--ink); color: #fff; border-radius: 13px;
-                 padding: 10px 18px; text-align: left; transition: transform .14s ease, box-shadow .2s ease; box-shadow: var(--shadow); }
-    .store-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-    .store-btn.is-soon { opacity: .62; pointer-events: none; }
+    /* Fixed dark badge (a store button is dark in both themes; never uses --ink,
+       which flips to light in dark mode). */
+    .store-btn { display: inline-flex; align-items: center; gap: 11px; background: #12172b; color: #fff; border-radius: 13px;
+                 padding: 11px 18px; text-align: left; border: 1px solid rgba(255,255,255,.14);
+                 transition: transform .14s ease, box-shadow .2s ease, border-color .2s ease; box-shadow: var(--shadow); }
+    .store-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: rgba(255,255,255,.28); }
+    .store-btn.is-soon { cursor: default; pointer-events: none; }
+    .store-btn.is-soon .st-small { color: var(--accent); }
     .store-btn svg { width: 26px; height: 26px; flex-shrink: 0; }
-    .store-btn .st-small { display: block; font-size: 10px; letter-spacing: .04em; opacity: .8; }
+    .store-btn .st-small { display: block; font-size: 10px; letter-spacing: .06em; opacity: .85; }
     .store-btn .st-big { display: block; font-size: 16px; font-weight: 800; letter-spacing: -.01em; margin-top: 1px; }
 
     /* ── Trust strip ──────────────────────────────────────────────────────── */

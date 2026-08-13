@@ -22,6 +22,7 @@
     @endif
     <meta name="theme-color" content="#3157D5">
     <link rel="canonical" href="{{ $canonical }}">
+    <link rel="icon" type="image/svg+xml" href="{{ asset('img/castlit-icon.svg') }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ route('app.icon', 192) }}">
     <link rel="apple-touch-icon" href="{{ route('app.icon', 192) }}">
 
@@ -144,9 +145,10 @@
                border-bottom: 1px solid color-mix(in srgb, var(--sand) 60%, transparent); }
         .nav-inner { display: flex; align-items: center; gap: 16px; height: 66px; }
         .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 18px; letter-spacing: -.02em; }
-        .brand-mark { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center;
-                      background: linear-gradient(135deg, var(--brand), #5b7bf0); color: #fff; font-size: 17px; box-shadow: var(--shadow); }
-        .brand-mark span { transform: translateY(-1px); }
+        .brand .mark { width: 34px; height: 34px; display: block; flex-shrink: 0; border-radius: 9px; box-shadow: var(--shadow); }
+        .brand.brand-sm .mark { width: 26px; height: 26px; }
+        .wordmark { white-space: nowrap; }
+        .wordmark .wm-accent { color: var(--brand); }
         .nav .spacer { margin-left: auto; }
         .nav-links { display: flex; align-items: center; gap: 8px; }
         @media (max-width: 640px) { .nav-links a.nav-hide-sm { display: none; } }
@@ -167,7 +169,8 @@
     <nav class="nav">
         <div class="wrap nav-inner">
             <a href="{{ route('castlit.landing') }}" class="brand" aria-label="{{ $brand['name'] }} accueil">
-                <span class="brand-mark"><span>◲</span></span> Castl-it-<span style="color:var(--brand)">POS</span>
+                @include('castlit.partials.mark')
+                <span class="wordmark">Castl-it-<span class="wm-accent">POS</span></span>
             </a>
             <div class="spacer"></div>
             <div class="nav-links">
@@ -182,8 +185,9 @@
 
     <footer>
         <div class="wrap footer-inner">
-            <a href="{{ route('castlit.landing') }}" class="brand" style="font-size:15px">
-                <span class="brand-mark" style="width:26px;height:26px;font-size:13px"><span>◲</span></span> Castl-it-POS
+            <a href="{{ route('castlit.landing') }}" class="brand brand-sm" style="font-size:15px">
+                @include('castlit.partials.mark')
+                <span class="wordmark">Castl-it-POS</span>
             </a>
             <span class="spacer" style="margin-left:auto"></span>
             <span>© {{ date('Y') }} {{ $brand['name'] }} — {{ $brand['tagline'] }}.</span>

@@ -1,0 +1,12 @@
+{{-- Castl-it-POS mark (inline so it themes crisply and needs no asset request). --}}
+<svg class="mark" viewBox="0 0 48 48" role="img" aria-label="Castl-it-POS" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="castlitBg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#4064E8"/>
+            <stop offset="1" stop-color="#2841A2"/>
+        </linearGradient>
+    </defs>
+    <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#castlitBg)"/>
+    <path d="M30.4 17.6 A9 9 0 1 0 30.4 30.4" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="32" cy="24" r="3.1" fill="#F59E0B"/>
+</svg>

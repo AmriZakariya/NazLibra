@@ -108,7 +108,7 @@ Options -Indexes
     RewriteRule ^(app|bootstrap|config|database|lang|resources|routes|scripts|tests|vendor)(/|$) - [F,L]
     RewriteRule ^(composer\.(json|lock)|package(-lock)?\.json|artisan|phpunit\.xml|vite\.config\.js)$ - [F,L]
     RewriteRule \.(md|sqlite)$ - [F,L]
-    RewriteRule ^(build|css|fonts|js|storage)/(.*)$ public/$1/$2 [L]
+    RewriteRule ^(build|css|fonts|img|js|storage)/(.*)$ public/$1/$2 [L]
     RewriteRule ^favicon\.ico$ public/favicon.ico [L]
 </IfModule>
 FallbackResource /public/index.php
