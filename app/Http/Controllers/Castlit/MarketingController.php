@@ -10,9 +10,31 @@ use Illuminate\View\View;
 
 class MarketingController extends Controller
 {
-    /** Public marketing landing page for castlitpos.com, with the sign-up form. */
-    public function landing(): View
+    /** Supported marketing locales. */
+    public const LOCALES = ['fr', 'ar', 'en'];
+
+    /** Resolve the marketing locale from ?lang= (persisted) and apply it. */
+    private function resolveLocale(Request $request): string
     {
+        $lang = $request->query('lang');
+        if (in_array($lang, self::LOCALES, true)) {
+            $request->session()->put('castlit_lang', $lang);
+        } else {
+            $lang = $request->session()->get('castlit_lang', 'fr');
+            if (! in_array($lang, self::LOCALES, true)) {
+                $lang = 'fr';
+            }
+        }
+        app()->setLocale($lang);
+
+        return $lang;
+    }
+
+    /** Public marketing landing page for castlitpos.com, with the sign-up form. */
+    public function landing(Request $request): View
+    {
+        $this->resolveLocale($request);
+
         return view('castlit.landing', [
             'activities'  => $this->activityOptions(),
             'currencies'  => ['MAD', 'EUR', 'USD', 'XOF', 'DZD', 'TND'],
@@ -23,6 +45,8 @@ class MarketingController extends Controller
     /** Confirmation page after a subscription request is submitted. */
     public function success(Request $request): View
     {
+        $this->resolveLocale($request);
+
         return view('castlit.success', [
             'subdomain'  => $request->session()->get('subscribed_subdomain'),
             'mainDomain' => config('castlit.main_domain'),

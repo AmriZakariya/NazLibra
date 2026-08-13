@@ -1,6 +1,6 @@
 @extends('castlit.layout')
 
-@section('title', 'Demande envoyée — Castl-it-POS')
+@section('title', __('castlit.ok_title').' — Castl-it-POS')
 
 @section('content')
 <style>
@@ -18,15 +18,15 @@
 
 <section class="thanks">
     <div class="seal">✓</div>
-    <h1>Merci, votre demande est bien reçue.</h1>
-    <p>Notre équipe la valide au plus vite. Dès l'approbation, vous recevez un email avec vos accès et l'adresse de votre caisse.</p>
+    <h1>{{ __('castlit.ok_title') }}</h1>
+    <p>{{ __('castlit.ok_sub') }}</p>
 
     @if ($subdomain)
-        <div class="addr">Adresse réservée&nbsp;: <span class="sd">{{ $subdomain }}</span>.{{ $mainDomain }}</div>
+        <div class="addr">{{ __('castlit.ok_addr') }}&nbsp;: <span class="sd" dir="ltr">{{ $subdomain }}</span>.{{ $mainDomain }}</div>
     @endif
 
     <div class="next">
-        <a href="{{ route('castlit.landing') }}" class="btn btn-ghost">Retour à l'accueil</a>
+        <a href="{{ route('castlit.landing') }}" class="btn btn-ghost">{{ __('castlit.ok_back') }}</a>
     </div>
 </section>
 @endsection

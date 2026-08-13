@@ -2,13 +2,17 @@
     $brand = config('castlit.brand');
     $mainDomain = config('castlit.main_domain');
     $siteUrl = 'https://'.$mainDomain;
+    $lang = in_array(app()->getLocale(), ['fr', 'ar', 'en'], true) ? app()->getLocale() : 'fr';
+    $isRtl = $lang === 'ar';
+    $langLabels = ['fr' => 'FR', 'ar' => 'ع', 'en' => 'EN'];
+    $isMarketing = request()->routeIs('castlit.landing') || request()->routeIs('castlit.subscribe.success');
     $canonical = $canonical ?? url()->current();
-    $metaTitle = trim($__env->yieldContent('title', $brand['name'].' — '.$brand['tagline']));
-    $metaDescription = trim($__env->yieldContent('meta_description', $brand['description']));
+    $metaTitle = trim($__env->yieldContent('title', __('castlit.meta_title')));
+    $metaDescription = trim($__env->yieldContent('meta_description', __('castlit.meta_description')));
     $ogImage = \Illuminate\Support\Facades\Route::has('castlit.og') ? route('castlit.og') : route('app.icon', 512);
 @endphp
 <!doctype html>
-<html lang="fr">
+<html lang="{{ $lang }}" dir="{{ $isRtl ? 'rtl' : 'ltr' }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -22,6 +26,12 @@
     @endif
     <meta name="theme-color" content="#3157D5">
     <link rel="canonical" href="{{ $canonical }}">
+    @if ($isMarketing)
+        @foreach (['fr', 'ar', 'en'] as $hl)
+            <link rel="alternate" hreflang="{{ $hl }}" href="{{ request()->fullUrlWithQuery(['lang' => $hl]) }}">
+        @endforeach
+        <link rel="alternate" hreflang="x-default" href="{{ route('castlit.landing') }}">
+    @endif
     <link rel="icon" type="image/svg+xml" href="{{ asset('img/castlit-icon.svg') }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ route('app.icon', 192) }}">
     <link rel="apple-touch-icon" href="{{ route('app.icon', 192) }}">
@@ -152,6 +162,13 @@
         .nav .spacer { margin-left: auto; }
         .nav-links { display: flex; align-items: center; gap: 8px; }
         @media (max-width: 640px) { .nav-links a.nav-hide-sm { display: none; } }
+        .lang-switch { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px;
+                       border: 1px solid var(--sand); background: color-mix(in srgb, var(--surface) 60%, transparent); }
+        .lang-opt { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 26px; padding: 0 8px;
+                    border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--muted); transition: background .15s, color .15s; }
+        .lang-opt:hover { color: var(--brand); }
+        .lang-opt.is-active { background: var(--brand); color: #fff; }
+        [dir="rtl"] body { text-align: right; }
 
         footer { border-top: 1px solid var(--sand); margin-top: 80px; padding: 40px 0; color: var(--muted); font-size: 13px; }
         .footer-inner { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
@@ -174,9 +191,14 @@
             </a>
             <div class="spacer"></div>
             <div class="nav-links">
-                <a href="{{ route('castlit.landing') }}#fonctionnalites" class="btn btn-ghost nav-hide-sm" style="padding:9px 16px">Fonctionnalités</a>
-                <a href="{{ route('castlit.landing') }}#secteurs" class="btn btn-ghost nav-hide-sm" style="padding:9px 16px">Secteurs</a>
-                <a href="{{ route('castlit.landing') }}#inscription" class="btn btn-primary" style="padding:9px 18px">Commencer</a>
+                <a href="{{ route('castlit.landing') }}#fonctionnalites" class="btn btn-ghost nav-hide-sm" style="padding:9px 16px">{{ __('castlit.nav_features') }}</a>
+                <a href="{{ route('castlit.landing') }}#secteurs" class="btn btn-ghost nav-hide-sm" style="padding:9px 16px">{{ __('castlit.nav_sectors') }}</a>
+                <div class="lang-switch" role="group" aria-label="Language">
+                    @foreach (['fr', 'ar', 'en'] as $code)
+                        <a href="{{ request()->fullUrlWithQuery(['lang' => $code]) }}" hreflang="{{ $code }}" class="lang-opt {{ $lang === $code ? 'is-active' : '' }}">{{ $langLabels[$code] }}</a>
+                    @endforeach
+                </div>
+                <a href="{{ route('castlit.landing') }}#inscription" class="btn btn-primary" style="padding:9px 18px">{{ __('castlit.nav_start') }}</a>
             </div>
         </div>
     </nav>
@@ -190,7 +212,7 @@
                 <span class="wordmark">Castl-it-POS</span>
             </a>
             <span class="spacer" style="margin-left:auto"></span>
-            <span>© {{ date('Y') }} {{ $brand['name'] }} — {{ $brand['tagline'] }}.</span>
+            <span>© {{ date('Y') }} {{ $brand['name'] }} — {{ __('castlit.footer_tagline') }}.</span>
         </div>
     </footer>
     @stack('scripts')

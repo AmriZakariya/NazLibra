@@ -1,0 +1,115 @@
+<?php
+
+return [
+    'meta_title'       => 'Castl-it-POS — POS & inventory software for shops in Morocco',
+    'meta_description' => 'Castl-it-POS: touchscreen point-of-sale and inventory management for bookshops, cafés, restaurants, pharmacies and retail in Morocco. Offline, multi-register, in French, Arabic and English. Android app and browser. Free trial, no commitment.',
+
+    'nav_features' => 'Features',
+    'nav_sectors'  => 'Industries',
+    'nav_start'    => 'Get started',
+
+    'hero_eyebrow'  => 'POS & inventory · Morocco',
+    'hero_title_pre'=> 'Sell faster with',
+    'hero_lead'     => 'The touchscreen register and inventory management for your shop — on tablet, phone or browser. In-store, at the counter, even without internet. In French, Arabic and English.',
+    'cta_create'    => 'Create my shop',
+    'badge_no_commitment' => 'No commitment',
+    'badge_ready'   => 'Ready in minutes',
+    'badge_support' => 'Support in French & Arabic',
+
+    'store_available' => 'Get it on',
+    'store_soon'      => 'Coming soon to',
+    'store_ribbon'    => 'Soon',
+
+    'device_offline' => 'Offline',
+    'device_sync'    => 'Auto-sync',
+    'device_cart'    => 'Cart',
+    'device_pay'     => 'Charge',
+
+    'trust_books'  => 'Bookshops & stationery',
+    'trust_food'   => 'Cafés & restaurants',
+    'trust_pharma' => 'Pharmacies',
+    'trust_retail' => 'Retail shops',
+
+    'adv_eyebrow' => 'Why Castl-it-POS',
+    'adv_title'   => 'Built for how your shop really works',
+    'adv_sub'     => 'A reliable register that never stops, adapts to your trade and speaks your language.',
+    'adv' => [
+        ['n' => '0',     't' => 'Outages that stop you', 'd' => 'Offline mode keeps the register running even without internet.'],
+        ['n' => '3',     't' => 'Languages: FR, AR, EN',  'd' => 'Multilingual interface, MAD currency, VAT and ICE ready for Morocco.'],
+        ['n' => '∞',     't' => 'Registers & stores',     'd' => 'Multiple registers and stores with centralised stock.'],
+        ['n' => '5 min', 't' => 'To get going',           'd' => 'Your space is ready shortly after your sign-up is approved.'],
+    ],
+
+    'feat_eyebrow' => 'All in one place',
+    'feat_title'   => 'A POS built for the pace of the counter',
+    'feat_sub'     => 'Castl-it-POS brings checkout, stock, invoicing and reporting together in one touchscreen app.',
+    'features' => [
+        ['t' => 'Fast checkout',          'd' => 'Scan, charge, print the receipt. Cash, card, transfer or customer advance — in a few taps.'],
+        ['t' => 'Real-time inventory',    'd' => 'Track quantities, low-stock alerts, stocktakes and purchase costs computed automatically.'],
+        ['t' => 'Offline mode',           'd' => 'Internet drops? Sales keep going and sync back on reconnection. Nothing is lost.'],
+        ['t' => 'Invoices & quotes',      'd' => 'Compliant documents (VAT, ICE), fixed or % discounts, tax-in/tax-out, payment and due-date tracking.'],
+        ['t' => 'Multi-store',            'd' => 'Several points of sale and warehouses, centralised stock, roles and permissions per user.'],
+        ['t' => 'Dashboard',              'd' => 'Revenue, margins, top products, peak hours and loyalty — your metrics at a glance.'],
+    ],
+
+    'app_eyebrow' => 'Mobile app',
+    'app_title'   => 'Your register in your pocket, on Android',
+    'app_sub'     => 'Install Castl-it-POS on an Android tablet or phone for a full-screen, browser-free experience — and find the same data on your computer.',
+    'app_web'     => 'Use in the browser',
+    'app_list' => [
+        'Works offline, syncs automatically',
+        'ESC/POS receipt printing & barcode scanning',
+        'Multiple operators, PIN-code lock',
+    ],
+
+    'sec_eyebrow' => 'Fits your trade',
+    'sec_title'   => 'A register for every kind of shop',
+    'sec_sub'     => 'Castl-it-POS adapts to your business the moment you create your space — catalogue, units and labels tailored to you.',
+    'sectors' => [
+        ['t' => 'Bookshops & stationery', 'd' => 'ISBN and barcode search, catalogue of books & school supplies.'],
+        ['t' => 'Cafés & restaurants',    'd' => 'Menus, kitchen tickets, counter and table service.'],
+        ['t' => 'Pharmacies',             'd' => 'Batch and expiry tracking, parapharmacy products.'],
+        ['t' => 'Retail shops',           'd' => 'Boutiques, hardware and grocery stores: stock, brands and suppliers.'],
+    ],
+
+    'faq_eyebrow' => 'Frequently asked questions',
+    'faq_title'   => 'Everything you need to know',
+    'faqs' => [
+        ['q' => 'Does Castl-it-POS work without an internet connection?', 'a' => 'Yes. Castl-it-POS is an offline register: sales keep going even without internet and sync automatically on reconnection. No sale is lost.'],
+        ['q' => 'What types of business is it for?', 'a' => 'Bookshops, stationery, cafés, restaurants, pharmacies, hardware and retail stores. The interface adapts to your trade when you create your space.'],
+        ['q' => 'Is it available in several languages?', 'a' => 'Yes, Castl-it-POS is available in French, Arabic and English, tailored to the Moroccan market (MAD currency, VAT, ICE).'],
+        ['q' => 'What devices can I use it on?', 'a' => 'On Android tablets and phones via the app, and from any browser on a computer. Your data is synced across all your registers.'],
+        ['q' => 'Can I use several registers and stores?', 'a' => 'Yes. Castl-it-POS handles multiple registers and multiple stores or warehouses with centralised stock.'],
+        ['q' => 'How do I get started?', 'a' => 'Fill in the sign-up form. Once approved, your space is created on your own address and you receive your login details by email.'],
+    ],
+
+    'su_eyebrow' => 'Sign up',
+    'su_title'   => "Let's create your Castl-it-POS space.",
+    'su_sub'     => 'Tell us who you are in a few fields. We review your request, then your register goes live on your own address.',
+    'su_step1'   => 'You fill in the form.',
+    'su_step2'   => 'We review and create',
+    'su_step3'   => 'You get your login by email and start selling.',
+
+    'f_business'  => 'Business name',
+    'f_business_ph' => 'e.g. Al Manara Bookshop',
+    'f_activity'  => 'Activity',
+    'f_choose'    => 'Choose…',
+    'f_currency'  => 'Currency',
+    'f_address'   => 'Preferred address',
+    'f_your_name' => 'Your name',
+    'f_your_name_ph' => 'First name Last name',
+    'f_phone'     => 'Phone',
+    'f_email'     => 'Email',
+    'f_heard'     => 'How did you hear about us?',
+    'f_heard_ph'  => 'Word of mouth, social media, search…',
+    'f_submit'    => 'Send my request →',
+    'f_consent'   => 'By submitting this form, you agree to be contacted about your sign-up.',
+    'f_errors'    => 'Please correct the fields highlighted below.',
+
+    'footer_tagline' => 'POS & inventory for Moroccan shops',
+
+    'ok_title'  => 'Thanks — your request has been received.',
+    'ok_sub'    => 'Our team reviews it shortly. Once approved, you receive an email with your login and the address of your register.',
+    'ok_addr'   => 'Reserved address',
+    'ok_back'   => 'Back to home',
+];

@@ -1,18 +1,22 @@
 @extends('castlit.layout')
 
-@section('title', 'Castl-it-POS — Logiciel de caisse & gestion de stock au Maroc')
-@section('meta_description', 'Castl-it-POS : logiciel de caisse tactile et gestion de stock pour librairies, cafés, restaurants, pharmacies et commerces au Maroc. Hors ligne, multi-postes, français & arabe. Application Android et navigateur. Essai sans engagement.')
-
 @php
     $brand = config('castlit.brand');
     $playStore = $brand['play_store'] ?? '';
-    $faqs = [
-        ['q' => 'Castl-it-POS fonctionne-t-il sans connexion internet ?', 'a' => "Oui. Castl-it-POS est une caisse hors ligne : les ventes continuent même sans internet et se synchronisent automatiquement dès la reconnexion. Aucune vente n'est perdue."],
-        ['q' => 'Pour quels types de commerce est-il adapté ?', 'a' => "Librairies, papeteries, cafés, restaurants, pharmacies, drogueries et commerces de détail. L'interface s'adapte à votre activité dès la création de votre espace."],
-        ['q' => 'Est-ce disponible en français et en arabe ?', 'a' => 'Oui, Castl-it-POS est entièrement bilingue français / arabe, adapté au marché marocain (devise MAD, TVA, ICE).'],
-        ['q' => 'Sur quels appareils puis-je l\'utiliser ?', 'a' => "Sur tablette et téléphone Android via l'application, et depuis n'importe quel navigateur sur ordinateur. Vos données sont synchronisées entre tous vos postes."],
-        ['q' => 'Puis-je utiliser plusieurs caisses et plusieurs magasins ?', 'a' => 'Oui. Castl-it-POS gère plusieurs postes de caisse et plusieurs magasins ou dépôts avec un stock centralisé.'],
-        ['q' => 'Comment démarrer ?', 'a' => "Remplissez le formulaire d'inscription. Après validation, votre espace est créé sur votre propre adresse (votreboutique.castlitpos.com) et vous recevez vos accès par email."],
+    $faqs = (array) __('castlit.faqs');
+    $featureIcons = [
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M7 15h4"/></svg>',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21 8-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/></svg>',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a9 9 0 0 1 14 0M8.5 16a4.5 4.5 0 0 1 7 0M12 19.5h.01"/><path d="m2 2 20 20" opacity=".5"/></svg>',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/><path d="M9 13h6M9 17h4"/></svg>',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg>',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>',
+    ];
+    $sectorIcons = [
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14Z"/></svg>',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a3 3 0 0 1 0 6h-1M2 8h16v6a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8Z"/></svg>',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 7v10M7 12h10"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>',
     ];
 @endphp
 
@@ -106,18 +110,27 @@
     .chip-sync { bottom: 44px; left: -30px; color: var(--brand); }
 
     /* Play Store / store buttons */
-    .store-btns { display: flex; gap: 12px; flex-wrap: wrap; }
-    /* Fixed dark badge (a store button is dark in both themes; never uses --ink,
-       which flips to light in dark mode). */
-    .store-btn { display: inline-flex; align-items: center; gap: 11px; background: #12172b; color: #fff; border-radius: 13px;
-                 padding: 11px 18px; text-align: left; border: 1px solid rgba(255,255,255,.14);
-                 transition: transform .14s ease, box-shadow .2s ease, border-color .2s ease; box-shadow: var(--shadow); }
-    .store-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: rgba(255,255,255,.28); }
-    .store-btn.is-soon { cursor: default; pointer-events: none; }
-    .store-btn.is-soon .st-small { color: var(--accent); }
-    .store-btn svg { width: 26px; height: 26px; flex-shrink: 0; }
-    .store-btn .st-small { display: block; font-size: 10px; letter-spacing: .06em; opacity: .85; }
-    .store-btn .st-big { display: block; font-size: 16px; font-weight: 800; letter-spacing: -.01em; margin-top: 1px; }
+    .store-btns { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    /* Polished Google Play badge — dark, official two-line layout. Fixed dark
+       (never --ink, which flips light in dark mode); height matches the CTA. */
+    .store-btn { position: relative; display: inline-flex; align-items: center; gap: 12px; height: 56px; padding: 0 22px 0 18px;
+                 background: #0C1020; color: #fff; border-radius: 14px; border: 1px solid rgba(255,255,255,.16);
+                 text-decoration: none; box-shadow: var(--shadow);
+                 transition: transform .14s ease, box-shadow .2s ease, border-color .2s ease; }
+    .store-btn:hover { transform: translateY(-2px); border-color: rgba(255,255,255,.34); box-shadow: var(--shadow-lg); }
+    .store-btn svg { width: 24px; height: 24px; flex-shrink: 0; }
+    .store-btn .st-text { display: flex; flex-direction: column; line-height: 1.12; }
+    .store-btn .st-small { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: #aeb6cc; }
+    .store-btn .st-big { font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
+    .store-btn.is-soon { cursor: default; }
+    .store-btn .st-ribbon { position: absolute; top: -9px; right: -8px; background: var(--accent); color: #3a2400;
+                            font-size: 10px; font-weight: 800; letter-spacing: .02em; padding: 3px 8px; border-radius: 999px;
+                            box-shadow: 0 4px 12px rgba(245,158,11,.4); }
+    /* White variant on the indigo app band */
+    .app .store-btn { background: #fff; color: #0C1020; border: none; }
+    .app .store-btn .st-small { color: #5C6270; }
+    /* Align the hero CTA + badge heights */
+    .hero-cta .btn, .app .store-btns .btn { height: 56px; }
 
     /* ── Trust strip ──────────────────────────────────────────────────────── */
     .trust { border-top: 1px solid var(--sand); border-bottom: 1px solid var(--sand); margin-top: 40px; }
@@ -155,7 +168,6 @@
     .app-inner { display: grid; grid-template-columns: 1.1fr .9fr; gap: 36px; align-items: center; padding: 48px 44px; }
     .app h2 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 800; letter-spacing: -.02em; line-height: 1.1; text-wrap: balance; }
     .app p { color: rgba(255,255,255,.85); font-size: 16px; margin: 14px 0 24px; max-width: 44ch; line-height: 1.6; }
-    .app .store-btn { background: #fff; color: var(--ink); }
     .app-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
     .app-list li { display: flex; gap: 10px; align-items: center; font-size: 14.5px; color: rgba(255,255,255,.9); }
     .app-list svg { width: 18px; height: 18px; color: #fff; flex-shrink: 0; }
@@ -167,8 +179,9 @@
     .app-phone .card { background: #fff; border: 1px solid var(--sand); border-radius: 10px; padding: 9px; display: flex; align-items: center; gap: 9px; }
     .app-phone .card .sq { width: 26px; height: 26px; border-radius: 7px; background: color-mix(in srgb, var(--brand) 14%, transparent); }
     .app-phone .card .ln { flex: 1; }
-    .app-phone .card .ln i { display: block; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 14%, transparent); }
-    .app-phone .card .ln i + i { width: 55%; margin-top: 5px; background: color-mix(in srgb, var(--ink) 8%, transparent); }
+    /* Fixed greys — the card is always white, so never key off --ink (flips light in dark mode). */
+    .app-phone .card .ln i { display: block; height: 6px; border-radius: 3px; background: #cbd1e0; }
+    .app-phone .card .ln i + i { width: 55%; margin-top: 5px; background: #e0e4ee; }
     .app-phone .card .pr { font-size: 11px; font-weight: 800; color: var(--brand); }
 
     /* Sectors */
@@ -231,41 +244,44 @@
 </style>
 
 @php
-    // Play Store button (reused in hero + app section). $dark = white button on dark bg.
-    $storeButton = function (bool $dark = false) use ($playStore) {
-        $cls = 'store-btn'.($playStore === '' ? ' is-soon' : '');
-        $href = $playStore ?: '#';
-        $small = $playStore ? 'DISPONIBLE SUR' : 'BIENTÔT SUR';
-        $svg = '<svg viewBox="0 0 24 24" fill="none"><path d="M3.6 2.4 13 12 3.6 21.6a1 1 0 0 1-.6-.9V3.3a1 1 0 0 1 .6-.9Z" fill="#34d399"/><path d="M13 12 3.6 2.4l11.9 6.8L13 12Z" fill="#fbbf24"/><path d="M13 12l2.5 2.8-11.9 6.8L13 12Z" fill="#f87171"/><path d="m15.5 9.2 4.4 2.5c.8.5.8 1.6 0 2l-4.4 2.5L13 12l2.5-2.8Z" fill="#60a5fa"/></svg>';
-        return '<a href="'.$href.'" '.($playStore ? 'target="_blank" rel="noopener"' : 'aria-disabled="true"').' class="'.$cls.'">'
-            .$svg.'<span><span class="st-small">'.$small.'</span><span class="st-big">Google Play</span></span></a>';
+    // Google Play badge (reused in hero + app section). Coming-soon shows a
+    // "Bientôt" ribbon; the .app context restyles it white via CSS.
+    $storeButton = function () use ($playStore) {
+        $soon   = $playStore === '';
+        $cls    = 'store-btn'.($soon ? ' is-soon' : '');
+        $href   = $playStore ?: '#';
+        $small  = $soon ? __('castlit.store_soon') : __('castlit.store_available');
+        $ribbon = $soon ? '<span class="st-ribbon">'.__('castlit.store_ribbon').'</span>' : '';
+        $svg    = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.6 2.4 13 12 3.6 21.6a1 1 0 0 1-.6-.9V3.3a1 1 0 0 1 .6-.9Z" fill="#34d399"/><path d="M13 12 3.6 2.4l11.9 6.8L13 12Z" fill="#fbbf24"/><path d="M13 12l2.5 2.8-11.9 6.8L13 12Z" fill="#f87171"/><path d="m15.5 9.2 4.4 2.5c.8.5.8 1.6 0 2l-4.4 2.5L13 12l2.5-2.8Z" fill="#60a5fa"/></svg>';
+        return '<a href="'.$href.'" '.($soon ? 'aria-disabled="true"' : 'target="_blank" rel="noopener"').' class="'.$cls.'">'
+            .$ribbon.$svg.'<span class="st-text"><span class="st-small">'.$small.'</span><span class="st-big">Google Play</span></span></a>';
     };
 @endphp
 
 <header class="hero">
     <div class="c-wrap hero-grid">
         <div class="reveal">
-            <span class="eyebrow">Caisse &amp; gestion de stock · Maroc</span>
-            <h1>Vendez plus vite avec <span class="hl">Castl-it-POS</span>.</h1>
-            <p class="lead">La caisse tactile et la gestion de stock de votre commerce — sur tablette, téléphone ou navigateur. En boutique, au comptoir, <strong>même sans internet</strong>. En français et en arabe.</p>
+            <span class="eyebrow">{{ __('castlit.hero_eyebrow') }}</span>
+            <h1>{{ __('castlit.hero_title_pre') }} <span class="hl">Castl-it-POS</span>.</h1>
+            <p class="lead">{{ __('castlit.hero_lead') }}</p>
             <div class="hero-cta">
                 <a href="#inscription" class="btn btn-primary">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                    Créer ma boutique
+                    {{ __('castlit.cta_create') }}
                 </a>
-                {!! $storeButton(false) !!}
+                {!! $storeButton() !!}
             </div>
             <div class="hero-badges">
-                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> Sans engagement</span>
-                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> Prêt en quelques minutes</span>
-                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> Assistance en français</span>
+                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> {{ __('castlit.badge_no_commitment') }}</span>
+                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> {{ __('castlit.badge_ready') }}</span>
+                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> {{ __('castlit.badge_support') }}</span>
             </div>
         </div>
 
         <div class="stage reveal">
-            <div class="float-chip chip-offline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> Hors ligne</div>
-            <div class="float-chip chip-sync"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg> Synchro auto</div>
-            <div class="tablet" role="img" aria-label="Aperçu de la caisse Castl-it-POS">
+            <div class="float-chip chip-offline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> {{ __('castlit.device_offline') }}</div>
+            <div class="float-chip chip-sync"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg> {{ __('castlit.device_sync') }}</div>
+            <div class="tablet" role="img" aria-label="Castl-it-POS">
                 <div class="tablet-bar"><i></i><i></i><i></i><span class="addr">almanara.castlitpos.com/caisse</span></div>
                 <div class="pos">
                     <div class="pos-grid">
@@ -274,12 +290,12 @@
                         @endfor
                     </div>
                     <div class="pcart">
-                        <h4>Panier</h4>
+                        <h4>{{ __('castlit.device_cart') }}</h4>
                         <div class="row"><span>Cahier 96p</span><span>24,00</span></div>
                         <div class="row"><span>Stylo bleu</span><span>6,50</span></div>
                         <div class="row"><span>Roman</span><span>48,00</span></div>
                         <div class="tot"><span>Total</span><span>78,50</span></div>
-                        <div class="pay">Encaisser</div>
+                        <div class="pay">{{ __('castlit.device_pay') }}</div>
                     </div>
                 </div>
             </div>
@@ -292,25 +308,24 @@
 
 <div class="trust">
     <div class="c-wrap trust-inner">
-        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg> Librairies &amp; papeteries</span>
-        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a3 3 0 0 1 0 6h-1M2 8h16v6a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8Z"/></svg> Cafés &amp; restaurants</span>
-        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18" /></svg> Pharmacies</span>
-        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> Commerces de détail</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg> {{ __('castlit.trust_books') }}</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a3 3 0 0 1 0 6h-1M2 8h16v6a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8Z"/></svg> {{ __('castlit.trust_food') }}</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18" /></svg> {{ __('castlit.trust_pharma') }}</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg> {{ __('castlit.trust_retail') }}</span>
     </div>
 </div>
 
 <section class="section" id="avantages" aria-labelledby="avantages-title">
     <div class="c-wrap">
         <div class="section-head reveal">
-            <span class="eyebrow">Pourquoi Castl-it-POS</span>
-            <h2 id="avantages-title">Conçu pour la réalité de votre commerce</h2>
-            <p>Une caisse fiable qui ne s'arrête jamais, s'adapte à votre métier et parle votre langue.</p>
+            <span class="eyebrow">{{ __('castlit.adv_eyebrow') }}</span>
+            <h2 id="avantages-title">{{ __('castlit.adv_title') }}</h2>
+            <p>{{ __('castlit.adv_sub') }}</p>
         </div>
         <div class="adv">
-            <div class="adv-card reveal"><div class="n">0</div><div class="t">Coupure qui vous arrête</div><div class="d">Le mode hors ligne garde la caisse ouverte même sans internet.</div></div>
-            <div class="adv-card reveal"><div class="n">2</div><div class="t">Langues, FR &amp; AR</div><div class="d">Interface bilingue, devise MAD, TVA et ICE prêts pour le Maroc.</div></div>
-            <div class="adv-card reveal"><div class="n">∞</div><div class="t">Postes &amp; magasins</div><div class="d">Multi-caisses et multi-magasins avec un stock centralisé.</div></div>
-            <div class="adv-card reveal"><div class="n">5 min</div><div class="t">Pour démarrer</div><div class="d">Votre espace est prêt peu après validation de l'inscription.</div></div>
+            @foreach ((array) __('castlit.adv') as $a)
+                <div class="adv-card reveal"><div class="n">{{ $a['n'] }}</div><div class="t">{{ $a['t'] }}</div><div class="d">{{ $a['d'] }}</div></div>
+            @endforeach
         </div>
     </div>
 </section>
@@ -318,41 +333,18 @@
 <section class="section" id="fonctionnalites" aria-labelledby="fonctionnalites-title">
     <div class="c-wrap">
         <div class="section-head reveal">
-            <span class="eyebrow">Tout au même endroit</span>
-            <h2 id="fonctionnalites-title">Une caisse complète, pas seulement un tiroir</h2>
-            <p>Castl-it-POS réunit l'encaissement, le stock, la facturation et le pilotage dans une seule application tactile.</p>
+            <span class="eyebrow">{{ __('castlit.feat_eyebrow') }}</span>
+            <h2 id="fonctionnalites-title">{{ __('castlit.feat_title') }}</h2>
+            <p>{{ __('castlit.feat_sub') }}</p>
         </div>
         <div class="feats">
-            <article class="feat reveal">
-                <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M7 15h4"/></svg></div>
-                <h3>Encaissement rapide</h3>
-                <p>Scannez, encaissez, imprimez le ticket. Espèces, carte, virement ou avance client — en quelques gestes.</p>
-            </article>
-            <article class="feat reveal">
-                <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21 8-9-5-9 5 9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8"/></svg></div>
-                <h3>Stock en temps réel</h3>
-                <p>Quantités, alertes de rupture, inventaires et coûts d'achat calculés automatiquement par magasin.</p>
-            </article>
-            <article class="feat reveal">
-                <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a9 9 0 0 1 14 0M8.5 16a4.5 4.5 0 0 1 7 0M12 19.5h.01"/><path d="m2 2 20 20" opacity=".5"/></svg></div>
-                <h3>Mode hors ligne</h3>
-                <p>Une coupure internet ? Les ventes continuent et se synchronisent dès la reconnexion. Rien n'est perdu.</p>
-            </article>
-            <article class="feat reveal">
-                <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2Z"/><path d="M9 13h6M9 17h4"/></svg></div>
-                <h3>Factures &amp; devis</h3>
-                <p>Documents conformes (TVA, ICE), remises fixes ou %, HT/TTC, suivi des paiements et des échéances.</p>
-            </article>
-            <article class="feat reveal">
-                <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/></svg></div>
-                <h3>Multi-magasins</h3>
-                <p>Plusieurs points de vente et dépôts, stock centralisé, rôles et permissions par utilisateur.</p>
-            </article>
-            <article class="feat reveal">
-                <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></div>
-                <h3>Tableau de bord</h3>
-                <p>Chiffre d'affaires, marges, top produits, heures de pointe et fidélité — vos indicateurs en un coup d'œil.</p>
-            </article>
+            @foreach ((array) __('castlit.features') as $i => $f)
+                <article class="feat reveal">
+                    <div class="ico">{!! $featureIcons[$i] ?? '' !!}</div>
+                    <h3>{{ $f['t'] }}</h3>
+                    <p>{{ $f['d'] }}</p>
+                </article>
+            @endforeach
         </div>
     </div>
 </section>
@@ -362,17 +354,17 @@
         <div class="app reveal">
             <div class="app-inner">
                 <div>
-                    <span class="eyebrow" style="color:#cfe0ff">Application mobile</span>
-                    <h2 id="app-title">Votre caisse dans la poche, sur Android</h2>
-                    <p>Installez Castl-it-POS sur tablette ou téléphone Android pour un plein écran sans navigateur — et retrouvez les mêmes données sur ordinateur.</p>
+                    <span class="eyebrow" style="color:#cfe0ff">{{ __('castlit.app_eyebrow') }}</span>
+                    <h2 id="app-title">{{ __('castlit.app_title') }}</h2>
+                    <p>{{ __('castlit.app_sub') }}</p>
                     <div class="store-btns">
-                        {!! $storeButton(true) !!}
-                        <a href="#inscription" class="btn btn-ghost" style="background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.25)">Utiliser dans le navigateur</a>
+                        {!! $storeButton() !!}
+                        <a href="#inscription" class="btn btn-ghost" style="background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.25)">{{ __('castlit.app_web') }}</a>
                     </div>
                     <ul class="app-list">
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> Fonctionne hors ligne, synchro automatique</li>
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> Impression ticket ESC/POS &amp; scan code-barres</li>
-                        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> Plusieurs opérateurs, verrouillage par code PIN</li>
+                        @foreach ((array) __('castlit.app_list') as $li)
+                            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> {{ $li }}</li>
+                        @endforeach
                     </ul>
                 </div>
                 <div class="app-visual" aria-hidden="true">
@@ -395,15 +387,14 @@
 <section class="section" id="secteurs" aria-labelledby="secteurs-title">
     <div class="c-wrap">
         <div class="section-head reveal">
-            <span class="eyebrow">Adapté à votre métier</span>
-            <h2 id="secteurs-title">Une caisse pour chaque commerce</h2>
-            <p>Castl-it-POS s'adapte à votre activité dès la création de votre espace — catalogue, unités et libellés sur mesure.</p>
+            <span class="eyebrow">{{ __('castlit.sec_eyebrow') }}</span>
+            <h2 id="secteurs-title">{{ __('castlit.sec_title') }}</h2>
+            <p>{{ __('castlit.sec_sub') }}</p>
         </div>
         <div class="sectors">
-            <article class="sector reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14Z"/></svg></div><h3>Librairies &amp; papeteries</h3><p>Recherche par ISBN et code-barres, catalogue livres &amp; fournitures scolaires.</p></article>
-            <article class="sector reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a3 3 0 0 1 0 6h-1M2 8h16v6a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8Z"/></svg></div><h3>Cafés &amp; restaurants</h3><p>Menus, tickets cuisine, service au comptoir et en salle.</p></article>
-            <article class="sector reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 7v10M7 12h10"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg></div><h3>Pharmacies</h3><p>Suivi des lots, péremptions et produits de parapharmacie.</p></article>
-            <article class="sector reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg></div><h3>Commerces de détail</h3><p>Boutiques, drogueries et épiceries : stock, marques et fournisseurs.</p></article>
+            @foreach ((array) __('castlit.sectors') as $i => $s)
+                <article class="sector reveal"><div class="ico">{!! $sectorIcons[$i] ?? '' !!}</div><h3>{{ $s['t'] }}</h3><p>{{ $s['d'] }}</p></article>
+            @endforeach
         </div>
     </div>
 </section>
@@ -411,8 +402,8 @@
 <section class="section" id="faq" aria-labelledby="faq-title">
     <div class="c-wrap">
         <div class="section-head reveal">
-            <span class="eyebrow">Questions fréquentes</span>
-            <h2 id="faq-title">Tout ce que vous devez savoir</h2>
+            <span class="eyebrow">{{ __('castlit.faq_eyebrow') }}</span>
+            <h2 id="faq-title">{{ __('castlit.faq_title') }}</h2>
         </div>
         <div class="faq reveal">
             @foreach ($faqs as $faq)
@@ -429,19 +420,19 @@
     <div class="c-wrap">
         <div class="signup-card reveal">
             <aside class="signup-aside">
-                <span class="eyebrow" style="color:#cfe0ff">Inscription</span>
-                <h2 id="inscription-title">Créons votre espace Castl-it-POS.</h2>
-                <p>Dites-nous en quelques champs qui vous êtes. Nous validons votre demande, puis votre caisse est mise en ligne sur votre propre adresse.</p>
+                <span class="eyebrow" style="color:#cfe0ff">{{ __('castlit.su_eyebrow') }}</span>
+                <h2 id="inscription-title">{{ __('castlit.su_title') }}</h2>
+                <p>{{ __('castlit.su_sub') }}</p>
                 <ul>
-                    <li><b>1</b><span>Vous remplissez le formulaire.</span></li>
-                    <li><b>2</b><span>Nous validons et créons <code>votreboutique.{{ $mainDomain ?? config('castlit.main_domain') }}</code>.</span></li>
-                    <li><b>3</b><span>Vous recevez vos accès par email et vous vendez.</span></li>
+                    <li><b>1</b><span>{{ __('castlit.su_step1') }}</span></li>
+                    <li><b>2</b><span>{{ __('castlit.su_step2') }} <code>*.{{ $mainDomain ?? config('castlit.main_domain') }}</code>.</span></li>
+                    <li><b>3</b><span>{{ __('castlit.su_step3') }}</span></li>
                 </ul>
             </aside>
 
             <div class="form-body">
                 @if ($errors->any())
-                    <div class="flash flash-err">Merci de corriger les champs indiqués ci-dessous.</div>
+                    <div class="flash flash-err">{{ __('castlit.f_errors') }}</div>
                 @endif
 
                 <form method="POST" action="{{ route('castlit.subscribe') }}" novalidate>
@@ -449,16 +440,16 @@
                     <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
 
                     <div class="fld">
-                        <label for="business_name">Nom du commerce <span class="req">*</span></label>
-                        <input id="business_name" name="business_name" required maxlength="120" value="{{ old('business_name') }}" placeholder="Ex : Librairie Al Manara">
+                        <label for="business_name">{{ __('castlit.f_business') }} <span class="req">*</span></label>
+                        <input id="business_name" name="business_name" required maxlength="120" value="{{ old('business_name') }}" placeholder="{{ __('castlit.f_business_ph') }}">
                         @error('business_name')<span class="field-error">{{ $message }}</span>@enderror
                     </div>
 
                     <div class="grid2">
                         <div class="fld">
-                            <label for="activity">Activité</label>
+                            <label for="activity">{{ __('castlit.f_activity') }}</label>
                             <select id="activity" name="activity">
-                                <option value="">Choisir…</option>
+                                <option value="">{{ __('castlit.f_choose') }}</option>
                                 @foreach ($activities as $key => $label)
                                     <option value="{{ $key }}" @selected(old('activity') === $key)>{{ $label }}</option>
                                 @endforeach
@@ -466,7 +457,7 @@
                             @error('activity')<span class="field-error">{{ $message }}</span>@enderror
                         </div>
                         <div class="fld">
-                            <label for="currency">Devise <span class="req">*</span></label>
+                            <label for="currency">{{ __('castlit.f_currency') }} <span class="req">*</span></label>
                             <select id="currency" name="currency" required>
                                 @foreach ($currencies as $c)
                                     <option value="{{ $c }}" @selected(old('currency', 'MAD') === $c)>{{ $c }}</option>
@@ -477,9 +468,9 @@
                     </div>
 
                     <div class="fld">
-                        <label for="desired_subdomain">Adresse souhaitée <span class="req">*</span></label>
+                        <label for="desired_subdomain">{{ __('castlit.f_address') }} <span class="req">*</span></label>
                         <div class="subdomain-row">
-                            <input id="desired_subdomain" name="desired_subdomain" required pattern="[a-z0-9]{2,30}" maxlength="30" autocomplete="off" spellcheck="false" value="{{ old('desired_subdomain') }}" placeholder="almanara" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9]/g,'')">
+                            <input id="desired_subdomain" name="desired_subdomain" required pattern="[a-z0-9]{2,30}" maxlength="30" autocomplete="off" spellcheck="false" dir="ltr" value="{{ old('desired_subdomain') }}" placeholder="almanara" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9]/g,'')">
                             <span class="subdomain-suf">.{{ $mainDomain ?? config('castlit.main_domain') }}</span>
                         </div>
                         @error('desired_subdomain')<span class="field-error">{{ $message }}</span>@enderror
@@ -487,31 +478,31 @@
 
                     <div class="grid2">
                         <div class="fld">
-                            <label for="contact_name">Votre nom <span class="req">*</span></label>
-                            <input id="contact_name" name="contact_name" required maxlength="120" value="{{ old('contact_name') }}" placeholder="Prénom Nom">
+                            <label for="contact_name">{{ __('castlit.f_your_name') }} <span class="req">*</span></label>
+                            <input id="contact_name" name="contact_name" required maxlength="120" value="{{ old('contact_name') }}" placeholder="{{ __('castlit.f_your_name_ph') }}">
                             @error('contact_name')<span class="field-error">{{ $message }}</span>@enderror
                         </div>
                         <div class="fld">
-                            <label for="phone">Téléphone</label>
+                            <label for="phone">{{ __('castlit.f_phone') }}</label>
                             <input id="phone" name="phone" maxlength="40" value="{{ old('phone') }}" placeholder="06 00 00 00 00">
                             @error('phone')<span class="field-error">{{ $message }}</span>@enderror
                         </div>
                     </div>
 
                     <div class="fld">
-                        <label for="email">Email <span class="req">*</span></label>
+                        <label for="email">{{ __('castlit.f_email') }} <span class="req">*</span></label>
                         <input id="email" name="email" type="email" required maxlength="190" value="{{ old('email') }}" placeholder="vous@exemple.com">
                         @error('email')<span class="field-error">{{ $message }}</span>@enderror
                     </div>
 
                     <div class="fld">
-                        <label for="heard_about">Comment nous avez-vous connus ?</label>
-                        <input id="heard_about" name="heard_about" maxlength="120" value="{{ old('heard_about') }}" placeholder="Bouche-à-oreille, réseaux sociaux, recherche…">
+                        <label for="heard_about">{{ __('castlit.f_heard') }}</label>
+                        <input id="heard_about" name="heard_about" maxlength="120" value="{{ old('heard_about') }}" placeholder="{{ __('castlit.f_heard_ph') }}">
                         @error('heard_about')<span class="field-error">{{ $message }}</span>@enderror
                     </div>
 
-                    <button type="submit" class="btn btn-primary" style="width:100%; margin-top:6px">Envoyer ma demande →</button>
-                    <p style="font-size:12px; color:var(--muted); margin-top:12px; text-align:center">En envoyant ce formulaire, vous acceptez d'être contacté au sujet de votre inscription.</p>
+                    <button type="submit" class="btn btn-primary" style="width:100%; margin-top:6px">{{ __('castlit.f_submit') }}</button>
+                    <p style="font-size:12px; color:var(--muted); margin-top:12px; text-align:center">{{ __('castlit.f_consent') }}</p>
                 </form>
             </div>
         </div>

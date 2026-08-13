@@ -16,6 +16,14 @@
 set -uo pipefail
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:${PATH:-}"
 
+# The queue worker carries the MASTER's Laravel env (APP_KEY, DB_*, CASTLIT_MASTER,
+# APP_URL…) via putenv(); child `artisan` calls would inherit it — key:generate
+# then refuses ("APP_KEY already present") and the client could read the master's
+# DB/URL. Strip it so every client artisan reads ONLY its own .env.
+unset APP_KEY APP_ENV APP_DEBUG APP_URL APP_NAME CASTLIT_MASTER \
+      DB_CONNECTION DB_DATABASE DB_HOST DB_PORT DB_USERNAME DB_PASSWORD \
+      SESSION_DRIVER QUEUE_CONNECTION CACHE_STORE MAIL_MAILER 2>/dev/null || true
+
 emit()  { printf '%s\n' "$1" >&2; }
 final() { printf '%s\n' "$1"; exit "${2:-0}"; }
 
@@ -92,6 +100,8 @@ emit "▸ Copying application from master ($SOURCE_DIR)"
     --exclude='./storage/framework/views/*' \
     --exclude='./public/storage' \
     --exclude='./database/*.sqlite' \
+    --exclude="./*.$MAIN_DOMAIN" \
+    --exclude='./_preview.html' \
     -cf - . ) | ( tar -xf - -C "$DOC_ROOT" ) \
   || final '{"status":"error","step":"copy","message":"copy from master failed."}' 1
 
