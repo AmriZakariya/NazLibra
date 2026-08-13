@@ -38,10 +38,14 @@ if (config('castlit.is_master')) {
         ->name('castlit.admin.')
         ->group(function (): void {
             Route::get('/', [SubscriptionAdminController::class, 'index'])->name('index');
+            // Manual client creation — must precede the /{subscription} route.
+            Route::get('/nouveau', [SubscriptionAdminController::class, 'create'])->name('create');
+            Route::post('/nouveau', [SubscriptionAdminController::class, 'store'])->name('store');
             Route::get('/{subscription}', [SubscriptionAdminController::class, 'show'])->name('show');
             Route::post('/{subscription}/approuver', [SubscriptionAdminController::class, 'approve'])->name('approve');
             Route::post('/{subscription}/rejeter', [SubscriptionAdminController::class, 'reject'])->name('reject');
             Route::post('/{subscription}/relancer', [SubscriptionAdminController::class, 'retry'])->name('retry');
+            Route::post('/{subscription}/renvoyer-acces', [SubscriptionAdminController::class, 'resendAccess'])->name('resend');
         });
 }
 

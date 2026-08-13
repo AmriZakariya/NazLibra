@@ -151,6 +151,11 @@
                         @elseif ($subscription->install && $subscription->install->status === \App\Models\TenantInstall::STATUS_LIVE)
                             <p style="font-size:14px; color:var(--ok); font-weight:600">Espace en ligne ✓</p>
                             <a class="btn btn-ghost btn-block" href="{{ $subscription->install->url() }}" target="_blank" rel="noopener">Ouvrir l'espace client ↗</a>
+                            <form method="POST" action="{{ route('castlit.admin.resend', $subscription) }}" style="margin-top:10px">
+                                @csrf
+                                <button class="btn btn-ghost btn-block" type="submit"
+                                        onclick="return confirm('Renvoyer l’email d’accès à {{ $subscription->email }} ?')">✉ Renvoyer les accès</button>
+                            </form>
                         @else
                             <p style="font-size:14px; font-weight:600; margin-bottom:4px"><span class="live-dot"></span>Provisioning en cours…</p>
                             <p style="font-size:13px; color:var(--muted)">{{ optional($subscription->install)->current_step ?: 'Préparation…' }}</p>

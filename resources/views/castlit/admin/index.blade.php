@@ -23,6 +23,9 @@
     .tbl tr:hover td { background: color-mix(in srgb, var(--brand) 4%, transparent); }
     .biz { font-weight: 700; }
     .biz .sd { color: var(--muted); font-weight: 500; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+    .tag-manual { display: inline-block; margin-left: 6px; vertical-align: middle; font-size: 10.5px; font-weight: 700;
+                  text-transform: uppercase; letter-spacing: .04em; padding: 2px 7px; border-radius: 999px;
+                  color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
     .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700;
             padding: 4px 10px; border-radius: 999px; }
     .pill-pending { background: var(--warn-bg); color: var(--warn); }
@@ -45,6 +48,10 @@
                 <h1>Demandes d'abonnement</h1>
                 <p>Validez ou refusez les inscriptions. L'approbation lance la création automatique de l'espace client.</p>
             </div>
+            <a href="{{ route('castlit.admin.create') }}" class="btn btn-primary" style="margin-left:auto; padding:11px 18px; white-space:nowrap">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><path d="M12 5v14M5 12h14"/></svg>
+                Nouveau client
+            </a>
         </div>
 
         @if (session('success'))<div class="flash flash-ok">{{ session('success') }}</div>@endif
@@ -77,7 +84,11 @@
                     @forelse ($subscriptions as $sub)
                         <tr>
                             <td>
-                                <div class="biz">{{ $sub->business_name }}</div>
+                                <div class="biz">{{ $sub->business_name }}
+                                    @if (data_get($sub->meta, 'source') === 'manual')
+                                        <span class="tag-manual" title="Créé manuellement depuis l'admin">Manuel</span>
+                                    @endif
+                                </div>
                                 <div class="sd">{{ $sub->desired_subdomain }}.{{ config('castlit.main_domain') }}</div>
                             </td>
                             <td>
