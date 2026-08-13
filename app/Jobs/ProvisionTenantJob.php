@@ -119,6 +119,7 @@ class ProvisionTenantJob implements ShouldQueue
         return [
             'MAIN_DOMAIN' => config('castlit.main_domain'),
             'BASE_DIR'    => $cfg['public_html'],
+            'DB_DRIVER'   => $cfg['db_driver'] ?? 'sqlite',
             'DB_PREFIX'   => $cfg['db_prefix'],
             'REPO_DIR'    => $cfg['repo_dir'],
             'BRANCH'      => $cfg['repo_branch'],

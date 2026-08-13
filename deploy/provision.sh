@@ -41,6 +41,7 @@ final() { printf '%s\n' "$1"; exit "${2:-0}"; }
 : "${REPO_NAME:=NazLibra}"
 : "${GH_TOKEN:=}"
 : "${PHP_BIN:=php}"
+: "${DB_DRIVER:=sqlite}"   # sqlite (default) | mysql
 
 SUB_NAME="${1:-}"
 PAYLOAD_B64="${2:-}"
@@ -93,15 +94,20 @@ uapi SubDomain addsubdomain domain="$SUB_NAME" rootdomain="$MAIN_DOMAIN" dir="$P
   || emit "  (subdomain create returned non-zero — may already exist, continuing)"
 
 # ============================================================================
-# STEP 2 — Create database + user + privileges
+# STEP 2 — Prepare the database (engine chosen by DB_DRIVER)
 # ============================================================================
-emit "▸ Creating database $NEW_DB_NAME and user $NEW_DB_USER"
-uapi Mysql create_database name="$NEW_DB_NAME" >&2 2>&1 \
-  || final '{"status":"error","step":"database","message":"create_database failed."}' 1
-uapi Mysql create_user name="$NEW_DB_USER" password="$NEW_DB_PASS" >&2 2>&1 \
-  || final '{"status":"error","step":"database","message":"create_user failed."}' 1
-uapi Mysql set_privileges_on_database user="$NEW_DB_USER" database="$NEW_DB_NAME" privileges=ALL >&2 2>&1 \
-  || final '{"status":"error","step":"database","message":"grant privileges failed."}' 1
+SQLITE_PATH="$DOC_ROOT/database/database.sqlite"
+if [ "$DB_DRIVER" = "mysql" ]; then
+  emit "▸ [mysql] Creating database $NEW_DB_NAME and user $NEW_DB_USER"
+  uapi Mysql create_database name="$NEW_DB_NAME" >&2 2>&1 \
+    || final '{"status":"error","step":"database","message":"create_database failed."}' 1
+  uapi Mysql create_user name="$NEW_DB_USER" password="$NEW_DB_PASS" >&2 2>&1 \
+    || final '{"status":"error","step":"database","message":"create_user failed."}' 1
+  uapi Mysql set_privileges_on_database user="$NEW_DB_USER" database="$NEW_DB_NAME" privileges=ALL >&2 2>&1 \
+    || final '{"status":"error","step":"database","message":"grant privileges failed."}' 1
+else
+  emit "▸ [sqlite] Database file will be created after code export"
+fi
 
 # ============================================================================
 # STEP 3 — Deploy application code from Git + vendor/ from cache
@@ -112,6 +118,14 @@ git -C "$REPO_DIR" archive "$DEPLOY_SHA" | tar -x -C "$DOC_ROOT" \
 # vendor/ ships from the warm cache (composer not run per client).
 rsync -a "$REPO_DIR/vendor/" "$DOC_ROOT/vendor/" >&2 2>&1 \
   || final '{"status":"error","step":"code","message":"vendor rsync failed."}' 1
+
+# SQLite: create the database file now that the database/ dir exists.
+if [ "$DB_DRIVER" != "mysql" ]; then
+  mkdir -p "$DOC_ROOT/database"
+  : > "$SQLITE_PATH"
+  chmod 664 "$SQLITE_PATH" 2>/dev/null || true
+  chmod 775 "$DOC_ROOT/database" 2>/dev/null || true
+fi
 
 # ============================================================================
 # STEP 4 — Render .env
@@ -125,6 +139,13 @@ if [ -f "$ENV_SRC" ]; then
 else
   : > "$ENV_DST"
 fi
+# DB connection values depend on the driver.
+if [ "$DB_DRIVER" = "mysql" ]; then
+  DB_CONN="mysql"; DB_DATABASE_VAL="$NEW_DB_NAME"; DB_USER_VAL="$NEW_DB_USER"; DB_PASS_VAL="$NEW_DB_PASS"
+else
+  DB_CONN="sqlite"; DB_DATABASE_VAL="$SQLITE_PATH"; DB_USER_VAL=""; DB_PASS_VAL=""
+fi
+
 # Overwrite/append the keys we control. Uses a PHP helper so quoting is safe.
 "$PHP_BIN" -r '
   $f = $argv[1];
@@ -133,7 +154,7 @@ fi
     "APP_DEBUG"     => "false",
     "APP_URL"       => $argv[2],
     "CASTLIT_MASTER"=> "false",
-    "DB_CONNECTION" => "mysql",
+    "DB_CONNECTION" => $argv[6],
     "DB_HOST"       => "127.0.0.1",
     "DB_PORT"       => "3306",
     "DB_DATABASE"   => $argv[3],
@@ -153,7 +174,7 @@ fi
     }
   }
   file_put_contents($f, $c);
-' "$ENV_DST" "https://$FULL_DOMAIN" "$NEW_DB_NAME" "$NEW_DB_USER" "$NEW_DB_PASS" >&2 2>&1 \
+' "$ENV_DST" "https://$FULL_DOMAIN" "$DB_DATABASE_VAL" "$DB_USER_VAL" "$DB_PASS_VAL" "$DB_CONN" >&2 2>&1 \
   || final '{"status":"error","step":"env","message":".env render failed."}' 1
 
 # ============================================================================
@@ -189,4 +210,4 @@ printf '%s' "$DEPLOY_SHA" > "$DOC_ROOT/.version"
 # ============================================================================
 # OUTPUT — single JSON line
 # ============================================================================
-final "{\"status\":\"success\",\"url\":\"https://$FULL_DOMAIN\",\"docroot\":\"$DOC_ROOT\",\"db\":\"$NEW_DB_NAME\",\"db_user\":\"$NEW_DB_USER\",\"commit\":\"${DEPLOY_SHA:0:8}\",\"owner_email\":\"$OWNER_EMAIL\",\"owner_password\":\"$OWNER_PASSWORD\"}" 0
+final "{\"status\":\"success\",\"url\":\"https://$FULL_DOMAIN\",\"docroot\":\"$DOC_ROOT\",\"db_driver\":\"$DB_DRIVER\",\"db\":\"$DB_DATABASE_VAL\",\"db_user\":\"$DB_USER_VAL\",\"commit\":\"${DEPLOY_SHA:0:8}\",\"owner_email\":\"$OWNER_EMAIL\",\"owner_password\":\"$OWNER_PASSWORD\"}" 0

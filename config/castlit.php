@@ -49,6 +49,11 @@ return [
         // The shell script that performs the actual provisioning.
         'script' => base_path('deploy/provision.sh'),
 
+        // Per-client database engine: 'sqlite' (default, zero-config, ideal for
+        // the early low-volume phase) or 'mysql' (created via cPanel uapi).
+        // Switch to MySQL later by setting CASTLIT_DB_DRIVER=mysql — no code change.
+        'db_driver'   => env('CASTLIT_DB_DRIVER', 'sqlite'),
+
         // cPanel account layout.
         'public_html' => env('CASTLIT_PUBLIC_HTML', '/home/castlit/public_html'),
         'db_prefix'   => env('CASTLIT_DB_PREFIX', 'castlit_'),

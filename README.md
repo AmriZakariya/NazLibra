@@ -1,69 +1,94 @@
-# NazLibra / LibrairePro
+# Castl-it-POS
 
-NazLibra, présenté dans l’application sous le nom **LibrairePro**, est une plateforme SaaS de gestion destinée aux librairies, papeteries et commerces culturels. Elle réunit dans une même application le catalogue, la caisse, le stock multi-magasin, les précommandes web, les achats, la facturation, la relation client et le pilotage financier.
+**Castl-it-POS** est une plateforme SaaS de caisse et de gestion pour les commerces marocains — librairies et papeteries, cafés et restaurants, pharmacies et parapharmacies, drogueries et commerces de détail. Elle réunit dans une même application le catalogue, la caisse tactile, le stock multi-magasin, les précommandes web, les achats, la facturation, la relation client, la fidélité et le pilotage financier.
 
-Le projet est pensé pour les réalités d’une librairie marocaine : prix en MAD, interface française et arabe, gestion des ISBN et codes-barres, livres et fournitures, commandes WhatsApp/web, retrait en magasin, avances client, tiroir-caisse et documents commerciaux.
+Le produit est commercialisé sur **[castlitpos.com](https://castlitpos.com)** : chaque client obtient son propre espace sur `saboutique.castlitpos.com`. L'application est pensée pour les réalités marocaines : prix en MAD, interface française et arabe, gestion des ISBN et codes-barres, TVA et ICE, commandes WhatsApp/web, retrait en magasin, avances client, tiroir-caisse et documents commerciaux.
+
+> **Dépôts.** Le back-office et l'API vivent dans ce dépôt (`NazLibra`, nom historique du code). L'application mobile de caisse est le projet Flutter **`naz_pos`**. Les composants internes (`LibraireProController`, `resources/views/librairepro/`) conservent leur nom d'origine ; le nom produit visible est **Castl-it-POS**.
 
 ## Objectifs métier
 
-LibrairePro vise à fournir un parcours cohérent de bout en bout :
-
 - centraliser les articles, livres, services, catégories, marques, variantes et prix ;
 - vendre rapidement depuis une caisse POS avec scanner, panier, remises et paiements mixtes ;
-- suivre le stock réel par magasin ou emplacement ;
+- suivre le stock réel par magasin ou emplacement, en ligne comme hors ligne ;
 - transformer une précommande ou une facture en vente sans double mouvement de stock ;
 - gérer les fournisseurs, achats, réceptions et retours ;
-- produire des devis, factures, tickets et PDF ;
-- suivre clients, avances, coupons, dépenses, comptes et trésorerie ;
+- produire des devis, factures, tickets et PDF conformes (TVA, ICE) ;
+- suivre clients, avances, coupons, fidélité, dépenses, comptes et trésorerie ;
 - contrôler les accès par tenant, rôle, magasin et appareil virtuel ;
-- fournir des tableaux de bord, rapports et traces d’audit.
+- fournir des tableaux de bord, rapports et traces d'audit ;
+- livrer chaque client sur son propre sous-domaine, provisionné automatiquement.
 
 ## Principes fonctionnels importants
 
-### La caisse est l’unique point d’encaissement
+### La caisse est l'unique point d'encaissement
 
-Toute opération qui doit produire une vente passe par **`/caisse`**. Les précommandes et factures ouvrent la caisse avec le client et les articles préchargés. L’ancien écran de vente manuelle redirige également vers la caisse.
-
-Cette règle garantit que le paiement, le mouvement de stock, le ticket, le tiroir-caisse et les contrôles d’idempotence utilisent le même flux.
+Toute opération qui doit produire une vente passe par **`/caisse`**. Les précommandes et factures ouvrent la caisse avec le client et les articles préchargés. L'ancien écran de vente manuelle redirige également vers la caisse. Cette règle garantit que le paiement, le mouvement de stock, le ticket, le tiroir-caisse et les contrôles d'idempotence utilisent le même flux.
 
 ### Le stock est géré par emplacement
 
 La source opérationnelle du stock est `item_location_stocks`, identifiée par tenant, article, variante et emplacement. Les ventes, réceptions, retours, ajustements, transferts et inventaires produisent des mouvements traçables.
 
 - une vente contrôle le stock du magasin courant ;
-- un service n’a pas de stock physique ;
-- le stock négatif est bloqué sauf si l’oversell est explicitement autorisé ;
+- un service n'a pas de stock physique ;
+- le stock négatif est bloqué sauf si l'oversell est explicitement autorisé (réglage `pos.show_out_of_stock` / `allow_oversell`) ;
 - une opération refusée ne crée ni vente ni mouvement partiel ;
-- les clés d’idempotence empêchent de rejouer une transaction ;
+- les clés d'idempotence empêchent de rejouer une transaction ;
 - une précommande ne décrémente pas le stock avant son encaissement en caisse.
 
 ### Les documents source restent liés à la vente
 
-Une vente issue d’une facture ou d’une précommande conserve son document source. Une contrainte métier empêche de convertir deux fois le même document. Si une vente existe déjà, l’application la rouvre au lieu de créer une seconde sortie de stock.
+Une vente issue d'une facture ou d'une précommande conserve son document source. Une contrainte métier empêche de convertir deux fois le même document. Si une vente existe déjà, l'application la rouvre au lieu de créer une seconde sortie de stock.
 
 ## Modules
 
 | Domaine | Capacités principales |
 | --- | --- |
-| Tableau de bord | KPIs, activité, alertes, raccourcis et centre d’action |
+| Tableau de bord | KPIs, activité, alertes, raccourcis et centre d'action |
 | Catalogue | Livres, produits, services, ISBN, codes-barres, catégories, marques, unités, taxes, variantes, imports et étiquettes |
 | Caisse & ventes | Recherche/scanner, panier, client, remises, coupons, paiements mixtes, tickets en attente, reçus, retours et remboursements |
 | Boutique en ligne | Catalogue public, filtres, disponibilité par magasin, panier et création de précommandes |
 | Précommandes | Commandes web, WhatsApp, téléphone ou magasin, suivi de préparation et conversion via la caisse |
 | Stock | Stock par emplacement, mouvements, réservations, ajustements, transferts, inventaires et valorisation |
-| Facturation | Devis, factures, paiements, statuts, duplication, archivage, conversion et PDF |
-| Achats | Commandes fournisseur, paiements, réception en stock, coûts et retours d’achat |
-| Contacts | Clients, fournisseurs, coordonnées, historique, crédit, avance, imports et segmentation |
+| Facturation | Devis, factures, paiements, remises fixes/%, HT/TTC, statuts, duplication, archivage, conversion et PDF |
+| Achats | Commandes fournisseur, paiements, réception en stock, coûts et retours d'achat |
+| Contacts (CRM) | Clients, fournisseurs, coordonnées, historique, crédit, avance, imports et segmentation |
+| Fidélité | Points de fidélité, cumul et utilisation à la caisse |
 | Finance | Avances client, dépenses, catégories, comptes, dépôts, transferts et transactions |
 | Promotions | Coupons, coupons client et règles de remise conditionnelles |
-| Tiroir-caisse | Ouverture, entrées/sorties d’espèces, solde attendu et clôture |
+| Tiroir-caisse | Ouverture, entrées/sorties d'espèces, solde attendu et clôture |
 | Livraisons | Bons de livraison, adresses, préparation, expédition et suivi |
-| Emprunts | Prêts, retours, pénalités et réservations ; module optionnel |
 | Rapports | Ventes, achats, stock, finance et performance |
 | Administration | Société, magasins, modules, thème, rôles, utilisateurs, appareils, documents et messagerie |
 | Audit & sécurité | Historique utilisateur, appareil virtuel, terminal réel, verrouillage PIN et contrôle des permissions |
+| Plateforme SaaS | Site marketing, inscriptions, validation et provisioning automatique des clients (voir plus bas) |
 
 Les modules activables et leur ordre sont définis dans [`app/Support/AppModules.php`](app/Support/AppModules.php).
+
+## Plateforme SaaS & multi-installation
+
+L'installation **maître** (castlitpos.com, `CASTLIT_MASTER=true`) porte le site marketing public, le formulaire d'inscription et l'espace d'administration des abonnements. Chaque client approuvé reçoit **une installation dédiée** sur son propre sous-domaine, provisionnée automatiquement.
+
+```mermaid
+flowchart LR
+    A[Visiteur castlitpos.com] --> B[Formulaire d'inscription]
+    B --> C[Abonnement en attente]
+    C --> D[Admin: approuver / rejeter]
+    D -->|approuver| E[ProvisionTenantJob]
+    E --> F[deploy/provision.sh]
+    F --> G[Sous-domaine + base MySQL + code + .env + migrate + seed]
+    G --> H[client.castlitpos.com en ligne]
+    H --> I[Email de bienvenue avec accès]
+```
+
+- **Site marketing** : `castlit/layout.blade.php` + `landing.blade.php`, optimisés SEO (title, meta, canonical, Open Graph, Twitter, JSON-LD `Organization`/`WebSite`/`SoftwareApplication`/`FAQPage`, image OG générée, `robots.txt`, `sitemap.xml`, `humans.txt`, `/.well-known/security.txt`). Voir `app/Http/Controllers/Castlit/MarketingController.php`.
+- **Inscriptions & admin** : `SubscriptionController` (formulaire public, validation, honeypot, anti-spam), `SubscriptionAdminController` (liste, approbation, rejet, relance), protégés par le middleware `platform.admin` (`users.is_platform_admin`).
+- **Provisioning** : `App\Jobs\ProvisionTenantJob` pilote `deploy/provision.sh` (cPanel/LWS) qui crée le sous-domaine (`uapi SubDomain`), la base et l'utilisateur MySQL (`uapi Mysql`), exporte le code (`git archive`), copie `vendor/`, rend `.env`, exécute `key:generate` / `migrate --force`, puis `php artisan castlit:install-tenant` (via `TenantProvisioningService`) pour créer le tenant + propriétaire depuis l'inscription.
+- **Configuration** : [`config/castlit.php`](config/castlit.php) (marque, domaine, SEO, réservations de sous-domaines, paramètres d'hôte). Le drapeau `is_master` laisse ces routes dormantes sur les installations client — `/` y reste l'application POS normale, et leur `robots.txt` bloque l'indexation.
+
+## Application mobile de caisse (`naz_pos`, Flutter)
+
+L'application Flutter **`naz_pos`** est une caisse **offline-first** : les ventes, ajustements et créations fonctionnent sans connexion et se synchronisent au retour du réseau via l'API `/api/v1/sync/*` (voir le contrat de synchronisation ci-dessous). Elle gère le catalogue, le panier, les paiements, l'impression ESC/POS, les appareils virtuels, la fidélité et les réglages synchronisés depuis le serveur.
 
 ## Parcours métier
 
@@ -105,79 +130,70 @@ flowchart LR
 
 ## Architecture technique
 
-Le projet est un **monolithe modulaire Laravel**. Les domaines partagent la même application et la même base, tout en isolant les règles sensibles dans des services dédiés.
+Le back-office est un **monolithe modulaire Laravel**. Les domaines partagent la même application et la même base, tout en isolant les règles sensibles dans des services dédiés.
 
 ```text
 app/
 ├── Http/
-│   ├── Controllers/       Contrôleurs web, POS, boutique et documents
-│   └── Middleware/        Tenant, permissions, session, appareil et audit
-├── Models/                Modèles Eloquent du domaine
+│   ├── Controllers/
+│   │   ├── Castlit/        Site marketing, inscriptions et admin SaaS
+│   │   ├── Api/            API mobile et synchronisation offline
+│   │   └── ...             Back-office, caisse, boutique et documents
+│   └── Middleware/         Tenant, permissions, session, appareil, platform.admin
+├── Jobs/                   ProvisionTenantJob (provisioning client)
+├── Models/                 Modèles Eloquent du domaine
 ├── Services/
-│   ├── Inventory/         Stock atomique, réservations et mouvements
-│   ├── Documents/         Calcul, numérotation, audit, devis et factures
+│   ├── Inventory/          Stock atomique, réservations et mouvements
+│   ├── Documents/          Calcul, numérotation, audit, devis et factures
+│   ├── TenantProvisioningService.php
+│   ├── LoyaltyService.php
 │   └── CashRegisterService.php
-└── Support/               Tenant, modules, langue, horloge et mode métier
+├── Console/Commands/       castlit:install-tenant, roles:ensure-system
+└── Support/                Tenant, modules, langue, horloge et mode métier
 
 resources/
-├── views/librairepro/     Back-office, caisse, catalogue et modules
-├── views/storefront/      Boutique publique
-├── views/components/      Layout et composants Blade partagés
-├── css/app.css            Styles Tailwind et composants applicatifs
-└── js/app.js              Interactions POS, tableaux et interface
+├── views/librairepro/      Back-office, caisse, catalogue et modules
+├── views/castlit/          Site marketing, inscription et admin SaaS
+├── views/storefront/       Boutique publique
+├── css/app.css             Styles Tailwind et composants applicatifs
+└── js/app.js               Interactions POS, factures, tableaux et interface
 
-database/
-├── migrations/            Schéma et évolutions fonctionnelles
-├── seeders/               Données initiales, tenant client et démonstration
-└── factories/             Fabriques de tests
+deploy/provision.sh         Provisioning cPanel/LWS d'une installation client
+config/castlit.php          Marque, domaine, SEO et paramètres de provisioning
+database/migrations/        Schéma et évolutions fonctionnelles
+routes/web.php              Routes métier, SaaS et compatibilité des anciennes URLs
+tests/Feature/              Tests des parcours complets
 
-routes/web.php             Routes métier et compatibilité des anciennes URLs
-tests/Feature/             Tests des parcours complets
+(dépôt séparé) naz_pos/     Application mobile de caisse Flutter (offline-first)
 ```
-
-### Couche HTTP
-
-- `LibraireProController` orchestre la majorité des écrans et opérations du back-office.
-- `OnlineStoreController` gère la boutique publique et la création des commandes web.
-- `CommercialDocumentController` gère les devis et factures commerciales.
-- les middlewares appliquent le contexte tenant, les permissions, le magasin/appareil courant, le verrouillage de session et l’audit.
 
 ### Services métier
 
 - `InventoryService` verrouille les lignes de stock et exécute les mouvements dans des transactions atomiques ;
 - `CashRegisterService` centralise les sessions et mouvements du tiroir-caisse ;
-- `InvoiceService` et `EstimateService` gèrent le cycle de vie des documents ;
-- `CommercialDocumentCalculator` calcule lignes, remises, taxes et totaux ;
-- `DocumentNumberGenerator` et `DocumentAuditTrail` assurent numérotation et traçabilité.
+- `InvoiceService` et `EstimateService` gèrent le cycle de vie des documents ; `CommercialDocumentCalculator` calcule lignes, remises (fixes/%), taxes (HT/TTC) et totaux ; `DocumentNumberGenerator` et `DocumentAuditTrail` assurent numérotation et traçabilité ;
+- `LoyaltyService` gère le cumul et l'utilisation des points de fidélité ;
+- `TenantProvisioningService` crée un tenant complet (réglages, rôles, propriétaire, emplacements, catégories, défauts) — utilisé par le provisioning et le wizard d'installation.
 
 ### Données et multi-tenant
 
-Les enregistrements métier portent un `tenant_id`. `TenantContext` détermine l’organisation courante et `EnsureTenantAccess` contrôle les modules et permissions. Les magasins sont associés à des emplacements de stock et les utilisateurs peuvent avoir un accès limité à certains magasins.
-
-Les opérations critiques utilisent des transactions SQL, des verrous de ligne et, lorsque nécessaire, des clés d’idempotence.
+Les enregistrements métier portent un `tenant_id`. `TenantContext` détermine l'organisation courante et `EnsureTenantAccess` contrôle les modules et permissions. Les opérations critiques utilisent des transactions SQL, des verrous de ligne et, lorsque nécessaire, des clés d'idempotence. Toutes les migrations et le SQL brut sont compatibles **SQLite (dev)** et **MySQL/MariaDB (prod)**.
 
 ## Stack
 
-- PHP 8.3+
-- Laravel 13
-- Blade
-- Tailwind CSS 4
-- Vite 8
-- JavaScript ES modules
-- Eloquent ORM
-- SQLite par défaut ; MySQL/MariaDB configurable
-- Yajra DataTables et DataTables.net
-- Dompdf pour les documents PDF
+- PHP 8.3+, Laravel 13, Blade
+- Tailwind CSS 4, Vite, JavaScript ES modules
+- Eloquent ORM ; SQLite par défaut, MySQL/MariaDB en production
+- Yajra DataTables, Dompdf (PDF), GD (image OG)
+- Sanctum (API mobile), file d'attente base de données
 - PHPUnit 12
+- Application mobile : Flutter / Dart (dépôt `naz_pos`)
 
 ## Installation locale
 
 ### Prérequis
 
-- PHP 8.3 ou supérieur avec les extensions requises par Laravel ;
-- Composer ;
-- Node.js et npm ;
-- SQLite, MySQL ou MariaDB.
+- PHP 8.3+ avec les extensions Laravel (dont `gd`) ; Composer ; Node.js et npm ; SQLite, MySQL ou MariaDB.
 
 ### Installation rapide
 
@@ -188,84 +204,58 @@ composer run setup
 php artisan db:seed
 ```
 
-Le script `composer run setup` installe les dépendances PHP et JavaScript, crée `.env`, génère la clé applicative, exécute les migrations et compile les assets.
-
-Pour SQLite, créez le fichier si nécessaire :
+`composer run setup` installe les dépendances PHP/JS, crée `.env`, génère la clé, migre et compile les assets. Pour SQLite :
 
 ```bash
 touch database/database.sqlite
 ```
 
-Vérifiez ensuite dans `.env` :
+Vérifiez dans `.env` :
 
 ```dotenv
-APP_NAME=LibrairePro
+APP_NAME="Castl-it-POS"
 APP_URL=http://127.0.0.1:8000
 DB_CONNECTION=sqlite
 CLIENT_BUSINESS_MODE=bookstore
 CLIENT_TIMEZONE=Africa/Casablanca
 CLIENT_CURRENCY=MAD
 CLIENT_LANGUAGE=fr
+
+# Site marketing SaaS (installation maître uniquement)
+CASTLIT_MASTER=false
+CASTLIT_MAIN_DOMAIN=castlitpos.com
+CASTLIT_CONTACT_EMAIL=contact@castlitpos.com
+CASTLIT_GSC_VERIFICATION=
 ```
 
-Pour réinitialiser une base locale avec les données de démonstration :
+Réinitialiser une base locale avec les données de démonstration (jamais sur des données utiles) :
 
 ```bash
 php artisan migrate:fresh --seed
 ```
 
-N’utilisez pas cette commande sur une base contenant des données utiles.
-
 ## Développement
 
-Démarrer le serveur Laravel, Vite, la queue et les logs :
-
 ```bash
-composer run dev
+composer run dev        # serveur, Vite, queue et logs
 ```
-
-Ou lancer séparément :
-
-```bash
-php artisan serve
-npm run dev
-php artisan queue:listen
-```
-
-URLs principales :
 
 | URL | Usage |
 | --- | --- |
-| `/` | Tableau de bord après authentification |
+| `/` | Tableau de bord (client) **ou** site marketing (installation maître) |
 | `/caisse` | Point de vente et encaissement |
 | `/catalogue` | Catalogue et gestion du stock |
 | `/modules/{module}` | Modules du back-office |
 | `/boutique` | Boutique publique |
-| `/modules/settings` | Configuration de l’organisation |
-| `/telescope` | Debug local/dev des requêtes API, exceptions, requêtes SQL, logs, jobs et mails |
-
-### Debug API avec Laravel Telescope
-
-Telescope est installé en dépendance de développement pour inspecter les appels API et diagnostiquer les erreurs applicatives.
-
-Variables utiles :
-
-```env
-TELESCOPE_ENABLED=true
-TELESCOPE_PATH=telescope
-TELESCOPE_ALLOWED_EMAILS=
-TELESCOPE_ALLOW_OWNER_ROLE=true
-```
-
-En local, l’accès est direct pour faciliter le debug. Sur un environnement partagé, l’accès est limité aux utilisateurs `owner` du tenant courant ou aux emails listés dans `TELESCOPE_ALLOWED_EMAILS`.
+| `/castlit-admin` | Administration des abonnements (installation maître) |
+| `/robots.txt`, `/sitemap.xml` | SEO (maître : indexable ; client : bloqué) |
+| `/telescope` | Debug local des requêtes, exceptions, SQL, jobs et mails |
 
 ### Attribution sécurisée des actions POS
 
 Les mutations POS auditables utilisent l'identité du jeton Sanctum et l'en-tête `X-Virtual-Device-Id`. Quand `features.virtual_devices` est activé, cet en-tête est obligatoire. Le terminal doit être actif, appartenir au tenant authentifié et être compatible avec l'emplacement courant. Un `user_id` envoyé dans une mutation est refusé : l'opérateur est toujours dérivé du jeton.
 
-`POST /api/v1/auth/pin-verify` reçoit `user_id` et `pin` uniquement pour authentifier le changement d'opérateur. En cas de succès, la réponse contient `token`, `token_type`, `user` et `abilities`. Le client doit remplacer son ancien jeton par ce nouveau jeton avant toute action. Seul le jeton ayant servi au changement est révoqué ; les autres sessions restent actives. Pour revenir à l'opérateur précédent, effectuer un nouveau `pin-verify` avec son PIN. `POST /api/v1/auth/logout` révoque uniquement le jeton courant.
-
-Tous les PIN sont exactement composés de quatre chiffres ASCII (`0000` à `9999`). Les anciens hashes correspondant à des PIN de cinq ou six chiffres ne sont plus utilisables : leur propriétaire doit demander une réinitialisation du PIN ou faire définir un nouveau PIN à quatre chiffres par un propriétaire du tenant.
+`POST /api/v1/auth/pin-verify` reçoit `user_id` et `pin` uniquement pour authentifier le changement d'opérateur. En cas de succès, la réponse contient `token`, `token_type`, `user` et `abilities`. Le client remplace son ancien jeton par ce nouveau jeton avant toute action. Seul le jeton ayant servi au changement est révoqué. Tous les PIN sont exactement composés de quatre chiffres ASCII (`0000` à `9999`).
 
 Les ventes exposent l'attribution dans toutes les réponses de création, rejeu idempotent, liste, détail et synchronisation :
 
@@ -278,9 +268,9 @@ Les ventes exposent l'attribution dans toutes les réponses de création, rejeu 
 
 ### Contrat de synchronisation offline
 
-Les collections paginées (`items`, `contacts`, `sales`, `invoices`, `contact-transactions`) utilisent un curseur opaque émis par le serveur. La première requête accepte `since` et `per_page`; les suivantes transmettent uniquement `cursor=<next_cursor>`. Toutes les pages conservent le même `sync_at` et sont ordonnées par `(updated_at, id)`. Le client ne sauvegarde `sync_at` comme prochain curseur delta qu'après réception de `has_more: false`.
+Les collections paginées (`items`, `contacts`, `sales`, `invoices`, `contact-transactions`) utilisent un curseur opaque émis par le serveur. La première requête accepte `since` et `per_page` ; les suivantes transmettent uniquement `cursor=<next_cursor>`. Toutes les pages conservent le même `sync_at` et sont ordonnées par `(updated_at, id)`. Le client ne sauvegarde `sync_at` comme prochain curseur delta qu'après réception de `has_more: false`.
 
-Tous les instants échangés par l'API sont normalisés en UTC. `since`, `sold_at` et `recorded_at` doivent être au format RFC 3339 avec `Z` ou un décalage explicite (`2026-06-24T10:23:50Z` et `2026-06-24T11:23:50+01:00` désignent le même instant). Une date sans décalage est ambiguë et retourne HTTP 422. Les réponses `sync_at` utilisent toujours la forme UTC canonique avec six chiffres de microsecondes et `Z`. Le fuseau du tenant, par exemple `Africa/Casablanca`, sert uniquement à l'affichage. Laravel et les sessions MySQL/MariaDB stockent en UTC (`DB_TIMEZONE=+00:00`).
+Tous les instants échangés par l'API sont normalisés en UTC (RFC 3339 avec `Z` ou décalage explicite ; une date sans décalage retourne HTTP 422). Le fuseau du tenant sert uniquement à l'affichage. Laravel et les sessions MySQL/MariaDB stockent en UTC (`DB_TIMEZONE=+00:00`).
 
 ```json
 {
@@ -297,101 +287,64 @@ Tous les instants échangés par l'API sont normalisés en UTC. `since`, `sold_a
 
 | Endpoint | Portée et contenu |
 | --- | --- |
-| `/api/v1/sync/settings` | Tenant et emplacement résolus; réponse non paginée avec `tenant_id`, `location_id`, `has_more: false`. |
-| `/api/v1/sync/meta` | Catégories, marques, unités et taxes du tenant, tombstones `deleted_at`, ordre déterministe. |
-| `/api/v1/sync/items` | Catalogue tenant avec `external_id` (UUID local Flutter), tombstones `deleted_at`, pagination par curseur. |
-| `/api/v1/sync/stock` | Snapshot complet ou delta de l'emplacement courant; `is_full_snapshot` indique la sémantique de remplacement et `deleted_at` transporte les tombstones. |
+| `/api/v1/sync/settings` | Tenant et emplacement résolus ; réponse non paginée. |
+| `/api/v1/sync/meta` | Catégories, marques, unités et taxes du tenant, tombstones `deleted_at`. |
+| `/api/v1/sync/items` | Catalogue tenant avec `external_id` (UUID local Flutter), tombstones, curseur. |
+| `/api/v1/sync/stock` | Snapshot complet ou delta de l'emplacement courant ; `is_full_snapshot` + tombstones. |
 | `/api/v1/sync/contacts` | Contacts tenant, tombstones, filtre `kind` inclus dans l'identité du curseur. |
 | `/api/v1/sync/sales` | Ventes de l'emplacement courant, attribution utilisateur/terminal et tombstones. |
 | `/api/v1/sync/invoices` | Factures de vente liées à l'emplacement courant, tombstones. |
 | `/api/v1/sync/contact-transactions` | Grand livre tenant, tombstones et pagination par curseur. |
 
-Un `since`, `cursor`, `per_page` ou emplacement invalide retourne HTTP 422. Les mutations offline doivent fournir une clé d'idempotence stable; une même clé avec un payload différent retourne HTTP 409 `idempotency_conflict` lorsqu'un hash de requête est pris en charge.
+Un `since`, `cursor`, `per_page` ou emplacement invalide retourne HTTP 422. Les mutations offline doivent fournir une clé d'idempotence stable ; une même clé avec un payload différent retourne HTTP 409 `idempotency_conflict`. La création mobile `POST /api/v1/items` exige `local_id` (UUID), conservé dans `items.external_id` (unique par tenant) : première création HTTP 201 `already_existed: false`, rejeu HTTP 200 `already_existed: true`.
 
-Les mutations Eloquent des ressources synchronisées avancent leur `updated_at`. Les lignes de paiement touchent également leur vente parente et les opérations du grand livre touchent leur contact parent, afin que les représentations imbriquées et les soldes soient réémis au prochain delta. Les suppressions logiques (`items`, métadonnées, contacts, ventes, factures, transactions et stock d'emplacement) restent visibles sous forme de tombstones.
+## Déploiement (cPanel / LWS)
 
-La création mobile `POST /api/v1/items` exige `local_id` sous forme d'UUID. Le serveur le conserve dans `items.external_id`, unique par tenant. Une première création retourne HTTP 201 avec `already_existed: false`; tout rejeu du même UUID retourne HTTP 200 avec `already_existed: true` et le même `item.id`. Les prix décimaux Laravel restent encodés comme chaînes JSON (`"89.90"`).
+L'application se déploie depuis GitHub. L'installation maître et chaque client partagent le même code ; seul l'environnement (`.env`) diffère.
 
-Contrat article mobile :
-
-- requis : `local_id`, `title`, `type` (`book|supply|service`), `sale_price`, `unit_id`, `tax_id` ;
-- optionnel : `purchase_price`, `stock_quantity`, `min_stock_threshold`, `category_id`, `brand_id`, `item_code`, `item_group` (`Single|Variants|Group|Pack`), `isbn`, `barcode`, `sku`, `author`, `extra_fields` ;
-- les références catalogue sont obligatoirement rattachées au tenant authentifié ;
-- `item_code` est généré au format `ITyymmNNNN` lorsqu'il est absent, et `item_group` vaut `Single` par défaut ;
-- un livre ou une fourniture sans stock reçoit le statut `out_of_stock`; avec stock, `active`. Un service reste `active`, force son stock à zéro et ne crée aucun stock d'emplacement ;
-- le stock initial physique produit un mouvement `opening_stock`. Les mises à jour de fiche interdisent `stock_quantity`; toute variation ultérieure passe par l'API d'ajustement de stock.
+1. Cloner le dépôt dans un cache serveur et y exécuter `composer install --no-dev -o` (vendor prêt à copier). Les assets `public/build/` sont versionnés.
+2. Installation **maître** : `.env` avec `CASTLIT_MASTER=true`, DNS wildcard `*.castlitpos.com`, un utilisateur `is_platform_admin`, `CASTLIT_GITHUB_TOKEN` et les chemins d'hôte de `config/castlit.php`.
+3. Faire tourner un worker de file d'attente (`php artisan queue:work`) ou un cron : l'approbation d'un abonnement y déclenche `ProvisionTenantJob`.
+4. Chaque approbation crée automatiquement le sous-domaine, la base, le code et le tenant du client. Voir [`deploy/provision.sh`](deploy/provision.sh).
 
 ## Tests et qualité
 
-Exécuter toute la suite :
-
 ```bash
-composer test
+composer test                                   # toute la suite (SQLite en mémoire)
+php artisan test tests/Feature/PosTest.php      # un domaine
+php artisan test tests/Feature/CommercialDocumentTest.php
+./vendor/bin/pint --test                        # style PHP
+npm run build                                   # assets de production
 ```
 
-Exécuter un domaine précis :
-
-```bash
-php artisan test tests/Feature/PosTest.php
-php artisan test tests/Feature/OnlineOrderTest.php
-php artisan test tests/Feature/PurchaseTest.php
-php artisan test tests/Feature/FacturationModuleTest.php
-```
-
-Vérifier le style PHP :
-
-```bash
-./vendor/bin/pint --test
-```
-
-Compiler les assets de production :
-
-```bash
-npm run build
-```
-
-Les tests utilisent SQLite en mémoire, le cache et les sessions en mémoire, ainsi que les transports mail/queue de test configurés dans `phpunit.xml`.
+Les tests utilisent SQLite en mémoire et les transports mail/queue de test de `phpunit.xml`.
 
 ## Conventions de développement
 
 - toute requête métier doit être limitée au tenant courant ;
 - une vente interactive doit passer par `/caisse` ;
 - toute variation de stock doit passer par `InventoryService` et produire un mouvement ;
-- les opérations financières ou de stock doivent être transactionnelles ;
+- les opérations financières ou de stock doivent être transactionnelles ; aucune écriture partielle en cas d'échec ;
 - les conversions de documents doivent rester idempotentes ;
-- un échec de validation ou de stock ne doit laisser aucune écriture partielle ;
-- les services ne décrémentent jamais le stock ;
-- les textes visibles doivent rester compatibles avec le français et l’arabe ;
+- migrations et SQL brut compatibles SQLite **et** MySQL (préférer `COALESCE`, `CASE WHEN`, gardes `Schema::getIndexes()`) ;
+- les textes visibles doivent rester compatibles français et arabe ;
 - tout nouveau parcours critique doit avoir un test Feature.
-
-## Configuration
-
-Les principales variables sont documentées dans [`.env.example`](.env.example). Elles couvrent notamment :
-
-- l’URL, la langue et la version de l’application ;
-- la base de données, les sessions, le cache et les queues ;
-- l’identité du tenant client et du propriétaire initial ;
-- le mode métier, la devise, le pays et le fuseau horaire ;
-- le mail et les intégrations externes.
-
-Les paramètres modifiables depuis l’interface sont stockés dans les réglages du tenant : modules, thème, société, magasins, caisse, documents PDF, messagerie, rôles et références.
 
 ## Sécurité et audit
 
 - authentification Laravel avec réinitialisation du mot de passe et du PIN ;
-- rôles et permissions par tenant ;
-- accès utilisateur limité aux magasins autorisés ;
-- verrouillage de session caisse ;
-- sélection et suivi d’appareils virtuels ;
-- journal d’audit avec utilisateur, action, sujet, appareil et contexte de requête ;
-- validation des identifiants de modèles dans le périmètre du tenant.
+- rôles et permissions par tenant ; administration plateforme via `is_platform_admin` ;
+- accès utilisateur limité aux magasins autorisés ; verrouillage de session caisse ;
+- sélection et suivi d'appareils virtuels (une session live par appareil) ;
+- journal d'audit (utilisateur, action, sujet, appareil, contexte) ;
+- `/.well-known/security.txt` pour le signalement de vulnérabilités.
 
 Ne placez jamais de secrets, mots de passe clients ou identifiants SMTP réels dans le dépôt.
 
 ## État du projet
 
-Le projet est actuellement en version bêta (`1.0.0-beta.5`). Les parcours métier principaux sont couverts par des tests Feature, mais une validation sur environnement de préproduction reste recommandée avant toute mise en service : impression, matériel POS, emails, permissions, sauvegardes et comportement multi-magasin.
+Version bêta (`1.0.0-beta.5`). Les parcours principaux sont couverts par des tests Feature ; une validation en préproduction reste recommandée avant mise en service (impression, matériel POS, emails, permissions, sauvegardes, multi-magasin et provisioning).
 
 ## Licence
 
-Ce dépôt utilise Laravel, distribué sous licence MIT. La licence applicable au code métier NazLibra/LibrairePro doit être définie par le propriétaire du projet avant distribution publique.
+Ce dépôt utilise Laravel, distribué sous licence MIT. La licence applicable au code métier Castl-it-POS doit être définie par le propriétaire du projet avant toute distribution publique.
