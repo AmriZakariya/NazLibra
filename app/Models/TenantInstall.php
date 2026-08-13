@@ -14,8 +14,8 @@ class TenantInstall extends Model
 
     protected $fillable = [
         'subscription_id', 'subdomain', 'domain', 'docroot', 'db_name',
-        'db_user', 'status', 'provision_log', 'commit_sha', 'owner_email',
-        'provisioned_at',
+        'db_user', 'status', 'current_step', 'provision_log', 'commit_sha',
+        'owner_email', 'provisioned_at',
     ];
 
     protected $casts = [

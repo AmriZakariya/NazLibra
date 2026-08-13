@@ -3,7 +3,23 @@
 @section('title', $subscription->business_name.' — Administration Castl-it-POS')
 
 @section('content')
+
+@php
+    $inst = $subscription->install;
+    $inProgress = $inst && in_array($inst->status, [\App\Models\TenantInstall::STATUS_QUEUED, \App\Models\TenantInstall::STATUS_RUNNING], true);
+@endphp
+
+{{-- While provisioning, auto-refresh so the admin follows progress live. --}}
+@if ($inProgress)
+    @push('head')<meta http-equiv="refresh" content="4">@endpush
+@endif
+
 <style>
+    .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--brand); margin-right: 6px; animation: livepulse 1.1s ease infinite; }
+    @keyframes livepulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+    @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+    .step-now { font-weight: 700; }
+    .fail-banner { background: var(--err-bg); color: var(--err); border: 1px solid color-mix(in srgb, var(--err) 30%, transparent); border-radius: 12px; padding: 12px 14px; font-size: 14px; font-weight: 600; margin-bottom: 16px; }
     .detail { padding: 34px 0 0; max-width: 860px; margin: 0 auto; }
     .back { color: var(--muted); font-size: 13.5px; font-weight: 600; }
     .detail h1 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; margin: 12px 0 4px; }
@@ -73,7 +89,13 @@
                     <div class="card">
                         <h2>Provisioning</h2>
                         <div class="body">
+                            @if ($subscription->install->status === \App\Models\TenantInstall::STATUS_FAILED)
+                                <div class="fail-banner">✗ {{ $subscription->install->current_step ?: 'Le provisioning a échoué — voir le journal ci-dessous.' }}</div>
+                            @endif
                             <div class="kv"><span class="k">Statut</span><span class="v"><span class="pill pill-{{ $subscription->install->status }}">{{ ucfirst($subscription->install->status) }}</span></span></div>
+                            @if ($subscription->install->current_step)
+                                <div class="kv"><span class="k">Étape</span><span class="v {{ $inProgress ? 'step-now' : '' }}">@if ($inProgress)<span class="live-dot"></span>@endif{{ $subscription->install->current_step }}</span></div>
+                            @endif
                             <div class="kv"><span class="k">Adresse</span><span class="v">
                                 @if ($subscription->install->status === \App\Models\TenantInstall::STATUS_LIVE)
                                     <a class="url-live" href="{{ $subscription->install->url() }}" target="_blank" rel="noopener">{{ $subscription->install->domain }} ↗</a>
@@ -130,7 +152,9 @@
                             <p style="font-size:14px; color:var(--ok); font-weight:600">Espace en ligne ✓</p>
                             <a class="btn btn-ghost btn-block" href="{{ $subscription->install->url() }}" target="_blank" rel="noopener">Ouvrir l'espace client ↗</a>
                         @else
-                            <p style="font-size:14px; color:var(--muted)">Demande déjà traitée. Provisioning en cours…</p>
+                            <p style="font-size:14px; font-weight:600; margin-bottom:4px"><span class="live-dot"></span>Provisioning en cours…</p>
+                            <p style="font-size:13px; color:var(--muted)">{{ optional($subscription->install)->current_step ?: 'Préparation…' }}</p>
+                            <p style="font-size:12px; color:var(--muted); margin-top:8px">Cette page s'actualise automatiquement. Suivez le détail dans le journal ci-contre.</p>
                         @endif
                     </div>
                 </div>

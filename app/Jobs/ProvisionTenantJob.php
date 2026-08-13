@@ -47,7 +47,11 @@ class ProvisionTenantJob implements ShouldQueue
             return;
         }
 
-        $install->update(['status' => TenantInstall::STATUS_RUNNING]);
+        $install->update([
+            'status'        => TenantInstall::STATUS_RUNNING,
+            'current_step'  => 'Démarrage du provisioning…',
+            'provision_log' => null,
+        ]);
 
         $cfg = config('castlit.provision');
         $script = $cfg['script'];
@@ -75,8 +79,11 @@ class ProvisionTenantJob implements ShouldQueue
 
         $log = '';
         try {
-            $process->run(function ($type, $buffer) use (&$log): void {
+            // Persist the log + current step live as the script emits "▸ …" lines,
+            // so the admin can follow progress (and see where it stopped on error).
+            $process->run(function ($type, $buffer) use (&$log, $install): void {
                 $log .= $buffer;
+                $this->persistProgress($install, $log, $buffer);
             });
         } catch (\Throwable $e) {
             $install->update(['provision_log' => $log]);
@@ -95,6 +102,7 @@ class ProvisionTenantJob implements ShouldQueue
 
         $install->fill([
             'status'         => TenantInstall::STATUS_LIVE,
+            'current_step'   => 'Espace en ligne ✓',
             'db_name'        => $result['db'] ?? $install->db_name,
             'db_user'        => $result['db_user'] ?? $install->db_user,
             'docroot'        => $result['docroot'] ?? $install->docroot,
@@ -131,6 +139,31 @@ class ProvisionTenantJob implements ShouldQueue
         ];
     }
 
+    /**
+     * On each chunk that contains a "▸ step" line, save the growing log and the
+     * latest step so a polling admin sees live progress.
+     */
+    private function persistProgress(TenantInstall $install, string $log, string $buffer): void
+    {
+        if (! str_contains($buffer, '▸')) {
+            $install->forceFill(['provision_log' => trim($log)])->save();
+            return;
+        }
+
+        $step = null;
+        foreach (preg_split('/\r?\n/', trim($buffer)) as $line) {
+            $line = trim($line);
+            if (str_starts_with($line, '▸')) {
+                $step = trim(ltrim($line, "▸ \t"));
+            }
+        }
+
+        $install->forceFill([
+            'provision_log' => trim($log),
+            'current_step'  => $step ?: $install->current_step,
+        ])->save();
+    }
+
     private function parseFinalJson(string $stdout): array
     {
         $lines = array_values(array_filter(array_map('trim', explode("\n", trim($stdout)))));
@@ -153,6 +186,7 @@ class ProvisionTenantJob implements ShouldQueue
     private function fail(TenantInstall $install, string $message): void
     {
         $install->status = TenantInstall::STATUS_FAILED;
+        $install->current_step = 'Échec : '.\Illuminate\Support\Str::limit($message, 140);
         $install->appendLog('✗ '.$message);
         Log::error('CastLit provisioning failed', ['install' => $install->id, 'message' => $message]);
     }
