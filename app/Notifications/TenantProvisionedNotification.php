@@ -9,7 +9,7 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Sent to a new client once their CastLit POS install is live, with the URL and
+ * Sent to a new client once their Castl-it-POS install is live, with the URL and
  * first-login credentials. Delivered on-demand to the subscription email.
  */
 class TenantProvisionedNotification extends Notification
@@ -30,9 +30,9 @@ class TenantProvisionedNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $mail = (new MailMessage)
-            ->subject('Votre espace CastLit POS est prêt 🎉')
+            ->subject('Votre espace Castl-it-POS est prêt 🎉')
             ->greeting('Bonjour '.$this->subscription->contact_name.',')
-            ->line('Votre boutique « '.$this->subscription->business_name.' » est maintenant en ligne sur CastLit POS.')
+            ->line('Votre boutique « '.$this->subscription->business_name.' » est maintenant en ligne sur Castl-it-POS.')
             ->line('Adresse de connexion : '.$this->install->url())
             ->action('Ouvrir mon espace', $this->install->url());
 

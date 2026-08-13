@@ -1,6 +1,6 @@
 @extends('castlit.layout')
 
-@section('title', 'Abonnements — Administration CastLit')
+@section('title', 'Abonnements — Administration Castl-it-POS')
 
 @section('content')
 <style>

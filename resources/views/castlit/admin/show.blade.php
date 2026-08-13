@@ -1,6 +1,6 @@
 @extends('castlit.layout')
 
-@section('title', $subscription->business_name.' — Administration CastLit')
+@section('title', $subscription->business_name.' — Administration Castl-it-POS')
 
 @section('content')
 <style>

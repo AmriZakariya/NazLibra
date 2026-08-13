@@ -7075,3 +7075,14 @@
     .pos-product-ping { animation: none; }
     .pos-product-bump { display: none; }
 }
+
+/* ── Invoice form: inline validation + keyboard-highlighted search result ──── */
+.invoice-field-invalid {
+    border-color: #f87171 !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, #ef4444 18%, transparent) !important;
+}
+
+.invoice-item-result.is-active {
+    background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
+    outline: none;
+}

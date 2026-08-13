@@ -1,7 +1,7 @@
 <?php
 
 // ============================================================================
-//  CastLit POS — SaaS marketing + tenant auto-provisioning.
+//  Castl-it-POS — SaaS marketing + tenant auto-provisioning.
 //  Only the "master" install (castlitpos.com) sets CASTLIT_MASTER=true; that
 //  flag turns on the public marketing site, the subscription form and the
 //  platform-admin approval area. Client installs leave it false so those
@@ -15,6 +15,23 @@ return [
 
     // Root domain new client subdomains hang off of.
     'main_domain' => env('CASTLIT_MAIN_DOMAIN', 'castlitpos.com'),
+
+    // ── Product brand + marketing SEO ───────────────────────────────────────
+    'brand' => [
+        'name'      => 'Castl-it-POS',                 // product display name
+        'legal'     => 'Castl-it-POS',
+        'tagline'   => 'La caisse et la gestion de stock des commerces marocains',
+        'email'     => env('CASTLIT_CONTACT_EMAIL', 'contact@castlitpos.com'),
+        'locale'    => 'fr_MA',
+        // Meta description used on the landing page (≤160 chars, keyword-rich).
+        'description' => 'Castl-it-POS : logiciel de caisse tactile et gestion de stock pour librairies, cafés, restaurants, pharmacies et commerces au Maroc. Fonctionne hors ligne, multi-postes, en français et en arabe.',
+        // Comma-separated focus keywords (used in meta + copy).
+        'keywords'  => 'logiciel de caisse, point de vente, POS Maroc, caisse tactile, gestion de stock, caisse librairie, caisse restaurant, caisse pharmacie, logiciel caisse Maroc, TPV',
+    ],
+
+    // Google Search Console verification token (paste into .env once claimed).
+    // Rendered as <meta name="google-site-verification"> only when set.
+    'gsc_verification' => env('CASTLIT_GSC_VERIFICATION'),
 
     // Reserved subdomains a subscriber may never claim.
     'reserved_subdomains' => [

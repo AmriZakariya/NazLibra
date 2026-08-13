@@ -16,11 +16,19 @@ use Illuminate\Support\Facades\Route;
 // Active ONLY on the master install (castlitpos.com). Registered before the
 // authenticated app group so the public landing wins the `/` route on master;
 // on client installs the flag is false and `/` stays the normal POS dashboard.
+// robots.txt is served for EVERY install: the master allows indexing, while
+// client subdomains (non-master) are kept out of search engines.
+Route::get('/robots.txt', [MarketingController::class, 'robots']);
+
 if (config('castlit.is_master')) {
     // NOTE: the public landing at `/` is registered at the BOTTOM of this file.
     // Two routes sharing method+URI collide in the RouteCollection and the LAST
     // one registered wins, so the landing must be declared after the app's own
     // `/` dashboard route to take over `/` on the master install.
+    Route::get('/sitemap.xml', [MarketingController::class, 'sitemap'])->name('castlit.sitemap');
+    Route::get('/humans.txt', [MarketingController::class, 'humans']);
+    Route::get('/.well-known/security.txt', [MarketingController::class, 'securityTxt']);
+    Route::get('/og-image.png', [MarketingController::class, 'ogImage'])->name('castlit.og');
     Route::post('/inscription', [SubscriptionController::class, 'store'])
         ->middleware('throttle:10,1')->name('castlit.subscribe');
     Route::get('/inscription/merci', [MarketingController::class, 'success'])->name('castlit.subscribe.success');

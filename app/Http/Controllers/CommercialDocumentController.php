@@ -245,20 +245,28 @@ class CommercialDocumentController extends Controller
 
     private function validateInvoicePayload(Request $request, bool $partial = false): array
     {
-        return $request->validate($this->documentRules('invoice', $partial));
+        return $request->validate(
+            $this->documentRules($request, 'invoice', $partial),
+            $this->documentMessages('invoice'),
+        );
     }
 
     private function validateEstimatePayload(Request $request, bool $partial = false): array
     {
-        return $request->validate($this->documentRules('estimate', $partial));
+        return $request->validate(
+            $this->documentRules($request, 'estimate', $partial),
+            $this->documentMessages('estimate'),
+        );
     }
 
-    private function documentRules(string $type, bool $partial): array
+    private function documentRules(Request $request, string $type, bool $partial): array
     {
+        $tenant = TenantContext::require($request);
         $dateField = $type === 'invoice' ? 'due_date' : 'expiration_date';
 
         return [
-            'customer_id' => ['nullable', 'integer'],
+            // Scope the linked customer to this tenant (clean message instead of a 404 later).
+            'customer_id' => ['nullable', 'integer', Rule::exists('contacts', 'id')->where(fn ($q) => $q->where('tenant_id', $tenant->id))],
             'customer_name' => ['nullable', 'string', 'max:160'],
             'company_name' => ['nullable', 'string', 'max:160'],
             'ice' => ['nullable', 'string', 'max:80'],
@@ -267,10 +275,15 @@ class CommercialDocumentController extends Controller
             'billing_address' => ['nullable', 'string', 'max:1000'],
             'shipping_address' => ['nullable', 'string', 'max:1000'],
             'currency' => ['nullable', 'string', 'size:3'],
-            'status' => ['nullable', 'string', 'max:32'],
+            // Only user-settable states from the form. Computed states (paid,
+            // partially_paid, overdue, viewed, cancelled, archived) are driven by
+            // the service — never accepted from the request.
+            'status' => ['nullable', Rule::in(['draft', 'sent'])],
             'issue_date' => [$partial ? 'nullable' : 'required', 'date'],
             'service_date' => ['nullable', 'date'],
-            $dateField => [$type === 'invoice' ? 'required' : 'nullable', 'date'],
+            // Due/expiration must not precede the issue date (single clean rule
+            // instead of a deep service exception).
+            $dateField => [$type === 'invoice' ? 'required' : 'nullable', 'date', 'after_or_equal:issue_date'],
             'document_discount_type' => ['nullable', Rule::in(['fixed', 'percentage'])],
             'document_discount_value' => ['nullable', 'numeric', 'min:0'],
             'fee_total' => ['nullable', 'numeric', 'min:0'],
@@ -280,9 +293,18 @@ class CommercialDocumentController extends Controller
             'terms' => ['nullable', 'string', 'max:4000'],
             'footer' => ['nullable', 'string', 'max:2000'],
             'customer_reference' => ['nullable', 'string', 'max:160'],
-            'lines' => ['required', 'array', 'min:1'],
+            // At least one line must carry a real article or a designation.
+            'lines' => ['required', 'array', 'min:1', function (string $attr, $value, callable $fail): void {
+                $meaningful = collect($value)->contains(
+                    fn ($line) => ! empty($line['item_id']) || trim((string) ($line['name'] ?? '')) !== ''
+                );
+                if (! $meaningful) {
+                    $fail('Ajoutez au moins une ligne avec un article ou une désignation.');
+                }
+            }],
             'lines.*.item_id' => ['nullable', 'integer'],
-            'lines.*.name' => ['nullable', 'string', 'max:255'],
+            // A custom line (no catalogue item) must be named.
+            'lines.*.name' => ['nullable', 'string', 'max:255', 'required_without:lines.*.item_id'],
             'lines.*.description' => ['nullable', 'string', 'max:1000'],
             'lines.*.quantity' => ['required', 'numeric', 'gt:0'],
             'lines.*.unit' => ['nullable', 'string', 'max:80'],
@@ -292,6 +314,24 @@ class CommercialDocumentController extends Controller
             'lines.*.tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'lines.*.tax_inclusive' => ['nullable', 'boolean'],
             'lines.*.note' => ['nullable', 'string', 'max:1000'],
+        ];
+    }
+
+    private function documentMessages(string $type): array
+    {
+        $dateLabel = $type === 'invoice' ? 'La date d’échéance' : 'La date d’expiration';
+
+        return [
+            'customer_id.exists' => 'Le client sélectionné est introuvable.',
+            'due_date.after_or_equal' => $dateLabel.' ne peut pas précéder la date d’émission.',
+            'expiration_date.after_or_equal' => $dateLabel.' ne peut pas précéder la date d’émission.',
+            'lines.required' => 'Ajoutez au moins une ligne au document.',
+            'lines.min' => 'Ajoutez au moins une ligne au document.',
+            'lines.*.name.required_without' => 'Donnez une désignation à cette ligne (ou choisissez un article).',
+            'lines.*.quantity.required' => 'Indiquez la quantité.',
+            'lines.*.quantity.gt' => 'La quantité doit être supérieure à 0.',
+            'lines.*.unit_price.required' => 'Indiquez le prix unitaire.',
+            'lines.*.unit_price.min' => 'Le prix unitaire ne peut pas être négatif.',
         ];
     }
 

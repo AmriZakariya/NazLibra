@@ -8,7 +8,7 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Sent to an applicant when their CastLit POS subscription request is declined.
+ * Sent to an applicant when their Castl-it-POS subscription request is declined.
  */
 class SubscriptionRejectedNotification extends Notification
 {
@@ -26,9 +26,9 @@ class SubscriptionRejectedNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         $mail = (new MailMessage)
-            ->subject('Votre demande CastLit POS')
+            ->subject('Votre demande Castl-it-POS')
             ->greeting('Bonjour '.$this->subscription->contact_name.',')
-            ->line('Merci de l\'intérêt que vous portez à CastLit POS.')
+            ->line('Merci de l\'intérêt que vous portez à Castl-it-POS.')
             ->line('Nous ne pouvons pas donner suite à votre demande d\'inscription pour le moment.');
 
         if (! empty($this->subscription->rejection_reason)) {
@@ -37,6 +37,6 @@ class SubscriptionRejectedNotification extends Notification
 
         return $mail
             ->line('Pour toute question, répondez simplement à cet email.')
-            ->line('Bien cordialement, l\'équipe CastLit.');
+            ->line('Bien cordialement, l\'équipe Castl-it-POS.');
     }
 }

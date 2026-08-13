@@ -9,6 +9,7 @@ use App\Models\Item;
 use App\Models\Tenant;
 use App\Services\Documents\EstimateService;
 use App\Services\Documents\InvoiceService;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -17,6 +18,13 @@ use Tests\TestCase;
 class CommercialDocumentTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function tearDown(): void
+    {
+        // Never let a frozen clock leak into the next test.
+        Carbon::setTestNow();
+        parent::tearDown();
+    }
 
     public function test_invoice_creation_uses_snapshots_decimal_calculation_and_unique_numbering(): void
     {
@@ -97,6 +105,10 @@ class CommercialDocumentTest extends TestCase
 
     public function test_invoice_payments_are_validated_and_update_status(): void
     {
+        // Freeze "now" before the due date so a partial payment reads as
+        // partially_paid — not overdue (the overdue flip is asserted elsewhere).
+        Carbon::setTestNow(Carbon::parse('2026-06-20 10:00:00'));
+
         $this->seed();
         $tenant = Tenant::firstOrFail();
         $service = app(InvoiceService::class);
@@ -116,8 +128,12 @@ class CommercialDocumentTest extends TestCase
         $this->assertSame('IPAY00001', $same->number);
         $this->assertSame(1, $invoice->payments()->count());
 
-        $this->expectException(ValidationException::class);
-        $service->recordPayment($invoice->fresh(), ['amount' => '61.00', 'method' => 'cash']);
+        try {
+            $this->expectException(ValidationException::class);
+            $service->recordPayment($invoice->fresh(), ['amount' => '61.00', 'method' => 'cash']);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_paid_invoice_cannot_be_edited_or_cancelled(): void
@@ -150,6 +166,9 @@ class CommercialDocumentTest extends TestCase
 
     public function test_estimate_conversion_creates_invoice_without_stock_movement_and_is_idempotent(): void
     {
+        // The converted invoice is issued "now"; freeze it before the due date.
+        Carbon::setTestNow(Carbon::parse('2026-06-20 10:00:00'));
+
         $this->seed();
         $tenant = Tenant::firstOrFail();
         $item = Item::where('tenant_id', $tenant->id)->where('type', '!=', 'service')->firstOrFail();

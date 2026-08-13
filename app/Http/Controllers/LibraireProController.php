@@ -2902,8 +2902,8 @@ class LibraireProController extends Controller
         $dir = str_starts_with($locale, 'ar') ? 'rtl' : 'ltr';
 
         return response()->json([
-            'name' => $tenant?->name ?? 'LibrairePro',
-            'short_name' => $tenant?->name ?? 'LibrairePro',
+            'name' => $tenant?->name ?? config('castlit.brand.name', 'Castl-it-POS'),
+            'short_name' => $tenant?->name ?? config('castlit.brand.name', 'Castl-it-POS'),
             'description' => 'Caisse, stock, ventes et achats pour '.$businessMode['short_label'],
             'start_url' => '/',
             // Prefer edge-to-edge fullscreen for the POS; fall back gracefully.

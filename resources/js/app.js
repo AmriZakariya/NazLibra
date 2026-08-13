@@ -1349,6 +1349,7 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
     const invoiceScope = form.closest('[data-invoice-screen]') || form.parentElement || form;
     const linesContainer = form.querySelector('[data-invoice-lines]');
     const discountInput = form.querySelector('[data-invoice-discount]');
+    const docDiscountTypeInput = form.querySelector('[data-invoice-doc-discount-type]');
     const feeInput = form.querySelector('[data-invoice-fee]');
     const summarySubtotal = invoiceScope.querySelector('[data-invoice-summary-subtotal]');
     const summaryDiscount = invoiceScope.querySelector('[data-invoice-summary-discount]');
@@ -1535,14 +1536,39 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
             recalc();
         });
         input.addEventListener('keydown', (event) => {
+            const panel = row.querySelector('[data-invoice-item-results]');
+            const open = panel && !panel.classList.contains('hidden');
+            const results = open ? [...panel.querySelectorAll('.invoice-item-result')] : [];
+            const current = panel?.querySelector('.invoice-item-result.is-active');
+            let idx = results.indexOf(current);
+
+            if (event.key === 'ArrowDown' && results.length) {
+                event.preventDefault();
+                idx = (idx + 1) % results.length;
+                results.forEach((r, i) => r.classList.toggle('is-active', i === idx));
+                results[idx].scrollIntoView({ block: 'nearest' });
+                return;
+            }
+            if (event.key === 'ArrowUp' && results.length) {
+                event.preventDefault();
+                idx = idx <= 0 ? results.length - 1 : idx - 1;
+                results.forEach((r, i) => r.classList.toggle('is-active', i === idx));
+                results[idx].scrollIntoView({ block: 'nearest' });
+                return;
+            }
+            if (event.key === 'Escape') {
+                panel?.classList.add('hidden');
+                return;
+            }
             if (event.key !== 'Enter') return;
+
             event.preventDefault();
-            const firstChoice = row.querySelector('[data-invoice-item-choice]');
-            if (firstChoice) {
-                firstChoice.click();
+            const target = current || row.querySelector('[data-invoice-item-choice]');
+            if (target) {
+                target.click();
             } else if (input.value.trim()) {
                 applyCustomLine(row, input.value.trim());
-                row.querySelector('[data-invoice-item-results]')?.classList.add('hidden');
+                panel?.classList.add('hidden');
             }
         });
     };
@@ -1559,12 +1585,18 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
             const taxInclusiveInput = row.querySelector('[data-invoice-tax-inclusive]');
             const totalCell = row.querySelector('[data-invoice-line-total]');
 
+            const discountTypeInput = row.querySelector('[data-invoice-discount-type]');
+
             const qty = parseFloat(qtyInput?.value || 0) || 0;
             const price = parseFloat(priceInput?.value || 0) || 0;
             const taxRate = Math.max(0, parseFloat(taxInput?.value || 0) || 0);
             const taxInclusive = taxInclusiveInput?.value === '1';
-            const lineDiscount = Math.min(parseFloat(lineDiscountInput?.value || 0) || 0, qty * price);
-            const taxable = Math.max(0, qty * price - lineDiscount);
+            const gross = qty * price;
+            const rawDiscount = Math.max(0, parseFloat(lineDiscountInput?.value || 0) || 0);
+            const lineDiscount = discountTypeInput?.value === 'percentage'
+                ? Math.min(gross * rawDiscount / 100, gross)
+                : Math.min(rawDiscount, gross);
+            const taxable = Math.max(0, gross - lineDiscount);
             const taxFactor = 1 + (taxRate / 100);
             const lineTax = taxInclusive ? taxable - (taxable / taxFactor) : taxable * taxRate / 100;
             const lineTotal = taxInclusive ? taxable : taxable + lineTax;
@@ -1575,10 +1607,14 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
             if (totalCell) totalCell.textContent = fmt(lineTotal);
         });
 
-        const documentDiscount = parseFloat(discountInput?.value || 0) || 0;
+        const baseAfterLines = Math.max(0, subtotal - lineDiscountTotal);
+        const documentDiscountRaw = Math.max(0, parseFloat(discountInput?.value || 0) || 0);
+        const documentDiscount = docDiscountTypeInput?.value === 'percentage'
+            ? Math.min(baseAfterLines * documentDiscountRaw / 100, baseAfterLines)
+            : Math.min(documentDiscountRaw, baseAfterLines);
         const fees = parseFloat(feeInput?.value || 0) || 0;
-        const afterDocumentDiscount = Math.max(0, subtotal - lineDiscountTotal - documentDiscount);
-        const discountRatio = subtotal - lineDiscountTotal > 0 ? afterDocumentDiscount / (subtotal - lineDiscountTotal) : 1;
+        const afterDocumentDiscount = Math.max(0, baseAfterLines - documentDiscount);
+        const discountRatio = baseAfterLines > 0 ? afterDocumentDiscount / baseAfterLines : 1;
         const tax = Math.round(taxTotal * discountRatio * 100) / 100;
         const total = Math.max(0, afterDocumentDiscount + tax + fees);
 
@@ -1614,6 +1650,15 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
         clone.querySelector('[data-invoice-selected-item]')?.classList.add('hidden');
         clone.querySelector('[data-invoice-item-results]')?.classList.add('hidden');
         clone.querySelector('[data-invoice-item-search]')?.removeAttribute('data-invoice-search-ready');
+        // Reset the new per-line controls to their defaults (fixed discount, HT).
+        const cloneDiscountToggle = clone.querySelector('[data-invoice-discount-toggle]');
+        if (cloneDiscountToggle) cloneDiscountToggle.textContent = 'DH';
+        clone.querySelectorAll('[data-invoice-tax-mode]').forEach((b) => {
+            const on = b.dataset.invoiceTaxMode === '0';
+            b.classList.toggle('bg-brand', on);
+            b.classList.toggle('text-white', on);
+            b.classList.toggle('text-slate-500', !on);
+        });
         linesContainer.appendChild(clone);
         setupInvoiceLineSearch(clone);
         clone.querySelector('[data-invoice-item-search]')?.focus();
@@ -1667,7 +1712,137 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
         form.querySelectorAll('[data-invoice-item-results]').forEach((panel) => panel.classList.add('hidden'));
     });
 
-    form.addEventListener('submit', () => {
+    // ── Discount-type (DH/%) and HT/TTC toggles ──────────────────────────────
+    form.addEventListener('click', (event) => {
+        const lineToggle = event.target.closest('[data-invoice-discount-toggle]');
+        if (lineToggle) {
+            const hidden = lineToggle.closest('.invoice-line')?.querySelector('[data-invoice-discount-type]');
+            if (hidden) {
+                hidden.value = hidden.value === 'percentage' ? 'fixed' : 'percentage';
+                lineToggle.textContent = hidden.value === 'percentage' ? '%' : 'DH';
+                recalc();
+            }
+            return;
+        }
+
+        const docToggle = event.target.closest('[data-invoice-doc-discount-toggle]');
+        if (docToggle && docDiscountTypeInput) {
+            docDiscountTypeInput.value = docDiscountTypeInput.value === 'percentage' ? 'fixed' : 'percentage';
+            docToggle.textContent = docDiscountTypeInput.value === 'percentage' ? '%' : 'DH';
+            recalc();
+            return;
+        }
+
+        const taxMode = event.target.closest('[data-invoice-tax-mode]');
+        if (taxMode) {
+            const row = taxMode.closest('.invoice-line');
+            const hidden = row?.querySelector('[data-invoice-tax-inclusive]');
+            if (hidden) {
+                hidden.value = taxMode.dataset.invoiceTaxMode === '1' ? '1' : '0';
+                row.querySelectorAll('[data-invoice-tax-mode]').forEach((b) => {
+                    const on = b.dataset.invoiceTaxMode === hidden.value;
+                    b.classList.toggle('bg-brand', on);
+                    b.classList.toggle('text-white', on);
+                    b.classList.toggle('text-slate-500', !on);
+                });
+                recalc();
+            }
+        }
+    });
+
+    // ── Payment terms quick due-date ─────────────────────────────────────────
+    const applyPaymentTerms = () => {
+        const termsSelect = form.querySelector('[data-invoice-terms]');
+        const value = termsSelect?.value;
+        const issue = form.querySelector('[data-invoice-issue-date]')?.value;
+        const dueInput = form.querySelector('[data-invoice-due-date]');
+        if (!value || !issue || !dueInput) return;
+
+        const base = new Date(issue + 'T00:00:00');
+        if (Number.isNaN(base.getTime())) return;
+
+        const due = value === 'eom'
+            ? new Date(base.getFullYear(), base.getMonth() + 1, 0)
+            : new Date(base.getFullYear(), base.getMonth(), base.getDate() + (parseInt(value, 10) || 0));
+
+        const pad = (n) => String(n).padStart(2, '0');
+        dueInput.value = `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}`;
+    };
+    form.querySelector('[data-invoice-terms]')?.addEventListener('change', applyPaymentTerms);
+    form.querySelector('[data-invoice-issue-date]')?.addEventListener('change', applyPaymentTerms);
+
+    // ── Inline validation before submit ──────────────────────────────────────
+    const invoiceErrorBanner = () => {
+        let box = form.querySelector('[data-invoice-error-banner]');
+        if (!box) {
+            box = document.createElement('div');
+            box.dataset.invoiceErrorBanner = '';
+            box.setAttribute('role', 'alert');
+            box.className = 'rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200';
+            form.prepend(box);
+        }
+        return box;
+    };
+    const clearFieldErrors = () => {
+        form.querySelectorAll('.invoice-field-invalid').forEach((el) => el.classList.remove('invoice-field-invalid'));
+    };
+    const markField = (el, first) => {
+        if (el) el.classList.add('invoice-field-invalid');
+        return first || el || null;
+    };
+
+    const validateInvoice = () => {
+        clearFieldErrors();
+        const errors = [];
+        let firstInvalid = null;
+
+        const issueEl = form.querySelector('[data-invoice-issue-date]');
+        const dueEl = form.querySelector('[data-invoice-due-date]');
+        if (!issueEl?.value) { errors.push("Renseignez la date d'émission."); firstInvalid = markField(issueEl, firstInvalid); }
+        if (!dueEl?.value) { errors.push("Renseignez la date d'échéance."); firstInvalid = markField(dueEl, firstInvalid); }
+        if (issueEl?.value && dueEl?.value && dueEl.value < issueEl.value) {
+            errors.push("L'échéance ne peut pas précéder la date d'émission.");
+            firstInvalid = markField(dueEl, firstInvalid);
+        }
+
+        let meaningful = 0;
+        form.querySelectorAll('.invoice-line').forEach((row) => {
+            if (!isLineMeaningful(row)) return;
+            meaningful += 1;
+            const qty = parseFloat(row.querySelector('[data-invoice-qty]')?.value || 0) || 0;
+            const nameOrId = (row.querySelector('[data-invoice-item-id]')?.value || '').trim()
+                || (row.querySelector('[data-invoice-item-name]')?.value || '').trim();
+            if (!nameOrId) {
+                errors.push('Chaque ligne doit avoir un article ou une désignation.');
+                firstInvalid = markField(row.querySelector('[data-invoice-item-search]'), firstInvalid);
+            }
+            if (qty <= 0) {
+                errors.push('La quantité doit être supérieure à 0.');
+                firstInvalid = markField(row.querySelector('[data-invoice-qty]'), firstInvalid);
+            }
+        });
+        if (meaningful === 0) {
+            errors.push('Ajoutez au moins une ligne avec un article ou une désignation.');
+        }
+
+        if (errors.length) {
+            const unique = [...new Set(errors)];
+            const box = invoiceErrorBanner();
+            box.innerHTML = '<p class="font-semibold">Corrigez les points suivants :</p><ul class="mt-1 list-disc space-y-0.5 pl-5">'
+                + unique.map((m) => '<li>' + escapeHtml(m) + '</li>').join('') + '</ul>';
+            box.classList.remove('hidden');
+            box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            firstInvalid?.focus();
+            return false;
+        }
+        return true;
+    };
+
+    form.addEventListener('submit', (event) => {
+        if (!validateInvoice()) {
+            event.preventDefault();
+            return;
+        }
         form.querySelectorAll('.invoice-line').forEach((row) => {
             if (isLineMeaningful(row)) {
                 syncLineState(row);
