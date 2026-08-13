@@ -156,6 +156,16 @@
                                 <button class="btn btn-ghost btn-block" type="submit"
                                         onclick="return confirm('Renvoyer l’email d’accès à {{ $subscription->email }} ?')">✉ Renvoyer les accès</button>
                             </form>
+                        @elseif ($subscription->install && $subscription->install->status === \App\Models\TenantInstall::STATUS_QUEUED)
+                            <p style="font-size:14px; font-weight:600; margin-bottom:4px"><span class="live-dot"></span>En file d'attente…</p>
+                            <p style="font-size:13px; color:var(--muted)">En attente du worker de provisioning (depuis {{ $subscription->install->updated_at->diffForHumans(null, true) }}).</p>
+                            @if ($subscription->install->updated_at->lt(now()->subSeconds(90)))
+                                <div class="fail-banner" style="margin-top:10px; background:var(--warn-bg); color:var(--warn); border-color:color-mix(in srgb, var(--warn) 30%, transparent)">
+                                    ⚠ Toujours en file après plus d'une minute. Le worker de file d'attente ne tourne probablement pas.<br>
+                                    Lancez <code>php&nbsp;artisan&nbsp;queue:work</code> sur le serveur (ou le cron minute).
+                                </div>
+                            @endif
+                            <p style="font-size:12px; color:var(--muted); margin-top:8px">Cette page s'actualise automatiquement.</p>
                         @else
                             <p style="font-size:14px; font-weight:600; margin-bottom:4px"><span class="live-dot"></span>Provisioning en cours…</p>
                             <p style="font-size:13px; color:var(--muted)">{{ optional($subscription->install)->current_step ?: 'Préparation…' }}</p>

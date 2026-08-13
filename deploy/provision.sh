@@ -28,6 +28,16 @@
 # ============================================================================
 set -uo pipefail
 
+# Shared hosting often runs this under a minimal PATH (missing /usr/bin) — make
+# the common tools resolvable regardless of how the queue worker was launched.
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:${PATH:-}"
+
+# Keep git single-threaded + low-memory: shared accounts cap processes/threads
+# ("unable to create thread: Resource temporarily unavailable" otherwise).
+export GIT_CONFIG_COUNT=2
+export GIT_CONFIG_KEY_0=pack.threads   GIT_CONFIG_VALUE_0=1
+export GIT_CONFIG_KEY_1=index.threads  GIT_CONFIG_VALUE_1=1
+
 emit()  { printf '%s\n' "$1" >&2; }
 final() { printf '%s\n' "$1"; exit "${2:-0}"; }
 
@@ -60,7 +70,8 @@ DOC_ROOT="$BASE_DIR/$SUB_NAME"
 PUBLIC_DIR="$DOC_ROOT/public"
 NEW_DB_NAME="${DB_PREFIX}${SUB_NAME}"
 NEW_DB_USER="${DB_PREFIX}$(printf '%s' "$SUB_NAME" | cut -c1-8)"
-NEW_DB_PASS="$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)"
+# Password only matters for MySQL; generate it with PHP (no openssl/tr dependency).
+NEW_DB_PASS=""
 
 # ============================================================================
 # STEP 0 — Ensure the Git code cache (auto-clone if missing) + vendor present
@@ -68,15 +79,20 @@ NEW_DB_PASS="$(openssl rand -base64 18 | tr -d '/+=' | cut -c1-20)"
 emit "▸ Ensuring code cache at $REPO_DIR"
 if [ ! -d "$REPO_DIR/.git" ]; then
   if [ -z "$GH_TOKEN" ]; then
-    final '{"status":"error","step":"cache","message":"Code cache missing and no GH_TOKEN set."}' 1
+    final '{"status":"error","step":"cache","message":"Code cache missing and no GH_TOKEN set. Pre-clone ~/repo via SSH."}' 1
   fi
-  git clone --branch "$BRANCH" \
+  # Shallow + single-branch keeps the clone light enough for capped accounts.
+  # Clean any half-finished clone from a previous failed attempt first.
+  rm -rf "$REPO_DIR" 2>/dev/null || true
+  git clone --depth 1 --single-branch --branch "$BRANCH" \
     "https://${GH_TOKEN}@github.com/${REPO_OWNER}/${REPO_NAME}.git" "$REPO_DIR" >&2 2>&1 \
-    || final '{"status":"error","step":"cache","message":"git clone failed (token/repo?)."}' 1
+    || final '{"status":"error","step":"cache","message":"git clone failed (token/repo/host limits?). Pre-clone ~/repo via SSH."}' 1
   git -C "$REPO_DIR" config credential.helper store >/dev/null 2>&1
 fi
-git -C "$REPO_DIR" fetch --all --prune --tags >&2 2>&1
-DEPLOY_SHA="$(git -C "$REPO_DIR" rev-parse "$GIT_REF" 2>/dev/null)"
+# Shallow fetch of just the tracked branch (light + avoids tag/pack thread churn).
+git -C "$REPO_DIR" fetch --depth 1 origin "$BRANCH" >&2 2>&1 \
+  || emit "  (fetch failed — using the cache as-is)"
+DEPLOY_SHA="$(git -C "$REPO_DIR" rev-parse "$GIT_REF" 2>/dev/null || git -C "$REPO_DIR" rev-parse FETCH_HEAD 2>/dev/null)"
 [ -n "$DEPLOY_SHA" ] || final "{\"status\":\"error\",\"step\":\"cache\",\"message\":\"Git ref not found: $GIT_REF\"}" 1
 
 # vendor/ is git-ignored, so it must already exist in the cache (run
@@ -98,6 +114,7 @@ uapi SubDomain addsubdomain domain="$SUB_NAME" rootdomain="$MAIN_DOMAIN" dir="$P
 # ============================================================================
 SQLITE_PATH="$DOC_ROOT/database/database.sqlite"
 if [ "$DB_DRIVER" = "mysql" ]; then
+  NEW_DB_PASS="$("$PHP_BIN" -r 'echo bin2hex(random_bytes(12));' 2>/dev/null)"
   emit "▸ [mysql] Creating database $NEW_DB_NAME and user $NEW_DB_USER"
   uapi Mysql create_database name="$NEW_DB_NAME" >&2 2>&1 \
     || final '{"status":"error","step":"database","message":"create_database failed."}' 1
