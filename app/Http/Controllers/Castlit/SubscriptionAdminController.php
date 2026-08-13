@@ -74,11 +74,12 @@ class SubscriptionAdminController extends Controller
             'contact_name'      => ['required', 'string', 'max:120'],
             'email'             => ['required', 'email', 'max:190'],
             'phone'             => ['nullable', 'string', 'max:40'],
-            'desired_subdomain' => ['required', 'string', 'regex:/^[a-z0-9]{2,30}$/', Rule::notIn(config('castlit.reserved_subdomains', []))],
+            // Admin may use demo/test/staging etc. — only truly system names are blocked.
+            'desired_subdomain' => ['required', 'string', 'regex:/^[a-z0-9]{2,30}$/', Rule::notIn(config('castlit.system_subdomains', []))],
             'heard_about'       => ['nullable', 'string', 'max:120'],
         ], [
             'desired_subdomain.regex'  => 'Le sous-domaine doit contenir 2 à 30 caractères (lettres minuscules et chiffres).',
-            'desired_subdomain.not_in' => 'Ce sous-domaine est réservé, choisissez-en un autre.',
+            'desired_subdomain.not_in' => 'Ce sous-domaine est réservé au système (www, api, admin, mail…).',
         ]);
 
         if (! $this->subdomainAvailable($data['desired_subdomain'])) {

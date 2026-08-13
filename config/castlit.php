@@ -36,13 +36,20 @@ return [
     // Rendered as <meta name="google-site-verification"> only when set.
     'gsc_verification' => env('CASTLIT_GSC_VERIFICATION'),
 
-    // Reserved subdomains a subscriber may never claim.
+    // Reserved subdomains a PUBLIC subscriber may never claim (broad list).
     'reserved_subdomains' => [
         'www', 'admin', 'api', 'app', 'mail', 'email', 'ftp', 'cpanel',
         'webmail', 'ns1', 'ns2', 'mx', 'smtp', 'staging', 'dev', 'test',
         'demo', 'portal', 'dashboard', 'castlit', 'castlitpos', 'pos',
         'static', 'cdn', 'assets', 'billing', 'support', 'help', 'status',
         'blog', 'shop', 'store', 'my', 'account', 'accounts', 'auth', 'login',
+    ],
+
+    // System subdomains blocked even for admin manual creation — these would
+    // break the platform / DNS / mail. (Admin CAN use demo, test, staging, …)
+    'system_subdomains' => [
+        'www', 'api', 'admin', 'mail', 'email', 'webmail', 'ftp', 'cpanel',
+        'ns1', 'ns2', 'mx', 'smtp', 'castlit', 'castlitpos',
     ],
 
     // ── Provisioning (cPanel/LWS host) ──────────────────────────────────────
