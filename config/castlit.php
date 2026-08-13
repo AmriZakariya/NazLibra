@@ -23,6 +23,9 @@ return [
         'tagline'   => 'La caisse et la gestion de stock des commerces marocains',
         'email'     => env('CASTLIT_CONTACT_EMAIL', 'contact@castlitpos.com'),
         'locale'    => 'fr_MA',
+        // App store links (empty = show a "coming soon" badge instead of a link).
+        'play_store' => env('CASTLIT_PLAY_STORE_URL', ''),
+        'app_store'  => env('CASTLIT_APP_STORE_URL', ''),
         // Meta description used on the landing page (≤160 chars, keyword-rich).
         'description' => 'Castl-it-POS : logiciel de caisse tactile et gestion de stock pour librairies, cafés, restaurants, pharmacies et commerces au Maroc. Fonctionne hors ligne, multi-postes, en français et en arabe.',
         // Comma-separated focus keywords (used in meta + copy).
