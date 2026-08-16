@@ -73,14 +73,13 @@ return [
         // create each subdomain by hand in the panel.
         'subdomain_manual' => (bool) env('CASTLIT_SUBDOMAIN_MANUAL', false),
 
-        // Parent directory of the per-client subdomain folders. On LWS each
-        // subdomain lives INSIDE the master's own htdocs (~/htdocs/<sub>.<domain>),
-        // and the provisioning process sees that dir as base_path() (a chroot may
-        // resolve it to /htdocs, not /home/<acct>/htdocs). Defaulting to base_path()
-        // guarantees SOURCE_DIR and BASE_DIR share the same filesystem view, so
-        // clients are written to the exact path the subdomain serves from.
-        // Only override CASTLIT_PUBLIC_HTML on hosts where clients live elsewhere.
-        'public_html' => env('CASTLIT_PUBLIC_HTML') ?: base_path(),
+        // Parent directory of the per-client subdomain folders. On LWS every
+        // subdomain is a folder INSIDE the master's own htdocs (~/htdocs/<sub>.<domain>),
+        // so this is ALWAYS the master install dir = base_path(). We derive it from
+        // the app itself (never from env) because the provisioning process runs in a
+        // chroot where htdocs resolves to /htdocs — any hand-set /home/... path would
+        // land the copy in the wrong directory (not the one the subdomain serves).
+        'public_html' => base_path(),
         'db_prefix'   => env('CASTLIT_DB_PREFIX', 'castlit_'),
 
         // Git code cache (a clone of the repo, with a prebuilt vendor/).
