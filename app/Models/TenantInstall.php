@@ -14,12 +14,19 @@ class TenantInstall extends Model
 
     protected $fillable = [
         'subscription_id', 'subdomain', 'domain', 'docroot', 'db_name',
-        'db_user', 'status', 'current_step', 'provision_log', 'commit_sha',
-        'owner_email', 'provisioned_at',
+        'db_user', 'status', 'is_enabled', 'current_step', 'last_action',
+        'provision_log', 'commit_sha', 'owner_email', 'provisioned_at',
+        'updated_version_at',
     ];
 
     protected $casts = [
-        'provisioned_at' => 'datetime',
+        'is_enabled'         => 'boolean',
+        'provisioned_at'     => 'datetime',
+        'updated_version_at' => 'datetime',
+    ];
+
+    protected $attributes = [
+        'is_enabled' => true,
     ];
 
     public function subscription(): BelongsTo
@@ -30,6 +37,26 @@ class TenantInstall extends Model
     public function url(): string
     {
         return 'https://'.$this->domain;
+    }
+
+    /** A live install that hasn't been suspended by the platform admin. */
+    public function isLive(): bool
+    {
+        return $this->status === self::STATUS_LIVE;
+    }
+
+    public function isSuspended(): bool
+    {
+        return $this->isLive() && ! $this->is_enabled;
+    }
+
+    /** True when the client's deployed commit differs from the master's HEAD. */
+    public function updateAvailable(?string $masterSha): bool
+    {
+        return $this->isLive()
+            && $masterSha
+            && $this->commit_sha
+            && $this->commit_sha !== $masterSha;
     }
 
     public function appendLog(string $line): void

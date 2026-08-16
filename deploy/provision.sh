@@ -16,6 +16,9 @@
 set -uo pipefail
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:${PATH:-}"
 
+# Shared .htaccess / suspended-page writers (kept identical with manage.sh).
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
+
 # The queue worker carries the MASTER's Laravel env (APP_KEY, DB_*, CASTLIT_MASTER,
 # APP_URL…) via putenv(); child `artisan` calls would inherit it — key:generate
 # then refuses ("APP_KEY already present") and the client could read the master's
@@ -108,21 +111,10 @@ emit "▸ Copying application from master ($SOURCE_DIR)"
 # Remove any LWS placeholder page that would shadow the app at "/".
 rm -f "$DOC_ROOT/index.html" "$DOC_ROOT/default_index.html" "$DOC_ROOT/index.htm" 2>/dev/null || true
 
-# ── STEP 3b — Client root .htaccess (docroot is the client dir → forward to public/)
-cat > "$DOC_ROOT/.htaccess" <<'HT'
-Options -Indexes
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteBase /
-    RewriteRule (^|/)\.(?!well-known) - [F,L]
-    RewriteRule ^(app|bootstrap|config|database|lang|resources|routes|scripts|tests|vendor)(/|$) - [F,L]
-    RewriteRule ^(composer\.(json|lock)|package(-lock)?\.json|artisan|phpunit\.xml|vite\.config\.js)$ - [F,L]
-    RewriteRule \.(md|sqlite)$ - [F,L]
-    RewriteRule ^(build|css|fonts|img|js|storage)/(.*)$ public/$1/$2 [L]
-    RewriteRule ^favicon\.ico$ public/favicon.ico [L]
-</IfModule>
-FallbackResource /public/index.php
-HT
+# ── STEP 3b — Client root .htaccess + branded suspended page (docroot is the
+#             client dir → forward to public/). Shared with manage.sh via lib.sh.
+write_client_htaccess "$DOC_ROOT"
+write_suspended_page "$DOC_ROOT"
 
 # ── STEP 3c — SQLite DB file + writable runtime dirs
 if [ "$DB_DRIVER" != "mysql" ]; then

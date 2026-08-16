@@ -27,10 +27,24 @@ use Yajra\DataTables\Facades\DataTables;
 
 class AuthController extends Controller
 {
+    /**
+     * Where to send an authenticated user. On the CastLit marketing master there
+     * is no tenant `dashboard` route (its `/` is the public landing, which
+     * shadows it), so resolve a safe target there.
+     */
+    private function homeTarget(?\App\Models\User $user = null): string
+    {
+        if (config('castlit.is_master')) {
+            return ($user && $user->is_platform_admin) ? route('castlit.admin.index') : url('/');
+        }
+
+        return \Illuminate\Support\Facades\Route::has('dashboard') ? route('dashboard') : url('/');
+    }
+
     public function showLogin(): View|RedirectResponse
     {
         if (Auth::check()) {
-            return redirect()->route('dashboard');
+            return redirect()->to($this->homeTarget(Auth::user()));
         }
 
         $tenant = TenantContext::resolve(request());
@@ -76,13 +90,9 @@ class AuthController extends Controller
         $request->session()->regenerate();
         $request->session()->forget(['pos_session_locked', 'pos_session_locked_at']);
 
-        // On the CastLit master install, platform admins go straight to the
-        // subscription approvals area (there is no tenant/dashboard there).
-        if (config('castlit.is_master') && $user && $user->is_platform_admin) {
-            return redirect()->intended(route('castlit.admin.index'))->with('status', 'Connexion réussie.');
-        }
-
-        return redirect()->intended(route('dashboard'))->with('status', 'Connexion réussie.');
+        // On the CastLit master install there is no tenant dashboard: platform
+        // admins go to the approvals area, anyone else to the public landing.
+        return redirect()->intended($this->homeTarget($user))->with('status', 'Connexion réussie.');
     }
 
     public function lockSession(Request $request): RedirectResponse
@@ -96,7 +106,7 @@ class AuthController extends Controller
     public function lockedScreen(Request $request): View|RedirectResponse
     {
         if (! (bool) $request->session()->get('pos_session_locked', false)) {
-            return redirect()->route('dashboard');
+            return redirect()->to($this->homeTarget(Auth::user()));
         }
 
         $user = $request->user();
@@ -143,7 +153,7 @@ class AuthController extends Controller
 
         $request->session()->forget(['pos_session_locked', 'pos_session_locked_at']);
 
-        return redirect()->intended(route('dashboard'))->with('status', 'Session déverrouillée.');
+        return redirect()->intended($this->homeTarget(Auth::user()))->with('status', 'Session déverrouillée.');
     }
 
     public function unlockWithPassword(Request $request): RedirectResponse
@@ -162,7 +172,7 @@ class AuthController extends Controller
 
         $request->session()->forget(['pos_session_locked', 'pos_session_locked_at']);
 
-        return redirect()->route('dashboard')->with('status', 'Session déverrouillée. Demandez au propriétaire de définir ou réinitialiser votre PIN.');
+        return redirect()->to($this->homeTarget(Auth::user()))->with('status', 'Session déverrouillée. Demandez au propriétaire de définir ou réinitialiser votre PIN.');
     }
 
     public function logout(Request $request): RedirectResponse
@@ -668,7 +678,7 @@ class AuthController extends Controller
     public function showForgotPassword(): View|RedirectResponse
     {
         if (Auth::check()) {
-            return redirect()->route('dashboard');
+            return redirect()->to($this->homeTarget(Auth::user()));
         }
 
         return view('auth.password.forgot', [
@@ -698,7 +708,7 @@ class AuthController extends Controller
     public function showResetPassword(Request $request): View|RedirectResponse
     {
         if (Auth::check()) {
-            return redirect()->route('dashboard');
+            return redirect()->to($this->homeTarget(Auth::user()));
         }
 
         return view('auth.password.reset', [

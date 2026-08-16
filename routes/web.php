@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Castlit\ClientAdminController;
 use App\Http\Controllers\Castlit\MarketingController;
 use App\Http\Controllers\Castlit\SubscriptionAdminController;
 use App\Http\Controllers\Castlit\SubscriptionController;
@@ -41,6 +42,11 @@ if (config('castlit.is_master')) {
             // Manual client creation — must precede the /{subscription} route.
             Route::get('/nouveau', [SubscriptionAdminController::class, 'create'])->name('create');
             Route::post('/nouveau', [SubscriptionAdminController::class, 'store'])->name('store');
+            // Client (install) manager — must precede the /{subscription} route.
+            Route::get('/clients', [ClientAdminController::class, 'index'])->name('clients');
+            Route::post('/clients/{install}/maj', [ClientAdminController::class, 'update'])->name('clients.update');
+            Route::post('/clients/{install}/suspendre', [ClientAdminController::class, 'disable'])->name('clients.disable');
+            Route::post('/clients/{install}/reactiver', [ClientAdminController::class, 'enable'])->name('clients.enable');
             Route::get('/{subscription}', [SubscriptionAdminController::class, 'show'])->name('show');
             Route::post('/{subscription}/approuver', [SubscriptionAdminController::class, 'approve'])->name('approve');
             Route::post('/{subscription}/rejeter', [SubscriptionAdminController::class, 'reject'])->name('reject');

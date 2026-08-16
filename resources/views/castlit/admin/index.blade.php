@@ -48,10 +48,16 @@
                 <h1>Demandes d'abonnement</h1>
                 <p>Validez ou refusez les inscriptions. L'approbation lance la création automatique de l'espace client.</p>
             </div>
-            <a href="{{ route('castlit.admin.create') }}" class="btn btn-primary" style="margin-left:auto; padding:11px 18px; white-space:nowrap">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><path d="M12 5v14M5 12h14"/></svg>
-                Nouveau client
-            </a>
+            <div style="margin-left:auto; display:flex; gap:10px; flex-wrap:wrap">
+                <a href="{{ route('castlit.admin.clients') }}" class="btn btn-ghost" style="padding:11px 18px; white-space:nowrap">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>
+                    Clients
+                </a>
+                <a href="{{ route('castlit.admin.create') }}" class="btn btn-primary" style="padding:11px 18px; white-space:nowrap">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><path d="M12 5v14M5 12h14"/></svg>
+                    Nouveau client
+                </a>
+            </div>
         </div>
 
         @if (session('success'))<div class="flash flash-ok">{{ session('success') }}</div>@endif

@@ -59,6 +59,9 @@ return [
         // The shell script that performs the actual provisioning.
         'script' => base_path('deploy/provision.sh'),
 
+        // The shell script that updates / suspends / reactivates a client.
+        'manage_script' => base_path('deploy/manage.sh'),
+
         // Per-client database engine: 'sqlite' (default, zero-config, ideal for
         // the early low-volume phase) or 'mysql' (created via cPanel uapi).
         // Switch to MySQL later by setting CASTLIT_DB_DRIVER=mysql — no code change.
