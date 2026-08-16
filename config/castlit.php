@@ -72,8 +72,14 @@ return [
         // (or a wildcard vhost) to hide the manual-step reminder in the admin.
         'subdomain_manual' => (bool) env('CASTLIT_SUBDOMAIN_MANUAL', true),
 
-        // cPanel account layout.
-        'public_html' => env('CASTLIT_PUBLIC_HTML', '/home/castlit/public_html'),
+        // Parent directory of the per-client subdomain folders. On LWS each
+        // subdomain lives INSIDE the master's own htdocs (~/htdocs/<sub>.<domain>),
+        // and the provisioning process sees that dir as base_path() (a chroot may
+        // resolve it to /htdocs, not /home/<acct>/htdocs). Defaulting to base_path()
+        // guarantees SOURCE_DIR and BASE_DIR share the same filesystem view, so
+        // clients are written to the exact path the subdomain serves from.
+        // Only override CASTLIT_PUBLIC_HTML on hosts where clients live elsewhere.
+        'public_html' => env('CASTLIT_PUBLIC_HTML') ?: base_path(),
         'db_prefix'   => env('CASTLIT_DB_PREFIX', 'castlit_'),
 
         // Git code cache (a clone of the repo, with a prebuilt vendor/).
