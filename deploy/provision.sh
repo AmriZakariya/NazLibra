@@ -60,20 +60,17 @@ NEW_DB_USER="${DB_PREFIX}$(printf '%s' "$SUB_NAME" | cut -c1-8)"
 NEW_DB_PASS=""
 
 # ============================================================================
-# STEP 1 — Subdomain (best-effort: uapi if present, else create it in the panel)
+# STEP 1 — Client folder (the wildcard *.MAIN_DOMAIN already serves it — no
+#          per-subdomain creation needed; the docroot dispatcher routes by Host)
 # ============================================================================
-emit "▸ Creating subdomain $FULL_DOMAIN → $DOC_ROOT"
+emit "▸ Preparing space $FULL_DOMAIN → $DOC_ROOT (served via wildcard *.$MAIN_DOMAIN)"
 mkdir -p "$DOC_ROOT"
-SUBDOMAIN_STATUS="manual_required"
+SUBDOMAIN_STATUS="wildcard"
+# If the host DOES expose uapi, create a real vhost too (harmless; wildcard still
+# covers it). Never fatal — the wildcard is the source of truth.
 if command -v uapi >/dev/null 2>&1; then
-  if uapi SubDomain addsubdomain domain="$SUB_NAME" rootdomain="$MAIN_DOMAIN" dir="$DOC_ROOT" disallowdot=1 >&2 2>&1; then
-    SUBDOMAIN_STATUS="created"
-  else
-    SUBDOMAIN_STATUS="uapi_failed"
-    emit "  (uapi subdomain create failed — point $SUB_NAME.$MAIN_DOMAIN at $DOC_ROOT in the panel)"
-  fi
-else
-  emit "  (uapi absent — point $SUB_NAME.$MAIN_DOMAIN at $DOC_ROOT in the LWS panel)"
+  uapi SubDomain addsubdomain domain="$SUB_NAME" rootdomain="$MAIN_DOMAIN" dir="$DOC_ROOT" disallowdot=1 >&2 2>&1 \
+    && SUBDOMAIN_STATUS="created" || true
 fi
 
 # ============================================================================

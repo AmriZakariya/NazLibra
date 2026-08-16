@@ -67,10 +67,11 @@ return [
         // Switch to MySQL later by setting CASTLIT_DB_DRIVER=mysql — no code change.
         'db_driver'   => env('CASTLIT_DB_DRIVER', 'sqlite'),
 
-        // This LWS plan has no cPanel `uapi`, so the subdomain is created by hand
-        // in the panel; the job fills the directory. Set false once `uapi` exists
-        // (or a wildcard vhost) to hide the manual-step reminder in the admin.
-        'subdomain_manual' => (bool) env('CASTLIT_SUBDOMAIN_MANUAL', true),
+        // With the wildcard *.castlitpos.com in place, subdomains need no manual
+        // step — the docroot dispatcher routes each Host to its client folder.
+        // Set CASTLIT_SUBDOMAIN_MANUAL=true only if you drop the wildcard and
+        // create each subdomain by hand in the panel.
+        'subdomain_manual' => (bool) env('CASTLIT_SUBDOMAIN_MANUAL', false),
 
         // Parent directory of the per-client subdomain folders. On LWS each
         // subdomain lives INSIDE the master's own htdocs (~/htdocs/<sub>.<domain>),

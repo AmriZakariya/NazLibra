@@ -1,0 +1,38 @@
+# ============================================================================
+#  Castl-it-POS — master docroot (.htaccess). Serves castlitpos.com AND the
+#  wildcard *.castlitpos.com from ~/htdocs. Static files are served directly
+#  from the right install's public/; everything else goes to the dispatcher
+#  (index.php), which boots the master or the matching client app by Host.
+#
+#  NOTE: this host 500s when mod_rewrite rewrites to a .php file, so the PHP
+#  entrypoint is reached via FallbackResource (not a RewriteRule). Only static
+#  files are moved with RewriteRule.
+# ============================================================================
+Options -Indexes
+# No auto-index → "/" falls through to the dispatcher, never a placeholder page.
+DirectoryIndex disabled
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Security: block dotfiles (except .well-known) and non-public paths/files.
+    RewriteRule (^|/)\.(?!well-known) - [F,L]
+    RewriteRule ^(app|bootstrap|config|database|deploy|lang|resources|routes|scripts|tests|vendor)(/|$) - [F,L]
+    RewriteRule ^(composer\.(json|lock)|package(-lock)?\.json|artisan|phpunit\.xml|vite\.config\.js)$ - [F,L]
+    RewriteRule \.(md|sqlite)$ - [F,L]
+
+    # Client subdomain static assets → that client's public/ (static file only).
+    # $1 = request path; %1 = the subdomain label. Served only if the file exists.
+    RewriteCond %{HTTP_HOST} ^([a-z0-9-]{2,30})\.castlitpos\.com$ [NC]
+    RewriteCond %1 !=www
+    RewriteCond %{DOCUMENT_ROOT}/%1.castlitpos.com/public/$1 -f
+    RewriteRule ^(.*)$ %1.castlitpos.com/public/$1 [L]
+
+    # Master's own static assets → public/.
+    RewriteRule ^(build|css|fonts|img|js|storage)/(.*)$ public/$1/$2 [L]
+    RewriteRule ^favicon\.ico$ public/favicon.ico [L]
+</IfModule>
+
+# Non-file requests → the wildcard dispatcher (chooses master vs client app).
+FallbackResource /index.php
