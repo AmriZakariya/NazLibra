@@ -16,7 +16,9 @@
 set -uo pipefail
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:${PATH:-}"
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
+# Resolve the script dir with pure bash — some hosts' minimal PATH lacks dirname.
+LIB_DIR="${BASH_SOURCE[0]%/*}"; [ "$LIB_DIR" = "${BASH_SOURCE[0]}" ] && LIB_DIR="."
+source "$LIB_DIR/lib.sh"
 
 # Same reason as provision.sh: don't let the worker's master env leak into the
 # client's artisan calls.

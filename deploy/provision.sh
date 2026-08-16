@@ -17,7 +17,9 @@ set -uo pipefail
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:${PATH:-}"
 
 # Shared .htaccess / suspended-page writers (kept identical with manage.sh).
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
+# Resolve the script dir with pure bash — some hosts' minimal PATH lacks dirname.
+LIB_DIR="${BASH_SOURCE[0]%/*}"; [ "$LIB_DIR" = "${BASH_SOURCE[0]}" ] && LIB_DIR="."
+source "$LIB_DIR/lib.sh"
 
 # The queue worker carries the MASTER's Laravel env (APP_KEY, DB_*, CASTLIT_MASTER,
 # APP_URL…) via putenv(); child `artisan` calls would inherit it — key:generate
