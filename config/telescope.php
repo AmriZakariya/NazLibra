@@ -16,7 +16,11 @@ return [
     |
     */
 
-    'enabled' => env('TELESCOPE_ENABLED', env('APP_ENV', 'production') === 'local'),
+    // Telescope is a local dev tool only. Force it off in production regardless
+    // of any TELESCOPE_ENABLED in the env — a stray "true" in a client/master
+    // .env otherwise crashes artisan (EventWatcher chokes on null listeners).
+    'enabled' => env('APP_ENV', 'production') !== 'production'
+        && env('TELESCOPE_ENABLED', env('APP_ENV') === 'local'),
 
     /*
     |--------------------------------------------------------------------------
