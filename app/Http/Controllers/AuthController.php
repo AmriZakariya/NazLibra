@@ -70,8 +70,19 @@ class AuthController extends Controller
             ]);
         }
 
-        $tenant = TenantContext::resolve($request, null, false);
         $user = $request->user();
+
+        // On the CastLit master install, platform admins manage client spaces and
+        // are not bound to any POS tenant — skip the per-tenant access checks so
+        // TenantContext's "first tenant" fallback can't lock them out.
+        if (config('castlit.is_master') && $user?->is_platform_admin) {
+            $request->session()->regenerate();
+            $request->session()->forget(['pos_session_locked', 'pos_session_locked_at']);
+
+            return redirect()->intended($this->homeTarget($user))->with('status', 'Connexion réussie.');
+        }
+
+        $tenant = TenantContext::resolve($request, null, false);
 
         if ($tenant && $user && ! $user->tenants()->whereKey($tenant->id)->exists()) {
             Auth::logout();
