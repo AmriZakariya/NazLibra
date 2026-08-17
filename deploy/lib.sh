@@ -13,9 +13,6 @@ write_client_htaccess() {
   local DOC_ROOT="$1"
   cat > "$DOC_ROOT/.htaccess" <<'HT'
 Options -Indexes
-# No auto-index file at the docroot → "/" falls through to Laravel (FallbackResource)
-# instead of serving any leftover default_index.html / index.html placeholder.
-DirectoryIndex disabled
 ErrorDocument 503 /suspended.html
 <IfModule mod_rewrite.c>
     RewriteEngine On

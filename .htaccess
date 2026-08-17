@@ -9,8 +9,6 @@
 #  files are moved with RewriteRule.
 # ============================================================================
 Options -Indexes
-# No auto-index → "/" falls through to the dispatcher, never a placeholder page.
-DirectoryIndex disabled
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
