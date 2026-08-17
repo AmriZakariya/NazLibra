@@ -62,6 +62,18 @@ return [
         // The shell script that updates / suspends / reactivates a client.
         'manage_script' => base_path('deploy/manage.sh'),
 
+        // A deterministic super-admin created inside every new client install,
+        // in addition to the subscription owner — a known login for support.
+        // {sub} is replaced by the client subdomain (e.g. admin@smar.com).
+        // ⚠️ The default password is weak on purpose (early phase); change the
+        // pattern/password here, or disable, before real customers go live.
+        'default_admin' => [
+            'enabled'       => (bool) env('CASTLIT_DEFAULT_ADMIN', true),
+            'name'          => env('CASTLIT_DEFAULT_ADMIN_NAME', 'Administrateur'),
+            'email_pattern' => env('CASTLIT_DEFAULT_ADMIN_EMAIL', 'admin@{sub}.com'),
+            'password'      => env('CASTLIT_DEFAULT_ADMIN_PASSWORD', 'admin'),
+        ],
+
         // Per-client database engine: 'sqlite' (default, zero-config, ideal for
         // the early low-volume phase) or 'mysql' (created via cPanel uapi).
         // Switch to MySQL later by setting CASTLIT_DB_DRIVER=mysql — no code change.

@@ -30,11 +30,12 @@ class TenantProvisioningService
     /**
      * @param  array{name:string,business_mode?:?string,activity?:?string,currency?:string,timezone?:string,language?:string,phone?:?string,email?:?string,address?:?string,costing_method?:?string}  $store
      * @param  array{name:string,email:string,password:string}  $owner
-     * @return array{tenant:Tenant,owner:User}
+     * @param  array{name:string,email:string,password:string}|null  $admin  Optional extra super-admin (owner role) — a known support login.
+     * @return array{tenant:Tenant,owner:User,admin:?User}
      */
-    public function install(array $store, array $owner): array
+    public function install(array $store, array $owner, ?array $admin = null): array
     {
-        return DB::transaction(function () use ($store, $owner): array {
+        return DB::transaction(function () use ($store, $owner, $admin): array {
             $store['business_mode'] = BusinessMode::normalize(
                 $store['business_mode'] ?? $store['activity'] ?? null
             );
@@ -68,6 +69,25 @@ class TenantProvisioningService
                 'store_access' => json_encode(array_values($storeNames)),
             ]);
 
+            // Optional deterministic super-admin (support login), skipped if it
+            // would collide with the owner's email.
+            $adminUser = null;
+            if ($admin && ! empty($admin['email']) && strcasecmp($admin['email'], $owner['email']) !== 0) {
+                $adminUser = User::create([
+                    'current_tenant_id' => $tenant->id,
+                    'name'              => $admin['name'] ?? 'Administrateur',
+                    'email'             => $admin['email'],
+                    'password'          => Hash::make($admin['password']),
+                    'avatar_color'      => '#0C1020',
+                    'is_active'         => true,
+                ]);
+
+                $tenant->users()->attach($adminUser->id, [
+                    'role'         => 'owner',
+                    'store_access' => json_encode(array_values($storeNames)),
+                ]);
+            }
+
             Location::create([
                 'tenant_id'  => $tenant->id,
                 'name'       => $store['name'],
@@ -91,7 +111,7 @@ class TenantProvisioningService
 
             $this->seedDefaults($tenant, $slug, $store['business_mode']);
 
-            return ['tenant' => $tenant, 'owner' => $ownerUser];
+            return ['tenant' => $tenant, 'owner' => $ownerUser, 'admin' => $adminUser];
         });
     }
 

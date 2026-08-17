@@ -25,7 +25,8 @@ class InstallTenantCommand extends Command
 {
     protected $signature = 'castlit:install-tenant
         {--payload= : Base64-encoded JSON with business_name, activity, currency, contact_name, email, phone}
-        {--password= : Optional explicit owner password; generated when omitted}';
+        {--password= : Optional explicit owner password; generated when omitted}
+        {--subdomain= : Client subdomain, used to build the deterministic admin email (admin@{sub}.com)}';
 
     protected $description = 'Seed the single tenant + owner for a fresh CastLit client install from a subscription payload.';
 
@@ -51,6 +52,7 @@ class InstallTenantCommand extends Command
         }
 
         $password = (string) ($this->option('password') ?: Str::password(12, symbols: false));
+        $admin = $this->defaultAdmin($data);
 
         try {
             $result = $service->install(
@@ -67,21 +69,55 @@ class InstallTenantCommand extends Command
                     'email'    => $data['email'],
                     'password' => $password,
                 ],
+                admin: $admin,
             );
         } catch (\Throwable $e) {
             $this->outputJson(['status' => 'error', 'message' => $e->getMessage()]);
             return self::FAILURE;
         }
 
-        $this->outputJson([
+        $this->outputJson(array_filter([
             'status'         => 'success',
             'tenant_id'      => $result['tenant']->id,
             'tenant_slug'    => $result['tenant']->slug,
             'owner_email'    => $result['owner']->email,
             'owner_password' => $password,
-        ]);
+            'admin_email'    => $result['admin']?->email,
+            'admin_password' => $result['admin'] ? ($admin['password'] ?? null) : null,
+        ], static fn ($v) => $v !== null));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Build the deterministic super-admin credentials from config, or null when
+     * disabled / no subdomain available to key the email on.
+     *
+     * @return array{name:string,email:string,password:string}|null
+     */
+    private function defaultAdmin(array $data): ?array
+    {
+        $cfg = config('castlit.provision.default_admin', []);
+        if (! ($cfg['enabled'] ?? false)) {
+            return null;
+        }
+
+        // Prefer the passed subdomain; fall back to a slug of the business name.
+        $sub = strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $this->option('subdomain')));
+        if ($sub === '') {
+            $sub = strtolower(preg_replace('/[^a-z0-9]/i', '', (string) ($data['business_name'] ?? '')));
+        }
+        if ($sub === '') {
+            return null;
+        }
+
+        $email = str_replace('{sub}', $sub, (string) ($cfg['email_pattern'] ?? 'admin@{sub}.com'));
+
+        return [
+            'name'     => (string) ($cfg['name'] ?? 'Administrateur'),
+            'email'    => $email,
+            'password' => (string) ($cfg['password'] ?? 'admin'),
+        ];
     }
 
     private function decodePayload(): ?array

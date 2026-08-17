@@ -172,13 +172,15 @@ rm -f "$DOC_ROOT/public/storage" 2>/dev/null || true
 # STEP 6 — Seed the tenant + owner from the subscription payload
 # ============================================================================
 emit "▸ Seeding tenant + owner"
-INSTALL_JSON="$( cd "$DOC_ROOT" && "$PHP_BIN" artisan castlit:install-tenant --payload="$PAYLOAD_B64" 2>/dev/null | tail -n 1 )"
+INSTALL_JSON="$( cd "$DOC_ROOT" && "$PHP_BIN" artisan castlit:install-tenant --payload="$PAYLOAD_B64" --subdomain="$SUB_NAME" 2>/dev/null | tail -n 1 )"
 case "$INSTALL_JSON" in
   *'"status":"success"'*|*'"status":"skipped"'*) : ;;
   *) final "{\"status\":\"error\",\"step\":\"seed\",\"message\":\"tenant seed failed\",\"detail\":$(printf '%s' "${INSTALL_JSON:-\"\"}" | sed 's/\\/\\\\/g;s/"/\\"/g;s/^/"/;s/$/"/')}" 1 ;;
 esac
 OWNER_EMAIL="$(printf '%s' "$INSTALL_JSON"    | sed -n 's/.*"owner_email":"\([^"]*\)".*/\1/p')"
 OWNER_PASSWORD="$(printf '%s' "$INSTALL_JSON" | sed -n 's/.*"owner_password":"\([^"]*\)".*/\1/p')"
+ADMIN_EMAIL="$(printf '%s' "$INSTALL_JSON"    | sed -n 's/.*"admin_email":"\([^"]*\)".*/\1/p')"
+ADMIN_PASSWORD="$(printf '%s' "$INSTALL_JSON" | sed -n 's/.*"admin_password":"\([^"]*\)".*/\1/p')"
 
 # ============================================================================
 # STEP 7 — Stamp version
@@ -186,4 +188,4 @@ OWNER_PASSWORD="$(printf '%s' "$INSTALL_JSON" | sed -n 's/.*"owner_password":"\(
 DEPLOY_SHA="$(git -C "$SOURCE_DIR" rev-parse --short HEAD 2>/dev/null || echo master)"
 printf '%s' "$DEPLOY_SHA" > "$DOC_ROOT/.version"
 
-final "{\"status\":\"success\",\"url\":\"https://$FULL_DOMAIN\",\"docroot\":\"$DOC_ROOT\",\"db_driver\":\"$DB_DRIVER\",\"db\":\"$DB_DATABASE_VAL\",\"db_user\":\"$DB_USER_VAL\",\"commit\":\"$DEPLOY_SHA\",\"subdomain\":\"$SUBDOMAIN_STATUS\",\"owner_email\":\"$OWNER_EMAIL\",\"owner_password\":\"$OWNER_PASSWORD\"}" 0
+final "{\"status\":\"success\",\"url\":\"https://$FULL_DOMAIN\",\"docroot\":\"$DOC_ROOT\",\"db_driver\":\"$DB_DRIVER\",\"db\":\"$DB_DATABASE_VAL\",\"db_user\":\"$DB_USER_VAL\",\"commit\":\"$DEPLOY_SHA\",\"subdomain\":\"$SUBDOMAIN_STATUS\",\"owner_email\":\"$OWNER_EMAIL\",\"owner_password\":\"$OWNER_PASSWORD\",\"admin_email\":\"$ADMIN_EMAIL\",\"admin_password\":\"$ADMIN_PASSWORD\"}" 0
