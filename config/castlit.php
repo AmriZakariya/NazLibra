@@ -40,6 +40,15 @@ return [
         'keywords'  => 'logiciel de caisse, point de vente, POS Maroc, caisse tactile, gestion de stock, caisse librairie, caisse restaurant, caisse pharmacie, logiciel caisse Maroc, TPV',
     ],
 
+    // Public demo credentials shown on the login page. Set ONLY on the public
+    // demo install (e.g. demo.castlitpos.com) so its visitors can sign straight
+    // in; left blank everywhere else so no real client leaks a login. The demo
+    // box appears only when BOTH values are filled.
+    'demo' => [
+        'email'    => env('CASTLIT_DEMO_EMAIL'),
+        'password' => env('CASTLIT_DEMO_PASSWORD'),
+    ],
+
     // Google Search Console verification token (paste into .env once claimed).
     // Rendered as <meta name="google-site-verification"> only when set.
     'gsc_verification' => env('CASTLIT_GSC_VERIFICATION'),

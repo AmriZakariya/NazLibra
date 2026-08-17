@@ -50,11 +50,35 @@ class AuthController extends Controller
         $tenant = TenantContext::resolve(request());
 
         return view('auth.login', [
-            'tenant' => $tenant,
-            'demoLoginEmail' => app()->environment('production')
-                ? null
-                : $tenant?->users()->where('users.is_active', true)->orderBy('users.id')->value('email'),
+            'tenant'    => $tenant,
+            'demoLogin' => $this->demoLogin($tenant),
         ]);
+    }
+
+    /**
+     * Credentials for the "compte de démonstration" box on the login page.
+     * Explicit demo creds (config/.env) win — that's how the public demo install
+     * advertises its login in production. Otherwise, only in non-production, fall
+     * back to the first active user with the conventional "password".
+     *
+     * @return array{email:string,password:string}|null
+     */
+    private function demoLogin(?\App\Models\Tenant $tenant): ?array
+    {
+        $email = trim((string) config('castlit.demo.email'));
+        $password = (string) config('castlit.demo.password');
+        if ($email !== '' && $password !== '') {
+            return ['email' => $email, 'password' => $password];
+        }
+
+        if (! app()->environment('production')) {
+            $fallback = $tenant?->users()->where('users.is_active', true)->orderBy('users.id')->value('email');
+            if ($fallback) {
+                return ['email' => $fallback, 'password' => 'password'];
+            }
+        }
+
+        return null;
     }
 
     public function login(Request $request): RedirectResponse

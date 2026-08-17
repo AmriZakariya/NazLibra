@@ -373,6 +373,7 @@
                                 <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Email</span>
                                 <input
                                     name="email"
+                                    id="login-email"
                                     value="{{ old('email') }}"
                                     type="email"
                                     required
@@ -424,12 +425,22 @@
                             </button>
                         </form>
 
-                        {{-- Demo account --}}
-                        @if (app()->environment(['local', 'testing']) && filled($demoLoginEmail ?? null))
-                            <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
-                                <p class="font-semibold text-slate-700">{{ $tr('Compte de démonstration') }}</p>
-                                <p class="mt-1 font-mono text-xs text-slate-500">{{ $demoLoginEmail }} · <span class="text-slate-400">password</span></p>
-                            </div>
+                        {{-- Demo account — shown only when demo credentials are configured
+                             (CASTLIT_DEMO_* on the public demo install). Click to autofill. --}}
+                        @if (filled($demoLogin['email'] ?? null) && filled($demoLogin['password'] ?? null))
+                            <button
+                                type="button"
+                                class="mt-4 block w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-left text-sm transition hover:border-slate-300 hover:bg-slate-100"
+                                onclick="document.getElementById('login-email').value=this.dataset.email;document.getElementById('login-password').value=this.dataset.password;"
+                                data-email="{{ $demoLogin['email'] }}"
+                                data-password="{{ $demoLogin['password'] }}"
+                            >
+                                <p class="flex items-center justify-between font-semibold text-slate-700">
+                                    {{ $tr('Compte de démonstration') }}
+                                    <span class="text-[11px] font-semibold" style="color: var(--brand-primary)">{{ $tr('Cliquer pour remplir') }}</span>
+                                </p>
+                                <p class="mt-1 font-mono text-xs text-slate-500">{{ $demoLogin['email'] }} · {{ $demoLogin['password'] }}</p>
+                            </button>
                         @endif
 
                         {{-- Footer --}}
