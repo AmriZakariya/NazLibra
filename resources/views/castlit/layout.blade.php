@@ -6,10 +6,28 @@
     $isRtl = $lang === 'ar';
     $langLabels = ['fr' => 'FR', 'ar' => 'ع', 'en' => 'EN'];
     $isMarketing = request()->routeIs('castlit.landing') || request()->routeIs('castlit.subscribe.success');
-    $canonical = $canonical ?? url()->current();
+
+    // Self-referential, per-locale URLs so canonical and hreflang agree: fr is the
+    // clean URL (default locale), ar/en carry ?lang=. Each localised URL is
+    // canonical for itself and reciprocally linked via hreflang.
+    $localizedUrls = [];
+    foreach (['fr', 'ar', 'en'] as $hl) {
+        $localizedUrls[$hl] = $hl === 'fr' ? url()->current() : url()->current().'?lang='.$hl;
+    }
+    $canonical = $canonical ?? ($localizedUrls[$lang] ?? url()->current());
+
+    $ogLocaleMap = ['fr' => 'fr_MA', 'ar' => 'ar_MA', 'en' => 'en_US'];
+    $ogLocale = $ogLocaleMap[$lang] ?? 'fr_MA';
+    $ogLocaleAlt = array_values(array_diff($ogLocaleMap, [$ogLocale]));
+
     $metaTitle = trim($__env->yieldContent('title', __('castlit.meta_title')));
     $metaDescription = trim($__env->yieldContent('meta_description', __('castlit.meta_description')));
+    $metaRobots = trim($__env->yieldContent('robots', 'index, follow, max-image-preview:large'));
     $ogImage = \Illuminate\Support\Facades\Route::has('castlit.og') ? route('castlit.og') : route('app.icon', 512);
+
+    // Truthful feature list for structured data (pulled from the localized copy).
+    $featureList = collect(__('castlit.features'))->pluck('t')->filter()->values()->all();
+    $socials = array_values(array_filter((array) ($brand['social'] ?? [])));
 @endphp
 <!doctype html>
 <html lang="{{ $lang }}" dir="{{ $isRtl ? 'rtl' : 'ltr' }}">
@@ -20,17 +38,17 @@
     <meta name="description" content="{{ $metaDescription }}">
     <meta name="keywords" content="{{ $brand['keywords'] }}">
     <meta name="author" content="{{ $brand['legal'] }}">
-    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="robots" content="{{ $metaRobots }}">
     @if (config('castlit.gsc_verification'))
         <meta name="google-site-verification" content="{{ config('castlit.gsc_verification') }}">
     @endif
     <meta name="theme-color" content="#3157D5">
     <link rel="canonical" href="{{ $canonical }}">
     @if ($isMarketing)
-        @foreach (['fr', 'ar', 'en'] as $hl)
-            <link rel="alternate" hreflang="{{ $hl }}" href="{{ request()->fullUrlWithQuery(['lang' => $hl]) }}">
+        @foreach ($localizedUrls as $hl => $hlUrl)
+            <link rel="alternate" hreflang="{{ $hl }}" href="{{ $hlUrl }}">
         @endforeach
-        <link rel="alternate" hreflang="x-default" href="{{ route('castlit.landing') }}">
+        <link rel="alternate" hreflang="x-default" href="{{ $localizedUrls['fr'] }}">
     @endif
     <link rel="icon" type="image/svg+xml" href="{{ asset('img/castlit-icon.svg') }}">
     <link rel="icon" type="image/png" sizes="192x192" href="{{ route('app.icon', 192) }}">
@@ -42,51 +60,88 @@
     <meta property="og:title" content="{{ $metaTitle }}">
     <meta property="og:description" content="{{ $metaDescription }}">
     <meta property="og:url" content="{{ $canonical }}">
-    <meta property="og:locale" content="{{ $brand['locale'] }}">
+    <meta property="og:locale" content="{{ $ogLocale }}">
+    @foreach ($ogLocaleAlt as $alt)
+        <meta property="og:locale:alternate" content="{{ $alt }}">
+    @endforeach
     <meta property="og:image" content="{{ $ogImage }}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="{{ $brand['name'] }} — {{ $brand['tagline'] }}">
 
     {{-- Twitter --}}
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ $metaTitle }}">
     <meta name="twitter:description" content="{{ $metaDescription }}">
     <meta name="twitter:image" content="{{ $ogImage }}">
+    <meta name="twitter:image:alt" content="{{ $brand['name'] }} — {{ $brand['tagline'] }}">
 
-    {{-- Structured data: Organization + the software product --}}
+    {{-- Structured data: Organization + WebSite + the software product + this page --}}
     <script type="application/ld+json">
     {!! json_encode([
         '@context' => 'https://schema.org',
         '@graph' => [
-            [
+            array_filter([
                 '@type' => 'Organization',
                 '@id' => $siteUrl.'/#organization',
                 'name' => $brand['name'],
                 'url' => $siteUrl,
-                'logo' => $ogImage,
+                'logo' => [
+                    '@type' => 'ImageObject',
+                    'url' => asset('img/castlit-logo.svg'),
+                    'contentUrl' => asset('img/castlit-logo.svg'),
+                ],
+                'image' => $ogImage,
                 'email' => $brand['email'],
-                'areaServed' => 'MA',
-            ],
+                'areaServed' => ['@type' => 'Country', 'name' => 'Maroc'],
+                'contactPoint' => [
+                    '@type' => 'ContactPoint',
+                    'contactType' => 'customer support',
+                    'email' => $brand['email'],
+                    'areaServed' => 'MA',
+                    'availableLanguage' => ['French', 'Arabic', 'English'],
+                ],
+                'sameAs' => $socials ?: null,
+            ]),
             [
                 '@type' => 'WebSite',
                 '@id' => $siteUrl.'/#website',
                 'url' => $siteUrl,
                 'name' => $brand['name'],
-                'inLanguage' => 'fr-MA',
+                'description' => $brand['description'],
+                'inLanguage' => ['fr-MA', 'ar-MA', 'en'],
                 'publisher' => ['@id' => $siteUrl.'/#organization'],
             ],
-            [
+            array_filter([
                 '@type' => 'SoftwareApplication',
+                '@id' => $siteUrl.'/#app',
                 'name' => $brand['name'],
                 'applicationCategory' => 'BusinessApplication',
+                'applicationSubCategory' => 'Point of Sale',
                 'operatingSystem' => 'Web, Android, iOS',
                 'description' => $brand['description'],
+                'featureList' => $featureList ?: null,
+                'screenshot' => $ogImage,
+                'inLanguage' => ['fr', 'ar', 'en'],
+                'url' => $siteUrl,
+                'publisher' => ['@id' => $siteUrl.'/#organization'],
                 'offers' => [
                     '@type' => 'Offer',
                     'price' => '0',
                     'priceCurrency' => 'MAD',
                     'description' => 'Essai sans engagement',
                 ],
-                'inLanguage' => ['fr', 'ar'],
-                'url' => $siteUrl,
+            ]),
+            [
+                '@type' => 'WebPage',
+                '@id' => $canonical.'#webpage',
+                'url' => $canonical,
+                'name' => $metaTitle,
+                'description' => $metaDescription,
+                'inLanguage' => $ogLocale,
+                'isPartOf' => ['@id' => $siteUrl.'/#website'],
+                'about' => ['@id' => $siteUrl.'/#app'],
+                'primaryImageOfPage' => $ogImage,
             ],
         ],
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}

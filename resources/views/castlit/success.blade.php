@@ -1,6 +1,9 @@
 @extends('castlit.layout')
 
 @section('title', __('castlit.ok_title').' — Castl-it-POS')
+@section('meta_description', __('castlit.ok_sub'))
+{{-- Confirmation page: useful to the visitor, not to search engines. --}}
+@section('robots', 'noindex, follow')
 
 @section('content')
 <style>

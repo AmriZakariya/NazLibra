@@ -72,11 +72,37 @@ class MarketingController extends Controller
     public function sitemap(): Response
     {
         $base = 'https://'.config('castlit.main_domain');
+        $lastmod = now()->toDateString();
+
+        // Per-locale URLs (fr is the clean default; ar/en carry ?lang=).
+        $locales = [
+            'fr' => $base.'/',
+            'ar' => $base.'/?lang=ar',
+            'en' => $base.'/?lang=en',
+        ];
+
+        // Reciprocal hreflang alternates on every entry (Google's requirement),
+        // including x-default → fr.
+        $alternates = '';
+        foreach ($locales as $hl => $href) {
+            $alternates .= '    <xhtml:link rel="alternate" hreflang="'.$hl.'" href="'.htmlspecialchars($href, ENT_XML1).'"/>'."\n";
+        }
+        $alternates .= '    <xhtml:link rel="alternate" hreflang="x-default" href="'.$locales['fr'].'"/>'."\n";
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n"
-            .'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n"
-            .'  <url><loc>'.$base.'/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>'."\n"
-            .'</urlset>'."\n";
+            .'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">'."\n";
+
+        foreach ($locales as $href) {
+            $xml .= '  <url>'."\n"
+                .'    <loc>'.htmlspecialchars($href, ENT_XML1).'</loc>'."\n"
+                .$alternates
+                .'    <lastmod>'.$lastmod.'</lastmod>'."\n"
+                .'    <changefreq>weekly</changefreq>'."\n"
+                .'    <priority>1.0</priority>'."\n"
+                .'  </url>'."\n";
+        }
+
+        $xml .= '</urlset>'."\n";
 
         return response($xml, 200)->header('Content-Type', 'application/xml; charset=UTF-8');
     }
@@ -117,30 +143,53 @@ class MarketingController extends Controller
      */
     public function ogImage(): Response
     {
-        $width = 1200;
-        $height = 630;
-        $img = imagecreatetruecolor($width, $height);
+        $W = 1200;
+        $H = 630;
+        $img = imagecreatetruecolor($W, $H);
+        imagesavealpha($img, true);
 
-        $ink = imagecolorallocate($img, 14, 19, 48);      // deep ink ground
-        $panel = imagecolorallocate($img, 49, 87, 213);    // brand indigo
-        $white = imagecolorallocate($img, 255, 255, 255);
-        $muted = imagecolorallocate($img, 190, 202, 235);
-        $accent = imagecolorallocate($img, 245, 158, 11);  // receipt amber
+        $ink    = imagecolorallocate($img, 14, 19, 48);     // deep ink ground
+        $brandc = imagecolorallocate($img, 49, 87, 213);    // brand indigo
+        $white  = imagecolorallocate($img, 255, 255, 255);
+        $muted  = imagecolorallocate($img, 190, 202, 235);
+        $accent = imagecolorallocate($img, 245, 158, 11);   // receipt amber
+        $chipbg = imagecolorallocate($img, 32, 40, 74);
 
         imagefill($img, 0, 0, $ink);
-        imagefilledrectangle($img, 0, 0, 18, $height, $panel);         // left brand rail
-        imagefilledrectangle($img, 80, 300, 200, 308, $accent);        // accent underline
+        imagefilledrectangle($img, 0, 0, $W, 8, $brandc);   // top brand band
 
-        $bold = base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans-Bold.ttf');
-        $reg = base_path('vendor/dompdf/dompdf/lib/fonts/DejaVuSans.ttf');
+        $bold  = $this->ogFont(true);
+        $reg   = $this->ogFont(false);
         $brand = config('castlit.brand');
 
-        if (is_file($bold) && is_file($reg)) {
-            imagettftext($img, 74, 0, 80, 250, $white, $bold, $brand['name']);
-            imagettftext($img, 30, 0, 82, 360, $muted, $reg, $brand['tagline']);
-            imagettftext($img, 22, 0, 82, 560, $accent, $bold, config('castlit.main_domain'));
+        // Brand mark: rounded indigo square + white "C" + amber dot.
+        $this->ogRoundedRect($img, 80, 96, 200, 216, 26, $brandc);
+        imagefilledellipse($img, 182, 200, 24, 24, $accent);
+
+        if ($bold && $reg) {
+            imagettftext($img, 66, 0, 108, 196, $white, $bold, 'C');
+            imagettftext($img, 62, 0, 240, 175, $white, $bold, $brand['name']);
+
+            $y = 246;
+            foreach (explode("\n", wordwrap((string) $brand['tagline'], 44, "\n")) as $line) {
+                imagettftext($img, 25, 0, 242, $y, $muted, $reg, $line);
+                $y += 40;
+            }
+
+            imagettftext($img, 26, 0, 82, 566, $accent, $bold, config('castlit.main_domain'));
+
+            // Feature chips echoing the product's core value.
+            $chips = ['Caisse tactile', 'Gestion de stock', 'Hors-ligne'];
+            $x = 470;
+            foreach ($chips as $c) {
+                $bb = imagettfbbox(20, 0, $reg, $c);
+                $w = $bb[2] - $bb[0];
+                $this->ogRoundedRect($img, $x, 542, $x + $w + 40, 584, 21, $chipbg);
+                imagettftext($img, 20, 0, $x + 20, 570, $muted, $reg, $c);
+                $x += $w + 40 + 16;
+            }
         } else {
-            imagestring($img, 5, 80, 220, $brand['name'], $white);
+            imagestring($img, 5, 240, 150, (string) $brand['name'], $white);
         }
 
         ob_start();
@@ -151,6 +200,34 @@ class MarketingController extends Controller
         return response($png, 200)
             ->header('Content-Type', 'image/png')
             ->header('Cache-Control', 'public, max-age=86400');
+    }
+
+    /** First available DejaVu font (bundled with dompdf, or a common system path). */
+    private function ogFont(bool $bold): ?string
+    {
+        $variant = $bold ? '-Bold' : '';
+        foreach ([
+            base_path("vendor/dompdf/dompdf/lib/fonts/DejaVuSans{$variant}.ttf"),
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans{$variant}.ttf",
+            "/usr/share/fonts/dejavu/DejaVuSans{$variant}.ttf",
+        ] as $path) {
+            if (is_file($path)) {
+                return $path;
+            }
+        }
+
+        return null;
+    }
+
+    /** Draw a filled rounded rectangle (GD has no native primitive for it). */
+    private function ogRoundedRect(\GdImage $img, int $x1, int $y1, int $x2, int $y2, int $r, int $color): void
+    {
+        imagefilledrectangle($img, $x1 + $r, $y1, $x2 - $r, $y2, $color);
+        imagefilledrectangle($img, $x1, $y1 + $r, $x2, $y2 - $r, $color);
+        imagefilledellipse($img, $x1 + $r, $y1 + $r, $r * 2, $r * 2, $color);
+        imagefilledellipse($img, $x2 - $r, $y1 + $r, $r * 2, $r * 2, $color);
+        imagefilledellipse($img, $x1 + $r, $y2 - $r, $r * 2, $r * 2, $color);
+        imagefilledellipse($img, $x2 - $r, $y2 - $r, $r * 2, $r * 2, $color);
     }
 
     /** @return array<string,string> business_mode key => human label */
