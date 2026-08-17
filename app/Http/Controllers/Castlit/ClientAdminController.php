@@ -29,6 +29,7 @@ class ClientAdminController extends Controller
         return view('castlit.admin.clients', [
             'installs'  => $installs,
             'masterSha' => $masterSha,
+            'commits'   => $this->recentCommits(),
             'upToDate'  => TenantInstall::where('status', TenantInstall::STATUS_LIVE)
                 ->when($masterSha, fn ($q) => $q->where('commit_sha', $masterSha))
                 ->count(),
@@ -89,5 +90,66 @@ class ClientAdminController extends Controller
                 return null;
             }
         });
+    }
+
+    /**
+     * Recent git history (the deployed version log), newest first, cached 60s.
+     *
+     * @return array<int,array{sha:string,date:string,subject:string,author:string,type:string}>
+     */
+    private function recentCommits(int $limit = 25): array
+    {
+        return Cache::remember('castlit.recent_commits', 60, function () use ($limit): array {
+            try {
+                // Unit separator between fields, record separator between commits —
+                // safe against pipes/quotes in commit messages.
+                $fmt = '%h%x1f%cI%x1f%s%x1f%an%x1e';
+                $p = new Process(['git', 'log', '-n', (string) $limit, '--no-merges', '--pretty=format:'.$fmt], base_path());
+                $p->run();
+                if (! $p->isSuccessful()) {
+                    return [];
+                }
+
+                $out = [];
+                foreach (explode("\x1e", trim($p->getOutput())) as $row) {
+                    $row = trim($row);
+                    if ($row === '') {
+                        continue;
+                    }
+                    [$sha, $date, $subject, $author] = array_pad(explode("\x1f", $row), 4, '');
+                    $out[] = [
+                        'sha'     => $sha,
+                        'date'    => $date,
+                        'subject' => $subject,
+                        'author'  => $author,
+                        'type'    => $this->commitType($subject),
+                    ];
+                }
+
+                return $out;
+            } catch (\Throwable) {
+                return [];
+            }
+        });
+    }
+
+    /** Conventional-commit prefix → a short label for colour-coding the log. */
+    private function commitType(string $subject): string
+    {
+        $prefix = strtolower(strtok($subject, ':'));
+
+        return match (true) {
+            str_starts_with($prefix, 'feat')            => 'feat',
+            str_starts_with($prefix, 'fix')             => 'fix',
+            str_starts_with($prefix, 'refactor')        => 'refactor',
+            str_starts_with($prefix, 'perf')            => 'perf',
+            str_starts_with($prefix, 'chore'),
+            str_starts_with($prefix, 'build'),
+            str_starts_with($prefix, 'ci')              => 'chore',
+            str_starts_with($prefix, 'docs')            => 'docs',
+            str_starts_with($prefix, 'style')           => 'style',
+            str_starts_with($prefix, 'test')            => 'test',
+            default                                     => 'other',
+        };
     }
 }

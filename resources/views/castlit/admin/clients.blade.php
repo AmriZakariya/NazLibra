@@ -161,6 +161,68 @@
         </div>
 
         <div class="pager">{{ $installs->links() }}</div>
+
+        {{-- ── Version history / changelog ─────────────────────────────────── --}}
+        <style>
+            .changelog { margin-top: 40px; }
+            .changelog h2 { font-size: 18px; font-weight: 800; letter-spacing: -.01em; margin-bottom: 4px; }
+            .changelog .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+            .log { position: relative; padding-left: 4px; }
+            .log-item { display: grid; grid-template-columns: 92px 1fr auto; gap: 14px; align-items: baseline;
+                        padding: 12px 4px; border-bottom: 1px solid color-mix(in srgb, var(--sand) 55%, transparent); }
+            .log-item:last-child { border-bottom: none; }
+            .log-sha { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                       font-size: 12.5px; font-weight: 700; color: var(--brand); }
+            .log-sha .head { display: inline-block; margin-left: 6px; font-family: inherit; font-size: 10px; font-weight: 800;
+                             text-transform: uppercase; letter-spacing: .04em; color: var(--ok); background: var(--ok-bg);
+                             padding: 1px 6px; border-radius: 999px; vertical-align: middle; }
+            .log-msg { font-size: 14px; line-height: 1.45; }
+            .log-msg .kind { display: inline-block; margin-right: 8px; font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+                             letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; vertical-align: middle; }
+            .kind-feat { color: var(--ok); background: var(--ok-bg); }
+            .kind-fix { color: var(--err); background: var(--err-bg); }
+            .kind-refactor, .kind-perf { color: var(--brand); background: color-mix(in srgb, var(--brand) 12%, transparent); }
+            .kind-chore, .kind-docs, .kind-style, .kind-test, .kind-other { color: var(--muted); background: color-mix(in srgb, var(--muted) 14%, transparent); }
+            .log-meta { color: var(--muted); font-size: 12px; white-space: nowrap; text-align: right; }
+            .log-meta .who { display: block; font-size: 11px; }
+            @media (max-width: 640px) {
+                .log-item { grid-template-columns: 1fr; gap: 4px; }
+                .log-meta { text-align: left; }
+            }
+        </style>
+
+        <section class="changelog">
+            <h2>Journal des versions</h2>
+            <p class="sub">
+                Historique du code déployé (branche master).
+                @if ($masterSha) Version actuelle : <b>{{ $masterSha }}</b>. @endif
+                Chaque espace client tourne sur la version indiquée dans le tableau ci-dessus.
+            </p>
+
+            <div class="card">
+                <div class="log" style="padding: 6px 16px;">
+                    @php $kindLabels = ['feat' => 'Nouveau', 'fix' => 'Correctif', 'refactor' => 'Refonte', 'perf' => 'Perf', 'chore' => 'Maintenance', 'docs' => 'Docs', 'style' => 'Style', 'test' => 'Test', 'other' => '·']; @endphp
+                    @forelse ($commits as $c)
+                        <div class="log-item">
+                            <div class="log-sha">
+                                {{ $c['sha'] }}
+                                @if ($masterSha && $c['sha'] === $masterSha)<span class="head">déployé</span>@endif
+                            </div>
+                            <div class="log-msg">
+                                <span class="kind kind-{{ $c['type'] }}">{{ $kindLabels[$c['type']] ?? '·' }}</span>
+                                {{ \Illuminate\Support\Str::of($c['subject'])->after(':')->trim()->whenEmpty(fn () => \Illuminate\Support\Str::of($c['subject'])) }}
+                            </div>
+                            <div class="log-meta">
+                                @if ($c['date'])<time datetime="{{ $c['date'] }}">{{ \Illuminate\Support\Carbon::parse($c['date'])->translatedFormat('d/m/Y') }}</time>@endif
+                                <span class="who">{{ $c['author'] }}</span>
+                            </div>
+                        </div>
+                    @empty
+                        <div class="empty" style="padding: 28px;">Historique git indisponible sur cet hôte.</div>
+                    @endforelse
+                </div>
+            </div>
+        </section>
     </div>
 </main>
 @endsection
