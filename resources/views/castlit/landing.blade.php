@@ -56,6 +56,9 @@
     .reveal.is-in { opacity: 1; transform: none; }
     @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1 !important; transform: none !important; } }
 
+    /* Keep anchored sections clear of the 66px sticky nav on jump/scrollIntoView. */
+    section[id], [id="inscription"] { scroll-margin-top: 86px; }
+
     /* ── HERO ─────────────────────────────────────────────────────────────── */
     .hero { position: relative; overflow: hidden; padding: 72px 0 48px; }
     .hero::before { content: ""; position: absolute; inset: -20% 30% auto -10%; height: 620px;
@@ -223,7 +226,11 @@
     .subdomain-row input { border: none; box-shadow: none; background: transparent; text-align: right; }
     .subdomain-row input:focus { box-shadow: none; }
     .subdomain-suf { display: flex; align-items: center; padding: 0 13px; font-size: 13.5px; color: var(--muted); background: color-mix(in srgb, var(--sand) 40%, transparent); white-space: nowrap; }
-    .hp { position: absolute; left: -9999px; }
+    /* Honeypot: hidden without the old left:-9999px trick, which in RTL created
+       a ~10000px horizontal scroll area (jump-to-anchor then landed on blank). */
+    .hp { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+          overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+          white-space: nowrap; border: 0; }
 
     @media (max-width: 980px) {
         .hero-grid { grid-template-columns: 1fr; gap: 40px; }
@@ -513,17 +520,67 @@
 @push('scripts')
 <script>
     (function () {
+        var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         var els = document.querySelectorAll('.reveal');
-        if (!('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            els.forEach(function (el) { el.classList.add('is-in'); });
-            return;
+
+        // Make a section (and its reveal ancestor/descendants) visible at once —
+        // used when we jump straight to an anchor so it never lands faded out.
+        function revealNow(el) {
+            if (!el) return;
+            el.classList.add('is-in');
+            var anc = el.closest('.reveal'); if (anc) anc.classList.add('is-in');
+            el.querySelectorAll('.reveal').forEach(function (c) { c.classList.add('is-in'); });
         }
-        var io = new IntersectionObserver(function (entries) {
-            entries.forEach(function (e) {
-                if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); }
-            });
-        }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
-        els.forEach(function (el) { io.observe(el); });
+
+        if (!('IntersectionObserver' in window) || reduce) {
+            els.forEach(function (el) { el.classList.add('is-in'); });
+        } else {
+            var io = new IntersectionObserver(function (entries) {
+                entries.forEach(function (e) {
+                    if (e.isIntersecting) { e.target.classList.add('is-in'); io.unobserve(e.target); }
+                });
+            }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+            els.forEach(function (el) { io.observe(el); });
+        }
+
+        function goTo(target, push) {
+            if (!target) return;
+            revealNow(target);
+            if (push) { try { history.pushState(null, '', '#' + target.id); } catch (e) {} }
+            target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+            // Focus the first field when landing on the signup form (no extra jump).
+            if (target.id === 'inscription') {
+                var first = target.querySelector('input, select');
+                if (first) { setTimeout(function () { try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); } }, reduce ? 0 : 520); }
+            }
+        }
+
+        // Intercept in-page anchor clicks (including the nav CTA that carries the
+        // full URL) so we smooth-scroll here instead of reloading — which also
+        // preserves the chosen language and avoids the janky jump under the nav.
+        document.addEventListener('click', function (ev) {
+            var a = ev.target.closest('a[href*="#"]');
+            if (!a || a.hasAttribute('data-no-scroll')) return;
+            var href = a.getAttribute('href') || '';
+            var i = href.indexOf('#');
+            if (i < 0) return;
+            var id = href.slice(i + 1);
+            if (!id) return;
+            var target = document.getElementById(id);
+            if (!target) return; // anchor lives on another page → let it navigate
+            ev.preventDefault();
+            goTo(target, true);
+        });
+
+        // Arrived with a hash (fresh load / external link): reveal + align once
+        // layout settles so we don't land under the nav or on a faded section.
+        function handleHash() {
+            if (!location.hash || location.hash.length < 2) return;
+            var target = document.getElementById(location.hash.slice(1));
+            if (target) { requestAnimationFrame(function () { goTo(target, false); }); }
+        }
+        window.addEventListener('load', handleHash);
+        handleHash();
     })();
 </script>
 @endpush

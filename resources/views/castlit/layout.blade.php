@@ -128,13 +128,19 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; }
+        /* Offset anchored scrolling by the 66px sticky nav so targeted headings
+           aren't hidden underneath it (fixes the "lost" jump to #inscription). */
+        html { scroll-behavior: smooth; scroll-padding-top: 86px; }
+        :target { scroll-margin-top: 86px; }
         body {
             font-family: var(--font);
             background: var(--paper);
             color: var(--ink);
             line-height: 1.55;
             -webkit-font-smoothing: antialiased;
+            /* Safety net for stray horizontal overflow (esp. RTL) without
+               breaking the sticky nav the way overflow-x:hidden would. */
+            overflow-x: clip;
         }
         a { color: inherit; text-decoration: none; }
         .wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
