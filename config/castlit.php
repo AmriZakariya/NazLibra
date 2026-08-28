@@ -16,11 +16,14 @@ return [
     // Root domain new client subdomains hang off of.
     'main_domain' => env('CASTLIT_MAIN_DOMAIN', 'castlitpos.com'),
 
+    // Free-trial length (months) applied to each new client at provisioning.
+    'trial_months' => (int) env('CASTLIT_TRIAL_MONTHS', 3),
+
     // ── Product brand + marketing SEO ───────────────────────────────────────
     'brand' => [
         'name'      => 'Castl-it-POS',                 // product display name
         'legal'     => 'Castl-it-POS',
-        'tagline'   => 'La caisse et la gestion de stock des commerces marocains',
+        'tagline'   => 'Le point de vente et la gestion de stock pour votre commerce',
         'email'     => env('CASTLIT_CONTACT_EMAIL', 'contact@castlitpos.com'),
         'locale'    => 'fr_MA',
         // App store links (empty = show a "coming soon" badge instead of a link).
@@ -35,9 +38,9 @@ return [
             env('CASTLIT_YOUTUBE_URL', ''),
         ])),
         // Meta description used on the landing page (≤160 chars, keyword-rich).
-        'description' => 'Castl-it-POS : logiciel de caisse tactile et gestion de stock pour librairies, cafés, restaurants, pharmacies et commerces au Maroc. Fonctionne hors ligne, multi-postes, en français et en arabe.',
+        'description' => 'Castl-it-POS : logiciel de caisse tactile et gestion de stock pour librairies, cafés, restaurants, pharmacies et tous types de commerces. Fonctionne hors ligne, multi-postes, multi-devises, en français, arabe et anglais.',
         // Comma-separated focus keywords (used in meta + copy).
-        'keywords'  => 'logiciel de caisse, point de vente, POS Maroc, caisse tactile, gestion de stock, caisse librairie, caisse restaurant, caisse pharmacie, logiciel caisse Maroc, TPV',
+        'keywords'  => 'logiciel de caisse, point de vente, POS, caisse tactile, gestion de stock, caisse librairie, caisse restaurant, caisse pharmacie, logiciel de caisse, TPV, inventaire',
     ],
 
     // Public demo credentials shown on the login page. Set ONLY on the public
@@ -45,6 +48,10 @@ return [
     // in; left blank everywhere else so no real client leaks a login. The demo
     // box appears only when BOTH values are filled.
     'demo' => [
+        // Public demo client visitors can try from the marketing site. Defaults to
+        // demo.<main_domain>; override with CASTLIT_DEMO_URL. Set to empty to hide
+        // the demo links entirely.
+        'url'      => env('CASTLIT_DEMO_URL', 'https://demo.'.env('CASTLIT_MAIN_DOMAIN', 'castlitpos.com')),
         'email'    => env('CASTLIT_DEMO_EMAIL'),
         'password' => env('CASTLIT_DEMO_PASSWORD'),
     ],
@@ -89,6 +96,14 @@ return [
             'name'          => env('CASTLIT_DEFAULT_ADMIN_NAME', 'Administrateur'),
             'email_pattern' => env('CASTLIT_DEFAULT_ADMIN_EMAIL', 'admin@{sub}.com'),
             'password'      => env('CASTLIT_DEFAULT_ADMIN_PASSWORD', 'admin'),
+        ],
+
+        // Terminals (virtual devices) created for every new client so they can
+        // connect POS stations right away. "web" → computer/browser terminals,
+        // "mobile" → phone/tablet app terminals.
+        'default_devices' => [
+            'web'    => (int) env('CASTLIT_DEFAULT_WEB_TERMINALS', 2),
+            'mobile' => (int) env('CASTLIT_DEFAULT_MOBILE_TERMINALS', 2),
         ],
 
         // Per-client database engine: 'sqlite' (default, zero-config, ideal for

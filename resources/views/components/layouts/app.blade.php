@@ -663,7 +663,7 @@
                                 <summary class="current-store-trigger grid size-11 cursor-pointer list-none place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" title="{{ $layoutCurrentStore['name'] }}">
                                     <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                                 </summary>
-                                <div class="absolute right-0 top-12 z-40 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-slate-950">
+                                <div class="absolute right-0 top-12 z-40 w-72 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white p-3 shadow-xl [scrollbar-width:thin] dark:border-white/10 dark:bg-slate-950">
                                     <p class="px-1 pb-2 text-xs font-semibold uppercase text-slate-500">{{ $tr('Magasin courant') }}</p>
                                     <form action="{{ route('settings.current-store.update') }}" method="POST" class="space-y-2">
                                         @csrf
@@ -711,7 +711,7 @@
                                         {{ Str::upper(Str::substr($accountUser->name, 0, 2)) }}
                                     @endif
                                 </summary>
-                                <div class="absolute right-0 top-12 z-40 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-slate-950">
+                                <div class="absolute right-0 top-12 z-40 w-72 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain rounded-xl border border-slate-200 bg-white p-3 shadow-xl [scrollbar-width:thin] dark:border-white/10 dark:bg-slate-950">
                                     <div class="flex items-center gap-3 border-b border-slate-200 pb-3 dark:border-white/10">
                                         <x-user-avatar :user="$accountUser" size="sm" rounded="rounded-lg" />
                                         <span class="min-w-0">
@@ -720,7 +720,7 @@
                                     <span class="mt-1 inline-flex max-w-full items-center rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">{{ $accountRoleName }}</span>
                                 </span>
                             </div>
-                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'company']) }}#timezone" class="mt-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'company']) }}#timezone" class="mt-3 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
                                     <span class="min-w-0">
                                         <span class="block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr('Fuseau horaire') }}</span>
                                         <strong class="mt-0.5 block truncate text-slate-900 dark:text-white">{{ $accountTimezoneLabel }}</strong>
@@ -728,7 +728,7 @@
                                     </span>
                                 <span class="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand">{{ $accountTimezoneOffset }}</span>
                             </a>
-                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'store']) }}" class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'store']) }}" class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
                                 <span class="min-w-0">
                                     <span class="block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr("Type d'activité") }}</span>
                                     <strong class="mt-0.5 block truncate text-slate-900 dark:text-white">{{ $accountActivityLabel }}</strong>
@@ -745,7 +745,7 @@
                                 ];
                                 $accountCostingInfo = $accountCostingLabels[$accountCostingMethod] ?? $accountCostingLabels['lifo'];
                             @endphp
-                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'store']) }}#inventory" class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'store']) }}#inventory" class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
                                 <span class="min-w-0">
                                     <span class="block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr('Valorisation du stock') }}</span>
                                     <strong class="mt-0.5 block truncate text-slate-900 dark:text-white">{{ $accountCostingInfo['label'] }}</strong>

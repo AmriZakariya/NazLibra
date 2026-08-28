@@ -1,14 +1,17 @@
 <?php
 
 return [
-    'meta_title'       => 'Castl-it-POS — Logiciel de caisse & gestion de stock au Maroc',
-    'meta_description' => 'Castl-it-POS : logiciel de caisse tactile et gestion de stock pour librairies, cafés, restaurants, pharmacies et commerces au Maroc. Hors ligne, multi-postes, en français, arabe et anglais. Application Android et navigateur. Essai sans engagement.',
+    'meta_title'       => 'Castl-it-POS — Logiciel de caisse & gestion de stock',
+    'meta_description' => 'Castl-it-POS : logiciel de caisse tactile et gestion de stock pour librairies, cafés, restaurants, pharmacies et tous types de commerces. Hors ligne, multi-postes, multi-devises, en français, arabe et anglais. Application Android et navigateur. Essai sans engagement.',
 
     'nav_features' => 'Fonctionnalités',
     'nav_sectors'  => 'Secteurs',
+    'nav_demo'     => 'Démo',
     'nav_start'    => 'Commencer',
+    'cta_demo'      => 'Tester la démo',
+    'demo_note'     => 'Testez sans inscription — accès démo en direct',
 
-    'hero_eyebrow'  => 'Caisse & gestion de stock · Maroc',
+    'hero_eyebrow'  => 'Caisse & gestion de stock',
     'hero_title_pre'=> 'Vendez plus vite avec',
     'hero_lead'     => 'La caisse tactile et la gestion de stock de votre commerce — sur tablette, téléphone ou navigateur. En boutique, au comptoir, même sans internet. En français, en arabe et en anglais.',
     'cta_create'    => 'Créer ma boutique',
@@ -35,7 +38,7 @@ return [
     'adv_sub'     => "Une caisse fiable qui ne s'arrête jamais, s'adapte à votre métier et parle votre langue.",
     'adv' => [
         ['n' => '0',     't' => 'Coupure qui vous arrête', 'd' => 'Le mode hors ligne garde la caisse ouverte même sans internet.'],
-        ['n' => '3',     't' => 'Langues : FR, AR, EN',     'd' => 'Interface multilingue, devise MAD, TVA et ICE prêts pour le Maroc.'],
+        ['n' => '3',     't' => 'Langues : FR, AR, EN',     'd' => 'Interface multilingue, multi-devises, taxes et champs de conformité configurables.'],
         ['n' => '∞',     't' => 'Postes & magasins',        'd' => 'Multi-caisses et multi-magasins avec un stock centralisé.'],
         ['n' => '5 min', 't' => 'Pour démarrer',            'd' => "Votre espace est prêt peu après validation de l'inscription."],
     ],
@@ -77,7 +80,7 @@ return [
     'faqs' => [
         ['q' => 'Castl-it-POS fonctionne-t-il sans connexion internet ?', 'a' => "Oui. Castl-it-POS est une caisse hors ligne : les ventes continuent même sans internet et se synchronisent automatiquement dès la reconnexion. Aucune vente n'est perdue."],
         ['q' => 'Pour quels types de commerce est-il adapté ?', 'a' => "Librairies, papeteries, cafés, restaurants, pharmacies, drogueries et commerces de détail. L'interface s'adapte à votre activité dès la création de votre espace."],
-        ['q' => 'Est-ce disponible en plusieurs langues ?', 'a' => 'Oui, Castl-it-POS est disponible en français, en arabe et en anglais, adapté au marché marocain (devise MAD, TVA, ICE).'],
+        ['q' => 'Est-ce disponible en plusieurs langues ?', 'a' => 'Oui, Castl-it-POS est disponible en français, en arabe et en anglais, avec multi-devises et des taxes et champs de conformité configurables selon votre pays.'],
         ['q' => 'Sur quels appareils puis-je l\'utiliser ?', 'a' => "Sur tablette et téléphone Android via l'application, et depuis n'importe quel navigateur sur ordinateur. Vos données sont synchronisées entre tous vos postes."],
         ['q' => 'Puis-je utiliser plusieurs caisses et plusieurs magasins ?', 'a' => 'Oui. Castl-it-POS gère plusieurs postes de caisse et plusieurs magasins ou dépôts avec un stock centralisé.'],
         ['q' => 'Comment démarrer ?', 'a' => 'Remplissez le formulaire d\'inscription. Après validation, votre espace est créé sur votre propre adresse et vous recevez vos accès par email.'],
@@ -106,7 +109,7 @@ return [
     'f_consent'   => "En envoyant ce formulaire, vous acceptez d'être contacté au sujet de votre inscription.",
     'f_errors'    => 'Merci de corriger les champs indiqués ci-dessous.',
 
-    'footer_tagline' => 'La caisse et la gestion de stock des commerces marocains',
+    'footer_tagline' => 'Le point de vente et la gestion de stock pour votre commerce',
 
     'ok_title'  => 'Merci, votre demande est bien reçue.',
     'ok_sub'    => "Notre équipe la valide au plus vite. Dès l'approbation, vous recevez un email avec vos accès et l'adresse de votre caisse.",

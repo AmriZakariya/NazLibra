@@ -72,6 +72,10 @@
     .hero h1 .hl { color: var(--brand); position: relative; white-space: nowrap; }
     .hero p.lead { font-size: 18.5px; color: var(--muted); max-width: 42ch; line-height: 1.6; }
     .hero-cta { display: flex; gap: 12px; margin-top: 30px; flex-wrap: wrap; align-items: center; }
+    .btn-demo { background: color-mix(in srgb, var(--brand) 10%, transparent); border-color: color-mix(in srgb, var(--brand) 35%, transparent); color: var(--brand); }
+    .btn-demo:hover { background: color-mix(in srgb, var(--brand) 16%, transparent); border-color: var(--brand); }
+    .demo-note { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+    .demo-note svg { width: 15px; height: 15px; color: var(--accent); }
     .hero-badges { display: flex; gap: 18px; margin-top: 22px; flex-wrap: wrap; }
     .hero-badges span { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
     .hero-badges svg { width: 16px; height: 16px; color: var(--brand); }
@@ -271,13 +275,26 @@
             <span class="eyebrow">{{ __('castlit.hero_eyebrow') }}</span>
             <h1>{{ __('castlit.hero_title_pre') }} <span class="hl">Castl-it-POS</span>.</h1>
             <p class="lead">{{ __('castlit.hero_lead') }}</p>
+            @php $demoUrl = config('castlit.demo.url'); @endphp
             <div class="hero-cta">
                 <a href="#inscription" class="btn btn-primary">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
                     {{ __('castlit.cta_create') }}
                 </a>
+                @if ($demoUrl)
+                    <a href="{{ $demoUrl }}" target="_blank" rel="noopener" class="btn btn-ghost btn-demo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        {{ __('castlit.cta_demo') }}
+                    </a>
+                @endif
                 {!! $storeButton() !!}
             </div>
+            @if ($demoUrl)
+                <p class="demo-note">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                    {{ __('castlit.demo_note') }}
+                </p>
+            @endif
             <div class="hero-badges">
                 <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> {{ __('castlit.badge_no_commitment') }}</span>
                 <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> {{ __('castlit.badge_ready') }}</span>

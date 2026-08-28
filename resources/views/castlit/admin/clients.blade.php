@@ -26,6 +26,8 @@
     .pill-live { background: var(--ok-bg); color: var(--ok); }
     .pill-failed { background: var(--err-bg); color: var(--err); }
     .pill-suspended { background: var(--warn-bg); color: var(--warn); }
+    .pill-blocked { background: var(--err-bg); color: var(--err); }
+    .pill-trial { background: var(--warn-bg); color: var(--warn); }
     .pill-running, .pill-queued { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
     .ver { font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 650; }
     .ver .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
@@ -66,6 +68,9 @@
                 @if ($masterSha)<b>{{ $masterSha }}</b>@else<b class="muted">indisponible (git absent)</b>@endif
             </span>
             <span>Espaces à jour : <b>{{ $upToDate }}</b></span>
+            <span>Payés : <b>{{ $stats['paid'] }}</b></span>
+            <span>En essai : <b>{{ $stats['trial'] }}</b></span>
+            <span>Bloqués : <b>{{ $stats['blocked'] }}</b></span>
             <span>Total : <b>{{ $installs->total() }}</b></span>
         </div>
 
@@ -74,9 +79,10 @@
                 <thead>
                     <tr>
                         <th>Commerce</th>
-                        <th>Version déployée</th>
+                        <th>Facturation</th>
                         <th>État</th>
-                        <th>Provisionné</th>
+                        <th>Version déployée</th>
+                        <th>Créé le</th>
                         <th style="text-align:right">Actions</th>
                     </tr>
                 </thead>
@@ -97,24 +103,24 @@
                                 <a class="sd" href="{{ $install->url() }}" target="_blank" rel="noopener">{{ $install->domain }} ↗</a>
                             </td>
                             <td>
-                                @if (! $install->isLive())
-                                    <span class="ver na"><span class="dot"></span>—</span>
-                                @elseif ($stale)
-                                    <span class="ver stale"><span class="dot"></span>{{ $install->commit_sha ?? '?' }}
-                                        <small>Mise à jour disponible</small></span>
+                                @if ($install->isPaid())
+                                    <span class="pill pill-live">Payé</span>
+                                    <small class="muted">le {{ $install->paid_at->format('d/m/Y') }}</small>
+                                @elseif ($install->trialExpired())
+                                    <span class="pill pill-failed">Essai expiré</span>
+                                    <small class="muted">fin {{ $install->trial_ends_at->format('d/m/Y') }}</small>
+                                @elseif ($install->onTrial())
+                                    <span class="pill pill-trial">Essai · {{ $install->trialDaysLeft() }} j</span>
+                                    <small class="muted">fin {{ $install->trial_ends_at->format('d/m/Y') }}</small>
                                 @else
-                                    <span class="ver ok"><span class="dot"></span>{{ $install->commit_sha ?? '—' }}
-                                        <small>{{ $masterSha ? 'À jour' : 'Déployé' }}</small></span>
-                                @endif
-                                @if ($install->updated_version_at)
-                                    <small class="muted">MàJ {{ $install->updated_version_at->format('d/m/Y') }}</small>
+                                    <span class="muted">—</span>
                                 @endif
                             </td>
                             <td>
                                 @if ($busy)
                                     <span class="pill pill-{{ $install->status }}">{{ ucfirst($install->status) }}</span>
                                 @elseif ($install->isSuspended())
-                                    <span class="pill pill-suspended">Suspendu</span>
+                                    <span class="pill pill-blocked">Bloqué</span>
                                 @elseif ($install->isLive())
                                     <span class="pill pill-live">En ligne</span>
                                 @else
@@ -124,7 +130,18 @@
                                     <div class="step">{{ $install->current_step }}</div>
                                 @endif
                             </td>
-                            <td class="muted">{{ $install->provisioned_at?->format('d/m/Y') ?? '—' }}</td>
+                            <td>
+                                @if (! $install->isLive())
+                                    <span class="ver na"><span class="dot"></span>—</span>
+                                @elseif ($stale)
+                                    <span class="ver stale"><span class="dot"></span>{{ $install->commit_sha ?? '?' }}
+                                        <small>Mise à jour disponible</small></span>
+                                @else
+                                    <span class="ver ok"><span class="dot"></span>{{ $install->commit_sha ?? '—' }}
+                                        <small>{{ $masterSha ? 'À jour' : 'Déployé' }}</small></span>
+                                @endif
+                            </td>
+                            <td class="muted">{{ $install->created_at?->format('d/m/Y') ?? '—' }}</td>
                             <td>
                                 <div class="actions">
                                     @if ($install->isLive() && ! $busy)
@@ -133,17 +150,30 @@
                                             @csrf
                                             <button class="btn-sm primary" type="submit">Mettre à jour</button>
                                         </form>
+                                        @if ($install->isPaid())
+                                            <form method="POST" action="{{ route('castlit.admin.clients.unpaid', $install) }}"
+                                                  onsubmit="return confirm('Remettre {{ $install->domain }} en essai / impayé ?');">
+                                                @csrf
+                                                <button class="btn-sm" type="submit">Marquer impayé</button>
+                                            </form>
+                                        @else
+                                            <form method="POST" action="{{ route('castlit.admin.clients.paid', $install) }}"
+                                                  onsubmit="return confirm('Marquer {{ $install->domain }} comme payé ?');">
+                                                @csrf
+                                                <button class="btn-sm ok" type="submit">Marquer payé</button>
+                                            </form>
+                                        @endif
                                         @if ($install->is_enabled)
                                             <form method="POST" action="{{ route('castlit.admin.clients.disable', $install) }}"
-                                                  onsubmit="return confirm('Suspendre {{ $install->domain }} ? Le client verra une page « compte suspendu ».');">
+                                                  onsubmit="return confirm('Bloquer {{ $install->domain }} ? Le client verra une page « compte suspendu ».');">
                                                 @csrf
-                                                <button class="btn-sm warn" type="submit">Suspendre</button>
+                                                <button class="btn-sm warn" type="submit">Bloquer</button>
                                             </form>
                                         @else
                                             <form method="POST" action="{{ route('castlit.admin.clients.enable', $install) }}"
-                                                  onsubmit="return confirm('Réactiver {{ $install->domain }} ?');">
+                                                  onsubmit="return confirm('Débloquer {{ $install->domain }} ?');">
                                                 @csrf
-                                                <button class="btn-sm ok" type="submit">Réactiver</button>
+                                                <button class="btn-sm ok" type="submit">Débloquer</button>
                                             </form>
                                         @endif
                                     @endif
@@ -154,7 +184,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="empty">Aucun espace client provisionné pour le moment.</td></tr>
+                        <tr><td colspan="6" class="empty">Aucun espace client provisionné pour le moment.</td></tr>
                     @endforelse
                 </tbody>
             </table>

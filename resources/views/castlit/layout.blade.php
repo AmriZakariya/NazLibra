@@ -5,6 +5,7 @@
     $lang = in_array(app()->getLocale(), ['fr', 'ar', 'en'], true) ? app()->getLocale() : 'fr';
     $isRtl = $lang === 'ar';
     $langLabels = ['fr' => 'FR', 'ar' => 'ع', 'en' => 'EN'];
+    $demoUrl = config('castlit.demo.url');
     $isMarketing = request()->routeIs('castlit.landing') || request()->routeIs('castlit.subscribe.success');
 
     // Self-referential, per-locale URLs so canonical and hreflang agree: fr is the
@@ -93,12 +94,12 @@
                 ],
                 'image' => $ogImage,
                 'email' => $brand['email'],
-                'areaServed' => ['@type' => 'Country', 'name' => 'Maroc'],
+                'areaServed' => 'Worldwide',
                 'contactPoint' => [
                     '@type' => 'ContactPoint',
                     'contactType' => 'customer support',
                     'email' => $brand['email'],
-                    'areaServed' => 'MA',
+                    'areaServed' => 'Worldwide',
                     'availableLanguage' => ['French', 'Arabic', 'English'],
                 ],
                 'sameAs' => $socials ?: null,
@@ -109,7 +110,7 @@
                 'url' => $siteUrl,
                 'name' => $brand['name'],
                 'description' => $brand['description'],
-                'inLanguage' => ['fr-MA', 'ar-MA', 'en'],
+                'inLanguage' => ['fr', 'ar', 'en'],
                 'publisher' => ['@id' => $siteUrl.'/#organization'],
             ],
             array_filter([
@@ -128,7 +129,7 @@
                 'offers' => [
                     '@type' => 'Offer',
                     'price' => '0',
-                    'priceCurrency' => 'MAD',
+                    'priceCurrency' => 'USD',
                     'description' => 'Essai sans engagement',
                 ],
             ]),
@@ -222,7 +223,7 @@
         .wordmark .wm-accent { color: var(--brand); }
         .nav .spacer { margin-left: auto; }
         .nav-links { display: flex; align-items: center; gap: 8px; }
-        @media (max-width: 640px) { .nav-links a.nav-hide-sm { display: none; } }
+        @media (max-width: 860px) { .nav-links a.nav-hide-sm { display: none; } }
         .lang-switch { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px;
                        border: 1px solid var(--sand); background: color-mix(in srgb, var(--surface) 60%, transparent); }
         .lang-opt { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 26px; padding: 0 8px;
@@ -254,6 +255,9 @@
             <div class="nav-links">
                 <a href="{{ route('castlit.landing') }}#fonctionnalites" class="btn btn-ghost nav-hide-sm" style="padding:9px 16px">{{ __('castlit.nav_features') }}</a>
                 <a href="{{ route('castlit.landing') }}#secteurs" class="btn btn-ghost nav-hide-sm" style="padding:9px 16px">{{ __('castlit.nav_sectors') }}</a>
+                @if ($demoUrl)
+                    <a href="{{ $demoUrl }}" target="_blank" rel="noopener" class="btn btn-ghost nav-hide-sm" style="padding:9px 16px">{{ __('castlit.nav_demo') }}</a>
+                @endif
                 <div class="lang-switch" role="group" aria-label="Language">
                     @foreach (['fr', 'ar', 'en'] as $code)
                         <a href="{{ request()->fullUrlWithQuery(['lang' => $code]) }}" hreflang="{{ $code }}" class="lang-opt {{ $lang === $code ? 'is-active' : '' }}">{{ $langLabels[$code] }}</a>

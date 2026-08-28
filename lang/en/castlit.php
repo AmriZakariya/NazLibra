@@ -1,14 +1,17 @@
 <?php
 
 return [
-    'meta_title'       => 'Castl-it-POS — POS & inventory software for shops in Morocco',
-    'meta_description' => 'Castl-it-POS: touchscreen point-of-sale and inventory management for bookshops, cafés, restaurants, pharmacies and retail in Morocco. Offline, multi-register, in French, Arabic and English. Android app and browser. Free trial, no commitment.',
+    'meta_title'       => 'Castl-it-POS — POS & inventory software for shops',
+    'meta_description' => 'Castl-it-POS: touchscreen point-of-sale and inventory management for bookshops, cafés, restaurants, pharmacies and all kinds of retail. Offline, multi-register, multi-currency, in French, Arabic and English. Android app and browser. Free trial, no commitment.',
 
     'nav_features' => 'Features',
     'nav_sectors'  => 'Industries',
+    'nav_demo'     => 'Demo',
     'nav_start'    => 'Get started',
+    'cta_demo'      => 'Try the demo',
+    'demo_note'     => 'No sign-up needed — try the live demo',
 
-    'hero_eyebrow'  => 'POS & inventory · Morocco',
+    'hero_eyebrow'  => 'POS & inventory',
     'hero_title_pre'=> 'Sell faster with',
     'hero_lead'     => 'The touchscreen register and inventory management for your shop — on tablet, phone or browser. In-store, at the counter, even without internet. In French, Arabic and English.',
     'cta_create'    => 'Create my shop',
@@ -35,7 +38,7 @@ return [
     'adv_sub'     => 'A reliable register that never stops, adapts to your trade and speaks your language.',
     'adv' => [
         ['n' => '0',     't' => 'Outages that stop you', 'd' => 'Offline mode keeps the register running even without internet.'],
-        ['n' => '3',     't' => 'Languages: FR, AR, EN',  'd' => 'Multilingual interface, MAD currency, VAT and ICE ready for Morocco.'],
+        ['n' => '3',     't' => 'Languages: FR, AR, EN',  'd' => 'Multilingual interface, multi-currency, configurable taxes and compliance fields.'],
         ['n' => '∞',     't' => 'Registers & stores',     'd' => 'Multiple registers and stores with centralised stock.'],
         ['n' => '5 min', 't' => 'To get going',           'd' => 'Your space is ready shortly after your sign-up is approved.'],
     ],
@@ -47,7 +50,7 @@ return [
         ['t' => 'Fast checkout',          'd' => 'Scan, charge, print the receipt. Cash, card, transfer or customer advance — in a few taps.'],
         ['t' => 'Real-time inventory',    'd' => 'Track quantities, low-stock alerts, stocktakes and purchase costs computed automatically.'],
         ['t' => 'Offline mode',           'd' => 'Internet drops? Sales keep going and sync back on reconnection. Nothing is lost.'],
-        ['t' => 'Invoices & quotes',      'd' => 'Compliant documents (VAT, ICE), fixed or % discounts, tax-in/tax-out, payment and due-date tracking.'],
+        ['t' => 'Invoices & quotes',      'd' => 'Compliant documents (configurable taxes), fixed or % discounts, tax-in/tax-out, payment and due-date tracking.'],
         ['t' => 'Multi-store',            'd' => 'Several points of sale and warehouses, centralised stock, roles and permissions per user.'],
         ['t' => 'Dashboard',              'd' => 'Revenue, margins, top products, peak hours and loyalty — your metrics at a glance.'],
     ],
@@ -77,7 +80,7 @@ return [
     'faqs' => [
         ['q' => 'Does Castl-it-POS work without an internet connection?', 'a' => 'Yes. Castl-it-POS is an offline register: sales keep going even without internet and sync automatically on reconnection. No sale is lost.'],
         ['q' => 'What types of business is it for?', 'a' => 'Bookshops, stationery, cafés, restaurants, pharmacies, hardware and retail stores. The interface adapts to your trade when you create your space.'],
-        ['q' => 'Is it available in several languages?', 'a' => 'Yes, Castl-it-POS is available in French, Arabic and English, tailored to the Moroccan market (MAD currency, VAT, ICE).'],
+        ['q' => 'Is it available in several languages?', 'a' => 'Yes, Castl-it-POS is available in French, Arabic and English, with multi-currency and taxes and compliance fields you can configure for your country.'],
         ['q' => 'What devices can I use it on?', 'a' => 'On Android tablets and phones via the app, and from any browser on a computer. Your data is synced across all your registers.'],
         ['q' => 'Can I use several registers and stores?', 'a' => 'Yes. Castl-it-POS handles multiple registers and multiple stores or warehouses with centralised stock.'],
         ['q' => 'How do I get started?', 'a' => 'Fill in the sign-up form. Once approved, your space is created on your own address and you receive your login details by email.'],
@@ -106,7 +109,7 @@ return [
     'f_consent'   => 'By submitting this form, you agree to be contacted about your sign-up.',
     'f_errors'    => 'Please correct the fields highlighted below.',
 
-    'footer_tagline' => 'POS & inventory for Moroccan shops',
+    'footer_tagline' => 'Point of sale & inventory management for your business',
 
     'ok_title'  => 'Thanks — your request has been received.',
     'ok_sub'    => 'Our team reviews it shortly. Once approved, you receive an email with your login and the address of your register.',

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 140" role="img" aria-label="Castl-it-POS">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4064E8"/>
+      <stop offset="1" stop-color="#2841A2"/>
+    </linearGradient>
+  </defs>
+  <!-- mark -->
+  <rect x="6" y="6" width="128" height="128" rx="36" fill="url(#bg)"/>
+  <path d="M92 53 A26.5 26.5 0 1 0 92 87" fill="none" stroke="#ffffff" stroke-width="14.5" stroke-linecap="round"/>
+  <circle cx="96.5" cy="70" r="9" fill="#F59E0B"/>
+  <!-- wordmark -->
+  <text x="162" y="90" font-family="Inter, 'Segoe UI', system-ui, -apple-system, Arial, sans-serif" font-size="66" font-weight="800" letter-spacing="-1.8">
+    <tspan fill="#0E1330">Castl-it-</tspan><tspan fill="#3157D5">POS</tspan>
+  </text>
+</svg>

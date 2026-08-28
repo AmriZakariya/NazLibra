@@ -47,6 +47,8 @@ if (config('castlit.is_master')) {
             Route::post('/clients/{install}/maj', [ClientAdminController::class, 'update'])->name('clients.update');
             Route::post('/clients/{install}/suspendre', [ClientAdminController::class, 'disable'])->name('clients.disable');
             Route::post('/clients/{install}/reactiver', [ClientAdminController::class, 'enable'])->name('clients.enable');
+            Route::post('/clients/{install}/payer', [ClientAdminController::class, 'markPaid'])->name('clients.paid');
+            Route::post('/clients/{install}/impaye', [ClientAdminController::class, 'markUnpaid'])->name('clients.unpaid');
             Route::get('/{subscription}', [SubscriptionAdminController::class, 'show'])->name('show');
             Route::post('/{subscription}/approuver', [SubscriptionAdminController::class, 'approve'])->name('approve');
             Route::post('/{subscription}/rejeter', [SubscriptionAdminController::class, 'reject'])->name('reject');

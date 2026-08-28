@@ -10,6 +10,7 @@ use App\Models\Tax;
 use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\User;
+use App\Models\VirtualDevice;
 use App\Support\BusinessMode;
 use App\Support\ItemTypes;
 use Illuminate\Support\Facades\DB;
@@ -88,7 +89,7 @@ class TenantProvisioningService
                 ]);
             }
 
-            Location::create([
+            $location = Location::create([
                 'tenant_id'  => $tenant->id,
                 'name'       => $store['name'],
                 'type'       => 'store',
@@ -97,6 +98,8 @@ class TenantProvisioningService
                 'is_default' => true,
                 'is_active'  => true,
             ]);
+
+            $this->seedDefaultDevices($tenant->id, $location->id);
 
             foreach ($this->defaultCategoriesForMode($store['business_mode']) as $catName) {
                 if (empty($catName)) {
@@ -182,6 +185,34 @@ class TenantProvisioningService
         ]);
 
         return [$tenant, $slug, $storeNames];
+    }
+
+    /**
+     * Give a fresh client ready-to-use POS terminals: N web (browser/computer)
+     * and N mobile stations, per config('castlit.provision.default_devices').
+     */
+    private function seedDefaultDevices(int $tenantId, ?int $locationId): void
+    {
+        $counts = config('castlit.provision.default_devices', ['web' => 2, 'mobile' => 2]);
+
+        $groups = [
+            ['type' => 'computer', 'label' => 'Terminal Web',    'count' => (int) ($counts['web'] ?? 0)],
+            ['type' => 'mobile',   'label' => 'Terminal Mobile', 'count' => (int) ($counts['mobile'] ?? 0)],
+        ];
+
+        foreach ($groups as $group) {
+            for ($i = 1; $i <= $group['count']; $i++) {
+                $name = $group['label'].' '.$i;
+                VirtualDevice::create([
+                    'tenant_id'   => $tenantId,
+                    'location_id' => $locationId,
+                    'name'        => $name,
+                    'code'        => Str::slug($name),   // unique per tenant: terminal-web-1, terminal-mobile-1, …
+                    'type'        => $group['type'],
+                    'is_active'   => true,
+                ]);
+            }
+        }
     }
 
     private function defaultRoles(): array

@@ -16,13 +16,15 @@ class TenantInstall extends Model
         'subscription_id', 'subdomain', 'domain', 'docroot', 'db_name',
         'db_user', 'status', 'is_enabled', 'current_step', 'last_action',
         'provision_log', 'commit_sha', 'owner_email', 'provisioned_at',
-        'updated_version_at',
+        'updated_version_at', 'trial_ends_at', 'paid_at',
     ];
 
     protected $casts = [
         'is_enabled'         => 'boolean',
         'provisioned_at'     => 'datetime',
         'updated_version_at' => 'datetime',
+        'trial_ends_at'      => 'datetime',
+        'paid_at'            => 'datetime',
     ];
 
     protected $attributes = [
@@ -48,6 +50,44 @@ class TenantInstall extends Model
     public function isSuspended(): bool
     {
         return $this->isLive() && ! $this->is_enabled;
+    }
+
+    /** Manually blocked by the platform admin (same mechanism as suspend). */
+    public function isBlocked(): bool
+    {
+        return ! $this->is_enabled;
+    }
+
+    /** The client has settled payment. */
+    public function isPaid(): bool
+    {
+        return $this->paid_at !== null;
+    }
+
+    /** Still within the free trial window and not yet paid. */
+    public function onTrial(): bool
+    {
+        return ! $this->isPaid()
+            && $this->trial_ends_at !== null
+            && $this->trial_ends_at->isFuture();
+    }
+
+    /** Trial window elapsed without payment. */
+    public function trialExpired(): bool
+    {
+        return ! $this->isPaid()
+            && $this->trial_ends_at !== null
+            && $this->trial_ends_at->isPast();
+    }
+
+    /** Whole days left in the trial (negative if expired), or null if untracked. */
+    public function trialDaysLeft(): ?int
+    {
+        if ($this->trial_ends_at === null) {
+            return null;
+        }
+
+        return (int) ceil(now()->floatDiffInDays($this->trial_ends_at, false));
     }
 
     /** True when the client's deployed commit differs from the master's HEAD. */

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Castl-it-POS">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4064E8"/>
+      <stop offset="1" stop-color="#2841A2"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".18"/>
+      <stop offset=".5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="130" fill="url(#bg)"/>
+  <rect x="24" y="24" width="464" height="232" rx="130" fill="url(#sheen)"/>
+  <!-- "C" arc -->
+  <path d="M330 190 A96 96 0 1 0 330 322" fill="none" stroke="#ffffff" stroke-width="52" stroke-linecap="round"/>
+  <!-- amber "receipt dot" -->
+  <circle cx="346" cy="256" r="33" fill="#F59E0B"/>
+</svg>

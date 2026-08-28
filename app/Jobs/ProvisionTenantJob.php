@@ -109,6 +109,8 @@ class ProvisionTenantJob implements ShouldQueue
             'commit_sha'     => $result['commit'] ?? null,
             'owner_email'    => $result['owner_email'] ?: $subscription->email,
             'provisioned_at' => now(),
+            // Start the free trial now (unless one was already set).
+            'trial_ends_at'  => $install->trial_ends_at ?? now()->addMonths((int) config('castlit.trial_months', 3)),
         ])->save();
 
         $this->notifyOwner($install, $subscription, $result['owner_password'] ?? null);

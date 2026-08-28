@@ -33,6 +33,14 @@ class ClientAdminController extends Controller
             'upToDate'  => TenantInstall::where('status', TenantInstall::STATUS_LIVE)
                 ->when($masterSha, fn ($q) => $q->where('commit_sha', $masterSha))
                 ->count(),
+            'stats'     => [
+                'paid'    => TenantInstall::whereNotNull('paid_at')->count(),
+                'trial'   => TenantInstall::whereNull('paid_at')
+                    ->whereNotNull('trial_ends_at')
+                    ->where('trial_ends_at', '>', now())
+                    ->count(),
+                'blocked' => TenantInstall::where('is_enabled', false)->count(),
+            ],
         ]);
     }
 
@@ -59,6 +67,22 @@ class ClientAdminController extends Controller
     public function enable(TenantInstall $install): RedirectResponse
     {
         return $this->runSync($install, 'enable', "« {$install->domain} » réactivé.");
+    }
+
+    /** Mark the client as paid (ends the trial state). */
+    public function markPaid(TenantInstall $install): RedirectResponse
+    {
+        $install->forceFill(['paid_at' => now()])->save();
+
+        return back()->with('success', "« {$install->domain} » marqué comme payé.");
+    }
+
+    /** Revert to unpaid / trial. */
+    public function markUnpaid(TenantInstall $install): RedirectResponse
+    {
+        $install->forceFill(['paid_at' => null])->save();
+
+        return back()->with('success', "« {$install->domain} » remis en essai / impayé.");
     }
 
     private function runSync(TenantInstall $install, string $action, string $okMessage): RedirectResponse
