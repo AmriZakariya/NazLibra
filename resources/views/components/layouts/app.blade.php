@@ -415,6 +415,8 @@
                 'API SMS/WhatsApp' => 'sms whatsapp api messaging messages provider twilio sendgrid resend canal channel',
                 'Matériel' => 'hardware matériel materiel printer imprimante thermal thermique escpos usb serial tiroir caisse drawer barcode scanner lecteur code-barres',
                 'Matériel POS' => 'hardware matériel materiel pos printer imprimante thermal thermique escpos usb serial tiroir caisse drawer barcode scanner lecteur code-barres groupe groupes impression routing routage',
+                'Appareils' => 'devices appareils terminal terminaux terminals device poste postes machine machines caisse register web mobile tablette tablet session sessions virtual virtuel virtuels أجهزة جهاز طرفية',
+                'Appareils virtuels' => 'virtual devices appareils virtuels terminal terminaux terminals device poste postes session sessions web mobile tablette tablet caisse register أجهزة افتراضية جهاز طرفية',
                 'Groupes d’impression' => 'printer groups printer group groupes impression groupe imprimante groupe imprimantes routage routing cuisine ticket receipt station station impression kitchen printer rules règles regles catégories categories',
                 'Créer une remise' => 'discount remise rabais réduction reduction promo percentage percent fixed value panier cart item article payment method méthode paiement',
                 'Liste des remises' => 'discounts remises rabais réductions reductions promo linked tickets ventes coupons',
@@ -539,6 +541,7 @@
                                                 Str::contains($commandLink['href'], 'section=hardware') => 'printer imprimante thermal thermique barcode scanner tiroir drawer serial usb printer group printer groups groupe groupes impression routage routing catégories categories station cuisine ticket',
                                                 Str::contains($commandLink['href'], 'section=taxes') => 'tax taxes tva vat impôt impot fiscal',
                                                 Str::contains($commandLink['href'], 'section=payment-types') => 'payment paiement cash card carte virement cheque chèque',
+                                                Str::contains($commandLink['href'], 'section=virtual-devices') => 'devices appareils terminal terminaux terminals device poste postes machine session sessions web mobile tablette caisse register virtual virtuel virtuels',
                                                 default => '',
                                             };
                                             $commandSearch = Str::lower($commandLink['label'].' '.$commandLink['translated_label'].' '.$commandLink['section'].' '.$commandLink['translated_section'].' '.$commandLink['kind'].' '.$labelAliases.' '.$sectionAliases.' '.$moduleAliases.' '.$hrefAliases);

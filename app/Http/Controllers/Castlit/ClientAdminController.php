@@ -56,10 +56,23 @@ class ClientAdminController extends Controller
             return back()->with('error', "Cet espace n'est pas en ligne : mise à jour impossible.");
         }
 
-        $install->forceFill(['current_step' => 'Mise à jour en file d’attente…'])->save();
-        ManageClientJob::dispatch($install->id, 'update');
+        // Run now (synchronously) so we can report the actual outcome + log.
+        ManageClientJob::dispatchSync($install->id, 'update');
+        $install->refresh();
 
-        return back()->with('success', "Mise à jour de « {$install->domain} » lancée.");
+        // Surface the full step log to the page so the admin sees what happened.
+        $back = back()->with('update_log', $install->provision_log);
+
+        if (str_contains((string) $install->current_step, 'échec')) {
+            return $back->with('error',
+                "Échec de la mise à jour de « {$install->domain} » — {$install->current_step}");
+        }
+
+        $version = $install->commit_sha ? " → version {$install->commit_sha}" : '';
+        $when = $install->updated_version_at?->format('d/m/Y H:i');
+
+        return $back->with('success',
+            "« {$install->domain} » mise à jour avec succès{$version}".($when ? " ({$when})" : '').'.');
     }
 
     /** Suspend a client — runs synchronously for instant feedback. */

@@ -51,6 +51,10 @@
                     background: var(--warn-bg); color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); }
     .deploy-alert code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; }
     .deploy-ok { margin-bottom: 18px; font-size: 13px; font-weight: 600; color: var(--ok); }
+    .op-log { margin-bottom: 18px; border: 1px solid var(--sand); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+    .op-log summary { cursor: pointer; padding: 12px 16px; font-weight: 700; font-size: 13.5px; }
+    .op-log pre { margin: 0; padding: 0 16px 16px; max-height: 340px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+                  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; color: var(--muted); }
     .log-sha .pending { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase;
                         letter-spacing: .04em; color: var(--warn); background: var(--warn-bg); padding: 1px 6px; border-radius: 999px; vertical-align: middle; }
     .summary b { color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -79,6 +83,12 @@
 
         @if (session('success'))<div class="flash flash-ok">{{ session('success') }}</div>@endif
         @if (session('error'))<div class="flash flash-err">{{ session('error') }}</div>@endif
+        @if (session('update_log'))
+            <details class="op-log" open>
+                <summary>Détail de l'opération</summary>
+                <pre>{{ session('update_log') }}</pre>
+            </details>
+        @endif
 
         <div class="summary">
             <span>Version master :
