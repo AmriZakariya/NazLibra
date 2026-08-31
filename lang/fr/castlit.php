@@ -10,6 +10,7 @@ return [
     'nav_start'    => 'Commencer',
     'cta_demo'      => 'Tester la démo',
     'demo_note'     => 'Testez sans inscription — accès démo en direct',
+    'demo_creds'    => 'Identifiants démo :',
 
     'hero_eyebrow'  => 'Caisse & gestion de stock',
     'hero_title_pre'=> 'Vendez plus vite avec',

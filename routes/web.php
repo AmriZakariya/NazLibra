@@ -50,6 +50,7 @@ if (config('castlit.is_master')) {
             Route::post('/nouveau', [SubscriptionAdminController::class, 'store'])->name('store');
             // Client (install) manager — must precede the /{subscription} route.
             Route::get('/clients', [ClientAdminController::class, 'index'])->name('clients');
+            Route::post('/clients/git-pull', [ClientAdminController::class, 'pullFromGit'])->name('clients.git-pull');
             Route::post('/clients/{install}/maj', [ClientAdminController::class, 'update'])->name('clients.update');
             Route::post('/clients/{install}/suspendre', [ClientAdminController::class, 'disable'])->name('clients.disable');
             Route::post('/clients/{install}/reactiver', [ClientAdminController::class, 'enable'])->name('clients.enable');

@@ -52,6 +52,11 @@ return [
         // demo.<main_domain>; override with CASTLIT_DEMO_URL. Set to empty to hide
         // the demo links entirely.
         'url'      => env('CASTLIT_DEMO_URL', 'https://demo.'.env('CASTLIT_MAIN_DOMAIN', 'castlitpos.com')),
+        // Show the "compte de démonstration" box on this install's login page.
+        // Set CASTLIT_DEMO_LOGIN=true ONLY on the demo install; the credentials are
+        // then derived from the deterministic admin (admin@<sub>.com / admin) unless
+        // overridden below. Leave email/password blank to use the derived values.
+        'enabled'  => (bool) env('CASTLIT_DEMO_LOGIN', false),
         'email'    => env('CASTLIT_DEMO_EMAIL'),
         'password' => env('CASTLIT_DEMO_PASSWORD'),
     ],

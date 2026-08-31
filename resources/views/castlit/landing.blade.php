@@ -76,6 +76,8 @@
     .btn-demo:hover { background: color-mix(in srgb, var(--brand) 16%, transparent); border-color: var(--brand); }
     .demo-note { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
     .demo-note svg { width: 15px; height: 15px; color: var(--accent); }
+    .demo-creds { margin-top: 8px; font-size: 13px; color: var(--muted); }
+    .demo-creds code { background: color-mix(in srgb, var(--brand) 10%, transparent); color: var(--brand); padding: 2px 8px; border-radius: 6px; font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
     .hero-badges { display: flex; gap: 18px; margin-top: 22px; flex-wrap: wrap; }
     .hero-badges span { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
     .hero-badges svg { width: 16px; height: 16px; color: var(--brand); }
@@ -275,7 +277,21 @@
             <span class="eyebrow">{{ __('castlit.hero_eyebrow') }}</span>
             <h1>{{ __('castlit.hero_title_pre') }} <span class="hl">Castl-it-POS</span>.</h1>
             <p class="lead">{{ __('castlit.hero_lead') }}</p>
-            @php $demoUrl = config('castlit.demo.url'); @endphp
+            @php
+                $demoUrl = config('castlit.demo.url');
+                $demoCreds = null;
+                if ($demoUrl) {
+                    $host = parse_url($demoUrl, PHP_URL_HOST) ?? '';
+                    $suffix = '.'.config('castlit.main_domain');
+                    $sub = \Illuminate\Support\Str::endsWith($host, $suffix)
+                        ? substr($host, 0, -strlen($suffix)) : 'demo';
+                    $da = config('castlit.provision.default_admin', []);
+                    $demoCreds = [
+                        'email'    => str_replace('{sub}', $sub ?: 'demo', $da['email_pattern'] ?? 'admin@{sub}.com'),
+                        'password' => $da['password'] ?? 'admin',
+                    ];
+                }
+            @endphp
             <div class="hero-cta">
                 <a href="#inscription" class="btn btn-primary">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -294,6 +310,9 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
                     {{ __('castlit.demo_note') }}
                 </p>
+                @if ($demoCreds)
+                    <p class="demo-creds">{{ __('castlit.demo_creds') }} <code dir="ltr">{{ $demoCreds['email'] }}</code> / <code dir="ltr">{{ $demoCreds['password'] }}</code></p>
+                @endif
             @endif
             <div class="hero-badges">
                 <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg> {{ __('castlit.badge_no_commitment') }}</span>

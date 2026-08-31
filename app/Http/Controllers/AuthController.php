@@ -57,9 +57,13 @@ class AuthController extends Controller
 
     /**
      * Credentials for the "compte de démonstration" box on the login page.
-     * Explicit demo creds (config/.env) win — that's how the public demo install
-     * advertises its login in production. Otherwise, only in non-production, fall
-     * back to the first active user with the conventional "password".
+     *
+     * When the demo box is on (CASTLIT_DEMO_LOGIN=true, or explicit creds set),
+     * any missing value is DERIVED from the deterministic admin that
+     * provisioning creates — admin@<subdomain>.com / <default_admin password> —
+     * so the box can't advertise a wrong login. Explicit CASTLIT_DEMO_EMAIL /
+     * CASTLIT_DEMO_PASSWORD still override. Outside production, falls back to the
+     * first active user with the conventional "password".
      *
      * @return array{email:string,password:string}|null
      */
@@ -67,8 +71,23 @@ class AuthController extends Controller
     {
         $email = trim((string) config('castlit.demo.email'));
         $password = (string) config('castlit.demo.password');
-        if ($email !== '' && $password !== '') {
-            return ['email' => $email, 'password' => $password];
+        $enabled = filter_var(config('castlit.demo.enabled', false), FILTER_VALIDATE_BOOL)
+            || ($email !== '' && $password !== '');
+
+        if ($enabled) {
+            $admin = config('castlit.provision.default_admin', []);
+            if ($email === '') {
+                $sub = $this->currentSubdomain();
+                if ($sub !== null) {
+                    $email = str_replace('{sub}', $sub, (string) ($admin['email_pattern'] ?? 'admin@{sub}.com'));
+                }
+            }
+            if ($password === '') {
+                $password = (string) ($admin['password'] ?? 'admin');
+            }
+            if ($email !== '' && $password !== '') {
+                return ['email' => $email, 'password' => $password];
+            }
         }
 
         if (! app()->environment('production')) {
@@ -76,6 +95,20 @@ class AuthController extends Controller
             if ($fallback) {
                 return ['email' => $fallback, 'password' => 'password'];
             }
+        }
+
+        return null;
+    }
+
+    /** The client subdomain from the request host (e.g. demo.castlitpos.com → demo). */
+    private function currentSubdomain(): ?string
+    {
+        $host = strtolower(request()->getHost());
+        $suffix = '.'.strtolower((string) config('castlit.main_domain'));
+        if (str_ends_with($host, $suffix)) {
+            $sub = substr($host, 0, -strlen($suffix));
+
+            return ($sub === '' || $sub === 'www') ? null : $sub;
         }
 
         return null;

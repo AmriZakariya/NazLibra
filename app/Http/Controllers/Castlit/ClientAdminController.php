@@ -7,6 +7,7 @@ use App\Jobs\ManageClientJob;
 use App\Models\TenantInstall;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
 use Symfony\Component\Process\Process;
 
@@ -25,11 +26,15 @@ class ClientAdminController extends Controller
             ->paginate(30);
 
         $masterSha = $this->masterSha();
+        $commits = $this->recentCommits();
 
         return view('castlit.admin.clients', [
             'installs'  => $installs,
             'masterSha' => $masterSha,
-            'commits'   => $this->recentCommits(),
+            'commits'   => $commits,
+            // How many of the listed commits are newer than the deployed one
+            // (i.e. on origin/main but not yet deployed). null = can't tell.
+            'behind'    => $this->commitsBehind($masterSha, $commits),
             'upToDate'  => TenantInstall::where('status', TenantInstall::STATUS_LIVE)
                 ->when($masterSha, fn ($q) => $q->where('commit_sha', $masterSha))
                 ->count(),
@@ -85,6 +90,53 @@ class ClientAdminController extends Controller
         return back()->with('success', "« {$install->domain} » remis en essai / impayé.");
     }
 
+    /**
+     * Pull the latest code on the master from Git, then refresh the cached
+     * version + changelog. Requires the git binary to be runnable by the web
+     * process; if it isn't (common on shared hosting), we say so and refresh
+     * the version info from GitHub instead.
+     */
+    public function pullFromGit(): RedirectResponse
+    {
+        $branch = (string) (config('castlit.provision.repo_branch') ?: 'main');
+
+        $fetch = $this->runGit(['fetch', 'origin', $branch]);
+        $reset = $fetch === null ? null : $this->runGit(['reset', '--hard', 'origin/'.$branch]);
+
+        // Always refresh what we show.
+        Cache::forget('castlit.master_sha');
+        Cache::forget('castlit.recent_commits');
+
+        if ($reset === null) {
+            return back()->with('error',
+                "Git n'est pas exécutable depuis le web sur cet hôte. Déployez en SSH : "
+                ."git fetch origin {$branch} && git reset --hard origin/{$branch}. "
+                .'(Le journal des versions est actualisé depuis GitHub.)');
+        }
+
+        // Clear compiled caches so the new code is served.
+        $this->runArtisan(['config:clear']);
+        $this->runArtisan(['view:clear']);
+
+        $sha = $this->masterSha();
+
+        return back()->with('success',
+            'Code mis à jour depuis Git'.($sha ? " (version {$sha})" : '').'.');
+    }
+
+    /** Run an artisan command on the master (best-effort). */
+    private function runArtisan(array $args): void
+    {
+        try {
+            $php = config('castlit.provision.php_bin', 'php');
+            (new Process(array_merge([$php, 'artisan'], $args), base_path(), [
+                'PATH' => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin',
+            ]))->run();
+        } catch (\Throwable) {
+            // best-effort
+        }
+    }
+
     private function runSync(TenantInstall $install, string $action, string $okMessage): RedirectResponse
     {
         if (! $install->isLive()) {
@@ -122,32 +174,109 @@ class ClientAdminController extends Controller
     private function recentCommits(int $limit = 25): array
     {
         return Cache::remember('castlit.recent_commits', 60, function () use ($limit): array {
-            // Unit separator between fields, record separator between commits —
-            // safe against pipes/quotes in commit messages.
-            $fmt = '%h%x1f%cI%x1f%s%x1f%an%x1e';
-            $out = $this->runGit(['log', '-n', (string) $limit, '--no-merges', '--pretty=format:'.$fmt]);
-            if ($out === null || trim($out) === '') {
+            // Prefer the local git binary; fall back to the GitHub API when git
+            // can't run in the (shared-host) web process — otherwise the log is
+            // empty even though the code is deployed.
+            $commits = $this->gitLogCommits($limit);
+
+            return $commits ?: $this->githubCommits($limit);
+        });
+    }
+
+    /**
+     * How many of the (newest-first) commits are newer than the deployed SHA —
+     * i.e. sit on origin/main but aren't deployed yet. Returns the index of the
+     * deployed commit; null when it isn't in the list (can't determine).
+     */
+    private function commitsBehind(?string $deployedSha, array $commits): ?int
+    {
+        if (! $deployedSha || empty($commits)) {
+            return null;
+        }
+        foreach ($commits as $i => $c) {
+            $sha = (string) ($c['sha'] ?? '');
+            if ($sha !== '' && (str_starts_with($sha, $deployedSha) || str_starts_with($deployedSha, $sha))) {
+                return $i; // commits above index $i are newer than deployed
+            }
+        }
+
+        return null;
+    }
+
+    /** Recent commits via the local git binary (empty if git can't run here). */
+    private function gitLogCommits(int $limit): array
+    {
+        // Unit separator between fields, record separator between commits —
+        // safe against pipes/quotes in commit messages.
+        $fmt = '%h%x1f%cI%x1f%s%x1f%an%x1e';
+        $out = $this->runGit(['log', '-n', (string) $limit, '--no-merges', '--pretty=format:'.$fmt]);
+        if ($out === null || trim($out) === '') {
+            return [];
+        }
+
+        $commits = [];
+        foreach (explode("\x1e", trim($out)) as $row) {
+            $row = trim($row);
+            if ($row === '') {
+                continue;
+            }
+            [$sha, $date, $subject, $author] = array_pad(explode("\x1f", $row), 4, '');
+            $commits[] = [
+                'sha'     => $sha,
+                'date'    => $date,
+                'subject' => $subject,
+                'author'  => $author,
+                'type'    => $this->commitType($subject),
+            ];
+        }
+
+        return $commits;
+    }
+
+    /** Recent commits from the GitHub API (works with no git binary on the host). */
+    private function githubCommits(int $limit): array
+    {
+        $cfg = config('castlit.provision');
+        $owner = $cfg['repo_owner'] ?? null;
+        $name = $cfg['repo_name'] ?? null;
+        $branch = $cfg['repo_branch'] ?? 'main';
+        $token = (string) ($cfg['github_token'] ?? '');
+        if (! $owner || ! $name) {
+            return [];
+        }
+
+        try {
+            $req = Http::timeout(8)->acceptJson()->withHeaders([
+                'User-Agent' => 'castlit-admin',
+                'X-GitHub-Api-Version' => '2022-11-28',
+            ]);
+            if ($token !== '') {
+                $req = $req->withToken($token);
+            }
+            $res = $req->get("https://api.github.com/repos/{$owner}/{$name}/commits", [
+                'sha' => $branch,
+                'per_page' => $limit,
+            ]);
+            if (! $res->successful()) {
                 return [];
             }
 
             $commits = [];
-            foreach (explode("\x1e", trim($out)) as $row) {
-                $row = trim($row);
-                if ($row === '') {
-                    continue;
-                }
-                [$sha, $date, $subject, $author] = array_pad(explode("\x1f", $row), 4, '');
+            foreach ($res->json() as $c) {
+                $subject = trim(strtok((string) ($c['commit']['message'] ?? ''), "\n"));
                 $commits[] = [
-                    'sha'     => $sha,
-                    'date'    => $date,
+                    'sha'     => substr((string) ($c['sha'] ?? ''), 0, 7),
+                    'date'    => $c['commit']['author']['date'] ?? '',
                     'subject' => $subject,
-                    'author'  => $author,
+                    'author'  => $c['commit']['author']['name'] ?? '',
                     'type'    => $this->commitType($subject),
                 ];
             }
 
             return $commits;
-        });
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /**

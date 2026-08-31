@@ -10,6 +10,7 @@ return [
     'nav_start'    => 'Get started',
     'cta_demo'      => 'Try the demo',
     'demo_note'     => 'No sign-up needed — try the live demo',
+    'demo_creds'    => 'Demo login:',
 
     'hero_eyebrow'  => 'POS & inventory',
     'hero_title_pre'=> 'Sell faster with',

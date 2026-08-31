@@ -46,6 +46,13 @@
     .empty { padding: 48px; text-align: center; color: var(--muted); }
     .muted { color: var(--muted); font-size: 12.5px; }
     .summary { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; font-size: 13px; color: var(--muted); }
+    .deploy-alert { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+                    margin-bottom: 18px; padding: 14px 18px; border-radius: 12px; font-size: 14px;
+                    background: var(--warn-bg); color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); }
+    .deploy-alert code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; }
+    .deploy-ok { margin-bottom: 18px; font-size: 13px; font-weight: 600; color: var(--ok); }
+    .log-sha .pending { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase;
+                        letter-spacing: .04em; color: var(--warn); background: var(--warn-bg); padding: 1px 6px; border-radius: 999px; vertical-align: middle; }
     .summary b { color: var(--ink); font-variant-numeric: tabular-nums; }
     .pager { margin-top: 18px; }
 </style>
@@ -57,7 +64,17 @@
                 <h1>Clients</h1>
                 <p>Gérez les espaces provisionnés : version déployée, mises à jour et suspension.</p>
             </div>
-            <a href="{{ route('castlit.admin.index') }}" class="btn btn-ghost" style="margin-left:auto; padding:11px 18px; white-space:nowrap">← Abonnements</a>
+            <div style="margin-left:auto; display:flex; gap:10px; flex-wrap:wrap">
+                <form method="POST" action="{{ route('castlit.admin.clients.git-pull') }}"
+                      onsubmit="return confirm('Récupérer la dernière version du code depuis Git sur le master ?');">
+                    @csrf
+                    <button type="submit" class="btn btn-primary" style="padding:11px 18px; white-space:nowrap">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+                        Actualiser depuis Git
+                    </button>
+                </form>
+                <a href="{{ route('castlit.admin.index') }}" class="btn btn-ghost" style="padding:11px 18px; white-space:nowrap">← Abonnements</a>
+            </div>
         </div>
 
         @if (session('success'))<div class="flash flash-ok">{{ session('success') }}</div>@endif
@@ -73,6 +90,22 @@
             <span>Bloqués : <b>{{ $stats['blocked'] }}</b></span>
             <span>Total : <b>{{ $installs->total() }}</b></span>
         </div>
+
+        @if (($behind ?? 0) > 0)
+            <div class="deploy-alert">
+                <div>
+                    <strong>{{ $behind }} commit{{ $behind > 1 ? 's' : '' }} non déployé{{ $behind > 1 ? 's' : '' }}</strong>
+                    sur <code>origin/master</code> — le master tourne sur <code>{{ $masterSha }}</code>.
+                </div>
+                <form method="POST" action="{{ route('castlit.admin.clients.git-pull') }}"
+                      onsubmit="return confirm('Déployer la dernière version depuis Git sur le master ?');">
+                    @csrf
+                    <button type="submit" class="btn-sm primary">Déployer maintenant</button>
+                </form>
+            </div>
+        @elseif ($behind === 0)
+            <div class="deploy-ok">✓ Master à jour avec origin/master ({{ $masterSha }}).</div>
+        @endif
 
         <div class="card scroll">
             <table class="tbl">
@@ -232,11 +265,13 @@
             <div class="card">
                 <div class="log" style="padding: 6px 16px;">
                     @php $kindLabels = ['feat' => 'Nouveau', 'fix' => 'Correctif', 'refactor' => 'Refonte', 'perf' => 'Perf', 'chore' => 'Maintenance', 'docs' => 'Docs', 'style' => 'Style', 'test' => 'Test', 'other' => '·']; @endphp
-                    @forelse ($commits as $c)
+                    @forelse ($commits as $i => $c)
+                        @php $pending = ($behind ?? 0) > 0 && $i < $behind; @endphp
                         <div class="log-item">
                             <div class="log-sha">
                                 {{ $c['sha'] }}
-                                @if ($masterSha && $c['sha'] === $masterSha)<span class="head">déployé</span>@endif
+                                @if ($masterSha && $c['sha'] === $masterSha)<span class="head">déployé</span>
+                                @elseif ($pending)<span class="pending">à déployer</span>@endif
                             </div>
                             <div class="log-msg">
                                 <span class="kind kind-{{ $c['type'] }}">{{ $kindLabels[$c['type']] ?? '·' }}</span>
