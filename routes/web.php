@@ -34,6 +34,12 @@ if (config('castlit.is_master')) {
         ->middleware('throttle:10,1')->name('castlit.subscribe');
     Route::get('/inscription/merci', [MarketingController::class, 'success'])->name('castlit.subscribe.success');
 
+    // Legal pages (privacy policy required by Google Play / App Store).
+    Route::get('/privacy', [MarketingController::class, 'privacy'])->name('castlit.privacy');
+    Route::get('/politique-confidentialite', [MarketingController::class, 'privacy']);
+    Route::get('/terms', [MarketingController::class, 'terms'])->name('castlit.terms');
+    Route::get('/conditions', [MarketingController::class, 'terms']);
+
     Route::middleware(['auth', 'platform.admin'])
         ->prefix('castlit-admin')
         ->name('castlit.admin.')

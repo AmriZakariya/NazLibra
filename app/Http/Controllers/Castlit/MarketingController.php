@@ -53,6 +53,26 @@ class MarketingController extends Controller
         ]);
     }
 
+    /** Privacy policy — required for the Play Store / App Store listings. */
+    public function privacy(Request $request): View
+    {
+        $this->resolveLocale($request);
+
+        return view('castlit.privacy', [
+            'mainDomain' => config('castlit.main_domain'),
+        ]);
+    }
+
+    /** Terms of service. */
+    public function terms(Request $request): View
+    {
+        $this->resolveLocale($request);
+
+        return view('castlit.terms', [
+            'mainDomain' => config('castlit.main_domain'),
+        ]);
+    }
+
     /**
      * robots.txt — the master site is fully indexable; client subdomains (and
      * any non-master install) are kept out of search engines entirely.

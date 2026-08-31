@@ -110,6 +110,9 @@ return [
     'f_errors'    => 'Please correct the fields highlighted below.',
 
     'footer_tagline' => 'Point of sale & inventory management for your business',
+    'footer_privacy' => 'Privacy',
+    'footer_terms'   => 'Terms',
+    'footer_contact' => 'Contact',
 
     'ok_title'  => 'Thanks — your request has been received.',
     'ok_sub'    => 'Our team reviews it shortly. Once approved, you receive an email with your login and the address of your register.',

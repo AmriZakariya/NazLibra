@@ -234,6 +234,9 @@
 
         footer { border-top: 1px solid var(--sand); margin-top: 80px; padding: 40px 0; color: var(--muted); font-size: 13px; }
         .footer-inner { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+        .footer-links { display: flex; flex-wrap: wrap; gap: 18px; }
+        .footer-links a { color: var(--muted); font-size: 13.5px; font-weight: 600; }
+        .footer-links a:hover { color: var(--brand); }
 
         .field-error { color: var(--err); font-size: 12.5px; margin-top: 5px; font-weight: 500; }
         .flash { border-radius: 12px; padding: 12px 16px; font-size: 14px; font-weight: 500; margin-bottom: 18px; }
@@ -277,7 +280,14 @@
                 <span class="wordmark">Castl-it-POS</span>
             </a>
             <span class="spacer" style="margin-left:auto"></span>
-            <span>© {{ date('Y') }} {{ $brand['name'] }} — {{ __('castlit.footer_tagline') }}.</span>
+            <nav class="footer-links" aria-label="Légal">
+                <a href="{{ route('castlit.privacy') }}">{{ __('castlit.footer_privacy') }}</a>
+                <a href="{{ route('castlit.terms') }}">{{ __('castlit.footer_terms') }}</a>
+                <a href="mailto:{{ $brand['email'] }}">{{ __('castlit.footer_contact') }}</a>
+            </nav>
+        </div>
+        <div class="wrap" style="margin-top:14px">
+            <span style="font-size:13px; color:var(--muted)">© {{ date('Y') }} {{ $brand['name'] }} — {{ __('castlit.footer_tagline') }}.</span>
         </div>
     </footer>
     @stack('scripts')

@@ -110,6 +110,9 @@ return [
     'f_errors'    => 'Merci de corriger les champs indiqués ci-dessous.',
 
     'footer_tagline' => 'Le point de vente et la gestion de stock pour votre commerce',
+    'footer_privacy' => 'Confidentialité',
+    'footer_terms'   => 'Conditions',
+    'footer_contact' => 'Contact',
 
     'ok_title'  => 'Merci, votre demande est bien reçue.',
     'ok_sub'    => "Notre équipe la valide au plus vite. Dès l'approbation, vous recevez un email avec vos accès et l'adresse de votre caisse.",
