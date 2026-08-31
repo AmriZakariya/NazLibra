@@ -1295,6 +1295,16 @@
                         <button class="rounded-lg bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20">Importer</button>
                     </form>
                     <div class="mt-5 grid gap-3 md:grid-cols-3"><div class="rounded-lg bg-slate-50 p-4 text-sm dark:bg-white/5"><strong>Détection</strong><p class="mt-1 text-slate-500">Colonnes legacy FR/EN et accents reconnues.</p></div><div class="rounded-lg bg-slate-50 p-4 text-sm dark:bg-white/5"><strong>Mise à jour</strong><p class="mt-1 text-slate-500">Articles par barcode/ISBN, référentiels par nom.</p></div><div class="rounded-lg bg-slate-50 p-4 text-sm dark:bg-white/5"><strong>Rapport</strong><p class="mt-1 text-slate-500">Créés, mis à jour, ignorés après import.</p></div></div>
+                    <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-white/5">
+                        <summary class="cursor-pointer font-semibold">Colonnes reconnues</summary>
+                        <div class="mt-3 space-y-2 text-slate-600 dark:text-slate-300">
+                            <p><strong>Obligatoire :</strong> Nom de l'article.</p>
+                            <p><strong>Prix :</strong> <em>Prix d'achat</em> (coût), <em>Prix de vente</em>. Sans prix d'achat, la valorisation du stock et la marge ne sont pas calculées.</p>
+                            <p><strong>Recommandé :</strong> Code de barre, ISBN, Catégorie/Type d'élément, Marque, Unité, Stock, Quantité d'alerte, Impôt, Statut.</p>
+                            <p><strong>Optionnel :</strong> Auteur, Éditeur, Description, Tags, SKU, Type d'élément (Article / Livre / Service).</p>
+                            <p class="text-xs text-slate-500">Les libellés FR/EN et les accents sont détectés automatiquement. Téléchargez l'exemple pour l'ordre et le format des colonnes.</p>
+                        </div>
+                    </details>
                 </div>
             </article>
             <aside class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h2 class="text-base font-semibold">Préparation</h2><ul class="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300"><li>1. Choisir le type qui correspond au fichier.</li><li>2. XLSX, CSV et TSV sont acceptés.</li><li>3. Les catégories d’articles suppriment automatiquement le suffixe [ITEM].</li><li>4. Les doublons mettent à jour au lieu de planter.</li></ul></aside>

@@ -2475,7 +2475,7 @@ class LibraireProController extends Controller
                 $itemCode = trim((string) $this->rowValue($row, ['item_code', 'code_article'])) ?: $resolveNextCode();
 
                 $priceBeforeTax = $this->decimalValue($this->rowValue($row, ['price_before_tax', 'price', 'prix', 'prix_ht']));
-                $purchasePrice  = $this->decimalValue($this->rowValue($row, ['purchase_price', 'prix_achat']) ?? $priceBeforeTax);
+                $purchasePrice  = $this->decimalValue($this->rowValue($row, ['purchase_price', 'purchase_cost', 'cost', 'cost_price', 'prix_achat', 'prix_d_achat', 'prix_dachat', 'prix_achat_ht', 'cout_achat', 'cout']) ?? $priceBeforeTax);
                 $salePrice      = $this->decimalValue($this->rowValue($row, ['sale_price', 'sales_price', 'prix_vente', 'prix_de_vente']) ?? $priceBeforeTax);
 
                 $payload = [
@@ -10816,19 +10816,19 @@ class LibraireProController extends Controller
             'services' => [
                 'title' => 'Liste des services',
                 'filename' => 'exemple-import-services.xlsx',
-                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Prix de vente', 'Impôt', 'Statut', 'Tags', "Type d'élément"],
+                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément"],
                 'rows' => [
-                    ['', 'Photocopie A4 noir et blanc', 'Services[SERVICE]', 'Service', '0.50', 'Sans TVA(0.00%)', 'Active', 'impression, rapide', 'Service'],
-                    ['', 'Adhésion annuelle', 'Services[SERVICE]', 'Service', '100.00', 'Sans TVA(0.00%)', 'Active', 'adhésion, bibliothèque', 'Service'],
+                    ['', 'Photocopie A4 noir et blanc', 'Services[SERVICE]', 'Service', '0.20', '0.50', 'Sans TVA(0.00%)', 'Active', 'impression, rapide', 'Photocopie standard A4 noir et blanc', 'Service'],
+                    ['', 'Adhésion annuelle', 'Services[SERVICE]', 'Service', '0.00', '100.00', 'Sans TVA(0.00%)', 'Active', 'adhésion, bibliothèque', 'Abonnement annuel membre', 'Service'],
                 ],
             ],
             default => [
                 'title' => "Liste d'articles",
                 'filename' => 'exemple-import-articles.xlsx',
-                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', 'Stock', "Quantité d'alerte", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Action', "Type d'élément"],
+                'headers' => ['Code de barre', 'ISBN', "Nom de l'article", "Catégorie/Type d'élément", 'Marque', 'Auteur', 'Unité', 'Stock', "Quantité d'alerte", "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément"],
                 'rows' => [
-                    ['9780000000001', 'Cahier 96 pages grand format', 'FOURNITURE SCOLAIRE[ITEM]', 'Pièce', '50', '5', '12.00', 'Sans TVA(0.00%)', 'Active', 'rentrée, scolaire', '', 'Article'],
-                    ['9780000000002', 'Roman exemple relié', 'ROMANS[ITEM]', 'Pièce', '8', '2', '85.00', 'TVA 7%(7.00%)', 'Active', 'roman, lecture', '', 'Livre'],
+                    ['9780000000001', '', 'Cahier 96 pages grand format', 'FOURNITURE SCOLAIRE[ITEM]', 'OXFORD', '', 'Pièce', '50', '5', '8.00', '12.00', 'Sans TVA(0.00%)', 'Active', 'rentrée, scolaire', 'Cahier grand format 96 pages ligné', 'Article'],
+                    ['9782000000002', '9782000000002', 'Roman exemple relié', 'ROMANS[ITEM]', 'BORDAS', 'Auteur Exemple', 'Pièce', '8', '2', '55.00', '85.00', 'TVA 7%(7.00%)', 'Active', 'roman, lecture', 'Roman relié, édition récente', 'Livre'],
                 ],
             ],
         };
