@@ -105,9 +105,11 @@ write_suspended_page "$DOC_ROOT"
 [ -f "$DOC_ROOT/.suspended" ] && : > "$DOC_ROOT/.suspended"
 
 emit "▸ artisan migrate / cache refresh"
+# config:clear first so a stale cached config can't break the boot, then a full
+# optimize:clear (cache, compiled, config, events, routes, views) so new code —
+# including Blade/view changes — is always served after a deploy.
 ( cd "$DOC_ROOT" && "$PHP_BIN" artisan config:clear ) >&2 2>&1 || true
-( cd "$DOC_ROOT" && "$PHP_BIN" artisan route:clear ) >&2 2>&1 || true
-( cd "$DOC_ROOT" && "$PHP_BIN" artisan view:clear ) >&2 2>&1 || true
+( cd "$DOC_ROOT" && "$PHP_BIN" artisan optimize:clear ) >&2 2>&1 || true
 ( cd "$DOC_ROOT" && "$PHP_BIN" artisan migrate --force ) >&2 2>&1 \
   || final '{"status":"error","step":"migrate","message":"migrate failed after update."}' 1
 

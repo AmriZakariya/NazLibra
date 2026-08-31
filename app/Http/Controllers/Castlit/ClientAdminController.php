@@ -87,6 +87,41 @@ class ClientAdminController extends Controller
         return $this->runSync($install, 'enable', "« {$install->domain} » réactivé.");
     }
 
+    /**
+     * Clear the compiled caches (views, config, routes, events…) for one client
+     * install by running `artisan optimize:clear` in its own doc root. Useful
+     * after a Blade/view change to force the new markup to be served.
+     */
+    public function clearCache(TenantInstall $install): RedirectResponse
+    {
+        $root = rtrim((string) config('castlit.provision.public_html'), '/').'/'.$install->domain;
+
+        if (! is_dir($root)) {
+            return back()->with('error', "Dossier introuvable pour « {$install->domain} » : {$root}");
+        }
+
+        try {
+            $php = (string) config('castlit.provision.php_bin', 'php');
+            $process = new Process([$php, 'artisan', 'optimize:clear'], $root, [
+                'PATH' => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin',
+            ]);
+            $process->run();
+
+            if (! $process->isSuccessful()) {
+                return back()->with('error',
+                    "Vidage du cache échoué pour « {$install->domain} » : "
+                    .trim($process->getErrorOutput() ?: $process->getOutput()));
+            }
+
+            return back()
+                ->with('success', "Cache vidé pour « {$install->domain} ».")
+                ->with('update_log', trim($process->getOutput()) ?: 'optimize:clear ✓');
+        } catch (\Throwable $e) {
+            return back()->with('error',
+                "Vidage du cache impossible pour « {$install->domain} » : ".$e->getMessage());
+        }
+    }
+
     /** Mark the client as paid (ends the trial state). */
     public function markPaid(TenantInstall $install): RedirectResponse
     {
