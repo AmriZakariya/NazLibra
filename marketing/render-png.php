@@ -130,6 +130,19 @@ imagettftext($img, $fs, 0, (int) (($S - $w) / 2 - $bb[0] - $S * 0.04), (int) (($
 imagefilledellipse($img, (int) ($S * 0.6), (int) ($S * 0.55), (int) ($S * 0.15), (int) ($S * 0.15), c($img, $ACCENT));
 save($img, "$OUT/castlit-facebook-1024.png");
 
+// ── 1c. Google Play app icon — 512×512, full-bleed, opaque (Play masks the
+//        corners + adds shadow itself, so no transparency / no rounding) ──────
+$S = 512;
+$img = imagecreatetruecolor($S, $S); // opaque (no savealpha)
+vGradient($img, 0, 0, $S, $S, $BRANDL, $BRAND);
+$fs = $S * 0.5;
+$bb = imagettfbbox($fs, 0, $BOLD, 'C');
+$w = $bb[2] - $bb[0];
+$h = $bb[1] - $bb[7];
+imagettftext($img, $fs, 0, (int) (($S - $w) / 2 - $bb[0] - $S * 0.04), (int) (($S - $h) / 2 - $bb[7]), c($img, $WHITE), $BOLD, 'C');
+imagefilledellipse($img, (int) ($S * 0.6), (int) ($S * 0.55), (int) ($S * 0.15), (int) ($S * 0.15), c($img, $ACCENT));
+save($img, "$OUT/castlit-playstore-icon-512.png");
+
 // ── 2. Horizontal logo (light + dark), transparent background ───────────────
 foreach ([['light', $INK, $BRAND], ['dark', $WHITE, $ACCENT]] as [$variant, $c1, $c2]) {
     $H = 300;
