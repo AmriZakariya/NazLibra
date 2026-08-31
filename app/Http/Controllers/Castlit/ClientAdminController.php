@@ -121,20 +121,202 @@ class ClientAdminController extends Controller
         Cache::forget('castlit.recent_commits');
 
         if ($reset === null) {
-            return back()->with('error',
-                "Git n'est pas exécutable depuis le web sur cet hôte. Déployez en SSH : "
-                ."git fetch origin {$branch} && git reset --hard origin/{$branch}. "
-                .'(Le journal des versions est actualisé depuis GitHub.)');
+            // Git binary can't run here (shared host). Fall back to deploying the
+            // latest branch tarball straight from GitHub — no SSH required.
+            $result = $this->deployFromGithubTarball($branch);
+
+            Cache::forget('castlit.master_sha');
+            Cache::forget('castlit.recent_commits');
+
+            if (! $result['ok']) {
+                return back()->with('error',
+                    'Déploiement depuis GitHub impossible : '.$result['error'].' '
+                    ."Repli SSH : git fetch origin {$branch} && git reset --hard origin/{$branch}.");
+            }
+
+            $this->runArtisan(['config:clear']);
+            $this->runArtisan(['view:clear']);
+            $sha = $this->masterSha();
+
+            return back()->with('success',
+                'Code déployé depuis GitHub'.($sha ? " (version {$sha})" : '')
+                .'. Déployez ensuite vers chaque client via « Mettre à jour ». '
+                .'Si des dépendances ont changé, lancez composer/npm en SSH.');
         }
 
         // Clear compiled caches so the new code is served.
         $this->runArtisan(['config:clear']);
         $this->runArtisan(['view:clear']);
 
+        // Keep the deployed-sha marker in sync with the git checkout so the
+        // version display stays correct on hosts that later lose the git binary.
+        if ($head = $this->runGit(['rev-parse', '--short', 'HEAD'])) {
+            $this->writeDeployedSha(trim($head));
+        }
+
         $sha = $this->masterSha();
 
         return back()->with('success',
             'Code mis à jour depuis Git'.($sha ? " (version {$sha})" : '').'.');
+    }
+
+    /**
+     * Deploy the latest branch code by downloading the GitHub tarball and
+     * extracting it over the master install — the shared-host path when the git
+     * binary can't run. Only git-tracked files are overwritten; runtime data
+     * (.env, storage, sqlite, uploads) is gitignored so it is never in the
+     * tarball and stays untouched. Files deleted upstream are NOT removed.
+     *
+     * @return array{ok:bool,sha:?string,error:?string}
+     */
+    private function deployFromGithubTarball(string $branch): array
+    {
+        $cfg = config('castlit.provision');
+        $owner = (string) ($cfg['repo_owner'] ?? '');
+        $name = (string) ($cfg['repo_name'] ?? '');
+        $token = (string) ($cfg['github_token'] ?? '');
+
+        if ($owner === '' || $name === '') {
+            return ['ok' => false, 'sha' => null, 'error' => 'dépôt non configuré'];
+        }
+        if (! class_exists(\PharData::class)) {
+            return ['ok' => false, 'sha' => null, 'error' => 'extension PHP « phar » indisponible'];
+        }
+
+        $headSha = $this->githubHeadSha($owner, $name, $branch, $token);
+
+        $work = storage_path('app/castlit-deploy-'.uniqid());
+        $tarGz = $work.'.tar.gz';
+
+        try {
+            @mkdir($work, 0755, true);
+
+            // Stream the tarball to disk (avoids holding the whole archive in memory).
+            $req = Http::timeout(180)->withHeaders([
+                'User-Agent' => 'castlit-admin',
+                'X-GitHub-Api-Version' => '2022-11-28',
+            ])->withOptions(['sink' => $tarGz]);
+            if ($token !== '') {
+                $req = $req->withToken($token);
+            }
+            $res = $req->get("https://api.github.com/repos/{$owner}/{$name}/tarball/{$branch}");
+
+            if (! $res->successful() || ! is_file($tarGz) || filesize($tarGz) === 0) {
+                return ['ok' => false, 'sha' => null, 'error' => 'téléchargement de l’archive échoué (HTTP '.$res->status().')'];
+            }
+
+            // Extract .tar.gz → the archive has a single top-level folder.
+            (new \PharData($tarGz))->extractTo($work, null, true);
+
+            $roots = array_values(array_filter(
+                glob($work.'/*', GLOB_ONLYDIR) ?: [],
+                fn ($d) => is_dir($d),
+            ));
+            if (count($roots) !== 1) {
+                return ['ok' => false, 'sha' => null, 'error' => 'archive inattendue'];
+            }
+
+            // Overwrite tracked files in place; never touch .git.
+            $this->recursiveCopyOver($roots[0], base_path(), ['.git']);
+
+            if ($headSha) {
+                $this->writeDeployedSha($headSha);
+            }
+
+            return ['ok' => true, 'sha' => $headSha, 'error' => null];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'sha' => null, 'error' => $e->getMessage()];
+        } finally {
+            @unlink($tarGz);
+            $this->deleteTree($work);
+        }
+    }
+
+    /** Resolve the short HEAD sha of a branch via the GitHub API (best-effort). */
+    private function githubHeadSha(string $owner, string $name, string $branch, string $token): ?string
+    {
+        try {
+            $req = Http::timeout(8)->acceptJson()->withHeaders([
+                'User-Agent' => 'castlit-admin',
+                'X-GitHub-Api-Version' => '2022-11-28',
+            ]);
+            if ($token !== '') {
+                $req = $req->withToken($token);
+            }
+            $res = $req->get("https://api.github.com/repos/{$owner}/{$name}/commits/{$branch}");
+
+            return $res->successful()
+                ? (substr((string) $res->json('sha'), 0, 7) ?: null)
+                : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Recursively copy $src into $dst, overwriting files and creating dirs.
+     * Top-level entries in $skip are never copied.
+     *
+     * @param  array<int,string>  $skip
+     */
+    private function recursiveCopyOver(string $src, string $dst, array $skip = []): void
+    {
+        foreach (scandir($src) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..' || in_array($entry, $skip, true)) {
+                continue;
+            }
+            $from = $src.'/'.$entry;
+            $to = $dst.'/'.$entry;
+
+            if (is_dir($from)) {
+                if (! is_dir($to)) {
+                    @mkdir($to, 0755, true);
+                }
+                $this->recursiveCopyOver($from, $to, []); // skip only applies at top level
+            } else {
+                @copy($from, $to);
+            }
+        }
+    }
+
+    /** Recursively delete a directory (cleanup of the extraction workspace). */
+    private function deleteTree(string $dir): void
+    {
+        if (! is_dir($dir)) {
+            return;
+        }
+        foreach (scandir($dir) ?: [] as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            $path = $dir.'/'.$entry;
+            is_dir($path) ? $this->deleteTree($path) : @unlink($path);
+        }
+        @rmdir($dir);
+    }
+
+    /** Path of the marker file recording the last tarball-deployed sha. */
+    private function deployedShaPath(): string
+    {
+        return storage_path('app/castlit_deployed.sha');
+    }
+
+    /** Read the last deployed sha from the marker file (null if absent). */
+    private function deployedShaMarker(): ?string
+    {
+        $path = $this->deployedShaPath();
+
+        return is_file($path) ? (trim((string) file_get_contents($path)) ?: null) : null;
+    }
+
+    /** Persist the deployed sha so the version display survives a missing git binary. */
+    private function writeDeployedSha(string $sha): void
+    {
+        try {
+            @file_put_contents($this->deployedShaPath(), substr($sha, 0, 7));
+        } catch (\Throwable) {
+            // best-effort
+        }
     }
 
     /** Run an artisan command on the master (best-effort). */
@@ -172,10 +354,14 @@ class ClientAdminController extends Controller
         return Cache::remember('castlit.master_sha', 60, function (): ?string {
             $out = $this->runGit(['rev-parse', '--short', 'HEAD']);
             $sha = $out !== null ? trim($out) : '';
+            if ($sha !== '') {
+                return $sha; // git binary works — authoritative
+            }
 
-            // Fall back to reading .git directly when the git binary can't run
-            // (shared-host PATH / chroot ownership), so the version still shows.
-            return $sha !== '' ? $sha : $this->shaFromGitDir();
+            // No git binary: prefer the marker written by a tarball deploy
+            // (the .git checkout is stale after a tarball extract), then fall
+            // back to reading .git directly so the version still shows.
+            return $this->deployedShaMarker() ?: $this->shaFromGitDir();
         });
     }
 
