@@ -483,10 +483,11 @@
                     @endforeach
                 </nav>
 
+                @php $deployedSha = \App\Support\AppVersion::shortSha(); @endphp
                 <div class="sidebar-release m-3 mt-0">
                     <span class="sidebar-release-mark">v</span>
                     <span class="sidebar-label min-w-0">
-                        <strong>{{ $appVersion }}</strong>
+                        <strong>{{ $appVersion }}@if ($deployedSha) <code style="font-weight:600;opacity:.75">{{ $deployedSha }}</code>@endif</strong>
                         <small>{{ $releaseLabel }} · {{ \App\Support\TenantClock::format(now(), $tenant, 'd/m/Y') }}</small>
                     </span>
                 </div>

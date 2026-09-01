@@ -134,9 +134,14 @@ class ManageClientJob implements ShouldQueue
             return ['status' => 'error', 'message' => $maintenance['message'], 'log' => $maintenance['log']];
         }
 
+        // Stamp the deployed sha into the client so its web UI shows the exact
+        // running version (the client has no .git checkout of its own).
+        $version = $this->sourceVersion();
+        @file_put_contents($root.'/.version', $version);
+
         return [
             'status' => 'success',
-            'commit' => $this->sourceVersion(),
+            'commit' => $version,
             'log' => ($sync['restored'] ? "Client code restored.\n" : "Code copied with PHP.\n").$maintenance['log'],
         ];
     }
@@ -388,8 +393,9 @@ class ManageClientJob implements ShouldQueue
 
     private function sourceVersion(): string
     {
-        $marker = storage_path('app/castlit_deployed.sha');
-        return is_file($marker) ? (trim((string) file_get_contents($marker)) ?: 'master') : 'master';
+        // Runs on the master, which has a .git checkout, so this resolves the
+        // real current sha (git → .version → marker).
+        return \App\Support\AppVersion::shortSha() ?? 'master';
     }
 
     private function stepLabel(string $action): string
