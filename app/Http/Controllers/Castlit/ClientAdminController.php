@@ -162,8 +162,10 @@ class ClientAdminController extends Controller
                     ."Repli SSH : git fetch origin {$branch} && git reset --hard origin/{$branch}.");
             }
 
-            $this->runArtisan(['config:clear']);
-            $this->runArtisan(['view:clear']);
+            // Clear ALL compiled caches (routes included) in-process so newly
+            // added routes/controllers are picked up — proc_open is unavailable
+            // on the shared host, so this runs via Artisan::call, not the CLI.
+            $this->runArtisan(['optimize:clear']);
             $sha = $this->masterSha();
 
             return back()->with('success',
@@ -172,9 +174,8 @@ class ClientAdminController extends Controller
                 .'Si des dépendances ont changé, lancez composer/npm en SSH.');
         }
 
-        // Clear compiled caches so the new code is served.
-        $this->runArtisan(['config:clear']);
-        $this->runArtisan(['view:clear']);
+        // Clear ALL compiled caches (routes included) so the new code is served.
+        $this->runArtisan(['optimize:clear']);
 
         // Keep the deployed-sha marker in sync with the git checkout so the
         // version display stays correct on hosts that later lose the git binary.
