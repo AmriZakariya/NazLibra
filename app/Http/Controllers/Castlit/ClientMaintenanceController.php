@@ -44,6 +44,13 @@ class ClientMaintenanceController extends Controller
             }
             Artisan::call('optimize:clear');
 
+            // Runs in THIS client's web worker → resets the client's OPcache pool
+            // so freshly copied code is served (artisan clears don't touch OPcache;
+            // shared hosts often run opcache.validate_timestamps=0).
+            if (function_exists('opcache_reset')) {
+                @opcache_reset();
+            }
+
             return response()->json([
                 'status' => 'success',
                 'message' => $migrateOutput ?: 'Maintenance complete.',

@@ -234,14 +234,17 @@ class ManageClientJob implements ShouldQueue
         }
 
         $inProcess = $this->runClientMaintenanceInProcess($root, $action);
-        if ($inProcess['ok']) {
-            return $inProcess;
-        }
 
+        // The in-process run clears the client's file caches but executes in the
+        // MASTER's PHP worker, so it cannot reset the CLIENT web workers' OPcache
+        // (shared hosts run opcache.validate_timestamps=0, so freshly copied code
+        // keeps serving stale bytecode). Poke the client's own signed endpoint —
+        // it runs in the client pool and resets that pool's OPcache. Best-effort:
+        // ignored when outbound HTTP is unavailable; in-process stays authoritative.
         $httpAction = $action === 'migrate' ? 'migrate-and-clear' : $action;
         if (in_array($httpAction, ['migrate-and-clear', 'clear-cache'], true)) {
             $http = $this->runClientMaintenanceViaHttp($install, $root, $httpAction);
-            if ($http['ok']) {
+            if (! $inProcess['ok'] && $http['ok']) {
                 return $http;
             }
         }
@@ -274,11 +277,19 @@ class ManageClientJob implements ShouldQueue
                 if ($exit !== 0) {
                     return ['ok' => false, 'message' => 'Client cache clear failed after migration.', 'log' => $log];
                 }
+                // May clear the client's bytecode too if OPcache SHM is shared
+                // across the account's sites (best-effort).
+                if (function_exists('opcache_reset')) {
+                    @opcache_reset();
+                }
             }
 
             if ($action === 'clear-cache') {
                 $exit = $kernel->call('optimize:clear');
                 $log = trim($kernel->output());
+                if (function_exists('opcache_reset')) {
+                    @opcache_reset();
+                }
 
                 return $exit === 0
                     ? ['ok' => true, 'message' => '', 'log' => $log ?: 'Cache cleared.']
