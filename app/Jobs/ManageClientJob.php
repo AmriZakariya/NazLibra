@@ -9,8 +9,9 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Illuminate\Container\Container;
+use Illuminate\Support\Facades\Facade;
 
 /**
  * Runs deploy/manage.sh against one existing client install to update its code,
@@ -94,8 +95,8 @@ class ManageClientJob implements ShouldQueue
 
     /**
      * Shared hosts often disable proc_open/system/etc.  Manage clients with
-     * PHP file APIs, then let the client itself run Artisan through its signed
-     * maintenance route.
+     * PHP file APIs, then boot the client application in-process to run its
+     * Artisan commands. This avoids both proc_open and outbound HTTP/DNS.
      */
     private function manageWithoutProcess(TenantInstall $install, array $cfg): array
     {
@@ -119,7 +120,7 @@ class ManageClientJob implements ShouldQueue
         }
 
         if ($this->action === 'clear-cache') {
-            $maintenance = $this->runClientMaintenance($install, $root, 'clear-cache');
+            $maintenance = $this->runClientMaintenance($root, 'clear-cache');
 
             return $maintenance['ok']
                 ? ['status' => 'success', 'log' => $maintenance['log']]
@@ -128,7 +129,7 @@ class ManageClientJob implements ShouldQueue
 
         $this->copyRelease(base_path(), $root);
         $this->clearCompiledCache($root);
-        $maintenance = $this->runClientMaintenance($install, $root, 'migrate-and-clear');
+        $maintenance = $this->runClientMaintenance($root, 'migrate-and-clear');
 
         if (! $maintenance['ok']) {
             return ['status' => 'error', 'message' => $maintenance['message'], 'log' => $maintenance['log']];
@@ -171,39 +172,43 @@ class ManageClientJob implements ShouldQueue
     }
 
     /** @return array{ok:bool,message:string,log:string} */
-    private function runClientMaintenance(TenantInstall $install, string $root, string $action): array
+    private function runClientMaintenance(string $root, string $action): array
     {
-        $key = $this->appKey($root.'/.env');
-        if ($key === null) {
-            return ['ok' => false, 'message' => 'Client APP_KEY is missing.', 'log' => ''];
+        if (! is_file($root.'/bootstrap/app.php')) {
+            return ['ok' => false, 'message' => 'Client application bootstrap is missing.', 'log' => ''];
         }
-        $timestamp = (string) time();
+
+        $originalApp = Container::getInstance();
+        $originalCwd = getcwd();
         try {
-            $response = Http::timeout(180)->acceptJson()->withHeaders([
-                'X-Castlit-Timestamp' => $timestamp,
-                'X-Castlit-Signature' => hash_hmac('sha256', $action.'|'.$timestamp, $key),
-            ])->post('https://'.$install->domain.'/__castlit/maintenance', ['action' => $action]);
-            $message = (string) ($response->json('message') ?: $response->body());
+            chdir($root);
+            $client = require $root.'/bootstrap/app.php';
+            $kernel = $client->make(\Illuminate\Contracts\Console\Kernel::class);
+            $kernel->bootstrap();
 
-            return $response->successful() && $response->json('status') === 'success'
-                ? ['ok' => true, 'message' => '', 'log' => $message]
-                : ['ok' => false, 'message' => 'Client maintenance failed (HTTP '.$response->status().').', 'log' => $message];
-        } catch (\Throwable $e) {
-            return ['ok' => false, 'message' => 'Client maintenance request failed: '.$e->getMessage(), 'log' => ''];
-        }
-    }
-
-    private function appKey(string $envPath): ?string
-    {
-        if (! is_file($envPath)) {
-            return null;
-        }
-        foreach (file($envPath, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
-            if (str_starts_with($line, 'APP_KEY=')) {
-                return trim(substr($line, 8), " \t\"'") ?: null;
+            $log = '';
+            if ($action === 'migrate-and-clear') {
+                $exit = $kernel->call('migrate', ['--force' => true]);
+                $log .= trim($kernel->output());
+                if ($exit !== 0) {
+                    return ['ok' => false, 'message' => 'Client migration failed.', 'log' => $log];
+                }
             }
+            $exit = $kernel->call('optimize:clear');
+            $log = trim($log."\n".$kernel->output());
+
+            return $exit === 0
+                ? ['ok' => true, 'message' => '', 'log' => $log ?: 'Maintenance complete.']
+                : ['ok' => false, 'message' => 'Client cache clear failed.', 'log' => $log];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => 'Client maintenance failed: '.$e->getMessage(), 'log' => ''];
+        } finally {
+            if ($originalCwd !== false) {
+                chdir($originalCwd);
+            }
+            Container::setInstance($originalApp);
+            Facade::setFacadeApplication($originalApp);
         }
-        return null;
     }
 
     /** Remove only Laravel's generated cache files, preserving .gitignore. */

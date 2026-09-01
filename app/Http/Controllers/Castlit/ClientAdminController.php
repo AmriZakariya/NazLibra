@@ -91,8 +91,8 @@ class ClientAdminController extends Controller
 
     /**
      * Clear the compiled caches (views, config, routes, events…) for one client
-     * through its signed in-app maintenance endpoint. Useful after a Blade/view
-     * change to force the new markup to be served on hosts without proc_open.
+     * by booting the client app in-process. Useful after a Blade/view change to
+     * force new markup to be served on hosts without proc_open.
      */
     public function clearCache(TenantInstall $install): RedirectResponse
     {
