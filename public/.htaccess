@@ -5,6 +5,12 @@
 
     RewriteEngine On
 
+    # Never let the LiteSpeed / LWS edge cache the platform admin. Otherwise a
+    # stray GET to a POST-only action (e.g. /castlit-admin/clients/action) gets
+    # its 404 cached and then served to real POSTs. Bypassing the cache here
+    # (before the app) also ignores any already-poisoned entry.
+    RewriteRule ^castlit-admin(/.*)?$ - [E=Cache-Control:no-cache,E=cache-control:no-cache]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
