@@ -96,12 +96,13 @@ class ClientAdminController extends Controller
      */
     public function clearCache(TenantInstall $install): RedirectResponse
     {
-        // Temporarily disabled on shared hosting while client maintenance is
-        // being stabilized. Keep the route safe for stale browser tabs/forms.
-        return to_route('castlit.admin.clients')->with(
-            'error',
-            "Le vidage du cache est temporairement indisponible pour « {$install->domain} »."
-        );
+        ManageClientJob::dispatchSync($install->id, 'clear-cache');
+        $install->refresh();
+
+        return str_contains((string) $install->current_step, 'échec')
+            ? to_route('castlit.admin.clients')->with('error', "Vidage du cache impossible pour « {$install->domain} » : {$install->current_step}")
+            : to_route('castlit.admin.clients')->with('success', "Cache vidé pour « {$install->domain} ».")
+                ->with('update_log', $install->provision_log);
     }
 
     /** Regenerate the client's mobile access code (invalidates the old one). */

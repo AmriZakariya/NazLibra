@@ -140,8 +140,7 @@ class ManageClientJob implements ShouldQueue
 
         $this->copyRelease(base_path(), $root);
         $this->ensureRuntimeDirectories($root);
-        $this->clearCompiledCache($root);
-        $maintenance = $this->runClientMaintenance($root, 'migrate-and-clear');
+        $maintenance = $this->runClientMaintenance($root, 'migrate');
 
         if (! $maintenance['ok']) {
             return ['status' => 'error', 'message' => $maintenance['message'], 'log' => $maintenance['log']];
@@ -199,19 +198,24 @@ class ManageClientJob implements ShouldQueue
             $kernel->bootstrap();
 
             $log = '';
-            if ($action === 'migrate-and-clear') {
+            if ($action === 'migrate') {
                 $exit = $kernel->call('migrate', ['--force' => true]);
                 $log .= trim($kernel->output());
                 if ($exit !== 0) {
                     return ['ok' => false, 'message' => 'Client migration failed.', 'log' => $log];
                 }
             }
-            $exit = $kernel->call('optimize:clear');
-            $log = trim($log."\n".$kernel->output());
 
-            return $exit === 0
-                ? ['ok' => true, 'message' => '', 'log' => $log ?: 'Maintenance complete.']
-                : ['ok' => false, 'message' => 'Client cache clear failed.', 'log' => $log];
+            if ($action === 'clear-cache') {
+                $exit = $kernel->call('optimize:clear');
+                $log = trim($log."\n".$kernel->output());
+
+                return $exit === 0
+                    ? ['ok' => true, 'message' => '', 'log' => $log ?: 'Cache cleared.']
+                    : ['ok' => false, 'message' => 'Client cache clear failed.', 'log' => $log];
+            }
+
+            return ['ok' => true, 'message' => '', 'log' => $log ?: 'Migration complete.'];
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Client maintenance failed: '.$e->getMessage(), 'log' => ''];
         } finally {

@@ -210,6 +210,11 @@
                                             @csrf
                                             <button class="btn-sm primary" type="submit">Mettre à jour</button>
                                         </form>
+                                        <form method="POST" action="{{ route('castlit.admin.clients.clear-cache', $install) }}"
+                                              onsubmit="return confirm('Vider le cache (vues, config, routes) de {{ $install->domain }} ?');">
+                                            @csrf
+                                            <button class="btn-sm" type="submit">Vider le cache</button>
+                                        </form>
                                         @if ($install->isPaid())
                                             <form method="POST" action="{{ route('castlit.admin.clients.unpaid', $install) }}"
                                                   onsubmit="return confirm('Remettre {{ $install->domain }} en essai / impayé ?');">
