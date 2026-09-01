@@ -24,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.action'     => \App\Http\Middleware\ResolveApiActionContext::class,
             'platform.admin' => \App\Http\Middleware\EnsurePlatformAdmin::class,
             'access.verified' => \App\Http\Middleware\EnsureAccessVerified::class,
+            'no.store' => \App\Http\Middleware\NoStore::class,
         ]);
 
         $middleware->web(append: [

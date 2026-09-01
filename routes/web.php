@@ -47,7 +47,7 @@ if (config('castlit.is_master')) {
     Route::get('/terms', [MarketingController::class, 'terms'])->name('castlit.terms');
     Route::get('/conditions', [MarketingController::class, 'terms']);
 
-    Route::middleware(['auth', 'platform.admin'])
+    Route::middleware(['auth', 'platform.admin', 'no.store'])
         ->prefix('castlit-admin')
         ->name('castlit.admin.')
         ->group(function (): void {
