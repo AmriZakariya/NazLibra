@@ -14,8 +14,8 @@ use Illuminate\Container\Container;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * Runs deploy/manage.sh against one existing client install to update its code,
- * suspend it or reactivate it. Records the outcome on the TenantInstall row.
+ * Updates, suspends or reactivates an existing client install without spawning
+ * a local shell process. Records the outcome on the TenantInstall row.
  *
  * Fast actions (enable/disable) are dispatched synchronously from the admin for
  * instant feedback; the heavy `update` (code copy + migrate) is queued.
@@ -100,7 +100,7 @@ class ManageClientJob implements ShouldQueue
      */
     private function manageWithoutProcess(TenantInstall $install, array $cfg): array
     {
-        $root = rtrim((string) ($cfg['public_html'] ?? base_path()), '/').'/'.$install->domain;
+        $root = $this->clientRoot($install, $cfg);
         if (! is_dir($root)) {
             return ['status' => 'error', 'message' => "Client dir not found: {$root}"];
         }
@@ -180,6 +180,22 @@ class ManageClientJob implements ShouldQueue
                 throw new \RuntimeException("Cannot copy {$path}");
             }
         }
+    }
+
+    /** Resolve the exact provisioned path, with the legacy layout as fallback. */
+    private function clientRoot(TenantInstall $install, array $cfg): string
+    {
+        $base = rtrim((string) ($cfg['public_html'] ?? base_path()), '/');
+        $recorded = rtrim((string) $install->docroot, '/');
+
+        // docroot is written by the provisioner and is authoritative when the
+        // host exposes it to PHP. Older rows may be blank or hold a path outside
+        // the shared-host chroot, in which case use the established layout.
+        if ($recorded !== '' && is_dir($recorded)) {
+            return $recorded;
+        }
+
+        return $base.'/'.$install->domain;
     }
 
     /** @return array{ok:bool,message:string,log:string} */
