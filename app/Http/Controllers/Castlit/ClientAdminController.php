@@ -63,7 +63,7 @@ class ClientAdminController extends Controller
         $install->refresh();
 
         // Surface the full step log to the page so the admin sees what happened.
-        $back = to_route('castlit.admin.clients')->with('update_log', $install->provision_log);
+        $back = back()->with('update_log', $install->provision_log);
 
         if (str_contains((string) $install->current_step, 'échec')) {
             return $back->with('error',
@@ -100,8 +100,8 @@ class ClientAdminController extends Controller
         $install->refresh();
 
         return str_contains((string) $install->current_step, 'échec')
-            ? to_route('castlit.admin.clients')->with('error', "Vidage du cache impossible pour « {$install->domain} » : {$install->current_step}")
-            : to_route('castlit.admin.clients')->with('success', "Cache vidé pour « {$install->domain} ».")
+            ? back()->with('error', "Vidage du cache impossible pour « {$install->domain} » : {$install->current_step}")
+            : back()->with('success', "Cache vidé pour « {$install->domain} ».")
                 ->with('update_log', $install->provision_log);
     }
 

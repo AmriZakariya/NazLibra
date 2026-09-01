@@ -101,8 +101,14 @@ Route::prefix('setup')->name('setup.')->group(function (): void {
 
 Route::get('/manifest.json', [LibraireProController::class, 'manifest'])->name('manifest');
 Route::get('/app-icon/{size}', [LibraireProController::class, 'appIcon'])->where('size', '32|192|512')->name('app.icon');
-Route::get('/connexion', [AuthController::class, 'showLogin'])->name('login');
-Route::post('/connexion', [AuthController::class, 'login'])->name('login.store');
+// Access-code gate (client installs only; middleware skips master + demo).
+Route::get('/acces', [\App\Http\Controllers\Castlit\AccessGateController::class, 'show'])
+    ->name('castlit.access.show');
+Route::post('/acces', [\App\Http\Controllers\Castlit\AccessGateController::class, 'verify'])
+    ->middleware('throttle:12,1')->name('castlit.access.verify');
+
+Route::get('/connexion', [AuthController::class, 'showLogin'])->middleware('access.verified')->name('login');
+Route::post('/connexion', [AuthController::class, 'login'])->middleware('access.verified')->name('login.store');
 Route::post('/deconnexion', [AuthController::class, 'logout'])->middleware('auth')->name('logout');
 Route::get('/profil', [AuthController::class, 'profile'])->middleware(['auth', 'session.unlocked'])->name('profile');
 Route::put('/profil', [AuthController::class, 'updateProfile'])->middleware(['auth', 'session.unlocked'])->name('profile.update');
@@ -124,7 +130,7 @@ Route::post('/reinitialiser-pin', [AuthController::class, 'updatePin'])->name('p
 Route::get('/boutique', [OnlineStoreController::class, 'index'])->name('storefront.index');
 Route::post('/boutique/commandes', [OnlineStoreController::class, 'storeOrder'])->name('storefront.orders.store');
 
-Route::middleware(['auth', 'tenant.access', 'session.unlocked', 'device.selected'])->group(function (): void {
+Route::middleware(['access.verified', 'auth', 'tenant.access', 'session.unlocked', 'device.selected'])->group(function (): void {
 Route::post('/langue/{locale}', [LibraireProController::class, 'switchLocale'])->name('locale.switch');
 Route::get('/', [LibraireProController::class, 'dashboard'])->name('dashboard');
 Route::get('/guide-fonctionnalites', [LibraireProController::class, 'functionalityGuide'])->name('functionality-guide');

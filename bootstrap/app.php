@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.context'    => \App\Http\Middleware\ResolveApiContext::class,
             'api.action'     => \App\Http\Middleware\ResolveApiActionContext::class,
             'platform.admin' => \App\Http\Middleware\EnsurePlatformAdmin::class,
+            'access.verified' => \App\Http\Middleware\EnsureAccessVerified::class,
         ]);
 
         $middleware->web(append: [
