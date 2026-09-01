@@ -143,6 +143,42 @@ imagettftext($img, $fs, 0, (int) (($S - $w) / 2 - $bb[0] - $S * 0.04), (int) (($
 imagefilledellipse($img, (int) ($S * 0.6), (int) ($S * 0.55), (int) ($S * 0.15), (int) ($S * 0.15), c($img, $ACCENT));
 save($img, "$OUT/castlit-playstore-icon-512.png");
 
+// ── 1d. Flutter app icons (written straight into the app's asset folder) ──────
+//        icon.png            — full-bleed opaque blue mark (legacy + iOS)
+//        icon_foreground.png — transparent, mark inset into the adaptive safe
+//                              zone so Android's circular mask never clips it.
+$APP_ICONS = dirname($ROOT).'/naz_pos/assets/icons';
+if (is_dir($APP_ICONS)) {
+    // Full-bleed opaque icon (blue gradient + white C + amber dot).
+    $S = 1024;
+    $img = imagecreatetruecolor($S, $S);
+    imagesavealpha($img, true);
+    vGradient($img, 0, 0, $S, $S, $BRANDL, $BRAND);
+    $fs = $S * 0.5;
+    $bb = imagettfbbox($fs, 0, $BOLD, 'C');
+    $w = $bb[2] - $bb[0];
+    $h = $bb[1] - $bb[7];
+    imagettftext($img, $fs, 0, (int) (($S - $w) / 2 - $bb[0] - $S * 0.04), (int) (($S - $h) / 2 - $bb[7]), c($img, $WHITE), $BOLD, 'C');
+    imagefilledellipse($img, (int) ($S * 0.6), (int) ($S * 0.55), (int) ($S * 0.15), (int) ($S * 0.15), c($img, $ACCENT));
+    save($img, "$APP_ICONS/icon.png");
+
+    // Adaptive foreground: transparent bg, mark scaled to ~62% and centered so
+    // it sits inside the 66% adaptive safe zone.
+    $S = 1024;
+    $img = canvas($S, $S);
+    $fs = $S * 0.34;                 // smaller than full-bleed → padded
+    $bb = imagettfbbox($fs, 0, $BOLD, 'C');
+    $w = $bb[2] - $bb[0];
+    $h = $bb[1] - $bb[7];
+    $cx = (int) (($S - $w) / 2 - $bb[0] - $S * 0.03);
+    $cy = (int) (($S - $h) / 2 - $bb[7]);
+    imagettftext($img, $fs, 0, $cx, $cy, c($img, $WHITE), $BOLD, 'C');
+    imagefilledellipse($img, (int) ($S * 0.565), (int) ($S * 0.53), (int) ($S * 0.135), (int) ($S * 0.135), c($img, $ACCENT));
+    save($img, "$APP_ICONS/icon_foreground.png");
+} else {
+    fwrite(STDERR, "⚠ naz_pos/assets/icons not found — skipped Flutter app icons.\n");
+}
+
 // ── 2. Horizontal logo (light + dark), transparent background ───────────────
 foreach ([['light', $INK, $BRAND], ['dark', $WHITE, $ACCENT]] as [$variant, $c1, $c2]) {
     $H = 300;

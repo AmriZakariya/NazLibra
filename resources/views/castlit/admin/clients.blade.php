@@ -34,6 +34,14 @@
     .ver.ok .dot { background: var(--ok); } .ver.stale .dot { background: var(--warn); } .ver.na .dot { background: var(--sand); }
     .ver small { display: block; color: var(--muted); font-weight: 500; font-size: 11.5px; margin-top: 2px; }
     .step { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    .accode { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+    .accode-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+    .accode code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; font-weight: 700;
+                   letter-spacing: 1px; background: var(--surface); border: 1px solid var(--sand); border-radius: 7px; padding: 2px 8px; }
+    .accode-btn { border: 1px solid var(--sand); background: var(--surface); color: var(--muted); border-radius: 7px;
+                  width: 26px; height: 26px; cursor: pointer; line-height: 1; }
+    .accode-btn:hover { border-color: var(--brand); color: var(--brand); }
+    .accode form { margin: 0; }
     .actions { display: flex; gap: 7px; justify-content: flex-end; flex-wrap: wrap; }
     .actions form { margin: 0; }
     .btn-sm { font-size: 12.5px; font-weight: 650; padding: 7px 12px; border-radius: 9px; border: 1px solid var(--sand);
@@ -144,6 +152,15 @@
                                     @endif
                                 </div>
                                 <a class="sd" href="{{ $install->url() }}" target="_blank" rel="noopener">{{ $install->domain }} ↗</a>
+                                <div class="accode">
+                                    <span class="accode-label">Code d'accès</span>
+                                    <code>{{ $install->access_code ?? '—' }}</code>
+                                    <form method="POST" action="{{ route('castlit.admin.clients.regenerate-code', $install) }}"
+                                          onsubmit="return confirm('Régénérer le code d\'accès de {{ $install->domain }} ? L\'ancien code ne fonctionnera plus.');">
+                                        @csrf
+                                        <button type="submit" class="accode-btn" title="Régénérer le code">↻</button>
+                                    </form>
+                                </div>
                             </td>
                             <td>
                                 @if ($install->isPaid())

@@ -52,6 +52,8 @@ Route::prefix('v1')->group(function (): void {
     // ── Public ──────────────────────────────────────────────────────────────
     Route::post('auth/login', [AuthController::class, 'login']);
     Route::get('public/info', [PublicController::class, 'info']);
+    Route::post('public/client-access', [PublicController::class, 'clientAccess'])
+        ->middleware('throttle:20,1');
 
     // ── Protected (Sanctum token required) ──────────────────────────────────
     Route::middleware(['auth:sanctum', \App\Http\Middleware\ResolveApiContext::class])->group(function (): void {

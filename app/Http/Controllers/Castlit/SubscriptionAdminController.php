@@ -211,6 +211,7 @@ class SubscriptionAdminController extends Controller
             'domain'          => $subdomain.'.'.config('castlit.main_domain'),
             'status'          => TenantInstall::STATUS_QUEUED,
             'owner_email'     => $subscription->email,
+            'access_code'     => TenantInstall::generateAccessCode(),
         ]));
 
         ProvisionTenantJob::dispatch($install->id);

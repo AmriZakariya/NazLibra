@@ -25,6 +25,9 @@ class ClientAdminController extends Controller
             ->orderByDesc('id')
             ->paginate(30);
 
+        // Backfill access codes for installs provisioned before this feature.
+        $installs->getCollection()->each(fn (TenantInstall $i) => $i->ensureAccessCode());
+
         $masterSha = $this->masterSha();
         $commits = $this->recentCommits();
 
@@ -120,6 +123,16 @@ class ClientAdminController extends Controller
             return back()->with('error',
                 "Vidage du cache impossible pour « {$install->domain} » : ".$e->getMessage());
         }
+    }
+
+    /** Regenerate the client's mobile access code (invalidates the old one). */
+    public function regenerateCode(TenantInstall $install): RedirectResponse
+    {
+        $install->forceFill(['access_code' => TenantInstall::generateAccessCode()])->save();
+
+        return back()->with('success',
+            "Nouveau code d'accès pour « {$install->domain} » : {$install->access_code}. "
+            .'Communiquez-le au client.');
     }
 
     /** Mark the client as paid (ends the trial state). */

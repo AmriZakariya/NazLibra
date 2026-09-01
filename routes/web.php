@@ -53,6 +53,7 @@ if (config('castlit.is_master')) {
             Route::post('/clients/git-pull', [ClientAdminController::class, 'pullFromGit'])->name('clients.git-pull');
             Route::post('/clients/{install}/maj', [ClientAdminController::class, 'update'])->name('clients.update');
             Route::post('/clients/{install}/vider-cache', [ClientAdminController::class, 'clearCache'])->name('clients.clear-cache');
+            Route::post('/clients/{install}/code', [ClientAdminController::class, 'regenerateCode'])->name('clients.regenerate-code');
             Route::post('/clients/{install}/suspendre', [ClientAdminController::class, 'disable'])->name('clients.disable');
             Route::post('/clients/{install}/reactiver', [ClientAdminController::class, 'enable'])->name('clients.enable');
             Route::post('/clients/{install}/payer', [ClientAdminController::class, 'markPaid'])->name('clients.paid');

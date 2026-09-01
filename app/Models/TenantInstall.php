@@ -14,9 +14,9 @@ class TenantInstall extends Model
 
     protected $fillable = [
         'subscription_id', 'subdomain', 'domain', 'docroot', 'db_name',
-        'db_user', 'status', 'is_enabled', 'current_step', 'last_action',
-        'provision_log', 'commit_sha', 'owner_email', 'provisioned_at',
-        'updated_version_at', 'trial_ends_at', 'paid_at',
+        'db_user', 'status', 'is_enabled', 'access_code', 'current_step',
+        'last_action', 'provision_log', 'commit_sha', 'owner_email',
+        'provisioned_at', 'updated_version_at', 'trial_ends_at', 'paid_at',
     ];
 
     protected $casts = [
@@ -39,6 +39,31 @@ class TenantInstall extends Model
     public function url(): string
     {
         return 'https://'.$this->domain;
+    }
+
+    /**
+     * Generate a short, unambiguous access code (no 0/O/1/I) that the client
+     * enters in the mobile app to reach their space.
+     */
+    public static function generateAccessCode(int $length = 6): string
+    {
+        $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        $code = '';
+        for ($i = 0; $i < $length; $i++) {
+            $code .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+        }
+
+        return $code;
+    }
+
+    /** Return the current access code, generating + persisting one if missing. */
+    public function ensureAccessCode(): string
+    {
+        if (empty($this->access_code)) {
+            $this->forceFill(['access_code' => self::generateAccessCode()])->save();
+        }
+
+        return $this->access_code;
     }
 
     /** A live install that hasn't been suspended by the platform admin. */
