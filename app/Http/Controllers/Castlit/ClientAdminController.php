@@ -9,7 +9,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
-use Symfony\Component\Process\Process;
 
 /**
  * Platform-admin manager for provisioned client installs: see the deployed
@@ -60,7 +59,7 @@ class ClientAdminController extends Controller
         }
 
         // Run now (synchronously) so we can report the actual outcome + log.
-        ManageClientJob::dispatchSync($install->id, 'update');
+        ManageClientJob::dispatchSync($install->id, 'clear-cache');
         $install->refresh();
 
         // Surface the full step log to the page so the admin sees what happened.
@@ -92,37 +91,18 @@ class ClientAdminController extends Controller
 
     /**
      * Clear the compiled caches (views, config, routes, events…) for one client
-     * install by running `artisan optimize:clear` in its own doc root. Useful
-     * after a Blade/view change to force the new markup to be served.
+     * through its signed in-app maintenance endpoint. Useful after a Blade/view
+     * change to force the new markup to be served on hosts without proc_open.
      */
     public function clearCache(TenantInstall $install): RedirectResponse
     {
-        $root = rtrim((string) config('castlit.provision.public_html'), '/').'/'.$install->domain;
+        ManageClientJob::dispatchSync($install->id, 'update');
+        $install->refresh();
 
-        if (! is_dir($root)) {
-            return back()->with('error', "Dossier introuvable pour « {$install->domain} » : {$root}");
-        }
-
-        try {
-            $php = (string) config('castlit.provision.php_bin', 'php');
-            $process = new Process([$php, 'artisan', 'optimize:clear'], $root, [
-                'PATH' => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin',
-            ]);
-            $process->run();
-
-            if (! $process->isSuccessful()) {
-                return back()->with('error',
-                    "Vidage du cache échoué pour « {$install->domain} » : "
-                    .trim($process->getErrorOutput() ?: $process->getOutput()));
-            }
-
-            return back()
-                ->with('success', "Cache vidé pour « {$install->domain} ».")
-                ->with('update_log', trim($process->getOutput()) ?: 'optimize:clear ✓');
-        } catch (\Throwable $e) {
-            return back()->with('error',
-                "Vidage du cache impossible pour « {$install->domain} » : ".$e->getMessage());
-        }
+        return str_contains((string) $install->current_step, 'échec')
+            ? back()->with('error', "Vidage du cache impossible pour « {$install->domain} » : {$install->current_step}")
+            : back()->with('success', "Cache vidé pour « {$install->domain} ».")
+                ->with('update_log', $install->provision_log);
     }
 
     /** Regenerate the client's mobile access code (invalidates the old one). */
@@ -371,10 +351,7 @@ class ClientAdminController extends Controller
     private function runArtisan(array $args): void
     {
         try {
-            $php = config('castlit.provision.php_bin', 'php');
-            (new Process(array_merge([$php, 'artisan'], $args), base_path(), [
-                'PATH' => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin',
-            ]))->run();
+            \Illuminate\Support\Facades\Artisan::call($args[0], array_slice($args, 1));
         } catch (\Throwable) {
             // best-effort
         }
@@ -533,22 +510,9 @@ class ClientAdminController extends Controller
      */
     private function runGit(array $args): ?string
     {
-        try {
-            $env = [
-                'PATH' => '/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:'.(getenv('PATH') ?: ''),
-                'HOME' => storage_path('app'),
-            ];
-            $process = new Process(
-                array_merge(['git', '-c', 'safe.directory=*'], $args),
-                base_path(),
-                $env,
-            );
-            $process->run();
-
-            return $process->isSuccessful() ? $process->getOutput() : null;
-        } catch (\Throwable) {
-            return null;
-        }
+        // Local process execution is disabled by this shared host. GitHub API
+        // and the deployed SHA marker provide the no-process fallback.
+        return null;
     }
 
     /** Read the short HEAD sha straight from .git (no git binary needed). */

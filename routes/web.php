@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Castlit\ClientAdminController;
+use App\Http\Controllers\Castlit\ClientMaintenanceController;
 use App\Http\Controllers\Castlit\MarketingController;
 use App\Http\Controllers\Castlit\SubscriptionAdminController;
 use App\Http\Controllers\Castlit\SubscriptionController;
@@ -20,6 +21,12 @@ use Illuminate\Support\Facades\Route;
 // robots.txt is served for EVERY install: the master allows indexing, while
 // client subdomains (non-master) are kept out of search engines.
 Route::get('/robots.txt', [MarketingController::class, 'robots']);
+
+// This route exists on every client install.  Its short-lived HMAC signature
+// is based on that client's APP_KEY, and it is never available on the master.
+Route::post('/__castlit/maintenance', [ClientMaintenanceController::class, 'run'])
+    ->withoutMiddleware(\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class)
+    ->middleware('throttle:6,1');
 
 if (config('castlit.is_master')) {
     // NOTE: the public landing at `/` is registered at the BOTTOM of this file.
