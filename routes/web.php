@@ -58,23 +58,10 @@ if (config('castlit.is_master')) {
             // Client (install) manager — must precede the /{subscription} route.
             Route::get('/clients', [ClientAdminController::class, 'index'])->name('clients');
             Route::post('/clients/git-pull', [ClientAdminController::class, 'pullFromGit'])->name('clients.git-pull');
-            // Flat action endpoint (id in the body) — nested parametrized POSTs
-            // are blocked by the host WAF, so all per-client actions go here.
+            // All per-client operations go through ONE flat endpoint (id + action
+            // in the body). Keeps the route table static + fully cacheable
+            // (no closures) and avoids nested-path issues on the host.
             Route::post('/clients/action', [ClientAdminController::class, 'action'])->name('clients.action');
-            Route::post('/clients/{install}/maj', [ClientAdminController::class, 'update'])->name('clients.update');
-            Route::get('/clients/{install}/maj', fn () => to_route('castlit.admin.clients'));
-            Route::post('/clients/{install}/vider-cache', [ClientAdminController::class, 'clearCache'])->name('clients.clear-cache');
-            Route::get('/clients/{install}/vider-cache', fn () => to_route('castlit.admin.clients'));
-            Route::post('/clients/{install}/code', [ClientAdminController::class, 'regenerateCode'])->name('clients.regenerate-code');
-            Route::get('/clients/{install}/code', fn () => to_route('castlit.admin.clients'));
-            Route::post('/clients/{install}/suspendre', [ClientAdminController::class, 'disable'])->name('clients.disable');
-            Route::get('/clients/{install}/suspendre', fn () => to_route('castlit.admin.clients'));
-            Route::post('/clients/{install}/reactiver', [ClientAdminController::class, 'enable'])->name('clients.enable');
-            Route::get('/clients/{install}/reactiver', fn () => to_route('castlit.admin.clients'));
-            Route::post('/clients/{install}/payer', [ClientAdminController::class, 'markPaid'])->name('clients.paid');
-            Route::get('/clients/{install}/payer', fn () => to_route('castlit.admin.clients'));
-            Route::post('/clients/{install}/impaye', [ClientAdminController::class, 'markUnpaid'])->name('clients.unpaid');
-            Route::get('/clients/{install}/impaye', fn () => to_route('castlit.admin.clients'));
             Route::get('/{subscription}', [SubscriptionAdminController::class, 'show'])->name('show');
             Route::post('/{subscription}/approuver', [SubscriptionAdminController::class, 'approve'])->name('approve');
             Route::post('/{subscription}/rejeter', [SubscriptionAdminController::class, 'reject'])->name('reject');

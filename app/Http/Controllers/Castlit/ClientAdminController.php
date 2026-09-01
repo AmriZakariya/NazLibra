@@ -196,6 +196,7 @@ class ClientAdminController extends Controller
             // added routes/controllers are picked up — proc_open is unavailable
             // on the shared host, so this runs via Artisan::call, not the CLI.
             $this->runArtisan(['optimize:clear']);
+            $this->resetOpcache();
             $sha = $this->masterSha();
 
             return back()->with('success',
@@ -206,6 +207,7 @@ class ClientAdminController extends Controller
 
         // Clear ALL compiled caches (routes included) so the new code is served.
         $this->runArtisan(['optimize:clear']);
+        $this->resetOpcache();
 
         // Keep the deployed-sha marker in sync with the git checkout so the
         // version display stays correct on hosts that later lose the git binary.
@@ -383,6 +385,23 @@ class ClientAdminController extends Controller
     {
         try {
             \Illuminate\Support\Facades\Artisan::call($args[0], array_slice($args, 1));
+        } catch (\Throwable) {
+            // best-effort
+        }
+    }
+
+    /**
+     * Reset the PHP OPcache pool that serves web requests. On LiteSpeed/LSPHP
+     * shared hosts opcache.validate_timestamps is often 0, so freshly deployed
+     * code (new routes/controllers) keeps serving stale bytecode until the cache
+     * is reset — artisan cache clears do NOT touch OPcache.
+     */
+    private function resetOpcache(): void
+    {
+        try {
+            if (function_exists('opcache_reset')) {
+                @opcache_reset();
+            }
         } catch (\Throwable) {
             // best-effort
         }
