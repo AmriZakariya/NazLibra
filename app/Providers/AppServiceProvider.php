@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
 
@@ -22,6 +23,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // The shared host forwards HTTPS through a proxy, so Laravel can see
+        // an HTTP request and generate http:// form actions. Its HTTP→HTTPS
+        // redirect changes POST requests into GET requests, breaking the
+        // POST-only platform-admin actions. Generate HTTPS URLs explicitly.
+        if (app()->environment('production')) {
+            URL::forceScheme('https');
+        }
+
         Event::listen(CommandStarting::class, function (CommandStarting $event): void {
             $destructiveCommands = [
                 'db:wipe',
