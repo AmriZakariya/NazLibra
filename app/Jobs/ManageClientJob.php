@@ -120,11 +120,21 @@ class ManageClientJob implements ShouldQueue
         }
 
         if ($this->action === 'clear-cache') {
+            $recovered = false;
+            if (! is_file($root.'/bootstrap/app.php')) {
+                // A host-side `git clean` can remove the client's untracked
+                // release files while keeping its ignored .env/database/data.
+                // Rehydrate code first; copyRelease deliberately preserves that
+                // tenant-specific data.
+                $this->copyRelease(base_path(), $root);
+                $recovered = true;
+            }
             $this->ensureRuntimeDirectories($root);
+            $this->clearCompiledCache($root);
             $maintenance = $this->runClientMaintenance($root, 'clear-cache');
 
             return $maintenance['ok']
-                ? ['status' => 'success', 'log' => $maintenance['log']]
+                ? ['status' => 'success', 'log' => ($recovered ? "Client code restored.\n" : '').$maintenance['log']]
                 : ['status' => 'error', 'message' => $maintenance['message'], 'log' => $maintenance['log']];
         }
 

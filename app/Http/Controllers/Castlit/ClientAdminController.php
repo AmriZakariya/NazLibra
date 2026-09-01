@@ -59,11 +59,11 @@ class ClientAdminController extends Controller
         }
 
         // Run now (synchronously) so we can report the actual outcome + log.
-        ManageClientJob::dispatchSync($install->id, 'clear-cache');
+        ManageClientJob::dispatchSync($install->id, 'update');
         $install->refresh();
 
         // Surface the full step log to the page so the admin sees what happened.
-        $back = back()->with('update_log', $install->provision_log);
+        $back = to_route('castlit.admin.clients')->with('update_log', $install->provision_log);
 
         if (str_contains((string) $install->current_step, 'échec')) {
             return $back->with('error',
@@ -96,12 +96,12 @@ class ClientAdminController extends Controller
      */
     public function clearCache(TenantInstall $install): RedirectResponse
     {
-        ManageClientJob::dispatchSync($install->id, 'update');
+        ManageClientJob::dispatchSync($install->id, 'clear-cache');
         $install->refresh();
 
         return str_contains((string) $install->current_step, 'échec')
-            ? back()->with('error', "Vidage du cache impossible pour « {$install->domain} » : {$install->current_step}")
-            : back()->with('success', "Cache vidé pour « {$install->domain} ».")
+            ? to_route('castlit.admin.clients')->with('error', "Vidage du cache impossible pour « {$install->domain} » : {$install->current_step}")
+            : to_route('castlit.admin.clients')->with('success', "Cache vidé pour « {$install->domain} ».")
                 ->with('update_log', $install->provision_log);
     }
 
