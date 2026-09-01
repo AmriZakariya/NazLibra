@@ -116,4 +116,12 @@ emit "▸ artisan migrate / cache refresh"
 DEPLOY_SHA="$(git -C "$SOURCE_DIR" rev-parse --short HEAD 2>/dev/null || echo master)"
 printf '%s' "$DEPLOY_SHA" > "$DOC_ROOT/.version"
 
+# Recycle the PHP (LSPHP) workers so the freshly copied bytecode is served.
+# Shared-host OPcache usually runs validate_timestamps=0, so without this the
+# client keeps serving the OLD code even though the files changed. Best-effort;
+# workers respawn on the next request. This runs LAST, after the CLI artisan
+# calls have completed, so it can't interrupt the deploy.
+emit "▸ recycling PHP workers (OPcache)"
+pkill -9 lsphp >/dev/null 2>&1 || killall -9 lsphp >/dev/null 2>&1 || true
+
 final "{\"status\":\"success\",\"action\":\"update\",\"url\":\"https://$FULL_DOMAIN\",\"commit\":\"$DEPLOY_SHA\"}" 0
