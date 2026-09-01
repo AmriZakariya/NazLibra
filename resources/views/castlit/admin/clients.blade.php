@@ -77,7 +77,7 @@
                 <p>Gérez les espaces provisionnés : version déployée, mises à jour et suspension.</p>
             </div>
             <div style="margin-left:auto; display:flex; gap:10px; flex-wrap:wrap">
-                <form method="POST" action="{{ route('castlit.admin.clients.git-pull') }}"
+                <form method="POST" action="{{ route('castlit.admin.clients.git-pull', [], false) }}"
                       onsubmit="return confirm('Récupérer la dernière version du code depuis Git sur le master ?');">
                     @csrf
                     <button type="submit" class="btn btn-primary" style="padding:11px 18px; white-space:nowrap">
@@ -115,7 +115,7 @@
                     <strong>{{ $behind }} commit{{ $behind > 1 ? 's' : '' }} non déployé{{ $behind > 1 ? 's' : '' }}</strong>
                     sur <code>origin/master</code> — le master tourne sur <code>{{ $masterSha }}</code>.
                 </div>
-                <form method="POST" action="{{ route('castlit.admin.clients.git-pull') }}"
+                <form method="POST" action="{{ route('castlit.admin.clients.git-pull', [], false) }}"
                       onsubmit="return confirm('Déployer la dernière version depuis Git sur le master ?');">
                     @csrf
                     <button type="submit" class="btn-sm primary">Déployer maintenant</button>
@@ -155,7 +155,7 @@
                                 <div class="accode">
                                     <span class="accode-label">Code d'accès</span>
                                     <code>{{ $install->access_code ?? '—' }}</code>
-                                    <form method="POST" action="{{ route('castlit.admin.clients.action') }}"
+                                    <form method="POST" action="{{ route('castlit.admin.clients.action', [], false) }}"
                                           onsubmit="return confirm('Régénérer le code d\'accès de {{ $install->domain }} ? L\'ancien code ne fonctionnera plus.');">
                                         @csrf
                                         <input type="hidden" name="install" value="{{ $install->id }}">
@@ -207,14 +207,14 @@
                             <td>
                                 <div class="actions">
                                     @if ($install->isLive() && ! $busy)
-                                        <form method="POST" action="{{ route('castlit.admin.clients.action') }}"
+                                        <form method="POST" action="{{ route('castlit.admin.clients.action', [], false) }}"
                                               onsubmit="return confirm('Déployer la dernière version sur {{ $install->domain }} ? Les données du client sont conservées.');">
                                             @csrf
                                             <input type="hidden" name="install" value="{{ $install->id }}">
                                             <input type="hidden" name="do" value="update">
                                             <button class="btn-sm primary" type="submit">Mettre à jour</button>
                                         </form>
-                                        <form method="POST" action="{{ route('castlit.admin.clients.action') }}"
+                                        <form method="POST" action="{{ route('castlit.admin.clients.action', [], false) }}"
                                               onsubmit="return confirm('Vider le cache (vues, config, routes) de {{ $install->domain }} ?');">
                                             @csrf
                                             <input type="hidden" name="install" value="{{ $install->id }}">
@@ -222,7 +222,7 @@
                                             <button class="btn-sm" type="submit">Vider le cache</button>
                                         </form>
                                         @if ($install->isPaid())
-                                            <form method="POST" action="{{ route('castlit.admin.clients.action') }}"
+                                            <form method="POST" action="{{ route('castlit.admin.clients.action', [], false) }}"
                                                   onsubmit="return confirm('Remettre {{ $install->domain }} en essai / impayé ?');">
                                                 @csrf
                                                 <input type="hidden" name="install" value="{{ $install->id }}">
@@ -230,7 +230,7 @@
                                                 <button class="btn-sm" type="submit">Marquer impayé</button>
                                             </form>
                                         @else
-                                            <form method="POST" action="{{ route('castlit.admin.clients.action') }}"
+                                            <form method="POST" action="{{ route('castlit.admin.clients.action', [], false) }}"
                                                   onsubmit="return confirm('Marquer {{ $install->domain }} comme payé ?');">
                                                 @csrf
                                                 <input type="hidden" name="install" value="{{ $install->id }}">
@@ -239,7 +239,7 @@
                                             </form>
                                         @endif
                                         @if ($install->is_enabled)
-                                            <form method="POST" action="{{ route('castlit.admin.clients.action') }}"
+                                            <form method="POST" action="{{ route('castlit.admin.clients.action', [], false) }}"
                                                   onsubmit="return confirm('Bloquer {{ $install->domain }} ? Le client verra une page « compte suspendu ».');">
                                                 @csrf
                                                 <input type="hidden" name="install" value="{{ $install->id }}">
@@ -247,7 +247,7 @@
                                                 <button class="btn-sm warn" type="submit">Bloquer</button>
                                             </form>
                                         @else
-                                            <form method="POST" action="{{ route('castlit.admin.clients.action') }}"
+                                            <form method="POST" action="{{ route('castlit.admin.clients.action', [], false) }}"
                                                   onsubmit="return confirm('Débloquer {{ $install->domain }} ?');">
                                                 @csrf
                                                 <input type="hidden" name="install" value="{{ $install->id }}">

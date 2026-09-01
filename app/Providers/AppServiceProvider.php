@@ -25,9 +25,11 @@ class AppServiceProvider extends ServiceProvider
     {
         // The shared host forwards HTTPS through a proxy, so Laravel can see
         // an HTTP request and generate http:// form actions. Its HTTP→HTTPS
-        // redirect changes POST requests into GET requests, breaking the
-        // POST-only platform-admin actions. Generate HTTPS URLs explicitly.
-        if (app()->environment('production')) {
+        // redirect then turns POST requests into GET requests, breaking every
+        // POST form (e.g. the platform-admin client actions → 404). Force HTTPS
+        // URL generation on any non-local environment — not just when APP_ENV
+        // happens to be exactly "production" — so this can't silently regress.
+        if (! app()->environment('local')) {
             URL::forceScheme('https');
         }
 
