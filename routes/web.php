@@ -59,9 +59,12 @@ if (config('castlit.is_master')) {
             Route::get('/clients', [ClientAdminController::class, 'index'])->name('clients');
             Route::post('/clients/git-pull', [ClientAdminController::class, 'pullFromGit'])->name('clients.git-pull');
             // All per-client operations go through ONE flat endpoint (id + action
-            // in the body). Keeps the route table static + fully cacheable
-            // (no closures) and avoids nested-path issues on the host.
-            Route::post('/clients/action', [ClientAdminController::class, 'action'])->name('clients.action');
+            // in the body). Path is "op" (not "action") because the edge cache
+            // poisoned /clients/action with a 404 from stray GET reloads; a fresh
+            // path has no cached entry. The GET redirect keeps it from ever
+            // returning a 404 (so it can't be re-poisoned) and is cacheable.
+            Route::post('/clients/op', [ClientAdminController::class, 'action'])->name('clients.action');
+            Route::redirect('/clients/op', '/castlit-admin/clients');
             Route::get('/{subscription}', [SubscriptionAdminController::class, 'show'])->name('show');
             Route::post('/{subscription}/approuver', [SubscriptionAdminController::class, 'approve'])->name('approve');
             Route::post('/{subscription}/rejeter', [SubscriptionAdminController::class, 'reject'])->name('reject');
