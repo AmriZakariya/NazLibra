@@ -37,9 +37,26 @@ final() { printf '%s\n' "$1"; exit "${2:-0}"; }
 ACTION="${1:-}"
 SUB_NAME="${2:-}"
 
-case "$ACTION" in update|enable|disable) : ;; *)
-  final '{"status":"error","step":"input","message":"Action must be update|enable|disable."}' 1 ;;
+case "$ACTION" in update|enable|disable|clear-cache) : ;; *)
+  final '{"status":"error","step":"input","message":"Action must be update|enable|disable|clear-cache."}' 1 ;;
 esac
+
+# Reset the CLIENT's own web-worker OPcache via its signed maintenance endpoint.
+# Safe (no pkill): it runs inside the client pool and calls opcache_reset there,
+# so freshly copied code is served even with opcache.validate_timestamps=0.
+reset_client_opcache() {
+  local key ts sig
+  key=$(grep -m1 '^APP_KEY=' "$DOC_ROOT/.env" 2>/dev/null | cut -d= -f2- | tr -d "\"' \r")
+  [ -z "$key" ] && return 0
+  command -v openssl >/dev/null 2>&1 || return 0
+  command -v curl    >/dev/null 2>&1 || return 0
+  ts=$(date +%s)
+  sig=$(printf '%s' "clear-cache|$ts" | openssl dgst -sha256 -hmac "$key" 2>/dev/null | awk '{print $NF}')
+  [ -z "$sig" ] && return 0
+  curl -s -m 30 -o /dev/null \
+    -H "X-Castlit-Timestamp: $ts" -H "X-Castlit-Signature: $sig" \
+    --data 'action=clear-cache' "https://$FULL_DOMAIN/__castlit/maintenance" 2>/dev/null || true
+}
 printf '%s' "$SUB_NAME" | grep -Eq '^[a-z0-9]{2,30}$' \
   || final '{"status":"error","step":"input","message":"Invalid subdomain (2-30 chars a-z0-9)."}' 1
 
@@ -65,6 +82,13 @@ if [ "$ACTION" = "enable" ]; then
   emit "▸ Reactivating $FULL_DOMAIN"
   rm -f "$DOC_ROOT/.suspended" 2>/dev/null || true
   final "{\"status\":\"success\",\"action\":\"enable\",\"url\":\"https://$FULL_DOMAIN\"}" 0
+fi
+
+if [ "$ACTION" = "clear-cache" ]; then
+  emit "▸ Vidage du cache de $FULL_DOMAIN"
+  ( cd "$DOC_ROOT" && "$PHP_BIN" artisan optimize:clear ) >&2 2>&1 || true
+  reset_client_opcache
+  final "{\"status\":\"success\",\"action\":\"clear-cache\",\"url\":\"https://$FULL_DOMAIN\"}" 0
 fi
 
 # ============================================================================
@@ -116,12 +140,11 @@ emit "▸ artisan migrate / cache refresh"
 DEPLOY_SHA="$(git -C "$SOURCE_DIR" rev-parse --short HEAD 2>/dev/null || echo master)"
 printf '%s' "$DEPLOY_SHA" > "$DOC_ROOT/.version"
 
-# Recycle the PHP (LSPHP) workers so the freshly copied bytecode is served.
-# Shared-host OPcache usually runs validate_timestamps=0, so without this the
-# client keeps serving the OLD code even though the files changed. Best-effort;
-# workers respawn on the next request. This runs LAST, after the CLI artisan
-# calls have completed, so it can't interrupt the deploy.
-emit "▸ recycling PHP workers (OPcache)"
-pkill -9 lsphp >/dev/null 2>&1 || killall -9 lsphp >/dev/null 2>&1 || true
+# Reset the client's web OPcache so the freshly copied bytecode is served
+# (shared-host OPcache usually runs validate_timestamps=0). Done via the
+# client's own signed endpoint — safe, unlike pkill, which would kill the web
+# request / worker running this script when executed inline.
+emit "▸ resetting client OPcache"
+reset_client_opcache
 
 final "{\"status\":\"success\",\"action\":\"update\",\"url\":\"https://$FULL_DOMAIN\",\"commit\":\"$DEPLOY_SHA\"}" 0
