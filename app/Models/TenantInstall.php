@@ -15,7 +15,8 @@ class TenantInstall extends Model
     protected $fillable = [
         'subscription_id', 'subdomain', 'domain', 'docroot', 'db_name',
         'db_user', 'status', 'is_enabled', 'access_code', 'current_step',
-        'last_action', 'provision_log', 'commit_sha', 'owner_email',
+        'last_action', 'provision_log', 'update_log', 'updated_log_at',
+        'commit_sha', 'owner_email',
         'provisioned_at', 'updated_version_at', 'trial_ends_at', 'paid_at',
     ];
 
@@ -23,6 +24,7 @@ class TenantInstall extends Model
         'is_enabled'         => 'boolean',
         'provisioned_at'     => 'datetime',
         'updated_version_at' => 'datetime',
+        'updated_log_at'     => 'datetime',
         'trial_ends_at'      => 'datetime',
         'paid_at'            => 'datetime',
     ];

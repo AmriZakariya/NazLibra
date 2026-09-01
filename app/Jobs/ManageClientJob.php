@@ -76,19 +76,22 @@ class ManageClientJob implements ShouldQueue
 
     private function applySuccess(TenantInstall $install, array $result, string $log): void
     {
-        $attrs = [
-            'current_step'  => $this->stepLabel($this->action).' ✓',
-            'provision_log' => trim($log) ?: $install->provision_log,
-        ];
+        $attrs = ['current_step' => $this->stepLabel($this->action).' ✓'];
 
-        if ($this->action === 'disable') {
-            $attrs['is_enabled'] = false;
-        } elseif ($this->action === 'enable') {
-            $attrs['is_enabled'] = true;
-        } elseif ($this->action === 'update') {
+        // Keep the first-deploy (provision) log intact; updates log separately.
+        if ($this->action === 'update') {
+            $attrs['update_log'] = trim($log) ?: $install->update_log;
+            $attrs['updated_log_at'] = now();
             $attrs['is_enabled'] = true; // an update always brings the client back up
             $attrs['commit_sha'] = $result['commit'] ?? $install->commit_sha;
             $attrs['updated_version_at'] = now();
+        } else {
+            $attrs['provision_log'] = trim($log) ?: $install->provision_log;
+            if ($this->action === 'disable') {
+                $attrs['is_enabled'] = false;
+            } elseif ($this->action === 'enable') {
+                $attrs['is_enabled'] = true;
+            }
         }
 
         $install->forceFill($attrs)->save();
@@ -411,10 +414,14 @@ class ManageClientJob implements ShouldQueue
 
     private function fail(TenantInstall $install, string $message, ?string $log = null): void
     {
-        $install->forceFill([
-            'current_step'  => $this->stepLabel($this->action).' — échec : '.Str::limit($message, 120),
-            'provision_log' => $log !== null ? trim($log) : $install->provision_log,
-        ])->save();
+        $attrs = ['current_step' => $this->stepLabel($this->action).' — échec : '.Str::limit($message, 120)];
+        if ($this->action === 'update') {
+            $attrs['update_log'] = $log !== null ? trim($log) : $install->update_log;
+            $attrs['updated_log_at'] = now();
+        } else {
+            $attrs['provision_log'] = $log !== null ? trim($log) : $install->provision_log;
+        }
+        $install->forceFill($attrs)->save();
         Log::error('CastLit manage action failed', [
             'install' => $install->id, 'action' => $this->action, 'message' => $message,
         ]);

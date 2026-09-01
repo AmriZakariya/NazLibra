@@ -123,8 +123,19 @@
 
                     @if ($subscription->install->provision_log)
                         <div class="card">
-                            <h2>Journal de provisioning</h2>
+                            <h2>Journal du premier déploiement</h2>
                             <div class="body"><div class="log">{{ $subscription->install->provision_log }}</div></div>
+                        </div>
+                    @endif
+
+                    @if ($subscription->install->update_log)
+                        <div class="card">
+                            <h2>Journal des mises à jour
+                                @if ($subscription->install->updated_log_at)
+                                    <span style="font-weight:500; color:var(--muted); font-size:12.5px">· {{ $subscription->install->updated_log_at->format('d/m/Y H:i') }}</span>
+                                @endif
+                            </h2>
+                            <div class="body"><div class="log">{{ $subscription->install->update_log }}</div></div>
                         </div>
                     @endif
                 @endif
@@ -156,7 +167,17 @@
                             </form>
                         @elseif ($subscription->install && $subscription->install->status === \App\Models\TenantInstall::STATUS_LIVE)
                             <p style="font-size:14px; color:var(--ok); font-weight:600">Espace en ligne ✓</p>
-                            <a class="btn btn-ghost btn-block" href="{{ $subscription->install->url() }}" target="_blank" rel="noopener">Ouvrir l'espace client ↗</a>
+                            @if ($subscription->install->current_step)
+                                <p style="font-size:12.5px; color:var(--muted); margin:-2px 0 8px">{{ $subscription->install->current_step }}</p>
+                            @endif
+                            <form method="POST" action="{{ route('castlit.admin.clients.action', [], false) }}"
+                                  onsubmit="return confirm('Déployer la dernière version sur {{ $subscription->install->domain }} ? Les données du client sont conservées.')">
+                                @csrf
+                                <input type="hidden" name="install" value="{{ $subscription->install->id }}">
+                                <input type="hidden" name="do" value="update">
+                                <button class="btn btn-primary btn-block" type="submit">↻ Mettre à jour le code</button>
+                            </form>
+                            <a class="btn btn-ghost btn-block" href="{{ $subscription->install->url() }}" target="_blank" rel="noopener" style="margin-top:10px">Ouvrir l'espace client ↗</a>
                             <form method="POST" action="{{ route('castlit.admin.resend', $subscription) }}" style="margin-top:10px">
                                 @csrf
                                 <button class="btn btn-ghost btn-block" type="submit"

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Castlit;
 use App\Http\Controllers\Controller;
 use App\Jobs\ManageClientJob;
 use App\Models\TenantInstall;
-use App\Services\ClientManageQueue;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -82,31 +81,29 @@ class ClientAdminController extends Controller
         };
     }
 
-    /** Redeploy the latest master code to one client (queued — heavy). */
+    /**
+     * Redeploy the latest master code to one client. Dispatched to the queue and
+     * run by the same worker as the first deploy (ProvisionTenantJob) — that
+     * runs in CLI where the shell/copy works, unlike the web process.
+     */
     public function update(TenantInstall $install): RedirectResponse
     {
         if (! $install->isLive()) {
             return back()->with('error', "Cet espace n'est pas en ligne : mise à jour impossible.");
         }
 
-        try {
-            $queued = ClientManageQueue::enqueue($install, 'update');
-        } catch (\Throwable $e) {
-            return to_route('castlit.admin.clients')->with('error', $e->getMessage());
-        }
-
-        if (! $queued) {
-            return to_route('castlit.admin.clients')->with('error',
-                "Une action est déjà en attente pour « {$install->domain} ».");
-        }
-
         $install->forceFill([
-            'last_action' => 'update',
-            'current_step' => 'Mise à jour du code — en attente du runner SSH',
+            'last_action'    => 'update',
+            'current_step'   => 'Mise à jour du code — en attente du worker…',
+            'update_log'     => null,
+            'updated_log_at' => now(),
         ])->save();
 
-        return to_route('castlit.admin.clients')->with('success',
-            "Mise à jour de « {$install->domain} » planifiée. Le runner SSH l’exécutera sous une minute.");
+        ManageClientJob::dispatch($install->id, 'update');
+
+        return back()->with('success',
+            "Mise à jour de « {$install->domain} » planifiée. Le worker l’exécutera sous une minute "
+            .'(actualisez la page pour voir le résultat).');
     }
 
     /** Suspend a client — runs synchronously for instant feedback. */
