@@ -120,6 +120,7 @@ class ManageClientJob implements ShouldQueue
         }
 
         if ($this->action === 'clear-cache') {
+            $this->ensureRuntimeDirectories($root);
             $maintenance = $this->runClientMaintenance($root, 'clear-cache');
 
             return $maintenance['ok']
@@ -128,6 +129,7 @@ class ManageClientJob implements ShouldQueue
         }
 
         $this->copyRelease(base_path(), $root);
+        $this->ensureRuntimeDirectories($root);
         $this->clearCompiledCache($root);
         $maintenance = $this->runClientMaintenance($root, 'migrate-and-clear');
 
@@ -218,6 +220,28 @@ class ManageClientJob implements ShouldQueue
         foreach (glob($cache.'/*.php') ?: [] as $file) {
             if (! @unlink($file)) {
                 throw new \RuntimeException("Cannot clear compiled cache file {$file}");
+            }
+        }
+    }
+
+    /** Ensure older client installs have Laravel's writable runtime paths. */
+    private function ensureRuntimeDirectories(string $root): void
+    {
+        $directories = [
+            $root.'/bootstrap/cache',
+            $root.'/storage/framework/cache/data',
+            $root.'/storage/framework/sessions',
+            $root.'/storage/framework/views',
+            $root.'/storage/logs',
+        ];
+
+        foreach ($directories as $directory) {
+            if (! is_dir($directory) && ! @mkdir($directory, 0775, true) && ! is_dir($directory)) {
+                throw new \RuntimeException("Cannot create required runtime directory: {$directory}");
+            }
+            @chmod($directory, 0775);
+            if (! is_writable($directory)) {
+                throw new \RuntimeException("Required runtime directory is not writable: {$directory}");
             }
         }
     }
