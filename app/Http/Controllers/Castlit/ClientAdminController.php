@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Castlit;
 use App\Http\Controllers\Controller;
 use App\Jobs\ManageClientJob;
 use App\Models\TenantInstall;
+use App\Services\ClientManageQueue;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -88,23 +89,24 @@ class ClientAdminController extends Controller
             return back()->with('error', "Cet espace n'est pas en ligne : mise à jour impossible.");
         }
 
-        // Run now (synchronously) so we can report the actual outcome + log.
-        ManageClientJob::dispatchSync($install->id, 'update');
-        $install->refresh();
-
-        // Surface the full step log to the page so the admin sees what happened.
-        $back = back()->with('update_log', $install->provision_log);
-
-        if (str_contains((string) $install->current_step, 'échec')) {
-            return $back->with('error',
-                "Échec de la mise à jour de « {$install->domain} » — {$install->current_step}");
+        try {
+            $queued = ClientManageQueue::enqueue($install, 'update');
+        } catch (\Throwable $e) {
+            return to_route('castlit.admin.clients')->with('error', $e->getMessage());
         }
 
-        $version = $install->commit_sha ? " → version {$install->commit_sha}" : '';
-        $when = $install->updated_version_at?->format('d/m/Y H:i');
+        if (! $queued) {
+            return to_route('castlit.admin.clients')->with('error',
+                "Une action est déjà en attente pour « {$install->domain} ».");
+        }
 
-        return $back->with('success',
-            "« {$install->domain} » mise à jour avec succès{$version}".($when ? " ({$when})" : '').'.');
+        $install->forceFill([
+            'last_action' => 'update',
+            'current_step' => 'Mise à jour du code — en attente du runner SSH',
+        ])->save();
+
+        return to_route('castlit.admin.clients')->with('success',
+            "Mise à jour de « {$install->domain} » planifiée. Le runner SSH l’exécutera sous une minute.");
     }
 
     /** Suspend a client — runs synchronously for instant feedback. */
