@@ -8,6 +8,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Container\Container;
@@ -101,9 +102,7 @@ class ManageClientJob implements ShouldQueue
     private function manageWithoutProcess(TenantInstall $install, array $cfg): array
     {
         $root = $this->clientRoot($install, $cfg);
-        if (! is_dir($root)) {
-            return ['status' => 'error', 'message' => "Client dir not found: {$root}"];
-        }
+        $this->ensureClientRootExists($root);
 
         if ($this->action === 'disable') {
             if (@file_put_contents($root.'/.suspended', '') === false) {
@@ -120,27 +119,16 @@ class ManageClientJob implements ShouldQueue
         }
 
         if ($this->action === 'clear-cache') {
-            $recovered = false;
-            if (! is_file($root.'/bootstrap/app.php')) {
-                // A host-side `git clean` can remove the client's untracked
-                // release files while keeping its ignored .env/database/data.
-                // Rehydrate code first; copyRelease deliberately preserves that
-                // tenant-specific data.
-                $this->copyRelease(base_path(), $root);
-                $recovered = true;
-            }
-            $this->ensureRuntimeDirectories($root);
-            $this->clearCompiledCache($root);
-            $maintenance = $this->runClientMaintenance($root, 'clear-cache');
+            $sync = $this->syncClientRelease($root, forceCopy: false);
+            $maintenance = $this->runClientMaintenance($install, $root, 'clear-cache');
 
             return $maintenance['ok']
-                ? ['status' => 'success', 'log' => ($recovered ? "Client code restored.\n" : '').$maintenance['log']]
+                ? ['status' => 'success', 'log' => ($sync['restored'] ? "Client code restored.\n" : '').$maintenance['log']]
                 : ['status' => 'error', 'message' => $maintenance['message'], 'log' => $maintenance['log']];
         }
 
-        $this->copyRelease(base_path(), $root);
-        $this->ensureRuntimeDirectories($root);
-        $maintenance = $this->runClientMaintenance($root, 'migrate');
+        $sync = $this->syncClientRelease($root, forceCopy: true);
+        $maintenance = $this->runClientMaintenance($install, $root, 'migrate');
 
         if (! $maintenance['ok']) {
             return ['status' => 'error', 'message' => $maintenance['message'], 'log' => $maintenance['log']];
@@ -149,8 +137,45 @@ class ManageClientJob implements ShouldQueue
         return [
             'status' => 'success',
             'commit' => $this->sourceVersion(),
-            'log' => "Code copied with PHP.\n".$maintenance['log'],
+            'log' => ($sync['restored'] ? "Client code restored.\n" : "Code copied with PHP.\n").$maintenance['log'],
         ];
+    }
+
+    /**
+     * Copy the master release into the client tree, ensure writable runtime
+     * paths exist, and wipe stale compiled caches before booting the client.
+     *
+     * @return array{restored:bool}
+     */
+    private function syncClientRelease(string $root, bool $forceCopy): array
+    {
+        $restored = false;
+        $needsCode = ! is_file($root.'/bootstrap/app.php') || ! is_file($root.'/public/index.php');
+
+        if ($needsCode || $forceCopy) {
+            $this->copyRelease(base_path(), $root);
+            $restored = $needsCode;
+        }
+
+        $this->ensureRuntimeDirectories($root);
+        $this->clearCompiledCache($root);
+
+        if (! is_file($root.'/bootstrap/app.php')) {
+            throw new \RuntimeException('Client application bootstrap is still missing after release sync.');
+        }
+
+        return ['restored' => $restored];
+    }
+
+    private function ensureClientRootExists(string $root): void
+    {
+        if (is_dir($root)) {
+            return;
+        }
+
+        if (! @mkdir($root, 0755, true) && ! is_dir($root)) {
+            throw new \RuntimeException("Cannot create client directory: {$root}");
+        }
     }
 
     private function copyRelease(string $source, string $destination, string $relative = ''): void
@@ -182,29 +207,51 @@ class ManageClientJob implements ShouldQueue
         }
     }
 
-    /** Resolve the exact provisioned path, with the legacy layout as fallback. */
+    /** Resolve the client folder the wildcard dispatcher actually serves. */
     private function clientRoot(TenantInstall $install, array $cfg): string
     {
         $base = rtrim((string) ($cfg['public_html'] ?? base_path()), '/');
+        $domain = $install->domain ?: ($install->subdomain.'.'.config('castlit.main_domain'));
+        $canonical = $base.'/'.$domain;
         $recorded = rtrim((string) $install->docroot, '/');
 
-        // docroot is written by the provisioner and is authoritative when the
-        // host exposes it to PHP. Older rows may be blank or hold a path outside
-        // the shared-host chroot, in which case use the established layout.
-        if ($recorded !== '' && is_dir($recorded)) {
-            return $recorded;
+        $candidates = array_values(array_unique(array_filter([$canonical, $recorded])));
+
+        foreach ($candidates as $path) {
+            if (is_file($path.'/public/index.php')) {
+                return $path;
+            }
         }
 
-        return $base.'/'.$install->domain;
+        return $canonical;
     }
 
     /** @return array{ok:bool,message:string,log:string} */
-    private function runClientMaintenance(string $root, string $action): array
+    private function runClientMaintenance(TenantInstall $install, string $root, string $action): array
     {
         if (! is_file($root.'/bootstrap/app.php')) {
             return ['ok' => false, 'message' => 'Client application bootstrap is missing.', 'log' => ''];
         }
 
+        $inProcess = $this->runClientMaintenanceInProcess($root, $action);
+        if ($inProcess['ok']) {
+            return $inProcess;
+        }
+
+        $httpAction = $action === 'migrate' ? 'migrate-and-clear' : $action;
+        if (in_array($httpAction, ['migrate-and-clear', 'clear-cache'], true)) {
+            $http = $this->runClientMaintenanceViaHttp($install, $root, $httpAction);
+            if ($http['ok']) {
+                return $http;
+            }
+        }
+
+        return $inProcess;
+    }
+
+    /** @return array{ok:bool,message:string,log:string} */
+    private function runClientMaintenanceInProcess(string $root, string $action): array
+    {
         $originalApp = Container::getInstance();
         $originalCwd = getcwd();
         try {
@@ -215,16 +262,23 @@ class ManageClientJob implements ShouldQueue
 
             $log = '';
             if ($action === 'migrate') {
+                $kernel->call('config:clear');
+                $log = trim($kernel->output());
                 $exit = $kernel->call('migrate', ['--force' => true]);
-                $log .= trim($kernel->output());
+                $log = trim($log."\n".$kernel->output());
                 if ($exit !== 0) {
                     return ['ok' => false, 'message' => 'Client migration failed.', 'log' => $log];
+                }
+                $exit = $kernel->call('optimize:clear');
+                $log = trim($log."\n".$kernel->output());
+                if ($exit !== 0) {
+                    return ['ok' => false, 'message' => 'Client cache clear failed after migration.', 'log' => $log];
                 }
             }
 
             if ($action === 'clear-cache') {
                 $exit = $kernel->call('optimize:clear');
-                $log = trim($log."\n".$kernel->output());
+                $log = trim($kernel->output());
 
                 return $exit === 0
                     ? ['ok' => true, 'message' => '', 'log' => $log ?: 'Cache cleared.']
@@ -241,6 +295,45 @@ class ManageClientJob implements ShouldQueue
             Container::setInstance($originalApp);
             Facade::setFacadeApplication($originalApp);
         }
+    }
+
+    /** @return array{ok:bool,message:string,log:string} */
+    private function runClientMaintenanceViaHttp(TenantInstall $install, string $root, string $action): array
+    {
+        $key = $this->clientAppKey($root.'/.env');
+        if ($key === null) {
+            return ['ok' => false, 'message' => 'Client APP_KEY is missing.', 'log' => ''];
+        }
+
+        $timestamp = (string) time();
+        try {
+            $response = Http::timeout(180)->acceptJson()->withHeaders([
+                'X-Castlit-Timestamp' => $timestamp,
+                'X-Castlit-Signature' => hash_hmac('sha256', $action.'|'.$timestamp, $key),
+            ])->post('https://'.$install->domain.'/__castlit/maintenance', ['action' => $action]);
+            $message = trim((string) ($response->json('message') ?: $response->body()));
+
+            return $response->successful() && $response->json('status') === 'success'
+                ? ['ok' => true, 'message' => '', 'log' => $message ?: 'Maintenance complete via HTTP.']
+                : ['ok' => false, 'message' => 'Client maintenance failed (HTTP '.$response->status().').', 'log' => $message];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => 'Client maintenance request failed: '.$e->getMessage(), 'log' => ''];
+        }
+    }
+
+    private function clientAppKey(string $envPath): ?string
+    {
+        if (! is_file($envPath)) {
+            return null;
+        }
+
+        foreach (file($envPath, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+            if (str_starts_with($line, 'APP_KEY=')) {
+                return trim(substr($line, 8), " \t\"'") ?: null;
+            }
+        }
+
+        return null;
     }
 
     /** Remove only Laravel's generated cache files, preserving .gitignore. */
@@ -271,7 +364,13 @@ class ManageClientJob implements ShouldQueue
             }
             @chmod($directory, 0775);
             if (! is_writable($directory)) {
+                @chmod($directory, 0777);
+            }
+            if (! is_writable($directory)) {
                 throw new \RuntimeException("Required runtime directory is not writable: {$directory}");
+            }
+            if (str_ends_with($directory, '/bootstrap/cache') && ! is_file($directory.'/.gitignore')) {
+                @file_put_contents($directory.'/.gitignore', "*\n!.gitignore\n");
             }
         }
     }
