@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\ManageClientJob;
 use App\Models\TenantInstall;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
@@ -49,6 +50,35 @@ class ClientAdminController extends Controller
                 'blocked' => TenantInstall::where('is_enabled', false)->count(),
             ],
         ]);
+    }
+
+    /**
+     * Single flat action endpoint for all per-client operations. Nested,
+     * parametrized POSTs (/clients/{id}/maj) were being blocked/404'd by the
+     * host's edge WAF; a flat POST with the id in the body (like git-pull, which
+     * works) avoids that, and the manual lookup avoids implicit-binding 404s.
+     */
+    public function action(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'install' => ['required', 'integer'],
+            'do'      => ['required', 'in:update,clear-cache,disable,enable,paid,unpaid,regenerate-code'],
+        ]);
+
+        $install = TenantInstall::find((int) $data['install']);
+        if (! $install) {
+            return back()->with('error', "Client introuvable (#{$data['install']}).");
+        }
+
+        return match ($data['do']) {
+            'update'          => $this->update($install),
+            'clear-cache'     => $this->clearCache($install),
+            'disable'         => $this->disable($install),
+            'enable'          => $this->enable($install),
+            'paid'            => $this->markPaid($install),
+            'unpaid'          => $this->markUnpaid($install),
+            'regenerate-code' => $this->regenerateCode($install),
+        };
     }
 
     /** Redeploy the latest master code to one client (queued — heavy). */
