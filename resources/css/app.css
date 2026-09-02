@@ -2261,6 +2261,65 @@
         }
     }
 
+    /* ── Mobile: sidebar becomes an off-canvas drawer (<768px) ───────────── */
+    @media (max-width: 767.98px) {
+        .app-sidebar {
+            display: flex !important;      /* override Tailwind `hidden` */
+            position: fixed;
+            inset-block: 0;
+            inset-inline-start: 0;
+            z-index: 80;
+            width: min(86vw, 320px);
+            height: 100dvh;
+            transform: translateX(-100%);
+            transition: transform 220ms ease;
+            box-shadow: 16px 0 48px color-mix(in srgb, var(--text-main) 28%, transparent);
+        }
+        [dir="rtl"] .app-sidebar {
+            inset-inline-start: auto;
+            inset-inline-end: 0;
+            transform: translateX(100%);
+        }
+        .app-sidebar.is-visible {
+            transform: translateX(0);
+        }
+        /* Never collapse-to-icons inside the mobile drawer — show full labels. */
+        .sidebar-collapsed .app-sidebar {
+            width: min(86vw, 320px) !important;
+        }
+        .sidebar-collapsed .app-sidebar .sidebar-label,
+        .sidebar-collapsed .app-sidebar .sidebar-children {
+            display: revert;
+        }
+        /* The desktop hover "peek" zone is meaningless on touch. */
+        .app-sidebar-peek-zone,
+        .sidebar-peek-toggle {
+            display: none !important;
+        }
+    }
+
+    .app-nav-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 75;
+        background: color-mix(in srgb, var(--text-main) 55%, transparent);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 200ms ease, visibility 200ms ease;
+    }
+    .app-nav-backdrop.is-active {
+        opacity: 1;
+        visibility: visible;
+    }
+    @media (min-width: 768px) {
+        .app-nav-backdrop {
+            display: none !important;
+        }
+    }
+    body.nav-open {
+        overflow: hidden;
+    }
+
     .sidebar-collapsed .app-sidebar {
         width: 76px !important;
     }

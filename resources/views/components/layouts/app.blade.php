@@ -427,6 +427,7 @@
         @endphp
 
         <div class="flex min-h-screen">
+            <div class="app-nav-backdrop" data-nav-backdrop aria-hidden="true"></div>
             <div class="app-sidebar-peek-zone" data-sidebar-peek></div>
             <aside class="app-sidebar sticky top-0 hidden h-screen w-72 shrink-0 overflow-hidden md:flex md:flex-col" data-sidebar>
                 <div class="sidebar-brand flex h-[76px] shrink-0 items-center gap-3 px-4">
@@ -508,6 +509,9 @@
             <main class="app-main-shell min-w-0 flex-1">
                 <header class="app-topbar sticky top-0 z-20 border-b px-4 py-3 backdrop-blur lg:px-8">
                     <div class="flex items-center gap-3">
+                        <button class="app-sidebar-nav-toggle grid size-11 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:bg-slate-50 hover:text-brand md:hidden dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Afficher le menu') }}" title="{{ $tr('Afficher le menu') }}" data-sidebar-nav-toggle>
+                            <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                        </button>
                         <details class="topbar-quick-add relative">
                             <summary class="grid size-11 cursor-pointer list-none place-items-center bg-brand text-lg font-semibold text-white shadow-sm">+</summary>
                             <div class="absolute left-0 top-12 z-40 w-64 overflow-hidden rounded-xl border border-slate-200 bg-white py-2 shadow-xl dark:border-white/10 dark:bg-slate-950">

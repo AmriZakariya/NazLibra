@@ -1150,8 +1150,11 @@ document.querySelectorAll('[data-sidebar]').forEach((sidebar) => {
 });
 
 
-// Show sidebar by default in normal mode
-if (sidebarEl && !document.documentElement.classList.contains('app-fullscreen-mode')) {
+// Below md the sidebar is an off-canvas drawer that must stay CLOSED on load.
+const isMobileNav = () => window.matchMedia('(max-width: 767.98px)').matches;
+
+// Show sidebar by default in normal mode — desktop/tablet only.
+if (sidebarEl && !document.documentElement.classList.contains('app-fullscreen-mode') && !isMobileNav()) {
     sidebarEl.classList.add('is-visible');
     updateNavToggle();
 }
@@ -1202,6 +1205,26 @@ if (peekEnabled()) {
     attachPeekListeners();
 }
 
+// Mobile off-canvas drawer: backdrop + scroll-lock helpers.
+const navBackdrop = document.querySelector('[data-nav-backdrop]');
+const syncMobileNav = (open) => {
+    if (!isMobileNav()) {
+        navBackdrop?.classList.remove('is-active');
+        document.body.classList.remove('nav-open');
+        return;
+    }
+    navBackdrop?.classList.toggle('is-active', open);
+    document.body.classList.toggle('nav-open', open);
+};
+const closeMobileNav = () => {
+    if (!sidebarEl?.classList.contains('is-visible')) return;
+    sidebarEl.classList.remove('is-visible');
+    peekActive = false;
+    updateNavToggle();
+    updatePeekZone();
+    syncMobileNav(false);
+};
+
 // Toggle sidebar visibility (show/hide) — same behavior in all modes
 document.querySelectorAll('[data-sidebar-nav-toggle]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1210,10 +1233,27 @@ document.querySelectorAll('[data-sidebar-nav-toggle]').forEach((btn) => {
         peekActive = false; // Manual toggle, not peek
         updateNavToggle();
         updatePeekZone();
+        syncMobileNav(willShow);
         const label = willShow ? 'Masquer le menu' : 'Afficher le menu';
         btn.setAttribute('aria-label', label);
         btn.title = label;
     });
+});
+
+// Close the drawer on backdrop tap, when a nav link is followed, or Escape.
+navBackdrop?.addEventListener('click', closeMobileNav);
+sidebarEl?.addEventListener('click', (e) => {
+    if (isMobileNav() && e.target.closest('a[href]')) closeMobileNav();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isMobileNav()) closeMobileNav();
+});
+// Leaving mobile width clears the drawer state so the desktop sidebar is normal.
+window.matchMedia('(max-width: 767.98px)').addEventListener('change', (e) => {
+    if (!e.matches) {
+        navBackdrop?.classList.remove('is-active');
+        document.body.classList.remove('nav-open');
+    }
 });
 
 // Sidebar peek toggle
