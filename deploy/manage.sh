@@ -122,6 +122,17 @@ emit "▸ Updating code from master ($SOURCE_DIR)"
     -cf - . ) | ( tar -xf - -C "$DOC_ROOT" ) \
   || final '{"status":"error","step":"copy","message":"code copy from master failed."}' 1
 
+# Ensure Laravel's writable runtime dirs exist. A client restored from a
+# partial copy can be missing storage/framework/* → Blade fails with
+# "Please provide a valid cache path" (500). Recreate them idempotently.
+mkdir -p "$DOC_ROOT/storage/framework/views" \
+         "$DOC_ROOT/storage/framework/cache/data" \
+         "$DOC_ROOT/storage/framework/sessions" \
+         "$DOC_ROOT/storage/app/public" \
+         "$DOC_ROOT/storage/logs" \
+         "$DOC_ROOT/bootstrap/cache" 2>/dev/null || true
+chmod -R 775 "$DOC_ROOT/storage" "$DOC_ROOT/bootstrap/cache" 2>/dev/null || true
+
 # Refresh the managed root files (in case the master's changed).
 write_client_htaccess "$DOC_ROOT"
 write_suspended_page "$DOC_ROOT"
