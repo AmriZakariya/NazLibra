@@ -19,6 +19,13 @@
 /public/storage
 /storage/*.key
 /storage/pail
+# Per-client installs are runtime COPIES that live inside the master htdocs
+# (served by the wildcard dispatcher). They must never be tracked, or git
+# operations (pull/reset) collide with their 10k+ files → merge conflicts.
+/*.castlitpos.com/
+# LWS control-panel default page + per-install deploy version stamp.
+/default_index.html
+/.version
 /vendor
 _ide_helper.php
 Homestead.json
