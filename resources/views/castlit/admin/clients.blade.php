@@ -324,7 +324,7 @@
                                 {{ \Illuminate\Support\Str::of($c['subject'])->after(':')->trim()->whenEmpty(fn () => \Illuminate\Support\Str::of($c['subject'])) }}
                             </div>
                             <div class="log-meta">
-                                @if ($c['date'])<time datetime="{{ $c['date'] }}">{{ \Illuminate\Support\Carbon::parse($c['date'])->translatedFormat('d/m/Y') }}</time>@endif
+                                @if ($c['date'])<time datetime="{{ $c['date'] }}">{{ \Illuminate\Support\Carbon::parse($c['date'])->translatedFormat('d/m/Y H:i') }}</time>@endif
                                 <span class="who">{{ $c['author'] }}</span>
                             </div>
                         </div>
