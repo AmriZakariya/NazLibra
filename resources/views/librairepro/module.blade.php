@@ -3253,7 +3253,7 @@
                                                                 <div class="h-full rounded-full {{ $lineRemaining > 0 ? 'bg-amber-500' : 'bg-emerald-500' }}" style="width: {{ $linePercent }}%"></div>
                                                             </div>
                                                         </div>
-                                                        <div class="grid grid-cols-4 gap-2 text-center text-sm">
+                                                        <div class="grid grid-cols-2 gap-2 text-center text-sm sm:grid-cols-4">
                                                             <div class="rounded-lg bg-slate-50 p-2 dark:bg-white/[0.05]"><span class="block text-[10px] font-semibold uppercase text-slate-500">Cmd</span><strong>{{ $line->quantity_ordered }}</strong></div>
                                                             <div class="rounded-lg bg-slate-50 p-2 dark:bg-white/[0.05]"><span class="block text-[10px] font-semibold uppercase text-slate-500">Reçu</span><strong>{{ $line->quantity_received }}</strong></div>
                                                             <div class="rounded-lg bg-slate-50 p-2 dark:bg-white/[0.05]"><span class="block text-[10px] font-semibold uppercase text-slate-500">Coût</span><strong>{{ $money($line->unit_cost) }}</strong></div>
