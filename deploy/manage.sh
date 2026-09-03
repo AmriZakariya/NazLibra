@@ -45,17 +45,49 @@ esac
 # Safe (no pkill): it runs inside the client pool and calls opcache_reset there,
 # so freshly copied code is served even with opcache.validate_timestamps=0.
 reset_client_opcache() {
-  local key ts sig
-  key=$(grep -m1 '^APP_KEY=' "$DOC_ROOT/.env" 2>/dev/null | cut -d= -f2- | tr -d "\"' \r")
-  [ -z "$key" ] && return 0
-  command -v openssl >/dev/null 2>&1 || return 0
-  command -v curl    >/dev/null 2>&1 || return 0
-  ts=$(date +%s)
-  sig=$(printf '%s' "clear-cache|$ts" | openssl dgst -sha256 -hmac "$key" 2>/dev/null | awk '{print $NF}')
-  [ -z "$sig" ] && return 0
+  local key ts sig line out
+  # Read APP_KEY with bash builtins only. This host's jail has no `tr`/`cut`
+  # (and not always `awk`), and the old grep|cut|tr pipeline failed open: the
+  # key came back empty and the reset was skipped *silently*.
+  key=""
+  if [ -r "$DOC_ROOT/.env" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        APP_KEY=*) key="${line#APP_KEY=}"; break ;;
+      esac
+    done < "$DOC_ROOT/.env"
+  fi
+  key="${key%$'\r'}"          # strip CRLF
+  key="${key//\"/}"           # strip double quotes
+  key="${key//\'/}"           # strip single quotes
+  key="${key// /}"            # strip stray spaces
+  if [ -z "$key" ]; then
+    emit "  ! OPcache reset skipped: APP_KEY unreadable in $DOC_ROOT/.env"
+    return 0
+  fi
+  if ! command -v openssl >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
+    emit "  ! OPcache reset skipped: openssl/curl unavailable on this host"
+    return 0
+  fi
+  ts="${EPOCHSECONDS:-}"
+  [ -z "$ts" ] && ts=$(date +%s 2>/dev/null)
+  if [ -z "$ts" ]; then
+    emit "  ! OPcache reset skipped: no clock source for the signature"
+    return 0
+  fi
+  # Some openssl builds print "(stdin)= <hex>", others just "<hex>". Taking the
+  # last space-separated field handles both (it's a no-op on the bare form).
+  out=$(printf '%s' "clear-cache|$ts" | openssl dgst -sha256 -hmac "$key" 2>/dev/null)
+  sig="${out##* }"
+  case "$sig" in
+    ""|*[!0-9a-fA-F]*)
+      emit "  ! OPcache reset skipped: could not compute the request signature"
+      return 0 ;;
+  esac
   curl -s -m 30 -o /dev/null \
     -H "X-Castlit-Timestamp: $ts" -H "X-Castlit-Signature: $sig" \
-    --data 'action=clear-cache' "https://$FULL_DOMAIN/__castlit/maintenance" 2>/dev/null || true
+    --data 'action=clear-cache' "https://$FULL_DOMAIN/__castlit/maintenance" 2>/dev/null \
+    || emit "  ! OPcache reset request failed (client still serves cached bytecode until .user.ini revalidates)"
 }
 printf '%s' "$SUB_NAME" | grep -Eq '^[a-z0-9]{2,30}$' \
   || final '{"status":"error","step":"input","message":"Invalid subdomain (2-30 chars a-z0-9)."}' 1
