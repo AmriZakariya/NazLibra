@@ -65,29 +65,54 @@ reset_client_opcache() {
     emit "  ! OPcache reset skipped: APP_KEY unreadable in $DOC_ROOT/.env"
     return 0
   fi
-  if ! command -v openssl >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
-    emit "  ! OPcache reset skipped: openssl/curl unavailable on this host"
-    return 0
-  fi
-  ts="${EPOCHSECONDS:-}"
-  [ -z "$ts" ] && ts=$(date +%s 2>/dev/null)
-  if [ -z "$ts" ]; then
-    emit "  ! OPcache reset skipped: no clock source for the signature"
-    return 0
-  fi
-  # Some openssl builds print "(stdin)= <hex>", others just "<hex>". Taking the
-  # last space-separated field handles both (it's a no-op on the bare form).
-  out=$(printf '%s' "clear-cache|$ts" | openssl dgst -sha256 -hmac "$key" 2>/dev/null)
-  sig="${out##* }"
-  case "$sig" in
-    ""|*[!0-9a-fA-F]*)
-      emit "  ! OPcache reset skipped: could not compute the request signature"
-      return 0 ;;
-  esac
-  curl -s -m 30 -o /dev/null \
-    -H "X-Castlit-Timestamp: $ts" -H "X-Castlit-Signature: $sig" \
-    --data 'action=clear-cache' "https://$FULL_DOMAIN/__castlit/maintenance" 2>/dev/null \
-    || emit "  ! OPcache reset request failed (client still serves cached bytecode until .user.ini revalidates)"
+  # No external binaries: this host's jail ships neither openssl nor curl, so
+  # PHP does the HMAC *and* the request. The call must go over HTTP because
+  # opcache_reset() has to run in the client's web pool — the CLI SAPI has its
+  # own separate OPcache, so resetting it here would achieve nothing.
+  CASTLIT_KEY="$key" \
+  CASTLIT_URL="https://$FULL_DOMAIN/__castlit/maintenance" \
+  "$PHP_BIN" -r '
+    $key = (string) getenv("CASTLIT_KEY");
+    $url = (string) getenv("CASTLIT_URL");
+    $ts  = (string) time();
+    $sig = hash_hmac("sha256", "clear-cache|" . $ts, $key);
+    $headers = [
+      "Content-Type: application/x-www-form-urlencoded",
+      "X-Castlit-Timestamp: " . $ts,
+      "X-Castlit-Signature: " . $sig,
+    ];
+    $code = 0; $err = "";
+    if (function_exists("curl_init")) {
+      $ch = curl_init($url);
+      curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => "action=clear-cache",
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 30,
+      ]);
+      if (curl_exec($ch) === false) { $err = curl_error($ch); }
+      $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      curl_close($ch);
+    } else {
+      $ctx = stream_context_create(["http" => [
+        "method"        => "POST",
+        "header"        => implode("\r\n", $headers),
+        "content"       => "action=clear-cache",
+        "timeout"       => 30,
+        "ignore_errors" => true,
+      ]]);
+      if (@file_get_contents($url, false, $ctx) === false) { $err = "request failed"; }
+      foreach ($http_response_header ?? [] as $h) {
+        if (preg_match("#^HTTP/\S+\s+(\d{3})#", $h, $m)) { $code = (int) $m[1]; }
+      }
+    }
+    if ($code === 200) { exit(0); }
+    fwrite(STDERR, $err !== "" ? $err : ("HTTP " . $code));
+    exit(1);
+  ' 2>/dev/null \
+    && emit "  ✓ client OPcache reset" \
+    || emit "  ! OPcache reset request failed (code is still served from cached bytecode until .user.ini revalidates)"
 }
 printf '%s' "$SUB_NAME" | grep -Eq '^[a-z0-9]{2,30}$' \
   || final '{"status":"error","step":"input","message":"Invalid subdomain (2-30 chars a-z0-9)."}' 1
