@@ -132,6 +132,9 @@ class TicketController extends Controller
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
 
+        /** @var ApiActionContext $action */
+        $action = $request->attributes->get('api_action_context');
+
         // Try to find existing ticket by number for update.
         $ticket = ! empty($data['number'])
             ? PosTicket::where('tenant_id', $tenant->id)->where('number', $data['number'])->first()
