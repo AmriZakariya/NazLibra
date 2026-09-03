@@ -16,11 +16,12 @@ return [
     |
     */
 
-    // Telescope is a local dev tool only. Force it off in production regardless
-    // of any TELESCOPE_ENABLED in the env — a stray "true" in a client/master
-    // .env otherwise crashes artisan (EventWatcher chokes on null listeners).
-    'enabled' => env('APP_ENV', 'production') !== 'production'
-        && env('TELESCOPE_ENABLED', env('APP_ENV') === 'local'),
+    // Off everywhere by default except local, but a single install (e.g. the
+    // demo client) can opt in with TELESCOPE_ENABLED=true. That install needs
+    // its telescope_* tables:  php artisan telescope:install && migrate --force
+    // The EventWatcher below stays off outside local — it chokes on null
+    // listeners and used to crash artisan whenever Telescope was switched on.
+    'enabled' => env('TELESCOPE_ENABLED', env('APP_ENV') === 'local'),
 
     /*
     |--------------------------------------------------------------------------
@@ -180,7 +181,8 @@ return [
         ],
 
         Watchers\EventWatcher::class => [
-            'enabled' => env('TELESCOPE_EVENT_WATCHER', true),
+            // Default off outside local: crashes artisan on null listeners.
+            'enabled' => env('TELESCOPE_EVENT_WATCHER', env('APP_ENV') === 'local'),
             'ignore' => [],
         ],
 
