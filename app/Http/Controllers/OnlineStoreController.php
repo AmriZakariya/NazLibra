@@ -14,6 +14,7 @@ use App\Support\Locale;
 use App\Support\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -26,8 +27,12 @@ class OnlineStoreController extends Controller
     public function index(Request $request, InventoryService $inventory): View
     {
         $tenant = $this->tenant($request);
-        $this->ensureStoreEnabled($tenant);
+        // Locale first: the disabled-shop page thrown by the gate below must be
+        // rendered in the tenant's language, and storefront translations only
+        // exist for fr/ar — under the default "en" locale it would print the
+        // raw translation keys.
         Locale::apply($tenant);
+        $this->ensureStoreEnabled($tenant);
 
         $stores = $this->activeStoreCatalog($tenant);
         $pickupStore = $this->resolvePickupStore($tenant, $stores, (string) $request->query('pickup_store', ''));
@@ -114,8 +119,12 @@ class OnlineStoreController extends Controller
     public function storeOrder(Request $request, InventoryService $inventory): RedirectResponse
     {
         $tenant = $this->tenant($request);
-        $this->ensureStoreEnabled($tenant);
+        // Locale first: the disabled-shop page thrown by the gate below must be
+        // rendered in the tenant's language, and storefront translations only
+        // exist for fr/ar — under the default "en" locale it would print the
+        // raw translation keys.
         Locale::apply($tenant);
+        $this->ensureStoreEnabled($tenant);
 
         $data = $request->validate([
             'customer_name' => ['required', 'string', 'max:180'],
@@ -197,8 +206,20 @@ class OnlineStoreController extends Controller
 
     private function ensureStoreEnabled(Tenant $tenant): void
     {
-        abort_unless(AppModules::enabled($tenant, 'online_orders'), 404);
-        abort_if(data_get($tenant->settings, 'online_store.enabled') === false, 404);
+        $moduleEnabled = AppModules::enabled($tenant, 'online_orders');
+        $storeEnabled = data_get($tenant->settings, 'online_store.enabled') !== false;
+
+        if ($moduleEnabled && $storeEnabled) {
+            return;
+        }
+
+        // A disabled shop used to return a bare 404, indistinguishable from a
+        // broken link — for the owner who forgot one of the toggles, and for
+        // customers. Serve a branded, noindex page with 503 instead: the
+        // resource exists, it is just not being served right now.
+        throw new HttpResponseException(
+            response()->view('storefront.disabled', ['tenant' => $tenant], 503)
+        );
     }
 
     private function onlineItemsQuery(Tenant $tenant, int $locationId): Builder

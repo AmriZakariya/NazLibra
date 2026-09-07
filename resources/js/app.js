@@ -118,6 +118,9 @@ const sidebarPeek = document.querySelector('[data-sidebar-peek]');
 const sidebarEl = document.querySelector('[data-sidebar]');
 let peekTimeout;
 let peekActive = false;
+// Set while the collapsed rail has been expanded purely for a hover peek, so it
+// can be restored on mouseleave without touching the persisted preference.
+let peekUncollapsed = false;
 
 const peekStorageKey = 'librairepro-sidebar-peek';
 const peekEnabled = () => localStorage.getItem(peekStorageKey) !== 'false';
@@ -1136,6 +1139,10 @@ document.querySelectorAll('[data-sidebar]').forEach((sidebar) => {
     });
 
     toggle?.addEventListener('click', () => {
+        // An explicit choice overrides the transient hover peek, otherwise
+        // mouseleave would undo what the user just asked for.
+        document.documentElement.classList.remove('sidebar-peeking');
+        peekUncollapsed = false;
         setCollapsed(!document.documentElement.classList.contains('sidebar-collapsed'));
     });
 
@@ -1160,13 +1167,39 @@ if (sidebarEl && !document.documentElement.classList.contains('app-fullscreen-mo
 }
 updatePeekZone();
 
+// Restores a collapse that was undone for a hover peek. No-op otherwise, so it
+// is safe to call from any exit path.
+const restoreCollapseAfterPeek = () => {
+    if (!peekUncollapsed) return;
+    document.documentElement.classList.add('sidebar-collapsed');
+    document.documentElement.classList.remove('sidebar-peeking');
+    peekUncollapsed = false;
+};
+
 const showSidebarPeek = () => {
-    if (!peekEnabled()) return;
+    // Hover is meaningless on touch, where the sidebar is an off-canvas drawer.
+    if (!peekEnabled() || isMobileNav()) return;
     clearTimeout(peekTimeout);
-    // Only show if sidebar is currently hidden
-    if (sidebarEl?.classList.contains('is-visible')) return;
-    sidebarEl?.classList.add('is-visible');
-    peekActive = true;
+
+    const root = document.documentElement;
+
+    // Collapsed icon rail — the common desktop case. Previously this function
+    // bailed out whenever the sidebar was already `is-visible`, which it always
+    // is in the normal (non-fullscreen) layout, so hovering a collapsed rail did
+    // nothing at all. Drop the class instead of overriding it, so the expanded
+    // styles apply as they normally would.
+    if (root.classList.contains('sidebar-collapsed')) {
+        root.classList.remove('sidebar-collapsed');
+        root.classList.add('sidebar-peeking');
+        peekUncollapsed = true;
+    }
+
+    // Fully hidden sidebar — the fullscreen layout. Slide it back in.
+    if (!sidebarEl?.classList.contains('is-visible')) {
+        sidebarEl?.classList.add('is-visible');
+        peekActive = true;
+    }
+
     updateNavToggle();
     updatePeekZone();
 };
@@ -1174,15 +1207,18 @@ const showSidebarPeek = () => {
 const hideSidebarPeek = () => {
     if (!peekEnabled()) return;
     peekTimeout = setTimeout(() => {
-        if (!sidebarEl?.matches(':hover') && !sidebarPeek?.matches(':hover')) {
-            // Only hide if peek was the one that showed it
-            if (peekActive) {
-                sidebarEl?.classList.remove('is-visible');
-                peekActive = false;
-                updateNavToggle();
-                updatePeekZone();
-            }
+        if (sidebarEl?.matches(':hover') || sidebarPeek?.matches(':hover')) return;
+
+        restoreCollapseAfterPeek();
+
+        // Only hide if peek was the one that showed it
+        if (peekActive) {
+            sidebarEl?.classList.remove('is-visible');
+            peekActive = false;
         }
+
+        updateNavToggle();
+        updatePeekZone();
     }, 250);
 };
 
@@ -1284,6 +1320,8 @@ document.querySelectorAll('[data-sidebar-peek-toggle]').forEach((btn) => {
             attachPeekListeners();
         } else {
             detachPeekListeners();
+            // hideSidebarPeek() bails out once peek is disabled, so restore here.
+            restoreCollapseAfterPeek();
         }
         updatePeekZone();
     });
@@ -5527,6 +5565,50 @@ document.querySelectorAll('[data-module-sortable]').forEach((list) => {
         if (document.visibilityState === 'visible') {
             failures = 0;
             sendHeartbeat();
+        }
+    });
+})();
+
+// ── Copy-to-clipboard buttons ────────────────────────────────────────────────
+// Used by the online-store settings card to copy the public storefront URL.
+// Delegated so it also covers markup swapped in after load.
+(() => {
+    const flash = (button, text) => {
+        const original = button.dataset.copyOriginalLabel ?? button.textContent;
+        button.dataset.copyOriginalLabel = original;
+        button.textContent = text;
+        window.setTimeout(() => { button.textContent = original; }, 1600);
+    };
+
+    document.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-copy-target]');
+        if (!button) return;
+
+        const source = document.getElementById(button.dataset.copyTarget);
+        if (!source) return;
+
+        const value = (source.textContent || '').trim();
+        if (!value) return;
+
+        try {
+            // navigator.clipboard needs a secure context; fall back to a
+            // throwaway textarea + execCommand on plain HTTP.
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(value);
+            } else {
+                const scratch = document.createElement('textarea');
+                scratch.value = value;
+                scratch.setAttribute('readonly', '');
+                scratch.style.position = 'fixed';
+                scratch.style.opacity = '0';
+                document.body.appendChild(scratch);
+                scratch.select();
+                document.execCommand('copy');
+                scratch.remove();
+            }
+            flash(button, 'Copié ✓');
+        } catch {
+            flash(button, 'Échec');
         }
     });
 })();

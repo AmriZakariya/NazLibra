@@ -80,4 +80,38 @@ class SettingsModuleNavigationTest extends TestCase
             ->assertSee('Aucune imprimante liée.')
             ->assertDontSee('Aucune imprimante synchronisée');
     }
+
+    public function test_store_section_shows_online_store_status_and_public_url(): void
+    {
+        $this->seed();
+
+        // Enabling online ordering needs three separate things to be true, so
+        // the settings card states them together with the public URL.
+        $response = $this->get(route('module', ['module' => 'settings', 'section' => 'store']))
+            ->assertOk()
+            ->assertSee('Boutique en ligne')
+            ->assertSee('Adresse publique')
+            ->assertSee(route('storefront.index'))
+            ->assertSee('Module « Commandes en ligne » activé', false)
+            ->assertSee('Boutique publique activée');
+
+        // The seeded tenant has the module on, the shop on and articles flagged
+        // visible, so all three conditions hold and the card reports it live.
+        $response->assertSee('En ligne')
+            ->assertSee('visibles en ligne');
+    }
+
+    public function test_store_section_flags_online_store_as_incomplete_without_visible_items(): void
+    {
+        $this->seed();
+
+        // A shop that is "enabled" but has no visible article renders an empty
+        // storefront and looks broken, so the card must not call it live.
+        \App\Models\Item::query()->update(['online_store_visible' => false]);
+
+        $this->get(route('module', ['module' => 'settings', 'section' => 'store']))
+            ->assertOk()
+            ->assertSee('Incomplète', false)
+            ->assertSee('0 article visible en ligne');
+    }
 }

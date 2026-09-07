@@ -2342,6 +2342,24 @@
         width: 76px !important;
     }
 
+    /* Hover peek ("Au survol"). JS drops `sidebar-collapsed` for the duration
+       of the hover so every expanded style applies unchanged, and adds
+       `sidebar-peeking`. The negative inline-end margin keeps this flex item's
+       OUTER width at the collapsed 76px, so the expanded rail floats above the
+       page instead of reflowing the content sideways under the cursor.
+       Skipped in fullscreen, where the sidebar is already a transform-driven
+       overlay and needs no gutter compensation. */
+    .sidebar-peeking:not(.app-fullscreen-mode) .app-sidebar {
+        /* 76px rail - w-72 (Tailwind v4 spacing scale) = the overhang. */
+        margin-inline-end: calc(76px - var(--spacing) * 72);
+        z-index: 60;
+        box-shadow: 12px 0 40px color-mix(in srgb, var(--text-main) 14%, transparent);
+    }
+
+    [dir="rtl"] .sidebar-peeking:not(.app-fullscreen-mode) .app-sidebar {
+        box-shadow: -12px 0 40px color-mix(in srgb, var(--text-main) 14%, transparent);
+    }
+
     .sidebar-collapsed .app-sidebar > div:first-child {
         gap: 2px;
         padding-inline: 8px;

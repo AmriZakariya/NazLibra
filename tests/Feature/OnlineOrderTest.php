@@ -220,7 +220,36 @@ class OnlineOrderTest extends TestCase
         $settings['online_store'] = array_merge($settings['online_store'] ?? [], ['enabled' => false]);
         $tenant->update(['settings' => $settings]);
 
-        $this->get(route('storefront.index'))->assertNotFound();
+        // A disabled shop is served as a branded, noindex 503 rather than a bare
+        // 404: the shop exists, it is just switched off. This keeps it
+        // distinguishable from a genuinely wrong URL for owner and customer.
+        $this->get(route('storefront.index'))
+            ->assertStatus(503)
+            ->assertSee(__('storefront.closed_title'))
+            ->assertSee('noindex', false)
+            ->assertSee($tenant->name);
+    }
+
+    public function test_public_store_is_closed_when_online_orders_module_is_off(): void
+    {
+        $this->seed();
+
+        // The other route to a closed shop: the module itself is disabled. This
+        // used to 404 identically to a bad URL, which is what made "why is my
+        // shop down?" hard to answer.
+        $tenant = Tenant::firstOrFail();
+        $settings = $tenant->settings ?? [];
+        $settings['modules'] = array_merge($settings['modules'] ?? [], [
+            'enabled' => array_merge(
+                data_get($settings, 'modules.enabled', []),
+                ['online_orders' => false],
+            ),
+        ]);
+        $tenant->update(['settings' => $settings]);
+
+        $this->get(route('storefront.index'))
+            ->assertStatus(503)
+            ->assertSee(__('storefront.closed_title'));
     }
 
     public function test_public_store_creates_pending_online_order_without_decrementing_stock(): void

@@ -4357,8 +4357,83 @@
                                 </div>
                             </div>
                             <div class="border-t border-slate-200 pt-4 dark:border-white/10">
-                                <h3 class="text-sm font-black uppercase tracking-wide text-slate-600 dark:text-slate-300">Boutique en ligne</h3>
-                                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Contrôle l’accès public à /boutique et le magasin utilisé pour calculer le stock visible en ligne.</p>
+                                @php
+                                    // Online ordering needs three independent things to be true; the
+                                    // storefront 404s if any is missing, so surface them together
+                                    // instead of leaving the user to guess which one is off.
+                                    $onlineOrdersModuleEnabled = \App\Support\AppModules::enabled($tenant, 'online_orders');
+                                    $onlineVisibleItemCount = \App\Models\Item::query()
+                                        ->where('tenant_id', $tenant->id)
+                                        ->where('status', 'active')
+                                        ->where('is_enabled', true)
+                                        ->where('online_store_visible', true)
+                                        ->count();
+                                    $storefrontUrl = route('storefront.index');
+                                    $onlineChecks = [
+                                        [
+                                            'ok' => $onlineOrdersModuleEnabled,
+                                            'label' => 'Module « Commandes en ligne » activé',
+                                            'hint' => 'Sans ce module, la page boutique est introuvable.',
+                                            'fix' => 'Gérer les modules',
+                                            'url' => route('module', ['module' => 'settings', 'section' => 'modules']),
+                                        ],
+                                        [
+                                            'ok' => $onlineStoreEnabled,
+                                            'label' => 'Boutique publique activée',
+                                            'hint' => 'La case « Activer la boutique publique » ci-dessous.',
+                                            'fix' => null,
+                                            'url' => null,
+                                        ],
+                                        [
+                                            'ok' => $onlineVisibleItemCount > 0,
+                                            // French takes the singular for 0 as well as 1.
+                                            'label' => $onlineVisibleItemCount.' article'.($onlineVisibleItemCount > 1 ? 's' : '').' visible'.($onlineVisibleItemCount > 1 ? 's' : '').' en ligne',
+                                            'hint' => 'Un article est visible s’il est actif et coché « Visible en boutique ».',
+                                            'fix' => 'Ouvrir le catalogue',
+                                            'url' => route('catalog', ['panel' => 'articles']),
+                                        ],
+                                    ];
+                                    $onlineMissing = collect($onlineChecks)->where('ok', false)->count();
+                                    $onlineLive = $onlineMissing === 0;
+                                    [$onlineTone, $onlineStateLabel] = match (true) {
+                                        ! $onlineOrdersModuleEnabled || ! $onlineStoreEnabled => ['danger', 'Désactivée'],
+                                        $onlineVisibleItemCount === 0 => ['warning', 'Incomplète'],
+                                        default => ['success', 'En ligne'],
+                                    };
+                                @endphp
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h3 class="text-sm font-black uppercase tracking-wide text-slate-600 dark:text-slate-300">Boutique en ligne</h3>
+                                    <x-status-pill :tone="$onlineTone">{{ $onlineStateLabel }}</x-status-pill>
+                                </div>
+                                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Permet à vos clients de commander depuis le web. Trois conditions doivent être remplies pour que la boutique soit accessible.</p>
+
+                                <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                    {{-- Public address: previously only mentioned in prose, never clickable. --}}
+                                    <span class="text-xs font-semibold uppercase text-slate-500">Adresse publique</span>
+                                    <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                                        <code class="min-w-0 flex-1 truncate rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" id="storefront-url">{{ $storefrontUrl }}</code>
+                                        <a href="{{ $storefrontUrl }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110">Ouvrir</a>
+                                        <button type="button" data-copy-target="storefront-url" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:hover:bg-slate-800">Copier</button>
+                                    </div>
+                                    @unless ($onlineLive)
+                                        <p class="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300">Cette adresse n’est pas encore utilisable : {{ $onlineMissing }} condition{{ $onlineMissing === 1 ? '' : 's' }} à corriger ci-dessous.</p>
+                                    @endunless
+
+                                    <ul class="mt-4 grid gap-2">
+                                        @foreach ($onlineChecks as $check)
+                                            <li class="flex flex-wrap items-start gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-white/10 dark:bg-slate-900">
+                                                <span aria-hidden="true" class="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-black {{ $check['ok'] ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300' }}">{{ $check['ok'] ? '✓' : '!' }}</span>
+                                                <span class="min-w-0 flex-1">
+                                                    <span class="block text-sm font-semibold">{{ $check['label'] }}</span>
+                                                    <span class="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{{ $check['hint'] }}</span>
+                                                </span>
+                                                @if (! $check['ok'] && $check['fix'] && $check['url'])
+                                                    <a href="{{ $check['url'] }}" class="shrink-0 text-sm font-semibold text-brand">{{ $check['fix'] }} →</a>
+                                                @endif
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
                                 <div class="mt-3 grid gap-3 md:grid-cols-2">
                                     <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
                                         <span class="flex items-start gap-3">

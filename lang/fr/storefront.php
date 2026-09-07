@@ -1,6 +1,9 @@
 <?php
 
 return [
+    'closed_title' => 'Boutique momentanément indisponible',
+    'closed_body' => 'La boutique en ligne n’est pas accessible pour le moment. Merci de revenir un peu plus tard.',
+    'closed_admin_note' => 'Vous gérez ce magasin ? Activez la boutique dans Réglages → Store & activité.',
     'online_store' => 'Boutique en ligne',
     'web_order' => 'Commande web',
     'hero_title' => 'Réservez vos articles en quelques clics.',
