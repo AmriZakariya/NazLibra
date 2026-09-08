@@ -164,10 +164,6 @@ class VirtualDeviceController extends Controller
             return redirect()->intended(route('dashboard'))->with('status', 'Le module appareils virtuels est désactivé.');
         }
 
-        // Free any devices whose holder's heartbeat has lapsed (closed tab,
-        // dropped network, expired cookie) so they no longer show as occupied.
-        $this->reapStaleSessions($tenant);
-
         $currentSession = $this->currentDeviceSession($tenant, $user);
         $preferredDeviceId = $this->preferredDeviceId($tenant, $request);
 
@@ -175,8 +171,11 @@ class VirtualDeviceController extends Controller
             return redirect()->intended(route('dashboard'));
         }
 
+        // Occupancy is "not disconnected", not "heartbeat is fresh": a claim is
+        // released only by that device or an admin, so a silent holder must
+        // still show the terminal as taken.
         $activeSessions = VirtualDeviceSession::where('tenant_id', $tenant->id)
-            ->live()
+            ->whereNull('disconnected_at')
             ->with('user')
             ->get()
             ->keyBy('virtual_device_id');
@@ -233,13 +232,9 @@ class VirtualDeviceController extends Controller
                 ]);
             }
 
-            // Reap the target device's dead holder (if any) before the occupancy
-            // check, so a ghost session can't lock a device forever.
-            $this->reapStaleSessions($tenant, $device->id);
-
             $alreadyConnected = VirtualDeviceSession::where('tenant_id', $tenant->id)
                 ->where('virtual_device_id', $device->id)
-                ->live()
+                ->whereNull('disconnected_at')
                 ->with('user')
                 ->lockForUpdate()
                 ->first();
@@ -349,7 +344,9 @@ class VirtualDeviceController extends Controller
         // Cookie may have rotated/expired: recover the owner's most recent live
         // session and rebind it, instead of forcing a pointless re-selection.
         if (! $session) {
-            $session = (clone $base)->live()->latest('last_seen_at')->first();
+            // No live() filter: with claims never expiring, the owner recovers
+            // their own seat however long the tab was closed.
+            $session = (clone $base)->latest('last_seen_at')->first();
         }
 
         if ($session) {
@@ -364,23 +361,14 @@ class VirtualDeviceController extends Controller
         return null;
     }
 
-    /**
-     * Mark heartbeat-lapsed sessions disconnected so their devices free up.
-     * Scope to one device when reclaiming a specific device.
-     */
-    private function reapStaleSessions(Tenant $tenant, ?int $deviceId = null): void
-    {
-        $query = VirtualDeviceSession::where('tenant_id', $tenant->id)->stale();
-
-        if ($deviceId !== null) {
-            $query->where('virtual_device_id', $deviceId);
-        }
-
-        $query->update([
-            'disconnected_at' => now(),
-            'disconnect_reason' => 'stale',
-        ]);
-    }
+    // Heartbeat-lapsed sessions are NO LONGER reaped automatically. A terminal
+    // stays claimed until that device disconnects or an admin releases it from
+    // this screen, so two devices can never both be selling on one terminal.
+    //
+    // Reaping was also not client-aware: a web user opening the selection page
+    // would silently free a POS tablet's claim just because the tablet had
+    // stopped sending heartbeats. The trade-off is that a dead holder blocks
+    // its terminal until someone frees it here — which is the intended rule.
 
     private function preferredDeviceId(Tenant $tenant, Request $request): ?int
     {

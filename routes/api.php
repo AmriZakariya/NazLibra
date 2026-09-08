@@ -197,6 +197,11 @@ Route::prefix('v1')->group(function (): void {
 
         // ── Virtual devices ───────────────────────────────────────────────────
         Route::get('virtual-devices', [VirtualDeviceApiController::class, 'index']);
+        // Terminal claiming: one installation per terminal, released only by
+        // that device logging out or by an admin in the back office.
+        Route::post('virtual-devices/connect', [VirtualDeviceApiController::class, 'connect']);
+        Route::post('virtual-devices/disconnect', [VirtualDeviceApiController::class, 'disconnect']);
+        Route::post('virtual-devices/heartbeat', [VirtualDeviceApiController::class, 'heartbeat']);
 
         // ── Printers ──────────────────────────────────────────────────────────
         // Note: push-config and clear-config must be registered BEFORE the {id}

@@ -161,11 +161,13 @@ class VirtualDevicePersistenceTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_stale_session_frees_the_device_and_can_be_reclaimed(): void
+    public function test_a_silent_holder_keeps_the_device_until_an_admin_frees_it(): void
     {
-        // Regression: a holder whose heartbeat lapsed (closed tab, dropped
-        // network, expired cookie) must NOT lock the device forever. It should
-        // read as available and be claimable by anyone.
+        // Product rule (changed 2026-09-08): a claim is released only when that
+        // device disconnects or an admin frees it — never by a lapsed
+        // heartbeat. Previously a stale holder was reaped automatically, which
+        // meant a POS tablet that stopped sending heartbeats could have its
+        // terminal taken while it was still selling on it.
         [$user, $tenant, $device] = $this->enabledDeviceFixture();
         $otherUser = User::factory()->create(['current_tenant_id' => $tenant->id]);
         $tenant->users()->attach($otherUser->id, ['role' => 'cashier']);
@@ -181,22 +183,30 @@ class VirtualDevicePersistenceTest extends TestCase
             'browser' => 'Chrome',
             'ip_address' => '10.0.0.8',
             'connected_at' => now()->subHours(3),
-            'last_seen_at' => now()->subMinutes(10), // well past STALE_AFTER_SECONDS
+            'last_seen_at' => now()->subMinutes(10),
         ]);
 
-        // The selection screen no longer shows it as occupied…
+        // Still shown as occupied…
         $this->actingAs($otherUser)
             ->get(route('device.select'))
             ->assertOk()
-            ->assertDontSee('Occupé');
+            ->assertSee('Occupé');
 
-        // …the stale row is reaped…
+        // …the row is left alone…
         $this->assertDatabaseHas('virtual_device_sessions', [
             'id' => $stale->id,
-            'disconnect_reason' => 'stale',
+            'disconnected_at' => null,
         ]);
 
-        // …and another user can claim the freed device.
+        // …and nobody else can take it.
+        $this->actingAs($otherUser)
+            ->post(route('device.connect'), ['virtual_device_id' => $device->id])
+            ->assertSessionHasErrors('virtual_device_id');
+
+        // An admin releasing it is the way out.
+        app(\App\Services\VirtualDeviceSessions::class)
+            ->releaseDevice($tenant, (int) $device->id);
+
         $this->actingAs($otherUser)
             ->post(route('device.connect'), ['virtual_device_id' => $device->id])
             ->assertRedirect(route('dashboard'))
