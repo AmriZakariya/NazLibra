@@ -420,6 +420,12 @@ class SyncController extends Controller
                 'id', 'location_id', 'contact_id', 'user_id', 'virtual_device_id', 'actor_name_snapshot', 'terminal_name_snapshot', 'number', 'status', 'payment_method',
                 'subtotal_amount', 'discount_amount', 'tax_amount', 'total_amount', 'metadata',
                 'sold_at', 'updated_at', 'deleted_at',
+                // The client submitted this sale under this key and stores it
+                // locally. Returning it lets a device recognise a sale it
+                // already holds — one replicated from a POS on the same LAN
+                // before it was pushed — instead of inserting a second copy
+                // once the server-numbered version arrives.
+                'idempotency_key',
             ]);
 
         return response()->json([
