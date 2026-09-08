@@ -230,4 +230,31 @@ class VirtualDeviceClaimTest extends TestCase
 
         $this->connect('tablet-a')->assertStatus(409);
     }
+
+    public function test_the_admin_page_names_the_tablet_holding_a_terminal(): void
+    {
+        $this->connect('tablet-a', 'PAX A920')->assertOk();
+
+        // "mobile · " told an admin nothing about which physical device to go
+        // and free, which is the whole point of tracking the installation.
+        $this->actingAs($this->user)
+            ->get(route('devices.index'))
+            ->assertOk()
+            ->assertSee('PAX A920');
+    }
+
+    public function test_the_admin_page_flags_a_holder_that_has_gone_silent(): void
+    {
+        $this->connect('tablet-a', 'PAX A920')->assertOk();
+
+        VirtualDeviceSession::where('virtual_device_id', $this->device->id)
+            ->update(['last_seen_at' => now()->subHours(2)]);
+
+        // Claims never lapse on their own, so a silent holder blocks the
+        // terminal until freed here — the admin needs to see that.
+        $this->actingAs($this->user)
+            ->get(route('devices.index'))
+            ->assertOk()
+            ->assertSee('Silencieux depuis');
+    }
 }

@@ -129,10 +129,33 @@
                                 </td>
                                 <td class="px-5 py-4">
                                     @if ($session)
+                                        @php
+                                            // A POS tablet reports its own label
+                                            // ("PAX A920") in metadata; only a
+                                            // browser session has a browser name,
+                                            // so "mobile · " told the admin nothing
+                                            // about which tablet holds the terminal.
+                                            $deviceLabel = data_get($session->metadata, 'device_label');
+                                            $installId = data_get($session->metadata, 'install_id');
+                                        @endphp
                                         <div class="space-y-0.5">
-                                            <p class="text-xs">{{ $session->platform }} · {{ $session->browser }}</p>
+                                            <p class="text-xs font-semibold">
+                                                {{ $deviceLabel ?: trim(($session->platform ?? '').' · '.($session->browser ?? ''), ' ·') }}
+                                            </p>
+                                            @if ($installId)
+                                                <p class="text-xs text-slate-400 truncate max-w-[180px]" title="{{ $installId }}">{{ $tr('Appareil') }} {{ \Illuminate\Support\Str::limit($installId, 18) }}</p>
+                                            @endif
                                             <p class="text-xs text-slate-400 truncate max-w-[180px]" title="{{ $session->ip_address }}">IP {{ $session->ip_address }}</p>
-                                            <p class="text-xs text-slate-400 truncate max-w-[180px]" title="{{ $session->user_agent }}">{{ \Illuminate\Support\Str::limit($session->user_agent, 42) }}</p>
+                                            @if ($session->user_agent)
+                                                <p class="text-xs text-slate-400 truncate max-w-[180px]" title="{{ $session->user_agent }}">{{ \Illuminate\Support\Str::limit($session->user_agent, 42) }}</p>
+                                            @endif
+                                            @if ($session->last_seen_at && $session->last_seen_at->lt(now()->subMinutes(5)))
+                                                {{-- Claims never expire on their own, so a silent holder still blocks
+                                                     the terminal. Flag it so the admin knows this one may need freeing. --}}
+                                                <p class="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                                    {{ $tr('Silencieux depuis') }} {{ $session->last_seen_at->diffForHumans(null, true) }}
+                                                </p>
+                                            @endif
                                         </div>
                                     @else
                                         <span class="text-xs text-slate-400">—</span>
