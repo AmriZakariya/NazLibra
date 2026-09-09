@@ -26,6 +26,55 @@ class AuthTest extends TestCase
             ->assertSee(config('app.version'));
     }
 
+    /**
+     * The public password-reset page had no coverage at all, and 500'd in
+     * production for anyone who clicked "mot de passe oublié":
+     * showForgotPassword() passed $request to TenantContext::resolve() without
+     * ever declaring the parameter.
+     */
+    public function test_forgot_password_page_is_available_to_guests(): void
+    {
+        $this->seed();
+
+        $this->get(route('password.request'))
+            ->assertOk()
+            ->assertSee('Mot de passe oublié')
+            ->assertSee('Réinitialiser');
+    }
+
+    /**
+     * The view brands itself from the resolved tenant, and for a guest the
+     * ONLY thing the request contributes to TenantContext::resolve() is the
+     * host. Asserting against a single seeded tenant proves nothing: with no
+     * request, resolve() falls through to "first tenant by id", which is that
+     * same tenant. So this uses a second tenant reachable only by host.
+     */
+    public function test_forgot_password_page_is_branded_from_the_request_host(): void
+    {
+        $this->seed();
+        config(['app.tenant_slug' => null, 'app.base_domain' => 'castlitpos.com']);
+
+        $first = Tenant::query()->orderBy('id')->first();
+        $other = Tenant::create([
+            'slug' => 'boutique-du-port',
+            'name' => 'Boutique du Port',
+        ]);
+
+        $this->get('http://boutique-du-port.castlitpos.com'.route('password.request', absolute: false))
+            ->assertOk()
+            ->assertSee($other->name)
+            ->assertDontSee($first->name);
+    }
+
+    public function test_forgot_password_page_redirects_a_signed_in_user_away(): void
+    {
+        $this->seed();
+
+        $this->actingAs(User::where('email', 'amina@librairie-atlas.ma')->first())
+            ->get(route('password.request'))
+            ->assertRedirect();
+    }
+
     public function test_guest_is_redirected_to_login_for_protected_pages(): void
     {
         $this->seed();

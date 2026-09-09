@@ -743,7 +743,7 @@ class AuthController extends Controller
         return back()->with('status', 'Profil mis à jour.');
     }
 
-    public function showForgotPassword(): View|RedirectResponse
+    public function showForgotPassword(Request $request): View|RedirectResponse
     {
         if (Auth::check()) {
             return redirect()->to($this->homeTarget(Auth::user()));
