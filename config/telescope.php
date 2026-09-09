@@ -25,6 +25,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Record Everything
+    |--------------------------------------------------------------------------
+    |
+    | Off by default on a deployed install: successful 2xx traffic is the
+    | volume that fills a shared host's disk, and errors are kept regardless.
+    | Turn it on temporarily (TELESCOPE_RECORD_ALL=true) when chasing
+    | something that leaves no error behind — a request that never arrives, or
+    | one whose 200 carries the wrong body.
+    |
+    */
+
+    'record_all' => env('TELESCOPE_RECORD_ALL', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Telescope Access Controls
     |--------------------------------------------------------------------------
     |

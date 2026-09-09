@@ -17,6 +17,19 @@ use Illuminate\Validation\ValidationException;
 
 class PrinterController extends Controller
 {
+    /**
+     * Transports a terminal may report.
+     *
+     * Listed here rather than as a database enum: MySQL rejects an unknown
+     * enum value while SQLite ignores enums altogether, so an enum fails
+     * asymmetrically — green tests, broken production. 'pax_internal' is the
+     * printer built into a PAX terminal.
+     */
+    private const CONNECTION_TYPES = ['tcp', 'pax_internal', 'bluetooth', 'usb'];
+
+    /** Whether a printer prints the customer's receipt or kitchen tickets. */
+    private const ROLES = ['receipt', 'kitchen'];
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
@@ -118,7 +131,8 @@ class PrinterController extends Controller
         $data = $request->validate([
             'id'                     => ['required', 'string', 'size:36'],
             'name'                   => ['required', 'string', 'max:255'],
-            'connection_type'        => ['sometimes', Rule::in(['tcp', 'bluetooth', 'usb'])],
+            'connection_type'        => ['sometimes', Rule::in(self::CONNECTION_TYPES)],
+            'role'                   => ['sometimes', Rule::in(self::ROLES)],
             'address'                => ['nullable', 'string', 'max:255'],
             'port'                   => ['sometimes', 'integer', 'min:1', 'max:65535'],
             'paper_width'            => ['sometimes', 'integer', 'min:1', 'max:255'],
@@ -161,7 +175,8 @@ class PrinterController extends Controller
 
         $data = $request->validate([
             'name'                   => ['sometimes', 'string', 'max:255'],
-            'connection_type'        => ['sometimes', Rule::in(['tcp', 'bluetooth', 'usb'])],
+            'connection_type'        => ['sometimes', Rule::in(self::CONNECTION_TYPES)],
+            'role'                   => ['sometimes', Rule::in(self::ROLES)],
             'address'                => ['nullable', 'string', 'max:255'],
             'port'                   => ['sometimes', 'integer', 'min:1', 'max:65535'],
             'paper_width'            => ['sometimes', 'integer', 'min:1', 'max:255'],
@@ -327,7 +342,8 @@ class PrinterController extends Controller
             'printers'                            => ['sometimes', 'array'],
             'printers.*.id'                       => ['required', 'string', 'size:36'],
             'printers.*.name'                     => ['required', 'string', 'max:255'],
-            'printers.*.connection_type'          => ['sometimes', Rule::in(['tcp', 'bluetooth', 'usb'])],
+            'printers.*.connection_type'          => ['sometimes', Rule::in(self::CONNECTION_TYPES)],
+            'printers.*.role'                     => ['sometimes', Rule::in(self::ROLES)],
             'printers.*.address'                  => ['nullable', 'string', 'max:255'],
             'printers.*.port'                     => ['sometimes', 'integer', 'min:1', 'max:65535'],
             'printers.*.paper_width'              => ['sometimes', 'integer', 'min:1', 'max:255'],
@@ -351,6 +367,9 @@ class PrinterController extends Controller
             if (! empty($data['printers'])) {
                 $rows = array_map(fn ($p) => array_merge([
                     'connection_type'        => 'tcp',
+                    // A terminal on an older build sends no role; a single
+                    // printer in a shop prints receipts.
+                    'role'                   => 'receipt',
                     'address'                => null,
                     'port'                   => 9100,
                     'paper_width'            => 80,
