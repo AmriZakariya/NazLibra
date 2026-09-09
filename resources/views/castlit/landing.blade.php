@@ -180,6 +180,8 @@
     .app-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
     .app-list li { display: flex; gap: 10px; align-items: center; font-size: 14.5px; color: rgba(255,255,255,.9); }
     .app-list svg { width: 18px; height: 18px; color: #fff; flex-shrink: 0; }
+    .app-id { display: flex; align-items: center; gap: 14px; }
+    .app-id img { border-radius: 13px; box-shadow: 0 8px 20px rgba(0,0,0,.28); flex-shrink: 0; }
     .app-visual { display: flex; justify-content: center; }
     .app-phone { width: 220px; background: #0b1020; border-radius: 30px; padding: 10px; box-shadow: 0 30px 70px rgba(0,0,0,.4); }
     .app-phone .scr { background: var(--paper); border-radius: 22px; overflow: hidden; }
@@ -398,7 +400,16 @@
             <div class="app-inner">
                 <div>
                     <span class="eyebrow" style="color:#cfe0ff">{{ __('castlit.app_eyebrow') }}</span>
-                    <h2 id="app-title">{{ __('castlit.app_title') }}</h2>
+                    {{-- The real launcher icon: someone deciding whether to
+                         install should see the thing they will be tapping on
+                         their home screen, not a generic illustration. --}}
+                    <div class="app-id">
+                        <img src="{{ asset('img/app-icon.png') }}" width="56" height="56"
+                             alt="" loading="lazy" decoding="async">
+                        <div>
+                            <h2 id="app-title">{{ __('castlit.app_title') }}</h2>
+                        </div>
+                    </div>
                     <p>{{ __('castlit.app_sub') }}</p>
                     <div class="store-btns">
                         {!! $storeButton() !!}
@@ -413,7 +424,12 @@
                 <div class="app-visual" aria-hidden="true">
                     <div class="app-phone">
                         <div class="scr">
-                            <div class="top">Castl-it-POS</div>
+                            <div class="top">
+                                <img src="{{ asset('img/app-icon.png') }}" width="18" height="18"
+                                     alt="" loading="lazy" decoding="async"
+                                     style="border-radius:4px;margin-inline-end:7px">
+                                Castl-it-POS
+                            </div>
                             <div class="content">
                                 @foreach (['Cahier 96p'=>'12,00','Stylo bleu'=>'6,50','Roman — Le Pain nu'=>'48,00','Agenda scolaire'=>'50,00'] as $n=>$p)
                                     <div class="card"><span class="sq"></span><span class="ln"><i></i><i></i></span><span class="pr">{{ $p }}</span></div>

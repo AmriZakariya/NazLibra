@@ -27,7 +27,18 @@ return [
         'email'     => env('CASTLIT_CONTACT_EMAIL', 'contact@castlitpos.com'),
         'locale'    => 'fr_MA',
         // App store links (empty = show a "coming soon" badge instead of a link).
-        'play_store' => env('CASTLIT_PLAY_STORE_URL', ''),
+        // Live on Google Play. Defaulted here rather than left to the
+        // environment: an install that has not set the variable would show
+        // "bientôt disponible" for an app that is already published, and the
+        // landing page decides between the real link and that ribbon purely on
+        // whether this string is empty. An env var still overrides it.
+        'play_store' => env(
+            'CASTLIT_PLAY_STORE_URL',
+            'https://play.google.com/store/apps/details?id=com.castlitpos.app',
+        ),
+
+        // The published application id, for store links and structured data.
+        'android_package' => env('CASTLIT_ANDROID_PACKAGE', 'com.castlitpos.app'),
         'app_store'  => env('CASTLIT_APP_STORE_URL', ''),
         // Social profile URLs → JSON-LD sameAs (helps entity/knowledge-graph SEO).
         // Empty ones are dropped; fill via env as accounts go live.

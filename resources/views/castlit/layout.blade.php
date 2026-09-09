@@ -123,6 +123,14 @@
                 'description' => $brand['description'],
                 'featureList' => $featureList ?: null,
                 'screenshot' => $ogImage,
+                // The real launcher icon, so a search result shows the app the
+                // way the store does rather than the site's own logo.
+                'image' => asset('img/app-icon.png'),
+                // Now the app is published these point search engines at the
+                // listing; without them a rich result has nowhere to send
+                // someone who wants to install it.
+                'installUrl' => $brand['play_store'] ?: null,
+                'downloadUrl' => $brand['play_store'] ?: null,
                 'inLanguage' => ['fr', 'ar', 'en'],
                 'url' => $siteUrl,
                 'publisher' => ['@id' => $siteUrl.'/#organization'],
