@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\KdsApiController;
 use App\Http\Controllers\Api\AdjustmentController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\AuthController;
@@ -131,6 +132,15 @@ Route::prefix('v1')->group(function (): void {
             Route::get('tickets',            [TicketController::class, 'index']);
             Route::post('tickets',           [TicketController::class, 'store'])->middleware('api.action:sales.create');
             Route::delete('tickets/{ticket}', [TicketController::class, 'destroy'])->middleware('api.action:sales.create');
+        });
+
+        // ── Kitchen display (KDS) ─────────────────────────────────────────────
+        // A mirror for reporting only: the kitchen itself runs on the shop LAN
+        // and must keep working with no internet, so nothing here is on the
+        // critical path of a service.
+        Route::prefix('kds')->group(function (): void {
+            Route::post('sync',   [KdsApiController::class, 'store'])->middleware('api.action:sales.create');
+            Route::get('report',  [KdsApiController::class, 'report'])->middleware('api.action:reports.view');
         });
 
         // ── Cash register ─────────────────────────────────────────────────────
