@@ -122,10 +122,32 @@ class SaleController extends Controller
             new OA\Response(response: 401, description: 'Unauthenticated'),
         ]
     )]
+    /**
+     * A per-terminal sale number supplied by a till, if it looks like one.
+     *
+     * Shape-checked rather than trusted blindly: BL-03-000127. Anything else —
+     * a legacy client sending its provisional reference, or junk — is ignored
+     * and the server numbers the sale itself, so a bad client cannot poison
+     * the register with unreadable numbers.
+     */
+    private function clientSaleNumber(?string $number): ?string
+    {
+        $number = trim((string) $number);
+        if ($number === '') {
+            return null;
+        }
+
+        return preg_match('/^[A-Z]{1,6}-[0-9A-Z]{1,6}-[0-9]{1,12}$/', $number)
+            ? $number
+            : null;
+    }
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
             'idempotency_key'         => ['required', 'string', 'max:64'],
+            // The till assigns its own number — see below.
+            'number'                  => ['nullable', 'string', 'max:40'],
             'location_id'             => ['nullable', 'integer'],
             'contact_id'              => ['nullable', 'integer'],
             'items'                    => ['required', 'array', 'min:1'],
@@ -387,18 +409,31 @@ class SaleController extends Controller
             }
         }
 
-        // Generate the sale number in its own committed transaction BEFORE the main sale
-        // transaction. If the sale transaction later rolls back (e.g. on a unique constraint
-        // conflict), the sequence counter is already advanced so the next retry gets a fresh
-        // number rather than hitting the same conflict forever.
-        $saleNumber = DB::transaction(function () use ($tenant) {
-            return $this->numbers->next(
-                $tenant,
-                'sale',
-                null,
-                fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists()
-            )['number'];
-        });
+        // A till assigns its own number, at the moment of sale, from a series
+        // unique to that terminal (BL-03-000127). It is honoured rather than
+        // replaced, because it is already printed on the customer's receipt:
+        // renumbering here would leave the paper and the books disagreeing,
+        // which is exactly what the old server-assigned scheme did to every
+        // offline sale. The unique (tenant_id, number) index is the backstop.
+        //
+        // Only a caller that supplies none — the web back office — gets a
+        // number from the tenant's continuous server-side sequence.
+        $saleNumber = $this->clientSaleNumber($data['number'] ?? null);
+
+        if ($saleNumber === null) {
+            // Its own committed transaction, BEFORE the main one: if the sale
+            // later rolls back on a unique conflict, the counter has already
+            // advanced so the retry gets a fresh number instead of hitting the
+            // same conflict forever.
+            $saleNumber = DB::transaction(function () use ($tenant) {
+                return $this->numbers->next(
+                    $tenant,
+                    'sale',
+                    null,
+                    fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists()
+                )['number'];
+            });
+        }
 
         $transactionFn = function () use (
             $tenant, $locationId, $contact, $payments, $saleLines,
