@@ -27,6 +27,49 @@ class PrinterController extends Controller
      */
     private const CONNECTION_TYPES = ['tcp', 'pax_internal', 'bluetooth', 'usb'];
 
+    /**
+     * Spellings a terminal might send for a canonical transport.
+     *
+     * Dart names enum values in camelCase, so an app build sent "paxInternal"
+     * where every other field on the wire is snake_case, and the whole printer
+     * config was refused with a 422. The app now sends 'pax_internal', but a
+     * terminal already in the field may not have updated yet — and refusing
+     * its config means it silently loses its printer setup.
+     */
+    private const CONNECTION_TYPE_ALIASES = [
+        'paxInternal' => 'pax_internal',
+        'pax-internal' => 'pax_internal',
+    ];
+
+    /** Rewrites known alternative spellings to the canonical value. */
+    private function normaliseConnectionTypes(Request $request): void
+    {
+        $printers = $request->input('printers');
+        if (is_array($printers)) {
+            foreach ($printers as $index => $printer) {
+                $type = $printer['connection_type'] ?? null;
+                if (is_string($type) && isset(self::CONNECTION_TYPE_ALIASES[$type])) {
+                    $request->merge([
+                        'printers' => array_replace(
+                            $request->input('printers'),
+                            [$index => array_replace(
+                                $printer,
+                                ['connection_type' => self::CONNECTION_TYPE_ALIASES[$type]],
+                            )],
+                        ),
+                    ]);
+                }
+            }
+        }
+
+        $single = $request->input('connection_type');
+        if (is_string($single) && isset(self::CONNECTION_TYPE_ALIASES[$single])) {
+            $request->merge([
+                'connection_type' => self::CONNECTION_TYPE_ALIASES[$single],
+            ]);
+        }
+    }
+
     /** Whether a printer prints the customer's receipt or kitchen tickets. */
     private const ROLES = ['receipt', 'kitchen'];
 
@@ -124,6 +167,8 @@ class PrinterController extends Controller
     /** POST /api/v1/printers */
     public function store(Request $request): JsonResponse
     {
+        $this->normaliseConnectionTypes($request);
+
         /** @var Tenant $tenant */
         $tenant          = $request->attributes->get('api_tenant');
         $virtualDeviceId = $this->resolveVirtualDeviceId($request);
@@ -164,6 +209,8 @@ class PrinterController extends Controller
     /** PUT /api/v1/printers/{id} */
     public function update(Request $request, string $id): JsonResponse
     {
+        $this->normaliseConnectionTypes($request);
+
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
         $virtualDeviceId = $this->resolveVirtualDeviceId($request);
@@ -334,6 +381,8 @@ class PrinterController extends Controller
     /** POST /api/v1/printers/push-config */
     public function pushConfig(Request $request): JsonResponse
     {
+        $this->normaliseConnectionTypes($request);
+
         /** @var Tenant $tenant */
         $tenant          = $request->attributes->get('api_tenant');
         $virtualDeviceId = $this->resolveVirtualDeviceId($request);
