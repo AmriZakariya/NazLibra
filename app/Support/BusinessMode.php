@@ -162,7 +162,14 @@ class BusinessMode
             'commerce' => 'retail',
             'service' => 'retail',
             'services' => 'retail',
-            'hybrid' => 'retail',
+            // NOTE: 'hybrid' is deliberately absent. It is the pre-configuration
+            // default of the `tenants.mode` column (cloud + local), not a
+            // business description — the settings screen later overwrites that
+            // same column with a real business mode. Aliasing it to 'retail'
+            // made every tenant that had not been through setup a general
+            // store, whose only item type is 'supply': a new bookshop could not
+            // create a book, and a new restaurant could not create a dish.
+            // Unrecognised values now fall through to defaultKey().
         ];
     }
 }

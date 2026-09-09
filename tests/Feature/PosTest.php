@@ -36,8 +36,14 @@ class PosTest extends TestCase
             ->assertSee('stock inventaire rupture alerte', false)
             ->assertSee('data-command-kind="Sous-module"', false)
             ->assertSee('data-command-module="Stock"', false)
-            ->assertSee('href="http://localhost/stock"', false)
-            ->assertSee('href="http://localhost/stock?panel=stock-adjustment-add"', false)
+            // Built from route(), not hardcoded: this assertion used to pin
+            // the scheme and host, so it broke when URL generation changed
+            // rather than when the link did.
+            ->assertSee('href="'.route('stock').'"', false)
+            ->assertSee(
+                'href="'.route('stock', ['panel' => 'stock-adjustment-add']).'"',
+                false,
+            )
             ->assertSee('item produit livre isbn', false)
             ->assertSee('Ouvrir')
             ->assertDontSee('app-top-search', false)

@@ -183,8 +183,10 @@ class OnlineOrderController extends Controller
                     }
                 }
 
+                // Prefix left to the generator: hardcoding it here is what
+                // split the sale series in two in the first place.
                 $saleNumber = $this->numbers->next(
-                    $tenant, 'sale', 'BL',
+                    $tenant, 'sale', null,
                     fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists()
                 )['number'];
 

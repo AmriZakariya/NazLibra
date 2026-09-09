@@ -29,7 +29,11 @@ class AppServiceProvider extends ServiceProvider
         // POST form (e.g. the platform-admin client actions → 404). Force HTTPS
         // URL generation on any non-local environment — not just when APP_ENV
         // happens to be exactly "production" — so this can't silently regress.
-        if (! app()->environment('local')) {
+        // 'testing' is excluded alongside 'local': the reason above is a
+        // shared host's HTTPS proxy, and the test suite has no proxy. Forcing
+        // it there only made generated URLs disagree with APP_URL, which is
+        // how a test ends up asserting a hardcoded scheme.
+        if (! app()->environment(['local', 'testing'])) {
             URL::forceScheme('https');
         }
 

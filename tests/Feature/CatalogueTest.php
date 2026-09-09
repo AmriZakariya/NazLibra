@@ -654,10 +654,22 @@ class CatalogueTest extends TestCase
         $this->assertSame('20.00', $item->sale_price);
         $this->assertSame('18.25', $item->reseller_sale_price);
 
-        $this->get(route('catalog', ['panel' => 'articles', 'edit' => $item->id]))
+        // Regex on the field rather than the tag's whole attribute list: the
+        // old assertion pinned every attribute in order, so adding one
+        // (data-price-sale) broke it even though the value it cared about was
+        // still correct.
+        $html = $this->get(route('catalog', ['panel' => 'articles', 'edit' => $item->id]))
             ->assertOk()
-            ->assertSee('name="sale_price" required type="number" step="0.01" min="0" inputmode="decimal" value="20.00"', false)
-            ->assertSee('name="purchase_price" required type="number" step="0.01" min="0" inputmode="decimal" value="12.50"', false);
+            ->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/name="sale_price"[^>]*value="20\.00"/',
+            $html,
+        );
+        $this->assertMatchesRegularExpression(
+            '/name="purchase_price"[^>]*value="12\.50"/',
+            $html,
+        );
     }
 
     public function test_add_item_reference_shortcuts_return_json_options(): void

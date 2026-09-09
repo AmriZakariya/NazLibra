@@ -3053,15 +3053,27 @@ class LibraireProController extends Controller
             'inventory_cycle_days' => ['nullable', 'integer', 'in:7,15,30,90'],
             'default_min_stock_threshold' => ['nullable', 'integer', 'min:0', 'max:9999'],
             'online_pickup_store' => ['nullable', Rule::in($storeKeys)],
-            'costing_method' => ['required', 'in:lifo,fifo,wac'],
-            'business_activity' => ['required', Rule::in(ItemTypes::activityKeys())],
+            // Nullable, not required: this endpoint MERGES into the stored
+            // settings, so an omitted field must mean "leave it alone". As
+            // required rules they failed the whole request, and a caller that
+            // did not know about them saved nothing at all — silently, because
+            // the response is a redirect either way.
+            'costing_method' => ['nullable', 'in:lifo,fifo,wac'],
+            'business_activity' => ['nullable', Rule::in(ItemTypes::activityKeys())],
         ]);
         $settings = $tenant->settings ?? [];
         $settings['inventory'] = array_merge($settings['inventory'] ?? [], [
-            'costing_method' => $data['costing_method'],
+            'costing_method' => $data['costing_method']
+                ?? data_get($settings, 'inventory.costing_method', 'wac'),
         ]);
+        $storedActivity = data_get($settings, 'store.business_activity');
         $settings['store'] = array_merge($settings['store'] ?? [], [
-            'business_activity' => ItemTypes::normalizeActivity($data['business_activity']),
+            'business_activity' => ItemTypes::normalizeActivity(
+                $data['business_activity']
+                    ?? (is_string($storedActivity) && $storedActivity !== ''
+                        ? $storedActivity
+                        : ItemTypes::activityForTenant($tenant))
+            ),
         ]);
         $settings['pos'] = array_merge($settings['pos'] ?? [], [
             'editable_price' => $request->boolean('editable_price'),
@@ -5423,7 +5435,13 @@ class LibraireProController extends Controller
             }
 
             $inventoryService = app(\App\Services\Inventory\InventoryService::class);
-            $returnLocationId = (int) $sale->location_id;
+            // A sale recorded without a location gave `(int) null` = 0, and
+            // location 0 does not exist: restocking then hit a foreign key
+            // violation and the cashier got a bare Internal Server Error on a
+            // perfectly ordinary refund. Fall back to the tenant's default
+            // location, the same resolver the rest of the stock code uses.
+            $returnLocationId = (int) $sale->location_id
+                ?: $inventoryService->defaultLocationId($tenant->id);
 
             $sale->load(['items.item', 'returns']);
             $soldLines = $sale->items->keyBy('id');

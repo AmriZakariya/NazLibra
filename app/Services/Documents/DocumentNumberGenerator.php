@@ -82,7 +82,12 @@ class DocumentNumberGenerator
     private function defaultPrefix(string $documentType): string
     {
         return match ($documentType) {
-            'sale'             => 'TKT',
+            // 'BL' (bon de livraison), not 'TKT'. A parked ticket is 'ATT';
+            // a sale is the delivery document. The online-order path had to
+            // pass 'BL' explicitly to get this, which meant ONE document type
+            // was numbered from TWO series — BL00001 from the web and TKT00001
+            // from the POS, for the same tenant and the same kind of document.
+            'sale'             => 'BL',
             'return'           => 'RTN',
             'invoice'          => 'FAC',
             'invoice_payment'  => 'IPAY',
