@@ -156,7 +156,39 @@ fi
 [ -d "$SOURCE_DIR/vendor" ] \
   || final '{"status":"error","step":"source","message":"Master vendor/ missing — run composer install in ~/htdocs."}' 1
 
+# ── Maintenance mode for the duration of the copy ───────────────────────────
+#
+# The copy below extracts over the LIVE document root. A request that autoloads
+# a PHP file while tar is still writing it gets a ParseError — we saw exactly
+# that: "Unterminated comment starting line 911" on a heartbeat, from a file
+# that is perfectly valid in the repository. It is transient and it is a 500.
+#
+# Maintenance mode is handled in public/index.php before any application class
+# is autoloaded, so requests during the window get an honest 503 with a
+# Retry-After instead of a parse error. It does not close the window entirely —
+# the boot files themselves are still being replaced — but it shrinks it from
+# every file in the app to a handful.
+#
+# The POS app is offline-first and copes with a 503 far better than with a 500.
+maintenance_down() {
+  ( cd "$DOC_ROOT" && "$PHP_BIN" artisan down --retry=15 ) >&2 2>&1 || true
+}
+
+maintenance_up() {
+  ( cd "$DOC_ROOT" && "$PHP_BIN" artisan up ) >&2 2>&1 || true
+  # Belt and braces: if artisan cannot boot (a half-finished deploy is exactly
+  # when that happens), remove the flag by hand so the client is never left
+  # dark by a failed update.
+  rm -f "$DOC_ROOT/storage/framework/down" \
+        "$DOC_ROOT/storage/framework/maintenance.php" 2>/dev/null || true
+}
+
+# Lift maintenance on EVERY exit path, including the `final ... 1` failures
+# below. A deploy that dies half-way must not leave the shop offline.
+trap maintenance_up EXIT
+
 emit "▸ Updating code from master ($SOURCE_DIR)"
+maintenance_down
 # Overwrite CODE (app, config, routes, resources, public/build, vendor,
 # database/migrations) but NEVER the client's data: .env, the SQLite DB,
 # storage/ (uploads, logs, sessions) and its .htaccess are excluded. tar merges,
@@ -214,5 +246,10 @@ printf '%s' "$DEPLOY_SHA" > "$DOC_ROOT/.version"
 # request / worker running this script when executed inline.
 emit "▸ resetting client OPcache"
 reset_client_opcache
+
+# Back online. The EXIT trap would do this anyway; doing it here means the
+# client is serving again BEFORE we report success, not after.
+emit "▸ lifting maintenance mode"
+maintenance_up
 
 final "{\"status\":\"success\",\"action\":\"update\",\"url\":\"https://$FULL_DOMAIN\",\"commit\":\"$DEPLOY_SHA\"}" 0
