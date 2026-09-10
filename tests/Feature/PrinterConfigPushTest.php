@@ -42,6 +42,44 @@ class PrinterConfigPushTest extends TestCase
         ]);
     }
 
+    private function fetchConfig()
+    {
+        return $this->withToken($this->user->createToken('t')->plainTextToken)
+            ->withHeader('X-Virtual-Device-Id', (string) $this->device->id)
+            ->getJson('/api/v1/sync/printers');
+    }
+
+    /**
+     * The terminal stamps its "Imprimantes" row with this.
+     *
+     * Without it the app had nothing to record and the settings screen read
+     * "Jamais synchronisé" after every successful pull — a shop cannot tell a
+     * printer config that never arrived from one that arrived an hour ago.
+     */
+    public function test_the_printer_config_says_when_it_was_taken(): void
+    {
+        $syncAt = $this->fetchConfig()->assertOk()->json('sync_at');
+
+        $this->assertIsString($syncAt);
+        $this->assertMatchesRegularExpression(
+            '/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z\z/',
+            $syncAt,
+            'the stamp must be UTC with an explicit Z, like every other cursor',
+        );
+        $this->assertEqualsWithDelta(
+            now()->getTimestamp(),
+            \App\Support\UtcDateTime::parse($syncAt)->getTimestamp(),
+            5,
+        );
+    }
+
+    public function test_a_terminal_with_no_printers_still_gets_a_stamp(): void
+    {
+        // The empty case is a successful sync, not a missing one.
+        $this->assertSame([], $this->fetchConfig()->assertOk()->json('printers'));
+        $this->assertNotNull($this->fetchConfig()->json('sync_at'));
+    }
+
     /** @param array<string, mixed> $overrides */
     private function push(array $overrides = [])
     {

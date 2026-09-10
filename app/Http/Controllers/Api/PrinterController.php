@@ -9,6 +9,7 @@ use App\Models\PrinterGroupCategory;
 use App\Models\PrinterGroupPrinter;
 use App\Models\Tenant;
 use App\Models\VirtualDevice;
+use App\Support\UtcDateTime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -143,6 +144,11 @@ class PrinterController extends Controller
             : [];
 
         return [
+            // When this snapshot was taken, so a terminal can record that its
+            // printer section IS synced. Without it the app had nothing to
+            // stamp the section with and every till read "Jamais synchronisé"
+            // however many successful pulls it had made.
+            'sync_at'                 => UtcDateTime::format(now()->utc()),
             'printers'                => $printerModels->toArray(),
             'printer_groups'          => $printerGroups,
             'printer_group_printers'  => $printerGroupPrinters,
