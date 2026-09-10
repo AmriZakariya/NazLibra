@@ -508,6 +508,15 @@ class SyncController extends Controller
             'receipt_header'          => data_get($tenant->settings, 'receipt_header'),
             'receipt_footer'          => data_get($tenant->settings, 'receipt_footer'),
             'features_virtual_devices'  => (bool) data_get($tenant->settings, 'features.virtual_devices', false),
+            // Every module's on/off state, as one map.
+            //
+            // General on purpose: the flags above were added one at a time, so
+            // each new switch on the web needed a matching API change and an
+            // app release before a device could honour it — and until then the
+            // toggle silently did nothing on the terminals. This carries the
+            // whole set, so a module added later reaches the app with no
+            // further work.
+            'modules'                   => \App\Support\AppModules::settings($tenant)['enabled'],
             'business_mode'             => $tenant->business_mode ?? 'retail',
             'business_activity'         => \App\Support\ItemTypes::activityForTenant($tenant),
             'inventory_costing_method'  => (string) data_get($tenant->settings, 'inventory.costing_method', 'lifo'),

@@ -26,6 +26,8 @@ class AppModules
             'accounts' => ['label' => 'Comptes', 'description' => 'Comptes banque/caisse, dépôts, transferts et transactions.', 'default' => true],
             'cash_register' => ['label' => 'Tiroir caisse', 'description' => 'Ouverture, mouvements espèces, solde attendu et clôture.', 'default' => true],
             'stock' => ['label' => 'Stock', 'description' => 'Inventaire, mouvements, ajustements, transferts et valorisation.', 'default' => true],
+            'kds' => ['label' => 'Cuisine (KDS)', 'description' => 'Écran de préparation, envoi en cuisine, bons par poste et suivi des plats.', 'default' => false],
+            'local_sync' => ['label' => 'Synchronisation locale', 'description' => 'Partage des tickets entre les appareils du magasin par le réseau local, sans internet.', 'default' => false],
             'loans' => ['label' => 'Emprunts', 'description' => 'Prêts, retours, pénalités, réservations et cartes membre.', 'default' => false],
             'reports' => ['label' => 'Rapports', 'description' => 'Rapports de vente, achat, stock, finance et performance.', 'default' => true],
             'users' => ['label' => 'Utilisateurs', 'description' => 'Comptes équipe, rôles, permissions, PIN et accès magasins.', 'default' => true],
