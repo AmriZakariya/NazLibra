@@ -58,6 +58,28 @@ class ModuleSyncTest extends TestCase
         }
     }
 
+    /**
+     * The terminal gates its navigation on these keys, spelled exactly like
+     * this in `lib/core/modules/app_module.dart`. Nothing links the two
+     * languages, so a rename here would silently switch a destination off on
+     * every till — the same shape of drift that cost us a 422 on the printer
+     * connection types.
+     */
+    public function test_the_payload_keeps_the_keys_the_terminal_gates_on(): void
+    {
+        $gated = [
+            'sales', 'catalog', 'stock', 'customers', 'suppliers', 'invoices',
+            'online_orders', 'cash_register', 'reports', 'purchases', 'users',
+            'loans', 'kds', 'local_sync',
+        ];
+
+        $modules = $this->settings()->assertOk()->json('modules');
+
+        foreach ($gated as $key) {
+            $this->assertArrayHasKey($key, $modules, "the app gates on '$key' and the payload no longer carries it");
+        }
+    }
+
     public function test_the_kitchen_module_exists_and_is_off_by_default(): void
     {
         // Nobody should discover a kitchen screen they did not ask for.
