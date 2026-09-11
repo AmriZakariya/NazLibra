@@ -10735,6 +10735,28 @@ class LibraireProController extends Controller
                 return 'service';
             }
 
+            // The activity-specific types. A pharmacy's Médicament and a
+            // clothing shop's Vêtement are real ItemType values that
+            // ItemTypes offers on the item form, and this importer used to
+            // have no way of producing them: every row landed as `supply`,
+            // so a catalogue imported into either shop contradicted the
+            // types that shop is configured to use.
+            if (str_contains($rawType, 'medicament') || str_contains($rawType, 'medication')) {
+                return 'medication';
+            }
+
+            if (str_contains($rawType, 'vetement') || str_contains($rawType, 'clothing')) {
+                return 'clothing';
+            }
+
+            if (str_contains($rawType, 'boisson') || str_contains($rawType, 'drink')) {
+                return 'drink';
+            }
+
+            if (str_contains($rawType, 'plat') || str_contains($rawType, 'food')) {
+                return 'food';
+            }
+
             if (str_contains($rawType, 'book') || str_contains($rawType, 'livre')) {
                 return 'book';
             }
