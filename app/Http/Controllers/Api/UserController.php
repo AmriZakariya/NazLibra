@@ -94,7 +94,11 @@ class UserController extends Controller
     {
         $data = $request->validate([
             'user_id' => ['required', 'integer'],
-            'pin'     => ['required', 'string', new FourDigitPin],
+            // Nullable: an account with no PIN is selected without one. The
+            // PIN is a lock on accounts that have set one, not a universal
+            // toll — requiring it from an account that never set one left
+            // that account unusable on a shared terminal.
+            'pin'     => ['nullable', 'string', new FourDigitPin],
         ]);
 
         /** @var Tenant $tenant */
@@ -105,7 +109,23 @@ class UserController extends Controller
             ->where('users.id', $data['user_id'])
             ->first();
 
-        if (! $user || ! $user->is_active || is_null($user->pin_hash) || ! Hash::check($data['pin'], $user->pin_hash)) {
+        if (! $user || ! $user->is_active) {
+            return response()->json(['ok' => false, 'message' => 'PIN ou utilisateur invalide.'], 422);
+        }
+
+        $pin = $data['pin'] ?? null;
+
+        if (! is_null($user->pin_hash)) {
+            // The account set a PIN, so the PIN is the gate. An absent one is
+            // refused exactly like a wrong one: the same message either way,
+            // so probing cannot tell a missing PIN from an incorrect one.
+            if (is_null($pin) || ! Hash::check($pin, $user->pin_hash)) {
+                return response()->json(['ok' => false, 'message' => 'PIN ou utilisateur invalide.'], 422);
+            }
+        } elseif (! is_null($pin)) {
+            // A PIN offered to an account that has none. Refused rather than
+            // ignored: silently accepting it would tell the caller that any
+            // PIN works for this account.
             return response()->json(['ok' => false, 'message' => 'PIN ou utilisateur invalide.'], 422);
         }
 
