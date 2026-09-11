@@ -10749,15 +10749,14 @@ class LibraireProController extends Controller
                 return 'clothing';
             }
 
-            if (str_contains($rawType, 'boisson') || str_contains($rawType, 'drink')) {
-                return 'drink';
-            }
-
-            if (str_contains($rawType, 'plat') || str_contains($rawType, 'food')) {
-                return 'food';
-            }
-
-            if (str_contains($rawType, 'book') || str_contains($rawType, 'livre')) {
+            // `book` is the PRIMARY catalogue type, and each activity labels
+            // it in its own words: "Plat / menu" for a restaurant, "Boisson /
+            // snack" for a café. The export writes that label, so without
+            // these a restaurant re-importing its own export turned every
+            // dish into `supply`.
+            if (str_contains($rawType, 'book') || str_contains($rawType, 'livre')
+                || str_contains($rawType, 'plat') || str_contains($rawType, 'menu')
+                || str_contains($rawType, 'boisson') || str_contains($rawType, 'snack')) {
                 return 'book';
             }
 

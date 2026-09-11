@@ -59,10 +59,24 @@ class ImportItemTypeTest extends TestCase
         $this->assertSame('clothing', $this->importRow('Chemise coton homme', 'Vêtement')->type);
     }
 
-    public function test_a_drink_and_a_dish_keep_their_own_types(): void
+    public function test_each_activity_can_re_import_its_own_export(): void
     {
-        $this->assertSame('drink', $this->importRow('Thé à la menthe', 'Boisson')->type);
-        $this->assertSame('food', $this->importRow('Tajine de poulet', 'Plat')->type);
+        // `book` is the primary catalogue type and every activity labels it
+        // differently. The catalogue EXPORT writes that label, so a
+        // restaurant re-importing its own file turned every dish into
+        // `supply` — a silent demotion nobody would spot until the menu
+        // stopped behaving like a menu.
+        foreach ([
+            'Livre',            // librairie
+            'Plat / menu',      // restaurant
+            'Boisson / snack',  // café
+        ] as $label) {
+            $this->assertSame(
+                'book',
+                $this->importRow("Article $label", $label)->type,
+                "the export label '$label' must come back as the primary type",
+            );
+        }
     }
 
     public function test_the_types_it_already_handled_are_unchanged(): void
@@ -76,6 +90,18 @@ class ImportItemTypeTest extends TestCase
         // "Service de livraison de médicaments" mentions a medication; the
         // row is still a service.
         $this->assertSame('service', $this->importRow('Livraison', 'Service médicament')->type);
+    }
+
+    public function test_a_pharmacy_label_is_a_known_divergence(): void
+    {
+        // BusinessMode labels a pharmacy's PRIMARY type "Produit santé" and
+        // maps it to `book`; ItemTypes offers that shop `medication` and
+        // never `book`. The two vocabularies disagree, so this label is not
+        // reachable from the item form and importing it lands on `supply`.
+        // Pinned as the current behaviour rather than asserted as correct —
+        // reconciling the two is a product decision, not an import fix.
+        $this->assertSame('supply', $this->importRow('Produit santé test', 'Produit santé')->type);
+        $this->assertSame('medication', $this->importRow('Médicament test', 'Médicament')->type);
     }
 
     public function test_an_unknown_label_still_falls_back_rather_than_failing(): void

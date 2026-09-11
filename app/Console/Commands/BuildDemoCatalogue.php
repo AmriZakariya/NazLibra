@@ -2,50 +2,52 @@
 
 namespace App\Console\Commands;
 
+use App\Support\ItemTypes;
 use App\Support\SimpleXlsx;
 use Illuminate\Console\Command;
 
 /**
- * Builds the demo catalogue in the shape the catalogue importer reads.
+ * Builds a demo catalogue per business activity, in the shape the catalogue
+ * importer reads.
  *
- * The file is generated rather than checked in as a binary so the data stays
- * reviewable in `database/data/demo_catalogue.php`: a diff on an .xlsx tells
- * nobody what changed about the shop.
+ * One catalogue per activity because the activities do not merely sell
+ * different things — they use different item TYPES. A pharmacy stocks
+ * medications, a clothing shop garments, a restaurant dishes and drinks, and
+ * a commerce général has only one physical type to put anything in. Demo data
+ * that ignored that would exercise the shop we do not ship.
+ *
+ * The files are generated rather than checked in as binaries so the data
+ * stays reviewable in `database/data/demo_catalogues/`: a diff on an .xlsx
+ * tells nobody what changed about the shop.
  */
 class BuildDemoCatalogue extends Command
 {
     protected $signature = 'demo:catalogue
+        {--activity=* : bookstore, restaurant, cafe, pharmacy, clothing, general (default: all)}
         {--dir= : Where to write (default storage/app/demo)}
-        {--csv : Also write CSV alongside the workbook}';
+        {--csv : Also write CSV alongside each workbook}';
 
-    protected $description = "Génère le catalogue de démonstration au format d'import";
-
-    /** The import template's columns, in its order. */
-    private const ITEM_HEADERS = [
-        'Code de barre', 'ISBN', "Nom de l'article", "Catégorie/Type d'élément",
-        'Marque', 'Auteur', 'Unité', 'Stock', "Quantité d'alerte",
-        "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags',
-        'Description', "Type d'élément",
-    ];
-
-    private const SERVICE_HEADERS = [
-        'Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité',
-        "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags',
-        'Description', "Type d'élément",
-    ];
+    protected $description = "Génère les catalogues de démonstration par activité, au format d'import";
 
     /**
-     * Books are VAT-exempt in Morocco; everything else is at the standard rate.
-     * Both names are seeded active for the demo tenant.
+     * What the "Type d'élément" column has to say for each item type.
+     *
+     * These are the words `importedItemType` matches on. Sending the activity's
+     * own display label ("Plat / menu") would not match and the row would fall
+     * back to `supply`, so the mapping is explicit rather than borrowed from
+     * ItemTypes' labels.
      */
-    private const BOOK_CATEGORIES = [
-        'LIVRES SCOLAIRES', 'PARASCOLAIRE', 'ROMANS',
-        'LIVRES JEUNESSE', 'LIVRES RELIGIEUX',
+    private const TYPE_LABELS = [
+        'book' => 'Livre',
+        'supply' => 'Article',
+        'medication' => 'Médicament',
+        'clothing' => 'Vêtement',
+        'service' => 'Service',
     ];
 
     public function handle(): int
     {
-        $catalogue = require database_path('data/demo_catalogue.php');
+        $activities = $this->option('activity') ?: $this->available();
 
         $directory = $this->option('dir') ?: storage_path('app/demo');
         if (! is_dir($directory) && ! mkdir($directory, 0775, true) && ! is_dir($directory)) {
@@ -54,66 +56,104 @@ class BuildDemoCatalogue extends Command
             return self::FAILURE;
         }
 
-        $itemRows = $this->itemRows($catalogue['items']);
-        $serviceRows = $this->serviceRows($catalogue['services']);
+        foreach ($activities as $activity) {
+            $path = database_path("data/demo_catalogues/$activity.php");
+            if (! is_file($path)) {
+                $this->error("Activité inconnue : $activity");
 
-        $written = [
-            SimpleXlsx::write("Liste d'articles", self::ITEM_HEADERS, $itemRows,
-                $directory.'/catalogue-librairie-articles.xlsx'),
-            SimpleXlsx::write('Liste des services', self::SERVICE_HEADERS, $serviceRows,
-                $directory.'/catalogue-librairie-services.xlsx'),
-        ];
+                return self::FAILURE;
+            }
 
-        if ($this->option('csv')) {
-            $written[] = $this->writeCsv($directory.'/catalogue-librairie-articles.csv', self::ITEM_HEADERS, $itemRows);
-            $written[] = $this->writeCsv($directory.'/catalogue-librairie-services.csv', self::SERVICE_HEADERS, $serviceRows);
-        }
-
-        $this->info(count($itemRows).' articles, '.count($serviceRows).' services');
-        foreach ($written as $path) {
-            $this->line('  '.$path);
+            $this->build($activity, require $path, $directory);
         }
 
         return self::SUCCESS;
+    }
+
+    /** @return array<int, string> */
+    private function available(): array
+    {
+        return array_values(array_filter(
+            ItemTypes::activityKeys(),
+            fn (string $activity) => is_file(database_path("data/demo_catalogues/$activity.php")),
+        ));
+    }
+
+    /** @param array<string, mixed> $catalogue */
+    private function build(string $activity, array $catalogue, string $directory): void
+    {
+        $withIsbn = (bool) ($catalogue['isbn_column'] ?? false);
+
+        $itemHeaders = array_values(array_filter([
+            'Code de barre',
+            $withIsbn ? 'ISBN' : null,
+            "Nom de l'article",
+            "Catégorie/Type d'élément",
+            'Marque',
+            $withIsbn ? 'Auteur' : null,
+            'Unité', 'Stock', "Quantité d'alerte",
+            "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags',
+            'Description', "Type d'élément",
+        ]));
+
+        $serviceHeaders = [
+            'Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité',
+            "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags',
+            'Description', "Type d'élément",
+        ];
+
+        $itemRows = $this->itemRows($catalogue['items'], $withIsbn);
+        $serviceRows = $this->serviceRows($catalogue['services']);
+
+        $stem = $directory."/catalogue-$activity";
+        SimpleXlsx::write($catalogue['title'], $itemHeaders, $itemRows, "$stem-articles.xlsx");
+        SimpleXlsx::write($catalogue['title'].' — services', $serviceHeaders, $serviceRows, "$stem-services.xlsx");
+
+        if ($this->option('csv')) {
+            $this->writeCsv("$stem-articles.csv", $itemHeaders, $itemRows);
+            $this->writeCsv("$stem-services.csv", $serviceHeaders, $serviceRows);
+        }
+
+        $this->info(str_pad($activity, 11).count($itemRows).' articles, '.count($serviceRows).' services');
+        $this->line("  $stem-articles.xlsx");
+        $this->line("  $stem-services.xlsx");
     }
 
     /**
      * @param  array<int, array<string, mixed>>  $items
      * @return array<int, array<int, string>>
      */
-    private function itemRows(array $items): array
+    private function itemRows(array $items, bool $withIsbn): array
     {
         $rows = [];
 
         foreach ($items as $index => $item) {
-            $isBook = in_array($item['category'], self::BOOK_CATEGORIES, true);
+            $isBook = $item['kind'] === 'book';
             // A book's barcode IS its ISBN on the shelf, which is how a
-            // bookseller scans it — so the two columns carry the same value
-            // rather than inventing a second code nobody would ever scan.
+            // bookseller scans it, so the two columns carry one value. Every
+            // other trade gets an in-house EAN.
             $barcode = $item['isbn'] !== ''
                 ? $item['isbn']
-                : ($isBook
-                    ? $this->ean13('978'.str_pad((string) (1000 + $index), 9, '0', STR_PAD_LEFT))
-                    : $this->ean13('611'.str_pad((string) (2000 + $index), 9, '0', STR_PAD_LEFT)));
+                : $this->ean13(($isBook ? '978' : '611').str_pad((string) (1000 + $index), 9, '0', STR_PAD_LEFT));
 
-            $rows[] = [
+            $rows[] = array_values(array_filter([
                 $barcode,
-                $isBook ? $barcode : '',
+                $withIsbn ? ($isBook ? $barcode : '') : null,
                 $item['name'],
                 $item['category'].'[ITEM]',
                 $item['brand'],
-                $item['author'],
+                $withIsbn ? $item['author'] : null,
                 $item['unit'],
                 (string) $item['stock'],
                 (string) $item['alert'],
                 number_format($item['cost'], 2, '.', ''),
                 number_format($item['price'], 2, '.', ''),
-                $isBook ? 'Sans TVA(0.00%)' : 'TVA 20%(20.00%)',
+                $this->taxLabel($item['vat']),
                 'Active',
                 $item['tags'],
                 $item['description'],
-                $item['kind'],
-            ];
+                self::TYPE_LABELS[$item['kind']],
+            ], fn ($value) => $value !== null));
         }
 
         return $rows;
@@ -132,7 +172,7 @@ class BuildDemoCatalogue extends Command
             'Service',
             number_format($service['cost'], 2, '.', ''),
             number_format($service['price'], 2, '.', ''),
-            'TVA 20%(20.00%)',
+            $this->taxLabel($service['vat']),
             'Active',
             $service['tags'],
             $service['description'],
@@ -140,12 +180,19 @@ class BuildDemoCatalogue extends Command
         ], $services);
     }
 
+    /** The importer parses "Nom(taux%)" and creates the rate if it is new. */
+    private function taxLabel(int $rate): string
+    {
+        return $rate === 0
+            ? 'Sans TVA(0.00%)'
+            : sprintf('TVA %d%%(%s%%)', $rate, number_format($rate, 2, '.', ''));
+    }
+
     /**
      * Completes a 12-digit body with its EAN-13 check digit.
      *
-     * Real check digits because these get scanned: a POS that validates the
-     * barcode would reject demo data built from arbitrary digits, and the
-     * failure would look like a scanner fault.
+     * Real check digits because these get scanned: a wrong one reads as a
+     * broken scanner rather than as bad data.
      */
     private function ean13(string $body): string
     {
@@ -162,7 +209,7 @@ class BuildDemoCatalogue extends Command
      * @param  array<int, string>  $headers
      * @param  array<int, array<int, string>>  $rows
      */
-    private function writeCsv(string $path, array $headers, array $rows): string
+    private function writeCsv(string $path, array $headers, array $rows): void
     {
         $handle = fopen($path, 'w');
         fputcsv($handle, $headers);
@@ -170,7 +217,5 @@ class BuildDemoCatalogue extends Command
             fputcsv($handle, $row);
         }
         fclose($handle);
-
-        return $path;
     }
 }
