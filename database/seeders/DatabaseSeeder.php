@@ -201,11 +201,14 @@ class DatabaseSeeder extends Seeder
                 'tags' => ['priority', 'rentrée'],
             ]);
 
+            // ISBNs here are scanned in the demo, so their EAN-13 check digit
+            // has to be right — one of these was off by three and would have
+            // read as a broken scanner rather than as bad data.
             $items = collect([
                 ['Manuel Mathématiques 6e AEP', '9789954711132', 'MATH-6AEP', 'mathematiques', 'Al Manahil', 62, 89, 18, 8, 'Rayon A-02', 'Scolaire'],
                 ['Cahier 96 pages grands carreaux', null, 'PAP-C96-GC', 'papeterie', 'Clairefontaine', 4.5, 8, 240, 40, 'Îlot rentrée', 'Papeterie'],
                 ['Le Petit Prince', '9782070612758', 'ROM-PP-001', 'romans', 'Hachette', 38, 65, 4, 5, 'Rayon R-01', 'Antoine de Saint-Exupéry'],
-                ['Bescherelle Conjugaison', '9782401052355', 'FR-BES-001', 'francais', 'Hatier', 42, 72, 9, 6, 'Rayon F-03', 'Référence'],
+                ['Bescherelle Conjugaison', '9782401052352', 'FR-BES-001', 'francais', 'Hatier', 42, 72, 9, 6, 'Rayon F-03', 'Référence'],
                 ['Service impression A4 noir/blanc', null, 'SRV-PRINT-A4', 'services', null, 0, 1, 9999, 0, 'Caisse', 'Service'],
             ])->map(function (array $row, int $index) use ($tenant, $categories, $brands, $units, $taxes) {
                 $isService = $row[3] === 'services';

@@ -10858,57 +10858,10 @@ class LibraireProController extends Controller
      */
     private function buildSimpleXlsx(string $title, array $headers, array $rows): string
     {
-        $path = tempnam(sys_get_temp_dir(), 'librairepro-import-').'.xlsx';
-        $zip = new ZipArchive();
-        $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
-
-        $xmlDeclaration = '<'.'?xml version="1.0" encoding="UTF-8" standalone="yes"?'.'>';
-        $zip->addFromString('[Content_Types].xml', $xmlDeclaration.'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
-        $zip->addFromString('_rels/.rels', $xmlDeclaration.'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
-        $zip->addFromString('xl/_rels/workbook.xml.rels', $xmlDeclaration.'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
-        $zip->addFromString('xl/workbook.xml', $xmlDeclaration.'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Import" sheetId="1" r:id="rId1"/></sheets></workbook>');
-        $zip->addFromString('xl/worksheets/sheet1.xml', $this->simpleWorksheetXml($title, $headers, $rows));
-        $zip->close();
-
-        return $path;
-    }
-
-    /**
-     * @param  array<int, string>  $headers
-     * @param  array<int, array<int, string|int|float>>  $rows
-     */
-    private function simpleWorksheetXml(string $title, array $headers, array $rows): string
-    {
-        $sheetRows = [[$title], $headers, ...$rows];
-        $xmlRows = [];
-
-        foreach ($sheetRows as $rowIndex => $row) {
-            $cells = [];
-            foreach (array_values($row) as $columnIndex => $value) {
-                $reference = $this->columnLetters($columnIndex + 1).($rowIndex + 1);
-                $cells[] = '<c r="'.$reference.'" t="inlineStr"><is><t>'.$this->xmlEscape((string) $value).'</t></is></c>';
-            }
-            $xmlRows[] = '<row r="'.($rowIndex + 1).'">'.implode('', $cells).'</row>';
-        }
-
-        return '<'.'?xml version="1.0" encoding="UTF-8" standalone="yes"?'.'><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'.implode('', $xmlRows).'</sheetData></worksheet>';
-    }
-
-    private function columnLetters(int $index): string
-    {
-        $letters = '';
-        while ($index > 0) {
-            $index--;
-            $letters = chr(65 + ($index % 26)).$letters;
-            $index = intdiv($index, 26);
-        }
-
-        return $letters;
-    }
-
-    private function xmlEscape(string $value): string
-    {
-        return htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+        // The writer moved to App\Support\SimpleXlsx so the demo-catalogue
+        // command produces a file in exactly the shape this importer reads,
+        // rather than a second implementation that drifts from it.
+        return \App\Support\SimpleXlsx::write($title, $headers, $rows);
     }
 
     /**
