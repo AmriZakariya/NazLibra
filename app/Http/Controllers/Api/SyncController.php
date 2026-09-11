@@ -520,7 +520,48 @@ class SyncController extends Controller
             'business_mode'             => $tenant->business_mode ?? 'retail',
             'business_activity'         => \App\Support\ItemTypes::activityForTenant($tenant),
             'inventory_costing_method'  => (string) data_get($tenant->settings, 'inventory.costing_method', 'lifo'),
+            'branding'                  => $this->branding($tenant),
         ]);
+    }
+
+    /**
+     * How this shop should look on its own terminals.
+     *
+     * Only the two colours a till can safely take from a web theme. The web
+     * palette also sets background, surface and text, but those are designed
+     * for a desktop page: letting them through could produce an unreadable
+     * till mid-service, and the failure would appear on the shop's hardware
+     * rather than anywhere we would see it.
+     *
+     * @return array<string, string|null>
+     */
+    private function branding(Tenant $tenant): array
+    {
+        $logo = trim((string) data_get($tenant->settings, 'company_profile.store_logo', ''));
+
+        return [
+            // Absolute: the app has no idea what the web root is, and a
+            // relative path would resolve against the API host in some builds
+            // and nothing at all in others.
+            'logo_url' => $logo === '' ? null : asset($logo),
+            'primary' => $this->brandColour($tenant, 'primary'),
+            'accent' => $this->brandColour($tenant, 'accent'),
+        ];
+    }
+
+    /**
+     * A #RRGGBB colour from the tenant's theme, or null.
+     *
+     * Validated here rather than trusted: the column is free text on the web
+     * form's far side, and a malformed value would reach the app as a colour
+     * it cannot parse. Null means "keep your own palette", which is always a
+     * working till.
+     */
+    private function brandColour(Tenant $tenant, string $key): ?string
+    {
+        $value = trim((string) data_get($tenant->settings, "theme.$key", ''));
+
+        return preg_match('/\A#[0-9A-Fa-f]{6}\z/', $value) ? strtoupper($value) : null;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
