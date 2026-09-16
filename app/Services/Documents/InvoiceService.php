@@ -27,7 +27,7 @@ class InvoiceService
     {
         return DB::transaction(function () use ($tenant, $data): Invoice {
             $customer = $this->customer($tenant, $data);
-            $number = $this->numbers->next($tenant, 'invoice', $data['serial_prefix'] ?? 'FAC');
+            $number = $this->numbers->nextInvoice($tenant, $data['serial_prefix'] ?? null);
             $calculation = $this->calculator->calculate($this->payloadWithSnapshots($tenant, $data));
             $issueDate = Carbon::parse($data['issue_date'] ?? now())->toDateString();
             $dueDate = ! empty($data['due_date']) ? Carbon::parse($data['due_date'])->toDateString() : null;
@@ -239,15 +239,54 @@ class InvoiceService
             $status = 'overdue';
         }
 
-        $invoice->forceFill([
+        $fields = [
             'status' => $status,
             'amount_paid' => number_format($paid, 2, '.', ''),
             'balance_due' => number_format($balance, 2, '.', ''),
-            'paid_at' => $status === 'paid' ? now() : null,
-            'version' => $invoice->version + 1,
-        ])->save();
+            // The date the invoice was SETTLED, not the date someone last
+            // touched it. Rewriting it to now() on every refresh moved a
+            // settlement recorded in January to whenever the row was next
+            // saved — and that date is what a payment reminder, an ageing
+            // report and an auditor all read.
+            'paid_at' => $status === 'paid' ? ($invoice->paid_at ?? now()) : null,
+        ];
+
+        // A refresh that changes nothing must not bump the version: the
+        // version is what an open edit form checks, and a daily sweep over
+        // every invoice would otherwise reject every form in the building.
+        if (! $this->wouldChange($invoice, $fields)) {
+            return $invoice;
+        }
+
+        $invoice->forceFill($fields + ['version' => $invoice->version + 1])->save();
 
         return $invoice->fresh();
+    }
+
+    /**
+     * True when writing [$fields] onto the invoice would alter it.
+     *
+     * Compared as strings: the decimal casts hand back '120.00' where the
+     * caller built '120.00' by hand, and a float comparison of those would
+     * report a difference that does not exist.
+     */
+    private function wouldChange(Invoice $invoice, array $fields): bool
+    {
+        foreach ($fields as $key => $value) {
+            $current = $invoice->getAttribute($key);
+            if ($current instanceof \DateTimeInterface || $value instanceof \DateTimeInterface) {
+                if (optional($current)->format('Y-m-d H:i:s') !== optional($value)->format('Y-m-d H:i:s')) {
+                    return true;
+                }
+
+                continue;
+            }
+            if ((string) $current !== (string) $value) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function transition(Invoice $invoice, string $toStatus, array $allowedFrom, array $extra = []): Invoice

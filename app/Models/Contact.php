@@ -73,6 +73,12 @@ class Contact extends Model
         return $this->hasMany(LoyaltyPointTransaction::class);
     }
 
+    /** Commercial invoices billed to this client. */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class, 'customer_id');
+    }
+
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);

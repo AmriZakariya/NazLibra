@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Estimate;
 use App\Models\Invoice;
+use App\Services\Documents\DocumentBranding;
 use App\Services\Documents\EstimateService;
 use App\Services\Documents\InvoiceService;
 use App\Support\TenantContext;
@@ -213,34 +214,50 @@ class CommercialDocumentController extends Controller
             ->with('status', 'Devis converti en facture '.$invoice->number.'.');
     }
 
-    public function previewInvoicePdf(Request $request, Invoice $invoice): Response
+    public function previewInvoicePdf(Request $request, Invoice $invoice, DocumentBranding $branding): Response
     {
         $this->authorizeInvoice($request, $invoice);
         $invoice->loadMissing(['items', 'payments', 'customer', 'creator', 'tenant']);
 
-        return Pdf::loadView('librairepro.pdf.commercial-document', [
-            'documentType' => 'invoice',
-            'document' => $invoice,
-            'tenant' => $invoice->tenant,
-        ])->setPaper('a4')->setOptions([
-            'isRemoteEnabled' => true,
-            'defaultFont' => 'DejaVu Sans',
-        ])->download('facture-'.$invoice->number.'.pdf');
+        return $this->documentPdf($branding, $invoice->tenant, 'invoice', $invoice, 'facture-'.$invoice->number.'.pdf');
     }
 
-    public function previewEstimatePdf(Request $request, Estimate $estimate): Response
+    public function previewEstimatePdf(Request $request, Estimate $estimate, DocumentBranding $branding): Response
     {
         $this->authorizeEstimate($request, $estimate);
         $estimate->loadMissing(['items', 'customer', 'creator', 'tenant']);
 
+        return $this->documentPdf($branding, $estimate->tenant, 'estimate', $estimate, 'devis-'.$estimate->number.'.pdf');
+    }
+
+    /**
+     * Renders an invoice or estimate on the shop's own letterhead.
+     *
+     * The logo and the legal identifiers are resolved to local file paths
+     * here: dompdf fetching them back over HTTP would deadlock a
+     * single-worker install, which is every shared host this runs on.
+     */
+    private function documentPdf(
+        DocumentBranding $branding,
+        \App\Models\Tenant $tenant,
+        string $documentType,
+        Invoice|Estimate $document,
+        string $filename,
+    ): Response {
+        $company = $branding->companyProfile($tenant);
+        $company['logo_src'] = $branding->assetSource($company['store_logo'] ?? null);
+        $company['signature_src'] = $branding->assetSource($company['signature'] ?? null);
+
         return Pdf::loadView('librairepro.pdf.commercial-document', [
-            'documentType' => 'estimate',
-            'document' => $estimate,
-            'tenant' => $estimate->tenant,
+            'documentType' => $documentType,
+            'document' => $document,
+            'tenant' => $tenant,
+            'company' => $company,
+            'settings' => $branding->settings($tenant),
         ])->setPaper('a4')->setOptions([
             'isRemoteEnabled' => true,
             'defaultFont' => 'DejaVu Sans',
-        ])->download('devis-'.$estimate->number.'.pdf');
+        ])->download($filename);
     }
 
     private function validateInvoicePayload(Request $request, bool $partial = false): array

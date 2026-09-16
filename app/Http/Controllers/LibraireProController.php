@@ -53,6 +53,7 @@ use App\Models\VirtualDevice;
 use App\Models\VirtualDeviceSession;
 use App\Rules\FourDigitPin;
 use App\Services\CashRegisterService;
+use App\Services\Documents\DocumentBranding;
 use App\Services\Documents\DocumentNumberGenerator;
 use App\Services\Documents\InvoiceService;
 use App\Support\AppModules;
@@ -81,7 +82,10 @@ use ZipArchive;
 
 class LibraireProController extends Controller
 {
-    public function __construct(private readonly DocumentNumberGenerator $numbers) {}
+    public function __construct(
+        private readonly DocumentNumberGenerator $numbers,
+        private readonly DocumentBranding $branding,
+    ) {}
 
     private function noStoreJson(array $payload): JsonResponse
     {
@@ -1606,7 +1610,18 @@ class LibraireProController extends Controller
             ->addColumn('purchase_due', fn (Contact $contact): string => '<span class="font-semibold text-rose-600">'.$this->money((float) ($contact->purchases_due_sum ?? 0) + (float) $contact->outstanding_balance).'</span>')
             ->addColumn('purchase_return_due', fn (Contact $contact): string => '<span class="font-semibold text-emerald-600">'.$this->money((float) ($contact->purchase_returns_due_sum ?? 0) + (float) $contact->advance_balance).'</span>')
             ->addColumn('supplier_total', fn (Contact $contact): string => '<span class="font-semibold">'.$this->money((float) $contact->opening_balance + (float) $contact->outstanding_balance + (float) ($contact->purchases_due_sum ?? 0) - (float) $contact->advance_balance - (float) ($contact->purchase_returns_due_sum ?? 0)).'</span>')
-            ->editColumn('outstanding_balance', fn (Contact $contact): string => '<span class="'.((float) $contact->outstanding_balance > 0 ? 'font-semibold text-rose-600' : 'text-slate-500').'">'.$this->money($contact->outstanding_balance).'</span>')
+            ->editColumn('outstanding_balance', function (Contact $contact): string {
+                // The counter ledger plus what is still open on invoices. They
+                // were separate figures and only the first was ever shown, so
+                // a client holding a 50 000 DH unpaid invoice read as owing 0.
+                $invoiceDue = (float) ($contact->invoice_due_sum ?? 0);
+                $total = (float) $contact->outstanding_balance + $invoiceDue;
+                $detail = $invoiceDue > 0
+                    ? '<p class="mt-1 text-xs text-slate-500">dont factures '.e($this->money($invoiceDue)).'</p>'
+                    : '';
+
+                return '<span class="'.($total > 0 ? 'font-semibold text-rose-600' : 'text-slate-500').'">'.$this->money($total).'</span>'.$detail;
+            })
             ->editColumn('advance_balance', fn (Contact $contact): string => '<span class="'.((float) $contact->advance_balance > 0 ? 'font-semibold text-emerald-600' : 'text-slate-500').'">'.$this->money($contact->advance_balance).'</span>')
             ->editColumn('status', fn (Contact $contact): string => '<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.($contact->status === 'active' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-slate-100 text-slate-700 ring-slate-200').'">'.e($contact->status === 'active' ? 'Actif' : 'Archivé').'</span>')
             ->addColumn('timestamps', fn (Contact $contact): string => '<div class="text-xs text-slate-500 whitespace-nowrap"><p title="Créé le">'.e($contact->created_at?->copy()->setTimezone(TenantClock::timezone($tenant))->format('d/m/Y H:i') ?? '—').'</p><p class="mt-0.5" title="Modifié le">'.e($contact->updated_at?->copy()->setTimezone(TenantClock::timezone($tenant))->format('d/m/Y H:i') ?? '—').'</p></div>')
@@ -7328,7 +7343,8 @@ class LibraireProController extends Controller
             'contactStats' => [
                 'clients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->count(),
                 'suppliers' => Contact::where('tenant_id', $tenant->id)->where('kind', 'supplier')->count(),
-                'receivable' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->sum('outstanding_balance'),
+                'receivable' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->sum('outstanding_balance')
+                    + Invoice::where('tenant_id', $tenant->id)->receivable()->sum('balance_due'),
                 'advances' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->sum('advance_balance'),
                 'supplier_previous' => Contact::where('tenant_id', $tenant->id)->where('kind', 'supplier')->sum('opening_balance'),
                 'supplier_purchases' => Purchase::where('tenant_id', $tenant->id)->where('status', '!=', 'cancelled')->sum('total_amount') + Contact::where('tenant_id', $tenant->id)->where('kind', 'supplier')->sum('outstanding_balance'),
@@ -8876,8 +8892,23 @@ class LibraireProController extends Controller
             ->where('kind', $kind)
             ->when($request->query('contact_status'), fn (Builder $builder, $status) => $builder->where('status', $status))
             ->when($request->query('client_type'), fn (Builder $builder, $type) => $builder->where('client_type', $type))
-            ->when($request->boolean('receivable'), fn (Builder $builder) => $builder->where('outstanding_balance', '>', 0))
+            ->when(
+                $request->boolean('receivable'),
+                // A client who owes nothing on the counter ledger but holds an
+                // unpaid invoice still owes money, and used to be filtered out
+                // of the very list built to chase debtors.
+                fn (Builder $builder) => $builder->where(fn (Builder $inner) => $inner
+                    ->where('outstanding_balance', '>', 0)
+                    ->orWhereHas('invoices', fn (Builder $invoices) => $invoices->receivable())),
+            )
             ->latest();
+
+        if ($kind === 'client') {
+            $builder->withSum(
+                ['invoices as invoice_due_sum' => fn (Builder $query) => $query->receivable()],
+                'balance_due',
+            );
+        }
 
         if ($kind === 'supplier') {
             $builder
@@ -9207,15 +9238,18 @@ class LibraireProController extends Controller
         return "Note système: vente {$saleNumber} créée automatiquement depuis {$sourceLabel} le ".$soldAt->format('d/m/Y H:i')." par {$userName}. Client: {$clientName}. {$lineCount} ligne(s), total {$formattedTotal}, paiement {$paymentMethod}, statut {$statusLabel}, magasin {$storeName}.{$referenceText}";
     }
 
+    /**
+     * The invoice raised from a cashed sale takes a number from the SAME
+     * series as the invoicing module.
+     *
+     * This used to scan `max(sale_invoices.number)` on its own, which is how a
+     * shop ended up holding two unrelated documents both stamped FAC00007 —
+     * one from the till, one from the invoicing module. Reading a max also
+     * handed the same number to two simultaneous requests.
+     */
     private function nextSaleInvoiceNumber(Tenant $tenant): string
     {
-        $max = SaleInvoice::where('tenant_id', $tenant->id)
-            ->where('number', 'like', 'FAC%')
-            ->pluck('number')
-            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
-            ->max() ?? 0;
-
-        return 'FAC'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
+        return $this->numbers->nextInvoice($tenant)['number'];
     }
 
     private function downloadDocumentPdf(Tenant $tenant, array $document): Response
@@ -9302,50 +9336,12 @@ class LibraireProController extends Controller
 
     private function companyProfile(Tenant $tenant): array
     {
-        return array_merge([
-            'store_name' => $tenant->name,
-            'store_code' => $tenant->slug,
-            'mobile' => '',
-            'phone' => $tenant->phone,
-            'email' => $tenant->email,
-            'gst_no' => $tenant->ice,
-            'vat_no' => '',
-            'rc' => '',
-            'cnss' => '',
-            'country' => 'Maroc',
-            'state' => '',
-            'city' => '',
-            'postcode' => '',
-            'address' => $tenant->address,
-            'store_logo' => '',
-            'signature' => '',
-            'show_signature' => false,
-            'bank_details' => '',
-            'sales_invoice_footer_text' => '',
-            'invoice_terms' => '',
-        ], $tenant->settings['company_profile'] ?? []);
+        return $this->branding->companyProfile($tenant);
     }
 
     private function documentSettings(Tenant $tenant): array
     {
-        $company = $this->companyProfile($tenant);
-
-        return array_merge([
-            'sale_title' => 'Bon de vente',
-            'invoice_title' => 'Facture',
-            'purchase_title' => 'Bon d’achat',
-            'primary_color' => data_get($tenant->settings, 'theme.primary', '#3157D5'),
-            'accent_color' => data_get($tenant->settings, 'theme.accent', '#0F9F8A'),
-            'header_text' => 'Document généré par {{store_name}} le {{today}}.',
-            'sale_note_template' => 'Merci pour votre achat {{client_name}}. Ticket {{document_number}}.',
-            'invoice_note_template' => 'Facture {{document_number}} liée à la vente {{sale_number}}. Total: {{total}}.',
-            'purchase_note_template' => 'Commande fournisseur {{document_number}}. Référence: {{reference}}.',
-            'footer_text' => $company['sales_invoice_footer_text'] ?: 'Merci pour votre confiance.',
-            'terms' => $company['invoice_terms'] ?: 'Les marchandises restent la propriété du magasin jusqu’au paiement complet.',
-            'show_logo' => true,
-            'show_signature' => (bool) ($company['show_signature'] ?? false),
-            'show_bank_details' => filled($company['bank_details'] ?? null),
-        ], $tenant->settings['documents'] ?? []);
+        return $this->branding->settings($tenant);
     }
 
     private function documentPlaceholders(Tenant $tenant, array $company, array $document): array
@@ -9386,27 +9382,7 @@ class LibraireProController extends Controller
 
     private function documentAssetSource(string $path): ?string
     {
-        $path = trim($path);
-        if ($path === '') {
-            return null;
-        }
-
-        if (Str::startsWith($path, ['http://', 'https://'])) {
-            return $path;
-        }
-
-        $path = Str::after($path, 'storage/');
-        $publicStorage = public_path('storage/'.$path);
-        if (is_file($publicStorage)) {
-            return $publicStorage;
-        }
-
-        $publicPath = public_path($path);
-        if (is_file($publicPath)) {
-            return $publicPath;
-        }
-
-        return null;
+        return $this->branding->assetSource($path);
     }
 
     private function tenant(): Tenant

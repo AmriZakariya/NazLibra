@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -54,6 +55,22 @@ class Invoice extends Model
             'archived_at' => 'datetime',
             'metadata' => 'array',
         ];
+    }
+
+    /**
+     * Invoices that are money the shop is still owed.
+     *
+     * A draft is not a claim — nobody has been asked to pay it — and a
+     * cancelled or archived one is not either. Everything else with a balance
+     * is a receivable, and until this existed none of it reached the client's
+     * account or the receivables figure.
+     */
+    public function scopeReceivable(Builder $query): Builder
+    {
+        return $query
+            ->whereIn('status', ['sent', 'viewed', 'partially_paid', 'overdue'])
+            ->whereNull('archived_at')
+            ->where('balance_due', '>', 0);
     }
 
     public function tenant(): BelongsTo

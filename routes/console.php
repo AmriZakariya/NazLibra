@@ -13,3 +13,8 @@ Artisan::command('inspire', function () {
 // the shop's whole API down, a far worse outage than the blind spot pruning
 // costs. Two weeks is long enough to investigate a report from the floor.
 Schedule::command('telescope:prune --hours=336')->daily();
+
+// Overdue is the one invoice status that turns true on its own. Daily, just
+// after midnight in the latest timezone we serve, so a shop opening in the
+// morning already sees the right list.
+Schedule::command('invoices:mark-overdue')->dailyAt('01:15');
