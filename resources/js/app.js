@@ -5786,3 +5786,44 @@ document.querySelectorAll('[data-transfer-picker]').forEach((picker) => {
     syncLocations();
     renumber();
 });
+
+// ── Variant matrix builder ───────────────────────────────────────────────────
+// The form posts to the chosen article's own route, and shows the shop how
+// many combinations it is about to create BEFORE it creates them: a matrix is
+// easy to over-tick and tedious to unpick afterwards.
+document.querySelectorAll('[data-variant-matrix]').forEach((form) => {
+    const itemSelect = form.querySelector('[data-matrix-item]');
+    const preview = form.querySelector('[data-matrix-preview]');
+    const submit = form.querySelector('button[type="submit"], button:not([type])');
+
+    const countCombinations = () => {
+        // One factor per axis that has anything ticked; the product of those
+        // is the number of rows about to exist.
+        const perAxis = [...form.querySelectorAll('fieldset')]
+            .map((axis) => axis.querySelectorAll('input[type="checkbox"]:checked').length)
+            .filter((n) => n > 0);
+
+        return perAxis.length === 0 ? 0 : perAxis.reduce((a, b) => a * b, 1);
+    };
+
+    const refresh = () => {
+        const total = countCombinations();
+        const ready = total > 0 && itemSelect.value !== '';
+        // 200 is the service's ceiling; saying so here saves a round trip.
+        const tooMany = total > 200;
+
+        preview.textContent = total === 0
+            ? 'Aucune combinaison.'
+            : `${total} déclinaison(s) seront créées${tooMany ? ' — trop, maximum 200' : ''}.`;
+        preview.className = tooMany
+            ? 'text-sm font-semibold text-rose-600'
+            : 'text-sm text-slate-500';
+        if (submit) submit.disabled = !ready || tooMany;
+    };
+
+    form.addEventListener('change', () => {
+        form.action = itemSelect.value || '#';
+        refresh();
+    });
+    refresh();
+});

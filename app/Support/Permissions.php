@@ -178,6 +178,15 @@ class Permissions
             'catalog.taxes.update' => 'items.edit',
             'catalog.taxes.destroy' => 'items.delete',
             'catalog.variants.store' => 'items.edit',
+            // Options and the matrix shape the catalogue, so they answer to
+            // the same right as editing an article.
+            'catalog.options.store' => 'items.edit',
+            'catalog.options.update' => 'items.edit',
+            'catalog.options.destroy' => 'items.delete',
+            'catalog.option-values.store' => 'items.edit',
+            'catalog.option-values.update' => 'items.edit',
+            'catalog.option-values.destroy' => 'items.delete',
+            'catalog.variants.generate' => 'items.edit',
             'catalog.import' => 'items.import',
             'variants.store' => 'items.edit',
             'variants.update' => 'items.edit',

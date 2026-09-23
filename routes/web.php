@@ -8,6 +8,7 @@ use App\Http\Controllers\Castlit\SubscriptionAdminController;
 use App\Http\Controllers\Castlit\SubscriptionController;
 use App\Http\Controllers\CommercialDocumentController;
 use App\Http\Controllers\LibraireProController;
+use App\Http\Controllers\ProductOptionController;
 use App\Http\Controllers\OnlineStoreController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\VariantController;
@@ -234,6 +235,15 @@ Route::post('/catalogue/taxes', [LibraireProController::class, 'storeTax'])->nam
 Route::put('/catalogue/taxes/{tax}', [LibraireProController::class, 'updateTax'])->name('catalog.taxes.update');
 Route::delete('/catalogue/taxes/{tax}', [LibraireProController::class, 'destroyTax'])->name('catalog.taxes.destroy');
 Route::post('/catalogue/variantes', [LibraireProController::class, 'storeVariant'])->name('catalog.variants.store');
+
+// Options (axes) an article varies on, and building its matrix from them.
+Route::post('/catalogue/options', [ProductOptionController::class, 'storeType'])->name('catalog.options.store');
+Route::put('/catalogue/options/{optionType}', [ProductOptionController::class, 'updateType'])->name('catalog.options.update');
+Route::delete('/catalogue/options/{optionType}', [ProductOptionController::class, 'destroyType'])->name('catalog.options.destroy');
+Route::post('/catalogue/options/{optionType}/valeurs', [ProductOptionController::class, 'storeValue'])->name('catalog.option-values.store');
+Route::put('/catalogue/options/valeurs/{optionValue}', [ProductOptionController::class, 'updateValue'])->name('catalog.option-values.update');
+Route::delete('/catalogue/options/valeurs/{optionValue}', [ProductOptionController::class, 'destroyValue'])->name('catalog.option-values.destroy');
+Route::post('/catalogue/articles/{item}/declinaisons', [ProductOptionController::class, 'generate'])->name('catalog.variants.generate');
 Route::get('/variantes', [VariantController::class, 'index'])->name('variants.index');
 Route::get('/variantes/data', [VariantController::class, 'data'])->name('variants.data');
 Route::get('/variantes/ajouter', [VariantController::class, 'create'])->name('variants.create');

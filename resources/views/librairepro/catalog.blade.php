@@ -1798,6 +1798,106 @@
                 </div>
             </article>
 
+            {{-- Les axes d'abord : une déclinaison sans option derrière elle
+                 n'est qu'un nom libre, et c'est ce que le pivot supprime. --}}
+            <div class="mt-5 grid gap-5 xl:grid-cols-[1fr_1.3fr]">
+                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <h3 class="font-semibold">Options disponibles</h3>
+                    <p class="mt-1 text-sm text-slate-500">Taille, Couleur, Format… réutilisables sur tous les articles.</p>
+
+                    <form action="{{ route('catalog.options.store') }}" method="POST" class="mt-4 flex flex-wrap gap-2">
+                        @csrf
+                        <input name="name" required maxlength="80" placeholder="Nom de l'option (Taille)" class="h-10 flex-1 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                        <select name="presentation" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                            <option value="list">Liste</option>
+                            <option value="swatch">Pastilles couleur</option>
+                        </select>
+                        <button class="h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white">Ajouter</button>
+                    </form>
+                    @error('name')<p class="mt-2 text-xs font-semibold text-rose-600">{{ $message }}</p>@enderror
+
+                    <div class="mt-4 space-y-3">
+                        @forelse ($optionTypes as $type)
+                            <details class="rounded-xl border border-slate-200 p-3 dark:border-white/10" @if($loop->first) open @endif>
+                                <summary class="flex cursor-pointer list-none items-center justify-between">
+                                    <span class="font-semibold">{{ $type->name }}
+                                        @unless($type->is_active)<span class="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-white/10">Désactivée</span>@endunless
+                                    </span>
+                                    <span class="text-xs text-slate-500">{{ $type->values->count() }} valeur(s)</span>
+                                </summary>
+
+                                <div class="mt-3 flex flex-wrap gap-1.5">
+                                    @foreach ($type->values as $value)
+                                        <span class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold {{ $value->is_active ? '' : 'opacity-50' }} dark:border-white/10">
+                                            @if ($value->swatch)<span class="size-3 rounded-full border border-black/10" style="background: {{ $value->swatch }}"></span>@endif
+                                            {{ $value->value }}
+                                            <form action="{{ route('catalog.option-values.destroy', $value) }}" method="POST" class="inline" onsubmit="return confirm('Retirer cette valeur ?')">@csrf @method('DELETE')<button class="text-slate-400 hover:text-rose-600">×</button></form>
+                                        </span>
+                                    @endforeach
+                                </div>
+
+                                <form action="{{ route('catalog.option-values.store', $type) }}" method="POST" class="mt-3 flex flex-wrap gap-2">
+                                    @csrf
+                                    <input name="value" required maxlength="80" placeholder="Valeur (S)" class="h-9 flex-1 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                    @if ($type->presentation === 'swatch')
+                                        <input name="swatch" type="color" value="#3157D5" class="h-9 w-12 rounded-lg border border-slate-200 dark:border-white/10">
+                                    @endif
+                                    <button class="h-9 rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10">+ Valeur</button>
+                                </form>
+
+                                <form action="{{ route('catalog.options.destroy', $type) }}" method="POST" class="mt-2 text-right" onsubmit="return confirm('Supprimer cette option ?')">@csrf @method('DELETE')<button class="text-xs font-semibold text-rose-600">Supprimer l'option</button></form>
+                            </details>
+                        @empty
+                            <p class="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500 dark:border-white/10">Aucune option. Créez « Taille » ou « Couleur » ci-dessus.</p>
+                        @endforelse
+                    </div>
+                </article>
+
+                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <h3 class="font-semibold">Générer les déclinaisons</h3>
+                    <p class="mt-1 text-sm text-slate-500">Cochez les valeurs : chaque combinaison devient une déclinaison avec son propre stock. Relancer n'ajoute que ce qui manque.</p>
+
+                    @if ($optionTypes->isEmpty())
+                        <p class="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">Créez d'abord une option et ses valeurs.</p>
+                    @else
+                        <form action="#" method="POST" data-variant-matrix class="mt-4 space-y-4">
+                            @csrf
+                            <label class="block space-y-1.5">
+                                <span class="text-xs font-semibold uppercase text-slate-500">Article</span>
+                                <select data-matrix-item required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                    <option value="">Choisir un article…</option>
+                                    @foreach ($variantItems as $candidate)
+                                        <option value="{{ route('catalog.variants.generate', $candidate) }}">{{ $candidate->title }} @if($candidate->variant_count) · {{ $candidate->variant_count }} déclinaison(s) @endif</option>
+                                    @endforeach
+                                </select>
+                            </label>
+
+                            @foreach ($optionTypes->where('is_active', true) as $type)
+                                @continue($type->values->where('is_active', true)->isEmpty())
+                                <fieldset class="rounded-xl border border-slate-200 p-3 dark:border-white/10">
+                                    <legend class="px-1 text-xs font-bold uppercase tracking-wide text-slate-500">{{ $type->name }}</legend>
+                                    <div class="flex flex-wrap gap-2">
+                                        @foreach ($type->values->where('is_active', true) as $value)
+                                            <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm dark:border-white/10">
+                                                <input type="checkbox" name="options[{{ $type->id }}][]" value="{{ $value->id }}" class="size-4 accent-[var(--brand-primary)]">
+                                                @if ($value->swatch)<span class="size-3 rounded-full border border-black/10" style="background: {{ $value->swatch }}"></span>@endif
+                                                {{ $value->value }}
+                                            </label>
+                                        @endforeach
+                                    </div>
+                                </fieldset>
+                            @endforeach
+
+                            <div class="flex items-center justify-between gap-3">
+                                <p data-matrix-preview class="text-sm text-slate-500">Aucune combinaison.</p>
+                                <button class="h-11 rounded-lg bg-brand px-5 text-sm font-semibold text-white">Générer</button>
+                            </div>
+                            @error('options')<p class="text-xs font-semibold text-rose-600">{{ $message }}</p>@enderror
+                        </form>
+                    @endif
+                </article>
+            </div>
+
             <dialog id="variant-create-dialog" class="app-dialog w-[min(920px,calc(100vw-1.5rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
                 <form action="{{ route('catalog.variants.store') }}" method="POST" data-smart-validation data-error-fields='@json($errors->keys())'>
                     @csrf

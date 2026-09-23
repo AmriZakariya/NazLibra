@@ -857,6 +857,12 @@ class LibraireProController extends Controller
                 ->take(50)
                 ->get(),
             'variantOptions' => VariantOption::where('tenant_id', $tenant->id)->orderBy('name')->get(),
+            // The axes an article can vary on, with their values in the
+            // shop's own order — S, M, L is not alphabetical.
+            'optionTypes' => \App\Models\OptionType::with(['values'])
+                ->where('tenant_id', $tenant->id)
+                ->orderBy('sort_order')->orderBy('id')
+                ->get(),
             'stockItems' => $tenant->items()
                 ->select('items.*')
                 ->leftJoin($locationStockTable.' as stock_item_location_stock', function ($join) use ($tenant, $currentStoreLocationId): void {
@@ -4255,6 +4261,10 @@ class LibraireProController extends Controller
 
             return [
                 'item_id' => (int) ($line['id'] ?? 0),
+                // Which sub-product, when the article has any. Without it the
+                // sale deducts the article's own pile and the shop never
+                // learns which size moved.
+                'variant_id' => (int) ($line['variant_id'] ?? 0) ?: null,
                 'quantity' => max(1, (int) ($line['quantity'] ?? 1)),
                 'unit_price' => $price,
                 'note' => mb_substr(trim((string) ($line['note'] ?? '')), 0, 160),
@@ -4342,20 +4352,28 @@ class LibraireProController extends Controller
                         throw new \RuntimeException('Un article du panier est indisponible.');
                     }
 
+                    $variant = $this->saleLineVariant($item, $line['variant_id'] ?? null);
+
                     if (! $allowOversell && $item->type !== 'service') {
-                        $availableAtLocation = $inventoryService->quantity($tenant->id, $item->id, null, $saleLocationId);
+                        // The variant's own pile, not the article's: selling an
+                        // L must be refused when the L shelf is empty even if
+                        // there are plenty of S.
+                        $availableAtLocation = $inventoryService->quantity(
+                            $tenant->id, $item->id, $variant?->id, $saleLocationId,
+                        );
                         if ($availableAtLocation < $line['quantity']) {
                             throw new \RuntimeException($this->saleStockUnavailableMessage($item, $availableAtLocation, $line['quantity'], $saleLocationName));
                         }
                     }
 
-                    $catalogPrice = (float) $item->sale_price;
+                    $catalogPrice = $variant ? $variant->price() : (float) $item->sale_price;
                     $unitPrice = $priceEditable && $line['unit_price'] !== null ? (float) $line['unit_price'] : $catalogPrice;
                     $lineTotal = round($unitPrice * $line['quantity'], 2);
-                    $averageCost = $item->type !== 'service' ? $this->locationAverageCost($tenant->id, $item->id, null, $saleLocationId) : 0.0;
+                    $averageCost = $item->type !== 'service' ? $this->locationAverageCost($tenant->id, $item->id, $variant?->id, $saleLocationId) : 0.0;
                     $subtotal += $lineTotal;
                     $saleLines[] = [
                         'item' => $item,
+                        'variant' => $variant,
                         'quantity' => $line['quantity'],
                         'unit_price' => $unitPrice,
                         'catalog_price' => $catalogPrice,
@@ -4464,7 +4482,10 @@ class LibraireProController extends Controller
                 foreach ($saleLines as $line) {
                     $sale->items()->create([
                         'item_id'    => $line['item']->id,
-                        'name'       => $line['item']->title,
+                        'variant_id' => $line['variant']?->id,
+                        'name'       => $line['variant']
+                            ? $line['item']->title.' — '.$line['variant']->name
+                            : $line['item']->title,
                         'quantity'   => $line['quantity'],
                         'unit_price' => $line['unit_price'],
                         'total_price' => $line['total_price'],
@@ -4476,7 +4497,7 @@ class LibraireProController extends Controller
                         $inventoryService->move(new \App\Services\Inventory\MovementDTO(
                             tenantId: $tenant->id,
                             itemId: $line['item']->id,
-                            variantId: null,
+                            variantId: $line['variant']?->id,
                             locationId: $saleLocationId,
                             type: \App\Services\Inventory\InventoryMovementType::SALE,
                             quantityChanged: -$line['quantity'],
@@ -10951,6 +10972,36 @@ class LibraireProController extends Controller
             .$receiveAction
             .'</div>'
             .'</details>';
+    }
+
+    /**
+     * The sub-product a cart line names, checked against its own article.
+     *
+     * An article WITH variants must be sold as one of them: letting the base
+     * article through would deduct a pile that does not exist and leave the
+     * sale unattributable. An article without variants must not carry one.
+     */
+    private function saleLineVariant(Item $item, ?int $variantId): ?\App\Models\ItemVariant
+    {
+        if ($variantId === null) {
+            if ($item->hasVariants()) {
+                throw new \RuntimeException(
+                    'Choisissez une déclinaison pour « '.$item->title.' ».',
+                );
+            }
+
+            return null;
+        }
+
+        $variant = $item->variants()->whereKey($variantId)->where('is_active', true)->first();
+
+        if (! $variant) {
+            throw new \RuntimeException(
+                'La déclinaison choisie pour « '.$item->title.' » est introuvable.',
+            );
+        }
+
+        return $variant;
     }
 
     private function saleStockUnavailableMessage(?Item $item, int $available, int $requested, string $locationName): string
