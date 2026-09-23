@@ -1208,12 +1208,28 @@ class LibraireProController extends Controller
             ->orderByRaw("case when stock_quantity <= 0 then 2 when stock_quantity <= min_stock_threshold then 1 else 0 end")
             ->orderBy('title')
             ->limit($query === '' ? 80 : 120)
-            ->get()
-            ->map(fn (Item $item): array => $this->stockItemOptionPayload($item));
+            ->get();
+
+        // A transfer asks "how many are HERE", not "how many does the shop
+        // own". Passing the source location makes the picker answer the
+        // question the person is actually asking.
+        $locationId = (int) $request->query('location_id');
+        $atLocation = null;
+        if ($locationId > 0) {
+            $inventory = app(\App\Services\Inventory\InventoryService::class);
+            $atLocation = $items->mapWithKeys(fn (Item $item): array => [
+                $item->id => $inventory->available($tenant->id, $item->id, null, $locationId),
+            ]);
+        }
+
+        $payload = $items->map(fn (Item $item): array => $this->stockItemOptionPayload(
+            $item,
+            $atLocation?->get($item->id),
+        ));
 
         return $this->noStoreJson([
-            'items' => $items,
-            'count' => $items->count(),
+            'items' => $payload,
+            'count' => $payload->count(),
         ]);
     }
 
@@ -7426,12 +7442,17 @@ class LibraireProController extends Controller
         ];
     }
 
-    private function stockItemOptionPayload(Item $item): array
+    /**
+     * @param  int|null  $stockAtLocation  Stock at the location the caller
+     *                                     asked about, when it asked.
+     */
+    private function stockItemOptionPayload(Item $item, ?int $stockAtLocation = null): array
     {
         $code = $item->barcode ?? $item->isbn ?? $item->sku ?? $item->item_code;
+        $stock = $stockAtLocation ?? (int) $item->stock_quantity;
         $labelParts = collect([
             $item->title,
-            'stock '.$item->stock_quantity,
+            'stock '.$stock,
             $code,
             $item->category?->name,
         ])->filter();
@@ -7440,7 +7461,7 @@ class LibraireProController extends Controller
             'value' => (string) $item->id,
             'text' => $labelParts->join(' · '),
             'title' => $item->title,
-            'stock' => (int) $item->stock_quantity,
+            'stock' => $stock,
             'threshold' => (int) $item->min_stock_threshold,
             'code' => $code,
             'category' => $item->category?->name,

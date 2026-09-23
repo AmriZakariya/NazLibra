@@ -314,6 +314,58 @@ class StockTransferTest extends TestCase
             ->assertDontSee('name="warehouse_from"', false);
     }
 
+    public function test_the_picker_reports_stock_at_the_source_not_across_the_shop(): void
+    {
+        // The figure that decides whether a transfer is possible is the one
+        // at the source. Showing the shop-wide total invites someone to move
+        // ten of something the source shelf holds two of.
+        $this->transfer(); // four units now sit at the destination
+
+        $atDestination = $this->available($this->destination);
+        $global = $this->available($this->source) + $atDestination;
+        $this->assertGreaterThan($atDestination, $global);
+
+        $scoped = $this->getJson(route('catalog.stock-items.search', [
+            'q' => $this->item->title,
+            'location_id' => $this->destination->id,
+        ]))->assertOk()->json('items');
+
+        $row = collect($scoped)->firstWhere('value', (string) $this->item->id);
+        $this->assertNotNull($row, 'the item should be in the results');
+        $this->assertSame($atDestination, $row['stock']);
+        $this->assertStringContainsString('stock '.$atDestination, $row['text']);
+    }
+
+    public function test_the_picker_falls_back_to_the_shop_total_without_a_location(): void
+    {
+        // Other callers of this endpoint do not care about a location.
+        $row = collect($this->getJson(route('catalog.stock-items.search', ['q' => $this->item->title]))
+            ->assertOk()->json('items'))->firstWhere('value', (string) $this->item->id);
+
+        $this->assertSame((int) $this->item->stock_quantity, $row['stock']);
+    }
+
+    public function test_the_form_no_longer_asks_for_eight_blank_rows(): void
+    {
+        // Articles are searched and added now. The old grid also broke its own
+        // layout: the searchable-select injects its search box as a SIBLING,
+        // so a four-column row gained a fifth child and everything shifted.
+        $html = $this->get(route('stock', ['panel' => 'stock-transfer-add']))->assertOk()->getContent();
+
+        // Matched to an attribute boundary: a plain substring check also
+        // passes for `data-transfer-pickerX`, so renaming the hook would slip
+        // through.
+        $this->assertMatchesRegularExpression('/data-transfer-picker[\s=>]/', $html);
+        $this->assertMatchesRegularExpression('/data-transfer-swap[\s=>]/', $html);
+        $this->assertMatchesRegularExpression('/data-transfer-lines[\s=>]/', $html);
+        $this->assertStringNotContainsString('items[7][item_id]', $html);
+        $this->assertStringNotContainsString('data-searchable-select', substr(
+            $html,
+            strpos($html, 'data-transfer-picker'),
+            2000,
+        ));
+    }
+
     public function test_the_route_refuses_a_destination_equal_to_the_source(): void
     {
         $this->post(route('catalog.stock-transfers.store'), [

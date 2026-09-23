@@ -5612,3 +5612,177 @@ document.querySelectorAll('[data-module-sortable]').forEach((list) => {
         }
     });
 })();
+
+// ── Stock transfer form ──────────────────────────────────────────────────────
+// Source and destination must differ, and articles are searched and added
+// rather than picked out of eight blank rows. Availability shown is the stock
+// AT THE SOURCE — the only figure that decides whether a transfer can happen.
+document.querySelectorAll('[data-transfer-picker]').forEach((picker) => {
+    const form = picker.closest('form');
+    if (!form) return;
+
+    const source = form.querySelector('[data-transfer-source]');
+    const destination = form.querySelector('[data-transfer-destination]');
+    const swap = form.querySelector('[data-transfer-swap]');
+    const search = picker.querySelector('[data-transfer-search]');
+    const results = picker.querySelector('[data-transfer-results]');
+    const hint = picker.querySelector('[data-transfer-hint]');
+    const body = picker.querySelector('[data-transfer-lines]');
+    const empty = picker.querySelector('[data-transfer-empty]');
+    const template = form.querySelector('[data-transfer-line-template]');
+    const searchUrl = picker.dataset.searchUrl;
+
+    // The two ends can never be the same place. Enforced by taking the option
+    // away rather than by complaining after the fact.
+    const syncLocations = () => {
+        [[source, destination], [destination, source]].forEach(([a, b]) => {
+            [...b.options].forEach((option) => {
+                option.disabled = option.value !== '' && option.value === a.value;
+            });
+            if (b.value !== '' && b.value === a.value) b.value = '';
+        });
+        const ready = source.value !== '';
+        search.disabled = !ready;
+        hint.textContent = ready
+            ? 'Les quantités affichées sont celles de la source.'
+            : "Choisissez d'abord un emplacement source.";
+    };
+
+    const renumber = () => {
+        [...body.rows].forEach((row, index) => {
+            row.querySelector('[data-line-item-id]').name = `items[${index}][item_id]`;
+            row.querySelector('[data-line-quantity]').name = `items[${index}][quantity]`;
+            row.querySelector('[data-line-note]').name = `items[${index}][note]`;
+        });
+        empty.hidden = body.rows.length > 0;
+    };
+
+    const checkQuantity = (row) => {
+        const input = row.querySelector('[data-line-quantity]');
+        const available = Number(row.dataset.available || 0);
+        const over = Number(input.value || 0) > available;
+        // Flagged, not clamped: silently rewriting what someone typed is how
+        // they end up transferring a number they never chose.
+        row.querySelector('[data-line-over]').classList.toggle('hidden', !over);
+        input.classList.toggle('border-rose-400', over);
+    };
+
+    const addLine = (item) => {
+        const existing = [...body.rows].find((row) => row.dataset.itemId === item.value);
+        if (existing) {
+            // Same article twice is one line with a bigger number, not two
+            // lines the server would have to reconcile.
+            const input = existing.querySelector('[data-line-quantity]');
+            input.value = Number(input.value || 0) + 1;
+            checkQuantity(existing);
+            existing.classList.add('bg-amber-50');
+            setTimeout(() => existing.classList.remove('bg-amber-50'), 600);
+            return;
+        }
+
+        const row = template.content.firstElementChild.cloneNode(true);
+        row.dataset.itemId = item.value;
+        row.dataset.available = item.stock;
+        row.querySelector('[data-line-item-id]').value = item.value;
+        row.querySelector('[data-line-title]').textContent = item.title;
+        row.querySelector('[data-line-code]').textContent = [item.code, item.category]
+            .filter(Boolean).join(' · ');
+        row.querySelector('[data-line-available]').textContent = item.stock;
+        row.querySelector('[data-line-quantity]').max = item.stock;
+        body.appendChild(row);
+        renumber();
+        checkQuantity(row);
+    };
+
+    const closeResults = () => { results.hidden = true; results.innerHTML = ''; };
+
+    const render = (items) => {
+        results.innerHTML = '';
+        if (!items.length) {
+            results.innerHTML = '<p class="px-3 py-4 text-sm text-slate-500">Aucun article trouvé.</p>';
+            results.hidden = false;
+            return;
+        }
+        items.forEach((item) => {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.className = 'flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50 dark:hover:bg-white/5';
+            option.innerHTML = `<span><strong>${item.title}</strong>`
+                + `<small class="block text-xs text-slate-500">${[item.code, item.category].filter(Boolean).join(' · ')}</small></span>`
+                + `<span class="shrink-0 text-xs font-semibold ${item.stock > 0 ? 'text-emerald-600' : 'text-rose-600'}">${item.stock} dispo.</span>`;
+            option.addEventListener('click', () => {
+                addLine(item);
+                search.value = '';
+                closeResults();
+                search.focus();
+            });
+            results.appendChild(option);
+        });
+        results.hidden = false;
+    };
+
+    let abort;
+    let timer;
+    const runSearch = () => {
+        if (source.value === '') return closeResults();
+        abort?.abort();
+        abort = new AbortController();
+        const url = `${searchUrl}?q=${encodeURIComponent(search.value.trim())}`
+            + `&location_id=${encodeURIComponent(source.value)}`;
+        fetch(url, { headers: { Accept: 'application/json' }, signal: abort.signal })
+            .then((response) => response.json())
+            .then((data) => render(data.items || []))
+            .catch(() => {});
+    };
+
+    search.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(runSearch, 220);
+    });
+    search.addEventListener('focus', runSearch);
+    document.addEventListener('click', (event) => {
+        if (!picker.contains(event.target)) closeResults();
+    });
+
+    body.addEventListener('click', (event) => {
+        const remove = event.target.closest('[data-line-remove]');
+        if (!remove) return;
+        remove.closest('tr').remove();
+        renumber();
+    });
+    body.addEventListener('input', (event) => {
+        if (event.target.matches('[data-line-quantity]')) checkQuantity(event.target.closest('tr'));
+    });
+
+    [source, destination].forEach((select) => select.addEventListener('change', () => {
+        syncLocations();
+        // The numbers on screen belong to the old source; drop them rather
+        // than show availability from somewhere else.
+        if (select === source) {
+            body.innerHTML = '';
+            renumber();
+            closeResults();
+        }
+    }));
+
+    swap?.addEventListener('click', () => {
+        const from = source.value;
+        source.value = destination.value;
+        destination.value = from;
+        syncLocations();
+        body.innerHTML = '';
+        renumber();
+    });
+
+    form.addEventListener('submit', (event) => {
+        if (body.rows.length === 0) {
+            event.preventDefault();
+            hint.textContent = 'Ajoutez au moins un article avant de créer le transfert.';
+            hint.className = 'mt-1.5 text-xs font-semibold text-rose-600';
+            search.focus();
+        }
+    });
+
+    syncLocations();
+    renumber();
+});

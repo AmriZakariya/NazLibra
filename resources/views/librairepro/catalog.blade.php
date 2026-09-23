@@ -240,6 +240,121 @@
                      à la main : l'ancien formulaire résolvait un nom approché et
                      retombait sur l'emplacement par défaut, si bien qu'une faute
                      de frappe déplaçait le stock ailleurs sans rien signaler. --}}
+                <div class="grid gap-4 lg:grid-cols-[1fr_1.2fr_auto_1.2fr]" data-transfer-locations>
+                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date</span><input name="transferred_at" value="{{ old('transferred_at', now()->format('Y-m-d\TH:i')) }}" type="datetime-local" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                    <label class="space-y-1.5">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Emplacement source</span>
+                        <select name="source_location_id" required data-transfer-source class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                            <option value="">Choisir…</option>
+                            @foreach ($locations as $location)
+                                <option value="{{ $location->id }}" @selected(old('source_location_id') == $location->id)>{{ $location->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('source_location_id')<span class="text-xs font-semibold text-rose-600">{{ $message }}</span>@enderror
+                    </label>
+                    <div class="flex items-end pb-1">
+                        <button type="button" data-transfer-swap title="Inverser source et destination" aria-label="Inverser source et destination" class="grid size-11 place-items-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-brand hover:text-brand dark:border-white/10">⇄</button>
+                    </div>
+                    <label class="space-y-1.5">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Emplacement destination</span>
+                        <select name="destination_location_id" required data-transfer-destination class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                            <option value="">Choisir…</option>
+                            @foreach ($locations as $location)
+                                <option value="{{ $location->id }}" @selected(old('destination_location_id') == $location->id)>{{ $location->name }}</option>
+                            @endforeach
+                        </select>
+                        @error('destination_location_id')<span class="text-xs font-semibold text-rose-600">{{ $message }}</span>@enderror
+                    </label>
+                </div>
+                @if ($locations->count() < 2)
+                    <p class="rounded-lg bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+                        Un transfert a besoin d'au moins deux emplacements. Créez-en un second dans Paramètres → Emplacements.
+                    </p>
+                @endif
+
+                {{-- Un article se cherche et s'ajoute, il ne se pioche pas dans
+                     huit lignes vides. Les quantités disponibles affichées sont
+                     celles de la SOURCE choisie, pas du stock global. --}}
+                <div class="space-y-3" data-transfer-picker
+                     data-search-url="{{ route('catalog.stock-items.search') }}">
+                    <div class="relative">
+                        <label class="space-y-1.5 block">
+                            <span class="text-xs font-semibold uppercase text-slate-500">Ajouter un article</span>
+                            <input type="search" data-transfer-search autocomplete="off"
+                                   placeholder="Nom, code-barres, référence…"
+                                   class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900">
+                        </label>
+                        <p data-transfer-hint class="mt-1.5 text-xs text-slate-500">Choisissez d'abord un emplacement source.</p>
+                        <div data-transfer-results hidden
+                             class="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-white/10 dark:bg-slate-900"></div>
+                    </div>
+
+                    <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
+                                <tr>
+                                    <th class="px-3 py-2.5">Article</th>
+                                    <th class="w-28 px-3 py-2.5 text-right">Dispo.</th>
+                                    <th class="w-32 px-3 py-2.5">Quantité</th>
+                                    <th class="px-3 py-2.5">Note ligne</th>
+                                    <th class="w-12 px-3 py-2.5"></th>
+                                </tr>
+                            </thead>
+                            <tbody data-transfer-lines class="divide-y divide-slate-200 dark:divide-white/10"></tbody>
+                        </table>
+                        <p data-transfer-empty class="px-4 py-10 text-center text-sm text-slate-500">
+                            Aucun article. Cherchez ci-dessus pour en ajouter.
+                        </p>
+                    </div>
+                </div>
+
+                <template data-transfer-line-template>
+                    <tr class="align-middle">
+                        <td class="px-3 py-2.5">
+                            <input type="hidden" data-line-item-id>
+                            <p class="font-semibold" data-line-title></p>
+                            <p class="text-xs text-slate-500" data-line-code></p>
+                        </td>
+                        <td class="px-3 py-2.5 text-right tabular-nums" data-line-available></td>
+                        <td class="px-3 py-2.5">
+                            <input type="number" min="1" step="1" value="1" data-line-quantity
+                                   class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                            <span class="mt-1 hidden text-xs font-semibold text-rose-600" data-line-over>Plus que le stock source</span>
+                        </td>
+                        <td class="px-3 py-2.5">
+                            <input data-line-note placeholder="Carton, rayon…"
+                                   class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                        </td>
+                        <td class="px-3 py-2.5 text-right">
+                            <button type="button" data-line-remove aria-label="Retirer la ligne"
+                                    class="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-400 transition hover:border-rose-300 hover:text-rose-600 dark:border-white/10">×</button>
+                        </td>
+                    </tr>
+                </template>
+
+                <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note globale</span><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Détails de l'inventaire...">{{ old('note') }}</textarea></label>
+                </div>
+                <div class="sticky bottom-0 flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-4 backdrop-blur dark:border-white/10 dark:bg-slate-950/95 sm:flex-row sm:items-center sm:justify-between">
+                    <p class="text-sm text-slate-500"><strong data-stock-adjustment-count class="text-slate-900 dark:text-white">0</strong> article(s) sélectionné(s), <strong data-stock-adjustment-total class="text-slate-900 dark:text-white">0</strong> unité(s) saisie(s).</p>
+                    <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20 transition hover:bg-brand-600">Valider l'ajustement</button>
+                </div>
+            </form>
+            <aside class="space-y-4 2xl:sticky 2xl:top-24 2xl:self-start">
+                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">Résumé stock</h3><dl class="mt-4 space-y-3 text-sm"><div class="flex justify-between"><dt class="text-slate-500">Ajustements</dt><dd class="font-semibold">{{ $stockStats['adjustments'] }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Qté ajustée ce mois</dt><dd class="font-semibold">{{ number_format($stockStats['adjusted_month'], 0, ',', ' ') }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Alertes stock</dt><dd class="font-semibold text-amber-600">{{ $catalogStats['low'] }}</dd></div></dl></article>
+            </aside>
+        </section>
+    @elseif ($panel === 'stock-transfer-add')
+        <section class="mt-6 grid gap-6 xl:grid-cols-[1fr_340px]">
+            <form action="{{ route('catalog.stock-transfers.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                @csrf
+                <div class="flex flex-col gap-2 border-b border-slate-200 pb-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
+                    <div><h2 class="text-lg font-semibold">Transfert de stock</h2><p class="mt-1 text-sm text-slate-500">Déplacez du stock d'un emplacement à un autre. Le stock quitte la source et arrive à la destination.</p></div>
+                    <button class="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">Créer transfert</button>
+                </div>
+                {{-- Emplacements choisis dans la liste du magasin, jamais saisis
+                     à la main : l'ancien formulaire résolvait un nom approché et
+                     retombait sur l'emplacement par défaut, si bien qu'une faute
+                     de frappe déplaçait le stock ailleurs sans rien signaler. --}}
                 <div class="grid gap-4 lg:grid-cols-3">
                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date</span><input name="transferred_at" value="{{ old('transferred_at', now()->format('Y-m-d\TH:i')) }}" type="datetime-local" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                     <label class="space-y-1.5">
