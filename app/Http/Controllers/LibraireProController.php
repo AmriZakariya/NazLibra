@@ -4209,8 +4209,10 @@ class LibraireProController extends Controller
         return back()->with('status', 'Remise supprimée.');
     }
 
-    public function storePosSale(Request $request): RedirectResponse
-    {
+    public function storePosSale(
+        Request $request,
+        \App\Services\Catalogue\ModifierService $modifierService,
+    ): RedirectResponse {
         $tenant = $this->tenant();
         $data = $request->validate([
             'contact_id' => ['nullable', 'integer', Rule::exists('contacts', 'id')->where('tenant_id', $tenant->id)],
@@ -4265,6 +4267,10 @@ class LibraireProController extends Controller
                 // sale deducts the article's own pile and the shop never
                 // learns which size moved.
                 'variant_id' => (int) ($line['variant_id'] ?? 0) ?: null,
+                // Line options: not sub-products, so they never change which
+                // pile is deducted — only the price, the ticket, and any
+                // article a modifier eats into.
+                'modifier_ids' => array_map('intval', (array) ($line['modifier_ids'] ?? [])),
                 'quantity' => max(1, (int) ($line['quantity'] ?? 1)),
                 'unit_price' => $price,
                 'note' => mb_substr(trim((string) ($line['note'] ?? '')), 0, 160),
@@ -4292,7 +4298,7 @@ class LibraireProController extends Controller
             $idempotencyKey = $this->idempotencyKey($request);
 
         try {
-            $sale = DB::transaction(function () use ($tenant, $data, $lineItems, $discountInput, $payments, $selectedPaymentMethods, $priceEditable, $allowOversell, $idempotencyKey) {
+            $sale = DB::transaction(function () use ($tenant, $data, $lineItems, $discountInput, $payments, $selectedPaymentMethods, $priceEditable, $allowOversell, $idempotencyKey, $modifierService) {
                 $existing = $this->findByIdempotencyKey(Sale::class, $tenant->id, $idempotencyKey);
                 if ($existing instanceof Sale) {
                     return $existing;
@@ -4366,7 +4372,10 @@ class LibraireProController extends Controller
                         }
                     }
 
-                    $catalogPrice = $variant ? $variant->price() : (float) $item->sale_price;
+                    $modifiers = $modifierService->resolve($item, $line['modifier_ids'] ?? []);
+                    $modifierDelta = $modifierService->priceDelta($modifiers);
+
+                    $catalogPrice = ($variant ? $variant->price() : (float) $item->sale_price) + $modifierDelta;
                     $unitPrice = $priceEditable && $line['unit_price'] !== null ? (float) $line['unit_price'] : $catalogPrice;
                     $lineTotal = round($unitPrice * $line['quantity'], 2);
                     $averageCost = $item->type !== 'service' ? $this->locationAverageCost($tenant->id, $item->id, $variant?->id, $saleLocationId) : 0.0;
@@ -4374,6 +4383,7 @@ class LibraireProController extends Controller
                     $saleLines[] = [
                         'item' => $item,
                         'variant' => $variant,
+                        'modifiers' => $modifiers,
                         'quantity' => $line['quantity'],
                         'unit_price' => $unitPrice,
                         'catalog_price' => $catalogPrice,
@@ -4480,7 +4490,7 @@ class LibraireProController extends Controller
                 ]);
 
                 foreach ($saleLines as $line) {
-                    $sale->items()->create([
+                    $saleLine = $sale->items()->create([
                         'item_id'    => $line['item']->id,
                         'variant_id' => $line['variant']?->id,
                         'name'       => $line['variant']
@@ -4492,6 +4502,14 @@ class LibraireProController extends Controller
                         'unit_cost'  => $line['average_cost'],
                         'total_cost' => $line['cogs'],
                     ]);
+
+                    $modifierService->attach(
+                        $saleLine,
+                        $line['modifiers'],
+                        $tenant->id,
+                        (float) $line['quantity'],
+                        $saleLocationId,
+                    );
 
                     if ($line['item']->type !== 'service') {
                         $inventoryService->move(new \App\Services\Inventory\MovementDTO(

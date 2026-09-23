@@ -152,6 +152,9 @@ class SaleController extends Controller
             'contact_id'              => ['nullable', 'integer'],
             'items'                    => ['required', 'array', 'min:1'],
             'items.*.item_id'          => ['nullable', 'integer'],
+            // Which sub-product, when the article has any. The terminal sends
+            // it so the sale deducts the right pile and stays attributable.
+            'items.*.variant_id'       => ['nullable', 'integer'],
             'items.*.custom_name'      => ['nullable', 'string', 'max:255'],
             'items.*.quantity'         => ['required', 'integer', 'min:1'],
             'items.*.unit_price'       => ['nullable', 'numeric', 'min:0'],
@@ -255,6 +258,7 @@ class SaleController extends Controller
 
                 $saleLines[] = [
                     'item'        => null,
+                    'variant'     => null,
                     'custom_name' => trim($line['custom_name']),
                     'quantity'    => (int) $line['quantity'],
                     'unit_price'  => $unitPrice,
@@ -269,9 +273,28 @@ class SaleController extends Controller
 
             $item = $items->get($line['item_id']);
 
+            // The sub-product the terminal chose. An article that HAS variants
+            // must arrive with one, or the sale deducts a pile that does not
+            // exist and nobody can say afterwards what left the shelf.
+            $variantId = (int) ($line['variant_id'] ?? 0) ?: null;
+            $variant = $variantId
+                ? $item->variants()->whereKey($variantId)->where('is_active', true)->first()
+                : null;
+
+            if ($variantId !== null && ! $variant) {
+                throw ValidationException::withMessages([
+                    'items' => 'La déclinaison choisie pour « '.$item->title.' » est introuvable.',
+                ]);
+            }
+            if ($variant === null && $item->hasVariants()) {
+                throw ValidationException::withMessages([
+                    'items' => 'Choisissez une déclinaison pour « '.$item->title.' ».',
+                ]);
+            }
+
             $unitPrice  = $line['unit_price'] !== null
                 ? (float) $line['unit_price']
-                : (float) $item->sale_price;
+                : ($variant ? $variant->price() : (float) $item->sale_price);
             $lineTotal  = round($unitPrice * (int) $line['quantity'], 2);
 
             // Snapshot the weighted-average cost at this location right now.
@@ -288,6 +311,7 @@ class SaleController extends Controller
 
             $saleLines[] = [
                 'item'        => $item,
+                'variant'     => $variant,
                 'custom_name' => null,
                 'quantity'    => (int) $line['quantity'],
                 'unit_price'  => $unitPrice,
@@ -546,7 +570,10 @@ class SaleController extends Controller
             foreach ($saleLines as $line) {
                 $sale->items()->create([
                     'item_id'    => $line['item']?->id,
-                    'name'       => $line['item'] ? $line['item']->title : $line['custom_name'],
+                    'variant_id' => $line['variant']?->id,
+                    'name'       => $line['variant']
+                        ? $line['item']->title.' — '.$line['variant']->name
+                        : ($line['item'] ? $line['item']->title : $line['custom_name']),
                     'quantity'   => $line['quantity'],
                     'unit_price' => $line['unit_price'],
                     'total_price' => $line['total_price'],

@@ -109,6 +109,16 @@ class Item extends Model
         return $this->belongsTo(Tax::class);
     }
 
+    /** The option groups this article offers on a sale line. */
+    public function modifierGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(ModifierGroup::class, 'item_modifier_groups')
+            ->withPivot(['tenant_id', 'sort_order'])
+            ->withTimestamps()
+            ->where('modifier_groups.is_active', true)
+            ->orderBy('item_modifier_groups.sort_order');
+    }
+
     /** The axes this article varies on, in the order they read. */
     public function optionTypes(): BelongsToMany
     {
