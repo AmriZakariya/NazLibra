@@ -7,9 +7,21 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['sale_id', 'item_id', 'name', 'quantity', 'unit_price', 'total_price', 'unit_cost', 'total_cost'])]
+#[Fillable(['sale_id', 'item_id', 'variant_id', 'name', 'quantity', 'unit_price', 'total_price', 'unit_cost', 'total_cost'])]
 class SaleItem extends Model
 {
+    /**
+     * Which sub-product was sold, when the article has any.
+     *
+     * The link that makes "how many L did we sell" answerable. Stock, movements
+     * and stocktakes all carried a variant already; the sale did not, so the
+     * one question worth asking had no answer.
+     */
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ItemVariant::class, 'variant_id');
+    }
+
     use SoftDeletes;
 
     // When a SaleItem is created/updated, bump the parent Sale's updated_at

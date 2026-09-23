@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -56,6 +57,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'warehouse',
     'opening_stock',
     'stock_quantity',
+    'variant_count',
     'min_stock_threshold',
     'track_inventory',
     'location',
@@ -105,6 +107,21 @@ class Item extends Model
     public function tax(): BelongsTo
     {
         return $this->belongsTo(Tax::class);
+    }
+
+    /** The axes this article varies on, in the order they read. */
+    public function optionTypes(): BelongsToMany
+    {
+        return $this->belongsToMany(OptionType::class, 'item_option_types')
+            ->withPivot(['tenant_id', 'sort_order'])
+            ->withTimestamps()
+            ->orderBy('item_option_types.sort_order');
+    }
+
+    /** True when the till must ask which one before adding it to a basket. */
+    public function hasVariants(): bool
+    {
+        return (int) $this->variant_count > 0;
     }
 
     public function variants(): HasMany

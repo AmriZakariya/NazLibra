@@ -29,9 +29,44 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'image',
     'notes',
     'sort_order',
+    'sale_price_override',
+    'purchase_price_override',
+    'combination_key',
 ])]
 class ItemVariant extends Model
 {
+    /**
+     * What this variant sells for.
+     *
+     * Null override means "whatever the article costs". A shirt priced once
+     * should not need the same number typed into every size, and changing the
+     * price should not have to be repeated across them.
+     */
+    public function price(): float
+    {
+        return (float) ($this->sale_price_override ?? $this->item?->sale_price ?? $this->sale_price);
+    }
+
+    public function cost(): float
+    {
+        return (float) ($this->purchase_price_override ?? $this->item?->purchase_price ?? $this->purchase_price);
+    }
+
+    /** "Rouge / L" — how the variant reads on a ticket and in a report. */
+    public function optionLabel(): string
+    {
+        return $this->values
+            ->sortBy(fn ($value) => $value->optionType?->sort_order ?? 0)
+            ->map(fn ($value) => $value->optionValue?->value)
+            ->filter()
+            ->join(' / ');
+    }
+
+    public function values(): HasMany
+    {
+        return $this->hasMany(ItemVariantValue::class, 'item_variant_id');
+    }
+
     protected function casts(): array
     {
         return [
