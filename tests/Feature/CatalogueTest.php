@@ -1017,12 +1017,23 @@ class CatalogueTest extends TestCase
             ]);
     }
 
-    public function test_stock_transfer_records_transfer_without_changing_global_stock(): void
+    public function test_stock_transfer_moves_stock_between_two_real_locations(): void
     {
+        // Replaces a test that asserted a transfer changed no stock at all.
+        // It posted "Magasin A" → "Magasin B" as free text; neither exists, so
+        // both resolved to the default location and the code skipped the
+        // movement — the defect was written down as the expectation.
         $this->seed();
 
+        $tenant = \App\Models\Tenant::firstOrFail();
+        $source = \App\Models\Location::where('tenant_id', $tenant->id)->where('is_default', true)->firstOrFail();
+        $destination = \App\Models\Location::where('tenant_id', $tenant->id)
+            ->where('id', '!=', $source->id)->firstOrFail();
         $item = Item::where('type', '!=', 'service')->where('stock_quantity', '>', 5)->firstOrFail();
-        $initialStock = (int) $item->stock_quantity;
+
+        $inventory = app(\App\Services\Inventory\InventoryService::class);
+        $atSourceBefore = $inventory->available($tenant->id, $item->id, null, $source->id);
+        $atDestinationBefore = $inventory->available($tenant->id, $item->id, null, $destination->id);
 
         $this->get(route('stock', ['panel' => 'stock-transfer-add']))
             ->assertOk()
@@ -1031,10 +1042,8 @@ class CatalogueTest extends TestCase
 
         $response = $this->post(route('catalog.stock-transfers.store'), [
             'transferred_at' => now()->format('Y-m-d H:i:s'),
-            'store_from' => 'Magasin A',
-            'warehouse_from' => 'Dépôt',
-            'store_to' => 'Magasin B',
-            'warehouse_to' => 'Rayon scolaire',
+            'source_location_id' => $source->id,
+            'destination_location_id' => $destination->id,
             'items' => [
                 ['item_id' => $item->id, 'quantity' => 3, 'note' => 'Carton test'],
             ],
@@ -1043,13 +1052,14 @@ class CatalogueTest extends TestCase
         $transfer = StockTransfer::firstOrFail();
         $response->assertRedirect(route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $transfer->id]));
         $this->assertStringStartsWith('TRS', $transfer->number);
-        $this->assertSame($initialStock, (int) $item->fresh()->stock_quantity);
         $this->assertSame(3, (int) $transfer->total_quantity);
 
-        $this->get(route('stock', ['panel' => 'stock-transfers', 'q' => 'Magasin B']))
+        $this->assertSame($atSourceBefore - 3, $inventory->available($tenant->id, $item->id, null, $source->id));
+        $this->assertSame($atDestinationBefore + 3, $inventory->available($tenant->id, $item->id, null, $destination->id));
+
+        $this->get(route('stock', ['panel' => 'stock-transfers', 'q' => $destination->name]))
             ->assertOk()
-            ->assertSee($transfer->number)
-            ->assertSee('Magasin B');
+            ->assertSee($transfer->number);
     }
 
     public function test_stocktake_can_be_created_counted_and_completed(): void

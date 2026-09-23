@@ -1289,135 +1289,60 @@ class LibraireProController extends Controller
             ->all();
     }
 
-    public function storeStockTransfer(Request $request): RedirectResponse
-    {
+    public function storeStockTransfer(
+        Request $request,
+        \App\Services\Inventory\StockTransferService $transfers,
+    ): RedirectResponse {
         $tenant = $this->tenant();
         $data = $request->validate([
             'transferred_at' => ['nullable', 'date'],
-            'store_from' => ['nullable', 'string', 'max:120'],
-            'warehouse_from' => ['nullable', 'string', 'max:120'],
-            'store_to' => ['nullable', 'string', 'max:120'],
-            'warehouse_to' => ['nullable', 'string', 'max:120'],
+            // Ids from the shop's own list, not typed names. The old free-text
+            // fields were resolved by fuzzy match with a fallback to the
+            // default location, so a typo moved stock somewhere nobody chose.
+            'source_location_id' => ['required', 'integer', Rule::exists('locations', 'id')
+                ->where('tenant_id', $tenant->id)->where('is_active', true)],
+            'destination_location_id' => ['required', 'integer', 'different:source_location_id',
+                Rule::exists('locations', 'id')->where('tenant_id', $tenant->id)->where('is_active', true)],
             'note' => ['nullable', 'string', 'max:700'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['nullable', 'integer', Rule::exists('items', 'id')->where('tenant_id', $tenant->id)],
             'items.*.quantity' => ['nullable', 'integer', 'min:1', 'max:999999'],
             'items.*.note' => ['nullable', 'string', 'max:300'],
+        ], [
+            'source_location_id.required' => "Choisissez l'emplacement source.",
+            'destination_location_id.required' => "Choisissez l'emplacement de destination.",
+            'destination_location_id.different' => 'La destination doit être différente de la source.',
         ]);
 
-        try {
-            $transfer = DB::transaction(function () use ($tenant, $data): StockTransfer {
-                $inventoryService = app(\App\Services\Inventory\InventoryService::class);
-                $sourceName = $data['store_from'] ?? $data['warehouse_from'] ?? null;
-                $destinationName = $data['store_to'] ?? $data['warehouse_to'] ?? null;
-                $sourceLocationId = $inventoryService->locationIdFromName($tenant->id, $sourceName);
-                $destinationLocationId = $inventoryService->locationIdFromName($tenant->id, $destinationName);
-
-                $moveStock = $sourceLocationId !== $destinationLocationId;
-                $pendingLines = [];
-                $totalQuantity = 0;
-
-                foreach ($data['items'] as $line) {
-                    if (empty($line['item_id']) || (int) ($line['quantity'] ?? 0) <= 0) {
-                        continue;
-                    }
-
-                    $item = Item::where('tenant_id', $tenant->id)
-                        ->where('type', '!=', 'service')
-                        ->lockForUpdate()
-                        ->findOrFail((int) $line['item_id']);
-
-                    $quantity = (int) $line['quantity'];
-
-                    if ($moveStock) {
-                        $availableAtSource = $inventoryService->available($tenant->id, $item->id, null, $sourceLocationId);
-
-                        if ($availableAtSource < $quantity) {
-                            throw new \RuntimeException('Stock insuffisant pour '.$item->title.' à l\'emplacement source. Disponible: '.$availableAtSource.'.');
-                        }
-                    } elseif ((int) $item->stock_quantity < $quantity) {
-                        throw new \RuntimeException('Stock insuffisant pour '.$item->title.'. Disponible: '.$item->stock_quantity.'.');
-                    }
-
-                    $pendingLines[] = [
-                        'item' => $item,
-                        'quantity' => $quantity,
-                        'note' => $line['note'] ?? null,
-                    ];
-                    $totalQuantity += $quantity;
-                }
-
-                if ($pendingLines === []) {
-                    throw new \RuntimeException('Ajoutez au moins une ligne de transfert.');
-                }
-
-                $transfer = StockTransfer::create([
-                    'tenant_id' => $tenant->id,
-                    'number' => $this->nextStockTransferNumber($tenant),
-                    'status' => 'completed',
-                    'store_from' => $data['store_from'] ?? null,
-                    'warehouse_from' => $data['warehouse_from'] ?? null,
-                    'store_to' => $data['store_to'] ?? null,
-                    'warehouse_to' => $data['warehouse_to'] ?? null,
-                    'total_quantity' => $totalQuantity,
-                    'lines' => collect($pendingLines)->map(fn (array $line) => [
-                        'item_id' => $line['item']->id,
-                        'item_code' => $line['item']->item_code,
-                        'name' => $line['item']->title,
-                        'barcode' => $line['item']->barcode,
-                        'quantity' => $line['quantity'],
-                        'available_stock' => (int) $line['item']->stock_quantity,
-                        'note' => $line['note'],
-                    ])->all(),
-                    'note' => $data['note'] ?? null,
-                    'transferred_at' => $data['transferred_at'] ?? now(),
-                ]);
-
-                if ($moveStock) {
-                    foreach ($pendingLines as $line) {
-                        $inventoryService->move(new \App\Services\Inventory\MovementDTO(
-                            tenantId: $tenant->id,
-                            itemId: $line['item']->id,
-                            variantId: null,
-                            locationId: $sourceLocationId,
-                            type: \App\Services\Inventory\InventoryMovementType::TRANSFER_OUT,
-                            quantityChanged: $line['quantity'],
-                            referenceType: StockTransfer::class,
-                            referenceId: $transfer->id,
-                            referenceNumber: $transfer->number,
-                            note: 'Transfert stock '.$transfer->number.($line['note'] ? ' · '.$line['note'] : ''),
-                            reason: 'Transfert vers '.($destinationName ?: 'destination'),
-                        ));
-
-                        $inventoryService->move(new \App\Services\Inventory\MovementDTO(
-                            tenantId: $tenant->id,
-                            itemId: $line['item']->id,
-                            variantId: null,
-                            locationId: $destinationLocationId,
-                            type: \App\Services\Inventory\InventoryMovementType::TRANSFER_IN,
-                            quantityChanged: $line['quantity'],
-                            referenceType: StockTransfer::class,
-                            referenceId: $transfer->id,
-                            referenceNumber: $transfer->number,
-                            note: 'Transfert stock '.$transfer->number.($line['note'] ? ' · '.$line['note'] : ''),
-                            reason: 'Transfert depuis '.($sourceName ?: 'source'),
-                        ));
-                    }
-                } else {
-                    foreach ($pendingLines as $line) {
-                        $this->recordStockMovementSnapshot($tenant, (int) $line['item']->id, 'transfer', 0, (int) $line['item']->stock_quantity, StockTransfer::class, $transfer->id, 'Transfert stock '.$transfer->number);
-                    }
-                }
-
-                return $transfer;
-            });
-        } catch (\RuntimeException $exception) {
-            return back()->withInput()->withErrors(['stock' => $exception->getMessage()]);
-        }
+        $transfer = $transfers->create($tenant, $data);
 
         return redirect()
             ->route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $transfer->id])
             ->with('status', 'Transfert '.$transfer->number.' enregistré.');
+    }
+
+    /**
+     * Sends a transfer's goods back where they came from.
+     *
+     * A reversal, not a delete: the movements already happened, and a ledger
+     * that can be edited afterwards answers no question anyone asks of it.
+     */
+    public function cancelStockTransfer(
+        Request $request,
+        StockTransfer $transfer,
+        \App\Services\Inventory\StockTransferService $transfers,
+    ): RedirectResponse {
+        $tenant = $this->tenant();
+        abort_unless($transfer->tenant_id === $tenant->id, 404);
+
+        $data = $request->validate(
+            ['reason' => ['required', 'string', 'min:3', 'max:500']],
+            ['reason.required' => 'Indiquez pourquoi ce transfert est annulé.'],
+        );
+
+        $transfers->cancel($transfer, $data['reason']);
+
+        return back()->with('status', 'Transfert '.$transfer->number.' annulé, stock rendu à la source.');
     }
 
     public function storeStocktake(Request $request): RedirectResponse
@@ -8499,17 +8424,6 @@ class LibraireProController extends Controller
             ->max() ?? 0;
 
         return 'INV'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
-    }
-
-    private function nextStockTransferNumber(Tenant $tenant): string
-    {
-        $max = StockTransfer::where('tenant_id', $tenant->id)
-            ->where('number', 'like', 'TRS%')
-            ->pluck('number')
-            ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
-            ->max() ?? 0;
-
-        return 'TRS'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
     }
 
     private function nextCustomerAdvanceNumber(Tenant $tenant): string
