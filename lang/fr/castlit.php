@@ -111,6 +111,13 @@ return [
     'f_errors'    => 'Merci de corriger les champs indiqués ci-dessous.',
 
     'footer_tagline' => 'Le point de vente et la gestion de stock pour votre commerce',
+    'footer_about'   => "Un logiciel de caisse tactile qui fonctionne hors ligne, sur mobile comme sur ordinateur, en français, arabe et anglais.",
+    'footer_product' => 'Produit',
+    'footer_legal'   => 'Légal',
+    'footer_reach'   => 'Nous contacter',
+    'footer_support' => 'Une question sur Castl-it-POS ? Écrivez-nous, nous répondons à chaque message.',
+    'footer_android' => 'Télécharger sur Android',
+    'footer_soon'    => 'Bientôt disponible',
     'footer_privacy' => 'Confidentialité',
     'footer_terms'   => 'Conditions',
     'footer_contact' => 'Contact',

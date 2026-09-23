@@ -240,10 +240,45 @@
         .lang-opt.is-active { background: var(--brand); color: #fff; }
         [dir="rtl"] body { text-align: right; }
 
-        footer { border-top: 1px solid var(--sand); margin-top: 80px; padding: 40px 0; color: var(--muted); font-size: 13px; }
-        .footer-inner { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+        footer { border-top: 1px solid var(--sand); margin-top: 80px; padding: 56px 0 28px;
+                 color: var(--muted); font-size: 13px;
+                 background: color-mix(in srgb, var(--surface) 55%, transparent); }
+        /* Brand column is widest and comes first; the three link columns share
+           what is left. auto-fit rather than fixed columns so the footer folds
+           to one column on a phone without a second breakpoint. */
+        .footer-grid { display: grid; gap: 36px 28px; grid-template-columns: 1.6fr repeat(3, 1fr); }
+        @media (max-width: 900px) { .footer-grid { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 560px) { .footer-grid { grid-template-columns: 1fr; gap: 28px; } }
+        .footer-about { margin-top: 12px; max-width: 34ch; font-size: 13.5px; line-height: 1.6; }
+        .footer-head { color: var(--ink); font-size: 12px; font-weight: 700;
+                       letter-spacing: .12em; text-transform: uppercase; margin-bottom: 14px; }
+        .footer-col ul { list-style: none; display: grid; gap: 9px; }
+        .footer-col a, .footer-col span { color: var(--muted); font-size: 13.5px; font-weight: 550; }
+        .footer-col a:hover { color: var(--brand); }
+        /* The feature list is prose, not navigation: no hover affordance on
+           something that cannot be clicked. */
+        .footer-feat { display: flex; align-items: flex-start; gap: 8px; }
+        .footer-feat svg { flex-shrink: 0; margin-top: 3px; color: var(--brand); }
+        .footer-mail { display: inline-flex; align-items: center; gap: 8px;
+                       color: var(--ink); font-weight: 650; font-size: 14.5px; }
+        .footer-mail:hover { color: var(--brand); }
+        .footer-store { display: inline-flex; align-items: center; gap: 9px; margin-top: 16px;
+                        padding: 9px 14px; border: 1px solid var(--sand); border-radius: 11px;
+                        color: var(--ink); font-weight: 650; font-size: 13.5px;
+                        background: var(--surface); transition: border-color .15s, color .15s; }
+        .footer-store:hover { border-color: var(--brand); color: var(--brand); }
+        .footer-store.is-soon { opacity: .65; cursor: default; }
+        .footer-social { display: flex; gap: 10px; margin-top: 16px; }
+        .footer-social a { display: inline-grid; place-items: center; width: 34px; height: 34px;
+                           border: 1px solid var(--sand); border-radius: 10px; color: var(--muted);
+                           transition: border-color .15s, color .15s; }
+        .footer-social a:hover { border-color: var(--brand); color: var(--brand); }
+        .footer-bar { margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--sand);
+                      display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+                      font-size: 12.5px; }
+        .footer-bar .spacer { margin-inline-start: auto; }
         .footer-links { display: flex; flex-wrap: wrap; gap: 18px; }
-        .footer-links a { color: var(--muted); font-size: 13.5px; font-weight: 600; }
+        .footer-links a { color: var(--muted); font-size: 12.5px; font-weight: 600; }
         .footer-links a:hover { color: var(--brand); }
 
         .field-error { color: var(--err); font-size: 12.5px; margin-top: 5px; font-weight: 500; }
@@ -282,20 +317,95 @@
     @yield('content')
 
     <footer>
-        <div class="wrap footer-inner">
-            <a href="{{ route('castlit.landing') }}" class="brand brand-sm" style="font-size:15px">
-                @include('castlit.partials.mark')
-                <span class="wordmark">Castl-it-POS</span>
-            </a>
-            <span class="spacer" style="margin-left:auto"></span>
-            <nav class="footer-links" aria-label="Légal">
-                <a href="{{ route('castlit.privacy') }}">{{ __('castlit.footer_privacy') }}</a>
-                <a href="{{ route('castlit.terms') }}">{{ __('castlit.footer_terms') }}</a>
-                <a href="mailto:{{ $brand['email'] }}">{{ __('castlit.footer_contact') }}</a>
-            </nav>
-        </div>
-        <div class="wrap" style="margin-top:14px">
-            <span style="font-size:13px; color:var(--muted)">© {{ date('Y') }} {{ $brand['name'] }} — {{ __('castlit.footer_tagline') }}.</span>
+        <div class="wrap">
+            <div class="footer-grid">
+                {{-- Brand --}}
+                <div class="footer-col">
+                    <a href="{{ route('castlit.landing') }}" class="brand brand-sm" style="font-size:16px">
+                        @include('castlit.partials.mark')
+                        <span class="wordmark">Castl-it-<span class="wm-accent">POS</span></span>
+                    </a>
+                    <p class="footer-about">{{ __('castlit.footer_about') }}</p>
+
+                    @if ($brand['play_store'])
+                        <a href="{{ $brand['play_store'] }}" target="_blank" rel="noopener" class="footer-store">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M3.6 1.8a1 1 0 0 0-.5.9v18.6a1 1 0 0 0 .5.9l10-10.2-10-10.2Zm11.1 9.1 2.7-2.8-9.7-5.5 7 8.3Zm0 2.2-7 8.3 9.7-5.5-2.7-2.8Zm4.2-1.1L21 10.7c.8-.4.8-1.5 0-2l-2.1-1.2-3 3 3 3Z"/>
+                            </svg>
+                            {{ __('castlit.footer_android') }}
+                        </a>
+                    @endif
+
+                    {{-- Only real accounts: an empty social row is worse than none. --}}
+                    @if ($socials)
+                        <div class="footer-social">
+                            @foreach ($socials as $social)
+                                <a href="{{ $social }}" target="_blank" rel="noopener me"
+                                   aria-label="{{ parse_url($social, PHP_URL_HOST) ?? 'social' }}">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                         stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                        <circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20"/>
+                                    </svg>
+                                </a>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
+
+                {{-- Product --}}
+                <nav class="footer-col" aria-label="{{ __('castlit.footer_product') }}">
+                    <div class="footer-head">{{ __('castlit.footer_product') }}</div>
+                    <ul>
+                        <li><a href="{{ route('castlit.landing') }}#fonctionnalites">{{ __('castlit.nav_features') }}</a></li>
+                        <li><a href="{{ route('castlit.landing') }}#secteurs">{{ __('castlit.nav_sectors') }}</a></li>
+                        @if ($demoUrl)
+                            <li><a href="{{ $demoUrl }}" target="_blank" rel="noopener">{{ __('castlit.nav_demo') }}</a></li>
+                        @endif
+                        <li><a href="{{ route('castlit.landing') }}#inscription">{{ __('castlit.nav_start') }}</a></li>
+                    </ul>
+                </nav>
+
+                {{-- What the app does. Same list the page and the structured
+                     data use, so the footer cannot drift from either. --}}
+                <div class="footer-col">
+                    <div class="footer-head">{{ __('castlit.feat_eyebrow') }}</div>
+                    <ul>
+                        @foreach (array_slice($featureList, 0, 6) as $feature)
+                            <li class="footer-feat">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                                     stroke="currentColor" stroke-width="3" stroke-linecap="round"
+                                     stroke-linejoin="round" aria-hidden="true">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                <span>{{ $feature }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+
+                {{-- Contact --}}
+                <div class="footer-col">
+                    <div class="footer-head">{{ __('castlit.footer_reach') }}</div>
+                    <a href="mailto:{{ $brand['email'] }}" class="footer-mail">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/>
+                        </svg>
+                        {{ $brand['email'] }}
+                    </a>
+                    <p class="footer-about" style="margin-top:10px">{{ __('castlit.footer_support') }}</p>
+                </div>
+            </div>
+
+            <div class="footer-bar">
+                <span>© {{ date('Y') }} {{ $brand['name'] }} — {{ __('castlit.footer_tagline') }}.</span>
+                <span class="spacer"></span>
+                <nav class="footer-links" aria-label="{{ __('castlit.footer_legal') }}">
+                    <a href="{{ route('castlit.privacy') }}">{{ __('castlit.footer_privacy') }}</a>
+                    <a href="{{ route('castlit.terms') }}">{{ __('castlit.footer_terms') }}</a>
+                    <a href="mailto:{{ $brand['email'] }}">{{ __('castlit.footer_contact') }}</a>
+                </nav>
+            </div>
         </div>
     </footer>
     @stack('scripts')

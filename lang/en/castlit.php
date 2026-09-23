@@ -111,6 +111,13 @@ return [
     'f_errors'    => 'Please correct the fields highlighted below.',
 
     'footer_tagline' => 'Point of sale & inventory management for your business',
+    'footer_about'   => 'A touch POS that keeps working offline, on mobile and on desktop, in French, Arabic and English.',
+    'footer_product' => 'Product',
+    'footer_legal'   => 'Legal',
+    'footer_reach'   => 'Get in touch',
+    'footer_support' => 'A question about Castl-it-POS? Write to us — every message gets an answer.',
+    'footer_android' => 'Get it on Android',
+    'footer_soon'    => 'Coming soon',
     'footer_privacy' => 'Privacy',
     'footer_terms'   => 'Terms',
     'footer_contact' => 'Contact',
