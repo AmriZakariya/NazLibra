@@ -7326,6 +7326,7 @@ class LibraireProController extends Controller
             'settingsUsers' => $tenant->users()->orderBy('name')->get(),
             'settingsRoles' => Role::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'permissionCatalog' => $this->permissionCatalog(),
+            'permissionGroups' => \App\Support\Permissions::groups(),
             'settingsTaxes' => Tax::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'settingsUnits' => Unit::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             'settingsVirtualDevices' => VirtualDevice::where('tenant_id', $tenant->id)
@@ -9652,59 +9653,16 @@ class LibraireProController extends Controller
         return $data;
     }
 
+    /**
+     * Flat key => label list, from the one registry the middleware also uses.
+     *
+     * This used to be a second hand-written list. It drifted: five entries
+     * gated nothing at all, and the middleware required keys nobody could
+     * tick.
+     */
     private function permissionCatalog(): array
     {
-        return [
-            'dashboard.view' => 'Tableau de bord',
-            'items.view' => 'Catalogue: voir',
-            'items.create' => 'Catalogue: créer',
-            'items.edit' => 'Catalogue: modifier',
-            'items.delete' => 'Catalogue: supprimer',
-            'items.import' => 'Catalogue: importer',
-            'stock.adjust' => 'Stock: ajuster',
-            'stock.transfer' => 'Stock: transférer',
-            'sales.view' => 'Ventes: voir',
-            'sales.create' => 'Ventes: créer',
-            'sales.edit' => 'Ventes: modifier',
-            'sales.delete' => 'Ventes: annuler',
-            'sales.refund' => 'Ventes: rembourser',
-            'sales.payments' => 'Ventes: paiements',
-            'online_orders.view' => 'Précommandes: voir',
-            'online_orders.create' => 'Précommandes: créer',
-            'online_orders.edit' => 'Précommandes: changer statut',
-            'invoices.view' => 'Factures: voir',
-            'invoices.create' => 'Factures: créer',
-            'invoices.edit_draft' => 'Factures: modifier brouillon',
-            'invoices.edit_sent' => 'Factures: modifier envoyée',
-            'invoices.send' => 'Factures: envoyer',
-            'invoices.payments' => 'Factures: encaisser',
-            'invoices.cancel' => 'Factures: annuler',
-            'invoices.archive' => 'Factures: archiver',
-            'invoices.restore' => 'Factures: restaurer',
-            'invoices.duplicate' => 'Factures: dupliquer',
-            'estimates.view' => 'Devis: voir',
-            'estimates.create' => 'Devis: créer',
-            'estimates.edit' => 'Devis: modifier',
-            'estimates.send' => 'Devis: envoyer',
-            'estimates.accept_decline' => 'Devis: accepter/refuser',
-            'estimates.convert' => 'Devis: convertir en facture',
-            'estimates.cancel' => 'Devis: annuler',
-            'estimates.archive' => 'Devis: archiver',
-            'estimates.duplicate' => 'Devis: dupliquer',
-            'purchases.view' => 'Achats: voir',
-            'purchases.create' => 'Achats: créer',
-            'purchases.receive' => 'Achats: réceptionner',
-            'contacts.view' => 'Contacts: voir',
-            'contacts.create' => 'Contacts: créer',
-            'contacts.edit' => 'Contacts: modifier',
-            'finance.view' => 'Finances: voir',
-            'finance.manage' => 'Finances: gérer',
-            'reports.view' => 'Rapports',
-            'settings.users' => 'Paramètres: utilisateurs',
-            'settings.roles' => 'Paramètres: rôles',
-            'settings.theme' => 'Paramètres: thème',
-            'settings.audit' => 'Paramètres: audit',
-        ];
+        return \App\Support\Permissions::catalog();
     }
 
     private function validateSettingsReference(Request $request, string $bucket): array

@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Support\AppModules;
+use App\Support\Permissions;
 use App\Support\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
@@ -72,148 +73,23 @@ class EnsureTenantAccess
 
     private function allows(array $permissions, string $required): bool
     {
-        if (in_array('*', $permissions, true) || in_array($required, $permissions, true)) {
-            return true;
-        }
-
-        [$group] = explode('.', $required, 2);
-
-        return in_array($group.'.*', $permissions, true);
+        return Permissions::allows($permissions, $required);
     }
 
     private function requiredPermission(Request $request): ?string
     {
         $name = (string) $request->route()?->getName();
 
-        if ($name === 'dashboard') {
-            return 'dashboard.view';
-        }
-
+        // The module screens carry their section in the query string, so they
+        // cannot be a flat route lookup.
         if ($name === 'module') {
-            return $this->modulePermission((string) $request->route('module'), (string) $request->query('section', 'list'));
+            return $this->modulePermission(
+                (string) $request->route('module'),
+                (string) $request->query('section', 'list'),
+            );
         }
 
-        $exact = [
-            'catalog' => 'items.view',
-            'catalog.data' => 'items.view',
-            'catalog.export' => 'items.view',
-            'catalog.labels' => 'items.view',
-            'catalog.items.store' => 'items.create',
-            'catalog.items.update' => 'items.edit',
-            'catalog.items.destroy' => 'items.delete',
-            'catalog.categories.store' => 'items.edit',
-            'catalog.categories.update' => 'items.edit',
-            'catalog.categories.destroy' => 'items.delete',
-            'catalog.brands.store' => 'items.edit',
-            'catalog.brands.update' => 'items.edit',
-            'catalog.brands.destroy' => 'items.delete',
-            'catalog.units.store' => 'items.edit',
-            'catalog.units.update' => 'items.edit',
-            'catalog.units.destroy' => 'items.delete',
-            'catalog.taxes.store' => 'items.edit',
-            'catalog.taxes.update' => 'items.edit',
-            'catalog.taxes.destroy' => 'items.delete',
-            'catalog.variants.store' => 'items.edit',
-            'catalog.import' => 'items.import',
-            'catalog.stock-adjustments.store' => 'stock.adjust',
-            'catalog.stock-transfers.store' => 'stock.transfer',
-            'pos' => 'sales.create',
-            'pos.coupons.preview' => 'sales.create',
-            'pos.store' => 'sales.create',
-            'pos.tickets.store' => 'sales.create',
-            'pos.tickets.destroy' => 'sales.create',
-            'sales.store' => 'sales.create',
-            'sales.update' => 'sales.edit',
-            'sales.invoice.store' => 'sales.view',
-            'sales.pdf' => 'sales.view',
-            'sales.invoices.pdf' => 'sales.view',
-            'documents.invoices.store' => 'invoices.create',
-            'documents.invoices.update' => 'invoices.edit_draft',
-            'documents.invoices.send' => 'invoices.send',
-            'documents.invoices.duplicate' => 'invoices.duplicate',
-            'documents.invoices.cancel' => 'invoices.cancel',
-            'documents.invoices.archive' => 'invoices.archive',
-            'documents.invoices.restore' => 'invoices.restore',
-            'documents.invoices.payments.store' => 'invoices.payments',
-            'documents.invoices.pdf' => 'invoices.view',
-            'sales.payments.store' => 'sales.payments',
-            'sales.refund' => 'sales.refund',
-            'sales.destroy' => 'sales.delete',
-            'sales.deliveries.store' => 'sales.create',
-            'sales.deliveries.update' => 'sales.create',
-            'online-orders.store' => 'online_orders.create',
-            'online-orders.status.update' => 'online_orders.edit',
-            'online-orders.sale.prepare' => 'sales.create',
-            'quotations.store' => 'sales.create',
-            'quotations.update' => 'sales.create',
-            'quotations.convert' => 'sales.create',
-            'documents.estimates.store' => 'estimates.create',
-            'documents.estimates.update' => 'estimates.edit',
-            'documents.estimates.transition' => 'estimates.send',
-            'documents.estimates.duplicate' => 'estimates.duplicate',
-            'documents.estimates.convert' => 'estimates.convert',
-            'documents.estimates.pdf' => 'estimates.view',
-            'purchases.store' => 'purchases.create',
-            'purchases.receive' => 'purchases.receive',
-            'purchases.pdf' => 'purchases.view',
-            'purchases.returns.store' => 'purchases.create',
-            'contacts.data' => 'contacts.view',
-            'contacts.store' => 'contacts.create',
-            'contacts.update' => 'contacts.edit',
-            'contacts.destroy' => 'contacts.edit',
-            'contacts.import' => 'contacts.create',
-            'contacts.import.example' => 'contacts.create',
-            'customer-advances.data' => 'finance.view',
-            'customer-advances.store' => 'finance.manage',
-            'customer-advances.destroy' => 'finance.manage',
-            'expenses.store' => 'finance.manage',
-            'expenses.categories.store' => 'finance.manage',
-            'coupons.store' => 'finance.manage',
-            'coupons.update' => 'finance.manage',
-            'coupons.destroy' => 'finance.manage',
-            'discounts.store' => 'finance.manage',
-            'discounts.update' => 'finance.manage',
-            'discounts.destroy' => 'finance.manage',
-            'accounts.store' => 'finance.manage',
-            'accounts.update' => 'finance.manage',
-            'accounts.destroy' => 'finance.manage',
-            'accounts.deposits.store' => 'finance.manage',
-            'accounts.transfers.store' => 'finance.manage',
-            'settings.theme.update' => 'settings.theme',
-            'settings.company.update' => 'settings.theme',
-            'settings.modules.update' => 'settings.users',
-            'settings.pos.update' => 'settings.theme',
-            'settings.documents.update' => 'settings.theme',
-            'settings.messaging.update' => 'settings.theme',
-            'settings.messaging.send' => 'settings.theme',
-            'settings.message-templates.store' => 'settings.theme',
-            'settings.message-templates.update' => 'settings.theme',
-            'settings.message-templates.destroy' => 'settings.theme',
-            'settings.current-store.update' => 'settings.users',
-            'settings.stores.store' => 'settings.users',
-            'settings.stores.update' => 'settings.users',
-            'settings.stores.destroy' => 'settings.users',
-            'settings.payment-types.store' => 'settings.theme',
-            'settings.payment-types.update' => 'settings.theme',
-            'settings.payment-types.destroy' => 'settings.theme',
-            'settings.countries.store' => 'settings.theme',
-            'settings.countries.update' => 'settings.theme',
-            'settings.countries.destroy' => 'settings.theme',
-            'settings.states.store' => 'settings.theme',
-            'settings.states.update' => 'settings.theme',
-            'settings.states.destroy' => 'settings.theme',
-            'settings.tax-groups.store' => 'settings.theme',
-            'settings.tax-groups.update' => 'settings.theme',
-            'settings.tax-groups.destroy' => 'settings.theme',
-            'settings.users.store' => 'settings.users',
-            'settings.users.update' => 'settings.users',
-            'settings.users.destroy' => 'settings.users',
-            'settings.roles.store' => 'settings.roles',
-            'settings.roles.update' => 'settings.roles',
-            'settings.roles.destroy' => 'settings.roles',
-        ];
-
-        return $exact[$name] ?? null;
+        return Permissions::routeMap()[$name] ?? null;
     }
 
     private function modulePermission(string $module, string $section): ?string
@@ -222,6 +98,7 @@ class EnsureTenantAccess
             'invoices' => str_contains($section, 'estimate') ? 'estimates.view' : 'invoices.view',
             'sales' => str_contains($section, 'payment') ? 'sales.payments' : (str_contains($section, 'return') ? 'sales.refund' : 'sales.view'),
             'online-orders' => in_array($section, ['add'], true) ? 'online_orders.create' : 'online_orders.view',
+            'cash-register' => 'cash_register.view',
             'purchases' => in_array($section, ['add'], true) ? 'purchases.create' : 'purchases.view',
             'contacts' => in_array($section, ['customer-add', 'supplier-add', 'import-customers', 'import-suppliers'], true) ? 'contacts.create' : 'contacts.view',
             'finance' => in_array($section, ['expense-add', 'advance-add', 'account-add', 'discount-add'], true) ? 'finance.manage' : 'finance.view',
@@ -234,10 +111,18 @@ class EnsureTenantAccess
     private function settingsPermission(string $section): string
     {
         return match ($section) {
-            'users', 'warehouses', 'modules' => 'settings.users',
+            'users' => 'settings.users',
             'roles' => 'settings.roles',
-            'theme', 'taxes', 'units', 'payment-types', 'countries', 'states', 'password' => 'settings.theme',
-            default => 'settings.theme',
+            'modules' => 'settings.modules',
+            'warehouses', 'stores' => 'settings.stores',
+            'devices', 'printers', 'printer-groups' => 'settings.devices',
+            'documents' => 'settings.documents',
+            'messaging' => 'settings.messaging',
+            'pos' => 'settings.pos',
+            'audit' => 'settings.audit',
+            'taxes', 'units', 'payment-types', 'countries', 'states' => 'settings.references',
+            // The company card, the theme and the user's own password screen.
+            default => 'settings.company',
         };
     }
 
