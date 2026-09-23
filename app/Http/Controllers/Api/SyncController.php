@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Contact;
 use App\Models\ContactTransaction;
 use App\Models\Item;
+use App\Models\ItemVariant;
 use App\Models\ItemLocationStock;
 use App\Models\OnlineOrder;
 use App\Models\Purchase;
@@ -194,6 +195,33 @@ class SyncController extends Controller
             ->get(['id', 'name', 'rate', 'is_active', 'updated_at', 'deleted_at'])
             ->toArray();
 
+        // Sub-products travel with the metadata rather than with the items:
+        // they are few, they change rarely, and a till needs the whole set to
+        // draw a chooser — a paged slice of them would show half the sizes.
+        $variants = ItemVariant::where('tenant_id', $tenant->id)
+            ->when($since, fn ($q) => $q->where('updated_at', '>=', $since))
+            ->where('updated_at', '<=', $syncAt)
+            ->orderBy('item_id')->orderBy('sort_order')->orderBy('id')
+            ->get([
+                'id', 'item_id', 'name', 'barcode', 'sku',
+                'sale_price', 'sale_price_override', 'combination_key',
+                'is_active', 'sort_order', 'updated_at',
+            ])
+            ->map(fn (ItemVariant $variant): array => [
+                'id' => $variant->id,
+                'item_id' => $variant->item_id,
+                'name' => $variant->name,
+                'barcode' => $variant->barcode,
+                'sku' => $variant->sku,
+                // Resolved here so the till never has to know the
+                // inherit-from-the-article rule.
+                'sale_price' => $variant->price(),
+                'is_active' => (bool) $variant->is_active,
+                'sort_order' => (int) $variant->sort_order,
+                'updated_at' => $variant->updated_at?->toISOString(),
+            ])
+            ->toArray();
+
         return response()->json([
             'ok'               => true,
             'sync_at'          => $this->formatCursorTime($syncAt),
@@ -204,6 +232,7 @@ class SyncController extends Controller
             'brands'           => $brands,
             'units'            => $units,
             'taxes'            => $taxes,
+            'variants'         => $variants,
         ]);
     }
 
