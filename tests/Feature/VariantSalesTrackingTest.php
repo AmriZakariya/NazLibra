@@ -184,6 +184,26 @@ class VariantSalesTrackingTest extends TestCase
         $this->assertCount(0, app(VariantSalesReport::class)->byOptionValue($other));
     }
 
+    public function test_the_sales_pull_selects_the_size_column(): void
+    {
+        // That endpoint names its columns explicitly, so `variant_id` drops
+        // off silently — and every screen still reads right, because the line
+        // NAME carries "— L" while the column behind it is null.
+        $this->sell($this->shirt, 'L', 2);
+
+        $controller = file_get_contents(app_path('Http/Controllers/Api/SyncController.php'));
+        $matched = preg_match('/\x27items:([a-z_,]+)\x27/', $controller, $columns);
+        $this->assertSame(1, $matched, 'the sales pull should eager-load named columns');
+        $this->assertStringContainsString('variant_id', $columns[1]);
+
+        // And the column list actually hydrates it.
+        $sale = Sale::with(['items:'.$columns[1]])->latest('id')->firstOrFail();
+        $this->assertSame(
+            $this->shirt->variants()->where('name', 'L')->value('id'),
+            $sale->items->first()->variant_id,
+        );
+    }
+
     public function test_the_report_can_be_bounded_by_date(): void
     {
         $this->sell($this->shirt, 'L', 2);

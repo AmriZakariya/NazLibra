@@ -1408,14 +1408,48 @@ class LibraireProController extends Controller
                     continue;
                 }
 
-                $expected = $inventoryService->quantity($tenant->id, $itemId, null, $locationId);
-                StocktakeItem::create([
-                    'tenant_id' => $tenant->id,
-                    'stocktake_id' => $stocktake->id,
-                    'item_id' => $itemId,
-                    'expected_quantity' => $expected,
-                    'counted_quantity' => isset($line['counted_quantity']) ? max(0, (int) $line['counted_quantity']) : null,
-                ]);
+                $counted = isset($line['counted_quantity'])
+                    ? max(0, (int) $line['counted_quantity'])
+                    : null;
+
+                // An article sold by size is counted SIZE BY SIZE. One line
+                // for the article would compare a total against a total and
+                // then post the whole difference to the article's own pile,
+                // which for such an article is empty by design — the sizes
+                // would stay wrong and the correction would land nowhere
+                // anyone could see it.
+                $variants = ItemVariant::where('tenant_id', $tenant->id)
+                    ->where('item_id', $itemId)
+                    ->where('is_active', true)
+                    ->orderBy('sort_order')->orderBy('id')
+                    ->get();
+
+                if ($variants->isEmpty()) {
+                    StocktakeItem::create([
+                        'tenant_id' => $tenant->id,
+                        'stocktake_id' => $stocktake->id,
+                        'item_id' => $itemId,
+                        'expected_quantity' => $inventoryService->quantity($tenant->id, $itemId, null, $locationId),
+                        'counted_quantity' => $counted,
+                    ]);
+
+                    continue;
+                }
+
+                foreach ($variants as $variant) {
+                    StocktakeItem::create([
+                        'tenant_id' => $tenant->id,
+                        'stocktake_id' => $stocktake->id,
+                        'item_id' => $itemId,
+                        'variant_id' => $variant->id,
+                        'expected_quantity' => $inventoryService->quantity(
+                            $tenant->id, $itemId, $variant->id, $locationId,
+                        ),
+                        // A count typed against the article cannot be split
+                        // across its sizes, so each starts uncounted.
+                        'counted_quantity' => null,
+                    ]);
+                }
             }
 
             return $stocktake;

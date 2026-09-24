@@ -199,11 +199,17 @@ class VariantCheckoutTest extends TestCase
         // — empty by design — and record a sale nobody could attribute.
         $this->stock('L', 5);
 
+        // An otherwise VALID payload, so the refusal can only come from the
+        // guard. Missing a required field would fail validation first and the
+        // assertion would pass without the guard existing at all.
         $this->post(route('sales.store'), [
+            'sale_status' => 'paid',
+            'cash_amount' => 100,
             'items' => [['item_id' => $this->item->id, 'quantity' => 1, 'unit_price' => 100]],
-            'payment_method' => 'cash',
-            'paid_amount' => 100,
-        ])->assertSessionHasErrors();
+        ])->assertSessionHas('errors', fn ($errors) => str_contains(
+            implode(' ', $errors->all()),
+            'se vend par déclinaison',
+        ));
     }
 
     public function test_the_stock_list_counts_the_sizes_not_the_empty_article(): void
@@ -230,6 +236,51 @@ class VariantCheckoutTest extends TestCase
             'data-stock="'.($ownPile + 30).'"',
             substr($html, $position, 200),
         );
+    }
+
+    public function test_a_stocktake_counts_an_article_size_by_size(): void
+    {
+        // One line for the article would compare a total against a total and
+        // post the whole difference to the article's own pile — empty by
+        // design — leaving every size still wrong.
+        $this->stock('S', 12);
+        $this->stock('L', 18);
+
+        $this->post(route('catalog.stocktakes.store'), [
+            'location_id' => $this->location->id,
+            'items' => [['item_id' => $this->item->id, 'counted_quantity' => '']],
+        ])->assertRedirect();
+
+        $lines = \App\Models\Stocktake::latest('id')->firstOrFail()->items()->get();
+
+        $this->assertCount(2, $lines, 'one line per size');
+        $this->assertEqualsCanonicalizing(
+            [12, 18],
+            $lines->pluck('expected_quantity')->map(fn ($q) => (int) $q)->all(),
+        );
+        $this->assertTrue($lines->every(fn ($l) => $l->variant_id !== null));
+    }
+
+    public function test_counting_a_size_short_corrects_that_size(): void
+    {
+        $this->stock('S', 12);
+        $this->stock('L', 18);
+        $this->post(route('catalog.stocktakes.store'), [
+            'location_id' => $this->location->id,
+            'items' => [['item_id' => $this->item->id, 'counted_quantity' => '']],
+        ])->assertRedirect();
+
+        $stocktake = \App\Models\Stocktake::latest('id')->firstOrFail();
+        $large = $this->item->variants()->where('name', 'L')->firstOrFail();
+        $line = $stocktake->items()->where('variant_id', $large->id)->firstOrFail();
+
+        $this->post(route('catalog.stocktakes.counts.update', $stocktake), [
+            'counts' => [$line->id => 15],
+        ])->assertRedirect();
+        $this->post(route('catalog.stocktakes.complete', $stocktake))->assertRedirect();
+
+        $this->assertSame(15, $this->available('L'), 'the counted size is corrected');
+        $this->assertSame(12, $this->available('S'), 'the others are untouched');
     }
 
     public function test_the_variants_own_price_is_charged(): void
