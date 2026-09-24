@@ -3924,7 +3924,11 @@
                     'description' => 'Identité, activité, magasins et règles de vente.',
                     'items' => [
                         'company' => 'Société',
-                        'warehouses' => 'Magasins',
+                        // « Magasins » nommait la liste d'après une seule des
+                        // choses qu'elle contient : il y a aussi des dépôts,
+                        // des rayons et des succursales, et c'est « emplacement »
+                        // que disent l'écran de transfert et tout le stock.
+                        'warehouses' => 'Emplacements',
                         'store' => 'Caisse & stock',
                         'documents' => 'PDF',
                         'theme' => 'Thème',

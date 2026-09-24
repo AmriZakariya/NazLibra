@@ -272,8 +272,13 @@
                     </label>
                 </div>
                 @if ($locations->count() < 2)
+                    {{-- Un lien, pas un itinéraire : le message envoyait vers
+                         « Paramètres → Emplacements », une entrée qui n'existe
+                         pas — la page s'appelle Store & activité → Emplacements. --}}
                     <p class="rounded-lg bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
-                        Un transfert a besoin d'au moins deux emplacements. Créez-en un second dans Paramètres → Emplacements.
+                        Un transfert a besoin d'au moins deux emplacements.
+                        <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="font-semibold underline underline-offset-2">Créez-en un second</a>
+                        dans Paramètres → Store &amp; activité → Emplacements.
                     </p>
                 @endif
 
@@ -890,21 +895,120 @@
         <section class="mt-6 space-y-5">
             <div class="grid gap-3 md:grid-cols-2"><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Transferts</span><p class="mt-2 text-2xl font-semibold">{{ $stockStats['transfers'] }}</p></article><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Quantité ce mois</span><p class="mt-2 text-2xl font-semibold">{{ number_format($stockStats['transferred_month'], 0, ',', ' ') }}</p></article></div>
             <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h2 class="font-semibold">Liste de transfert</h2><p class="mt-1 text-sm text-slate-500">Suivi des déplacements entre magasins, dépôts et rayons.</p></div><a href="{{ route('stock', ['panel' => 'stock-transfer-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouveau transfert</a></div><form method="GET" action="{{ route('stock') }}" class="app-action-form mt-4"><input type="hidden" name="panel" value="stock-transfers"><input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Rechercher n°, article, magasin, entrepôt..."><input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('stock', ['panel' => 'stock-transfers']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div></form></article>
-            <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="overflow-x-auto"><table class="w-full min-w-[1040px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N°</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Source</th><th class="px-3 py-3">Destination</th><th class="px-3 py-3 text-right">Quantité</th><th class="px-3 py-3">Articles</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($stockTransfers as $transfer)<tr><td class="px-3 py-3 font-semibold">{{ $transfer->number }}</td><td class="px-3 py-3">{{ $transfer->transferred_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3">{{ collect([$transfer->store_from, $transfer->warehouse_from])->filter()->implode(' · ') ?: '—' }}</td><td class="px-3 py-3">{{ collect([$transfer->store_to, $transfer->warehouse_to])->filter()->implode(' · ') ?: '—' }}</td><td class="px-3 py-3 text-right font-semibold">{{ number_format($transfer->total_quantity, 0, ',', ' ') }}</td><td class="px-3 py-3 text-sm text-slate-500">{{ collect($transfer->lines)->pluck('name')->take(2)->implode(', ') }}{{ count($transfer->lines ?? []) > 2 ? '…' : '' }}</td><td class="px-3 py-3">@if ($transfer->isCancelled())<span class="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">Annulé</span>@else<span class="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">Effectué</span>@endif</td><td class="px-3 py-3 text-right"><button type="button" onclick="document.getElementById('transfer-detail-{{ $transfer->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</button></td></tr><dialog id="transfer-detail-{{ $transfer->id }}" class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"><div class="border-b border-slate-200 p-5 dark:border-white/10"><div class="flex justify-between gap-4"><div><p class="text-sm font-semibold text-brand">Transfert stock</p><h3 class="mt-1 text-xl font-semibold">{{ $transfer->number }}</h3><p class="mt-1 text-sm text-slate-500">{{ collect([$transfer->store_from, $transfer->warehouse_from])->filter()->implode(' · ') ?: 'Source' }} → {{ collect([$transfer->store_to, $transfer->warehouse_to])->filter()->implode(' · ') ?: 'Destination' }}</p></div><button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 dark:border-white/10" type="button">×</button></div></div><div class="space-y-2 p-5">@foreach ($transfer->lines as $line)<div class="flex justify-between rounded-lg bg-slate-50 p-3 text-sm dark:bg-white/5"><strong>{{ $line['name'] }}</strong><span>{{ $line['quantity'] }} unité(s)</span></div>@endforeach
-                @if ($transfer->isCancelled())
-                    <p class="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">Annulé le {{ $transfer->cancelled_at?->format('d/m/Y H:i') }} — {{ $transfer->cancellation_reason }}. Le stock est retourné à la source.</p>
-                @elseif ($transfer->isReversible())
-                    {{-- Annulation = mouvements inverses, pas une suppression : les
-                         mouvements ont bien eu lieu, et un registre d'inventaire
-                         modifiable après coup ne répond à aucune question. --}}
-                    <form action="{{ route('catalog.stock-transfers.cancel', $transfer) }}" method="POST" class="flex flex-wrap items-end gap-2 border-t border-slate-200 pt-4 dark:border-white/10" onsubmit="return confirm('Annuler ce transfert ? Le stock sera renvoyé à la source.')">
-                        @csrf
-                        <label class="flex-1 space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Motif d'annulation</span><input name="reason" required minlength="3" maxlength="500" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Erreur de saisie"></label>
-                        <button class="h-10 rounded-lg border border-rose-200 px-4 text-xs font-semibold text-rose-600 dark:border-rose-500/20">Annuler le transfert</button>
-                    </form>
-                @else
-                    <p class="border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-white/10">Transfert enregistré sans emplacements : annulation automatique impossible.</p>
-                @endif</div></dialog>@empty<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun transfert trouvé.</td></tr>@endforelse</tbody></table></div><div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $stockTransfers->links() }}</div></article>
+            <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="overflow-x-auto"><table class="w-full min-w-[1040px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N°</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Source</th><th class="px-3 py-3">Destination</th><th class="px-3 py-3 text-right">Quantité</th><th class="px-3 py-3">Articles</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($stockTransfers as $transfer)<tr><td class="px-3 py-3 font-semibold">{{ $transfer->number }}</td><td class="px-3 py-3">{{ $transfer->transferred_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3">{{ collect([$transfer->store_from, $transfer->warehouse_from])->filter()->implode(' · ') ?: '—' }}</td><td class="px-3 py-3">{{ collect([$transfer->store_to, $transfer->warehouse_to])->filter()->implode(' · ') ?: '—' }}</td><td class="px-3 py-3 text-right font-semibold">{{ number_format($transfer->total_quantity, 0, ',', ' ') }}</td><td class="px-3 py-3 text-sm text-slate-500">{{ collect($transfer->lines)->pluck('name')->take(2)->implode(', ') }}{{ count($transfer->lines ?? []) > 2 ? '…' : '' }}</td><td class="px-3 py-3">@if ($transfer->isCancelled())<span class="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">Annulé</span>@else<span class="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">Effectué</span>@endif</td><td class="px-3 py-3 text-right"><button type="button" onclick="document.getElementById('transfer-detail-{{ $transfer->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</button></td></tr>@empty<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun transfert trouvé.</td></tr>@endforelse</tbody></table></div>
+                {{-- Les dialogues vivent HORS du tableau. Un <dialog> entre
+                     deux <tr> est du HTML invalide : le parseur le sort du
+                     tableau et emporte son contenu avec lui, ce qui a vidé
+                     ce dialogue le jour où il a contenu son propre tableau. --}}
+                @foreach ($stockTransfers as $transfer)
+                    <dialog id="transfer-detail-{{ $transfer->id }}" class="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                    {{-- Ce dialogue s'ouvre juste après la création : c'est un
+                         reçu, pas un formulaire d'annulation. L'annulation est
+                         repliée en bas — elle ne doit pas être la première
+                         chose qu'on voit après avoir déplacé du stock. --}}
+                    <div class="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-white/10">
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-brand">Transfert de stock</p>
+                            <div class="mt-1 flex flex-wrap items-center gap-2">
+                                <h3 class="text-xl font-semibold">{{ $transfer->number }}</h3>
+                                @if ($transfer->isCancelled())
+                                    <x-status-pill tone="danger">Annulé</x-status-pill>
+                                @else
+                                    <x-status-pill tone="success">Effectué</x-status-pill>
+                                @endif
+                            </div>
+                        </div>
+                        <button class="dialog-close grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                    </div>
+
+                    <div class="max-h-[70dvh] overflow-y-auto p-5">
+                        <div class="flex flex-col items-stretch gap-2 rounded-xl border border-slate-200 p-3 sm:flex-row sm:items-center dark:border-white/10">
+                            <div class="min-w-0 flex-1">
+                                <span class="text-xs font-semibold uppercase text-slate-400">Source</span>
+                                <p class="truncate font-semibold">{{ collect([$transfer->store_from, $transfer->warehouse_from])->filter()->implode(' · ') ?: '—' }}</p>
+                            </div>
+                            <span class="grid size-8 shrink-0 place-items-center self-center rounded-full bg-brand/10 text-brand">→</span>
+                            <div class="min-w-0 flex-1 sm:text-right">
+                                <span class="text-xs font-semibold uppercase text-slate-400">Destination</span>
+                                <p class="truncate font-semibold">{{ collect([$transfer->store_to, $transfer->warehouse_to])->filter()->implode(' · ') ?: '—' }}</p>
+                            </div>
+                        </div>
+
+                        <dl class="mt-3 grid gap-3 sm:grid-cols-3">
+                            <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+                                <dt class="text-xs font-semibold uppercase text-slate-400">Date</dt>
+                                <dd class="mt-1 font-semibold">{{ $transfer->transferred_at?->format('d/m/Y H:i') ?: '—' }}</dd>
+                            </div>
+                            <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+                                <dt class="text-xs font-semibold uppercase text-slate-400">Quantité totale</dt>
+                                <dd class="mt-1 font-semibold tabular-nums">{{ number_format($transfer->total_quantity, 0, ',', ' ') }} unité(s)</dd>
+                            </div>
+                            <div class="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
+                                <dt class="text-xs font-semibold uppercase text-slate-400">Créé par</dt>
+                                <dd class="mt-1 truncate font-semibold">{{ $transfer->creator?->name ?: '—' }}</dd>
+                            </div>
+                        </dl>
+
+                        <h4 class="mt-5 text-xs font-semibold uppercase text-slate-400">{{ count($transfer->lines ?? []) }} article(s) déplacé(s)</h4>
+                        <div class="mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
+                            <table class="w-full text-left text-sm">
+                                <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                    @foreach ($transfer->lines ?? [] as $line)
+                                        <tr>
+                                            <td class="px-3 py-2.5">
+                                                <strong class="block">{{ $line['name'] }}</strong>
+                                                @php $reference = collect([$line['item_code'] ?? null, $line['barcode'] ?? null])->filter()->implode(' · '); @endphp
+                                                @if ($reference !== '')
+                                                    <span class="text-xs text-slate-500">{{ $reference }}</span>
+                                                @endif
+                                                @if (! empty($line['note']))
+                                                    <span class="mt-0.5 block text-xs italic text-slate-500">{{ $line['note'] }}</span>
+                                                @endif
+                                            </td>
+                                            <td class="w-28 px-3 py-2.5 text-right font-semibold tabular-nums">{{ number_format($line['quantity'], 0, ',', ' ') }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                                <tfoot class="border-t border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5">
+                                    <tr>
+                                        <td class="px-3 py-2.5 text-xs font-semibold uppercase text-slate-500">Total</td>
+                                        <td class="px-3 py-2.5 text-right font-semibold tabular-nums">{{ number_format($transfer->total_quantity, 0, ',', ' ') }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+
+                        @if (filled($transfer->note))
+                            <div class="mt-3 rounded-xl border border-slate-200 p-3 dark:border-white/10">
+                                <span class="text-xs font-semibold uppercase text-slate-400">Note</span>
+                                <p class="mt-1 text-sm">{{ $transfer->note }}</p>
+                            </div>
+                        @endif
+
+                        @if ($transfer->isCancelled())
+                            <div class="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+                                <strong class="block">Annulé le {{ $transfer->cancelled_at?->format('d/m/Y H:i') }}{{ $transfer->canceller?->name ? ' par '.$transfer->canceller->name : '' }}</strong>
+                                <span class="mt-0.5 block">{{ $transfer->cancellation_reason }} — le stock est retourné à la source.</span>
+                            </div>
+                        @elseif ($transfer->isReversible())
+                            {{-- Annulation = mouvements inverses, pas une suppression :
+                                 les mouvements ont bien eu lieu, et un registre
+                                 d'inventaire modifiable après coup ne répond à
+                                 aucune question. --}}
+                            <details class="mt-4 rounded-xl border border-slate-200 dark:border-white/10">
+                                <summary class="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Annuler ce transfert</summary>
+                                <form action="{{ route('catalog.stock-transfers.cancel', $transfer) }}" method="POST" class="flex flex-wrap items-end gap-2 border-t border-slate-200 p-4 dark:border-white/10" onsubmit="return confirm('Annuler {{ $transfer->number }} ? Le stock repart vers la source.')">
+                                    @csrf
+                                    <label class="flex-1 space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Motif d'annulation</span><input name="reason" required minlength="3" maxlength="500" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Erreur de saisie"></label>
+                                    <button class="h-10 rounded-lg border border-rose-200 px-4 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-500/20 dark:hover:bg-rose-500/10">Annuler le transfert</button>
+                                </form>
+                            </details>
+                        @else
+                            <p class="mt-4 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-white/10">Transfert enregistré sans emplacements : annulation automatique impossible.</p>
+                        @endif
+                    </div>
+                </dialog>
+                @endforeach<div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $stockTransfers->links() }}</div></article>
         </section>
     @elseif ($panel === 'stocktake-add')
         <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">

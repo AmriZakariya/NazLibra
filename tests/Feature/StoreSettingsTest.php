@@ -698,4 +698,87 @@ class StoreSettingsTest extends TestCase
         $this->assertStringContainsString('data-transfer-total', $js);
         $this->assertStringContainsString('data-transfer-submit', $js);
     }
+
+    // ── The route the warning gives is a route that exists ────────────────────
+
+    /**
+     * The labels the settings screen actually shows for a section, as the
+     * group tab and the item button inside it.
+     *
+     * @return array{group: string, item: string}
+     */
+    private function settingsPathFor(string $section): array
+    {
+        $content = $this->get('/modules/settings?section='.$section)->assertOk()->getContent();
+
+        // The ACTIVE group's own heading, which the page prints just above the
+        // buttons for the sections inside it — not the first tab in the strip.
+        $items = \Illuminate\Support\Str::between($content, 'aria-label="Options du groupe actif"', '</nav>');
+        $heading = \Illuminate\Support\Str::beforeLast(
+            \Illuminate\Support\Str::before($content, 'aria-label="Options du groupe actif"'),
+            '</p>',
+        );
+        $group = trim(\Illuminate\Support\Str::afterLast(
+            \Illuminate\Support\Str::beforeLast($heading, '</p>'),
+            '>',
+        ));
+
+        preg_match('#section='.$section.'[^>]*>\s*([^<]+?)\s*</a>#', $items, $match);
+
+        // Decoded, because both sides of the comparison are page text:
+        // the heading holds `&amp;` and so does the warning.
+        return [
+            'group' => html_entity_decode($group),
+            'item' => html_entity_decode($match[1] ?? ''),
+        ];
+    }
+
+    public function test_the_transfer_warning_names_a_settings_entry_that_exists(): void
+    {
+        $this->withStores(['a' => $this->store('Magasin A')]);
+        $labels = $this->settingsPathFor('warehouses');
+
+        $this->assertNotSame('', $labels['item'], 'the warehouses section should have a nav label');
+
+        $warning = \Illuminate\Support\Str::between(
+            $this->get('/stock?panel=stock-transfer-add')->assertOk()->getContent(),
+            'Un transfert a besoin',
+            '</p>',
+        );
+
+        // It read "Paramètres → Emplacements", and no such entry existed: the
+        // page sat under Store & activité and was called Magasins. Someone
+        // following that path finds nothing and gives up.
+        $this->assertStringContainsString($labels['item'], $warning);
+        $this->assertStringContainsString($labels['group'], html_entity_decode($warning));
+    }
+
+    public function test_the_transfer_warning_links_to_that_page(): void
+    {
+        $this->withStores(['a' => $this->store('Magasin A')]);
+
+        $warning = \Illuminate\Support\Str::between(
+            $this->get('/stock?panel=stock-transfer-add')->assertOk()->getContent(),
+            'Un transfert a besoin',
+            '</p>',
+        );
+
+        // Prose describing a route is a route someone has to walk. A link is
+        // one click, and it cannot go stale the way the wording did.
+        $this->assertStringContainsString('section=warehouses', $warning);
+    }
+
+    public function test_the_settings_entry_is_named_for_everything_it_holds(): void
+    {
+        $this->withStores([
+            'a' => $this->store('Magasin A'),
+            'b' => $this->store('Dépôt B', type: 'warehouse'),
+            'c' => $this->store('Rayon C', type: 'area'),
+        ]);
+
+        // "Magasins" named the list after one of the four things in it, while
+        // the transfer screen, the stock screens and the page's own copy all
+        // say emplacement.
+        $this->assertSame('Emplacements', $this->settingsPathFor('warehouses')['item']);
+    }
 }

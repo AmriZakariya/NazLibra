@@ -267,12 +267,12 @@
                     ['label' => 'Modèles de messagerie', 'icon' => '≡', 'href' => route('module', ['module' => 'settings', 'section' => 'message-templates'])],
                 ]],
                 ['key' => 'reports', 'label' => 'Rapports', 'icon' => '▥', 'href' => route('module', 'reports')],
-                ['key' => 'stores', 'label' => 'Magasin', 'icon' => '▣', 'href' => route('module', ['module' => 'settings', 'section' => 'warehouses'])],
+                ['key' => 'stores', 'label' => 'Emplacements', 'icon' => '▣', 'href' => route('module', ['module' => 'settings', 'section' => 'warehouses'])],
                 ['key' => 'settings', 'label' => 'Paramètres', 'icon' => '⚙', 'href' => route('module', 'settings'), 'children' => [
                     ['label' => 'Vue d’ensemble', 'icon' => '◉', 'href' => route('module', ['module' => 'settings', 'section' => 'overview'])],
                     ['label' => 'Store & activité', 'icon' => '▣', 'href' => route('module', ['module' => 'settings', 'section' => 'company'])],
                     ['label' => 'Société', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'company'])],
-                    ['label' => 'Magasins', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'warehouses'])],
+                    ['label' => 'Emplacements', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'warehouses'])],
                     ['label' => 'Caisse & stock', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'store'])],
                     ['label' => 'PDF', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'documents'])],
                     ['label' => 'Thème', 'icon' => '·', 'href' => route('module', ['module' => 'settings', 'section' => 'theme'])],
@@ -636,7 +636,7 @@
                                                 </select>
                                                 <button class="w-full rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">{{ $tr('Changer') }}</button>
                                             </form>
-                                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="mt-2 block rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $tr('Gérer les magasins') }}</a>
+                                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="mt-2 block rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $tr('Gérer les emplacements') }}</a>
                                         </div>
                                     </details>
                                     @endif
@@ -682,7 +682,7 @@
                                         </select>
                                         <button class="w-full rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">{{ $tr('Changer') }}</button>
                                     </form>
-                                    <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="mt-2 block rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $tr('Gérer les magasins') }}</a>
+                                    <a href="{{ route('module', ['module' => 'settings', 'section' => 'warehouses']) }}" class="mt-2 block rounded-lg border border-slate-200 px-3 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $tr('Gérer les emplacements') }}</a>
                                 </div>
                             </details>
                             @endif

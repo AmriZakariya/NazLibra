@@ -552,7 +552,7 @@ class LibraireProController extends Controller
                 'description' => 'Configuration société, magasins, sécurité, référentiels et intégrations.',
                 'features' => [
                     $feature('Société', 'Profil magasin, fiscalité, formats, devise, numérotation, documents et conditions.', route('module', ['module' => 'settings', 'section' => 'company'])),
-                    $feature('Magasins / dépôts', 'Catalogue magasins, dépôt, rayon, magasin courant et activation.', route('module', ['module' => 'settings', 'section' => 'warehouses'])),
+                    $feature('Emplacements', 'Magasins, dépôts, rayons et succursales : emplacement courant, contacts et activation.', route('module', ['module' => 'settings', 'section' => 'warehouses'])),
                     $feature('Caisse & stock', 'Règles POS, stock, seuils, coût achat, inventaire et tiroir navbar.', route('module', ['module' => 'settings', 'section' => 'store'])),
                     $feature('PDF', 'Réglages documents PDF, branding et informations société liées.', route('module', ['module' => 'settings', 'section' => 'documents'])),
                     $feature('Utilisateurs', 'Gestion des accès utilisateurs, rôles, magasins, permissions directes, PIN et photo.', route('module', ['module' => 'settings', 'section' => 'users'])),
@@ -8987,11 +8987,15 @@ class LibraireProController extends Controller
     private function stockTransfersQuery(Tenant $tenant, Request $request): Builder
     {
         $query = trim((string) $request->query('q'));
-        $detailTransfer = (int) $request->query('detail_transfer');
 
         return StockTransfer::query()
             ->where('tenant_id', $tenant->id)
-            ->when($detailTransfer > 0, fn (Builder $builder) => $builder->whereKey($detailTransfer))
+            // Who made it and who cancelled it: a movement of stock with no
+            // name against it answers nothing when someone asks next week.
+            ->with(['creator:id,name', 'canceller:id,name'])
+            // `detail_transfer` only opens a dialog. It used to narrow the
+            // LIST to that one row as well, so creating a transfer left the
+            // shop looking at a list of one, wondering where the rest went.
             ->when($query !== '', function (Builder $builder) use ($query): void {
                 $builder->where(function (Builder $builder) use ($query): void {
                     $builder->where('number', 'like', "%{$query}%")
