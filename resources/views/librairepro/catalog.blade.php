@@ -1898,6 +1898,98 @@
                 </article>
             </div>
 
+            {{-- Options de ligne : elles n'ont PAS de stock propre. Une option
+                 qui en a est une déclinaison et se gère au-dessus — sinon un
+                 burger à huit garnitures deviendrait 256 sous-produits. --}}
+            <article class="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h3 class="font-semibold">Options de ligne</h3>
+                        <p class="mt-1 max-w-3xl text-sm text-slate-500">Suppléments, cuisson, emballage… Elles changent le prix et le ticket, et peuvent consommer le stock d'un autre article. Pas de stock propre : pour ça, créez une déclinaison.</p>
+                    </div>
+                </div>
+
+                <form action="{{ route('catalog.modifier-groups.store') }}" method="POST" class="mt-4 flex flex-wrap items-end gap-2">
+                    @csrf
+                    <label class="flex-1 space-y-1"><span class="text-xs font-semibold uppercase text-slate-500">Nom du groupe</span><input name="name" required maxlength="120" placeholder="Suppléments" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                    <label class="w-28 space-y-1"><span class="text-xs font-semibold uppercase text-slate-500">Min.</span><input name="min_select" type="number" min="0" max="20" value="0" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                    <label class="w-28 space-y-1"><span class="text-xs font-semibold uppercase text-slate-500">Max.</span><input name="max_select" type="number" min="1" max="20" placeholder="illimité" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                    <button class="h-10 rounded-lg bg-brand px-4 text-sm font-semibold text-white">Créer le groupe</button>
+                </form>
+                @error('name')<p class="mt-2 text-xs font-semibold text-rose-600">{{ $message }}</p>@enderror
+                @error('max_select')<p class="mt-2 text-xs font-semibold text-rose-600">{{ $message }}</p>@enderror
+
+                <div class="mt-4 space-y-3">
+                    @forelse ($modifierGroups as $group)
+                        <details class="rounded-xl border border-slate-200 p-4 dark:border-white/10">
+                            <summary class="flex cursor-pointer list-none items-center justify-between gap-3">
+                                <span>
+                                    <strong>{{ $group->name }}</strong>
+                                    @unless($group->is_active)<span class="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-white/10">Désactivé</span>@endunless
+                                    <small class="mt-0.5 block text-xs text-slate-500">
+                                        {{ $group->min_select > 0 ? 'obligatoire, min '.$group->min_select : 'facultatif' }}
+                                        · max {{ $group->max_select ?? '∞' }}
+                                        · {{ $group->modifiers->count() }} choix
+                                        · {{ $group->items->count() }} article(s)
+                                    </small>
+                                </span>
+                                <span class="text-xs font-semibold text-brand">Modifier</span>
+                            </summary>
+
+                            <div class="mt-3 space-y-1.5">
+                                @foreach ($group->modifiers as $modifier)
+                                    <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-white/5 {{ $modifier->is_active ? '' : 'opacity-50' }}">
+                                        <span>
+                                            <strong>{{ $modifier->name }}</strong>
+                                            <span class="ml-2 font-semibold {{ (float) $modifier->price_delta < 0 ? 'text-emerald-600' : 'text-slate-500' }}">
+                                                {{ (float) $modifier->price_delta > 0 ? '+' : '' }}{{ $money($modifier->price_delta) }}
+                                            </span>
+                                            @if ($modifier->linkedItem)
+                                                <small class="mt-0.5 block text-xs text-slate-500">consomme {{ rtrim(rtrim(number_format((float) $modifier->consumes_quantity, 3, ',', ' '), '0'), ',') }} × {{ $modifier->linkedItem->title }}</small>
+                                            @endif
+                                        </span>
+                                        <form action="{{ route('catalog.modifiers.destroy', $modifier) }}" method="POST" onsubmit="return confirm('Retirer cette option ?')">@csrf @method('DELETE')<button class="text-xs font-semibold text-rose-600">Retirer</button></form>
+                                    </div>
+                                @endforeach
+                            </div>
+
+                            <form action="{{ route('catalog.modifiers.store', $group) }}" method="POST" class="mt-3 grid gap-2 lg:grid-cols-[1.4fr_110px_1.4fr_110px_auto]">
+                                @csrf
+                                <input name="name" required maxlength="120" placeholder="Fromage" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                <input name="price_delta" type="number" step="0.01" value="0" placeholder="+/- DH" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                <select name="linked_item_id" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                    <option value="">Ne consomme aucun stock</option>
+                                    @foreach ($variantItems as $candidate)
+                                        <option value="{{ $candidate->id }}">{{ $candidate->title }}</option>
+                                    @endforeach
+                                </select>
+                                <input name="consumes_quantity" type="number" step="0.001" min="0.001" value="1" title="Quantité consommée" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                <button class="h-10 rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">+ Option</button>
+                            </form>
+
+                            <form action="{{ route('catalog.modifier-groups.assign', $group) }}" method="POST" class="mt-4 border-t border-slate-200 pt-3 dark:border-white/10">
+                                @csrf
+                                <p class="text-xs font-semibold uppercase text-slate-500">Articles concernés</p>
+                                <div class="mt-2 grid max-h-40 gap-1.5 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+                                    @foreach ($variantItems as $candidate)
+                                        <label class="flex items-center gap-2 text-sm">
+                                            <input type="checkbox" name="item_ids[]" value="{{ $candidate->id }}" @checked($group->items->contains($candidate->id)) class="size-4 accent-[var(--brand-primary)]">
+                                            <span class="truncate">{{ $candidate->title }}</span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                                <div class="mt-3 flex justify-between gap-2">
+                                    <button formaction="{{ route('catalog.modifier-groups.destroy', $group) }}" formmethod="POST" class="text-xs font-semibold text-rose-600" onclick="return confirm('Supprimer ce groupe ?')" name="_method" value="DELETE">Supprimer le groupe</button>
+                                    <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer les articles</button>
+                                </div>
+                            </form>
+                        </details>
+                    @empty
+                        <p class="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500 dark:border-white/10">Aucun groupe d'options. Créez « Suppléments » ou « Cuisson » ci-dessus.</p>
+                    @endforelse
+                </div>
+            </article>
+
             <dialog id="variant-create-dialog" class="app-dialog w-[min(920px,calc(100vw-1.5rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
                 <form action="{{ route('catalog.variants.store') }}" method="POST" data-smart-validation data-error-fields='@json($errors->keys())'>
                     @csrf

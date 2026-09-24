@@ -865,6 +865,12 @@ class LibraireProController extends Controller
             'variantOptions' => VariantOption::where('tenant_id', $tenant->id)->orderBy('name')->get(),
             // The axes an article can vary on, with their values in the
             // shop's own order — S, M, L is not alphabetical.
+            // Line options, with what each one eats into. Eager-loaded so the
+            // panel does not fire a query per choice.
+            'modifierGroups' => \App\Models\ModifierGroup::with(['modifiers.linkedItem:id,title', 'items:id,title'])
+                ->where('tenant_id', $tenant->id)
+                ->orderBy('sort_order')->orderBy('id')
+                ->get(),
             'optionTypes' => \App\Models\OptionType::with(['values'])
                 ->where('tenant_id', $tenant->id)
                 ->orderBy('sort_order')->orderBy('id')

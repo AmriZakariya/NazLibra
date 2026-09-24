@@ -192,8 +192,17 @@ class VariantSalesTrackingTest extends TestCase
         $this->sell($this->shirt, 'L', 2);
 
         $controller = file_get_contents(app_path('Http/Controllers/Api/SyncController.php'));
-        $matched = preg_match('/\x27items:([a-z_,]+)\x27/', $controller, $columns);
-        $this->assertSame(1, $matched, 'the sales pull should eager-load named columns');
+        // The SALE's items, specifically: other relations on that controller
+        // are named `items` too, and matching the first one would pass or
+        // fail on where an unrelated eager load happens to sit in the file.
+        $matched = preg_match_all('/\x27items:([a-z_,]+)\x27/', $controller, $all);
+        $this->assertGreaterThan(0, $matched, 'the sales pull should eager-load named columns');
+        $lists = array_values(array_filter(
+            $all[1],
+            fn (string $list): bool => str_contains($list, 'sale_id'),
+        ));
+        $this->assertCount(1, $lists, 'exactly one eager load should name the sale line columns');
+        $columns = [1 => $lists[0]];
         $this->assertStringContainsString('variant_id', $columns[1]);
 
         // And the column list actually hydrates it.

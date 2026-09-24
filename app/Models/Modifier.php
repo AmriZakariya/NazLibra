@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * One choice on a line: "supplément fromage, +5 DH".
@@ -37,6 +38,12 @@ class Modifier extends Model
     public function linkedItem(): BelongsTo
     {
         return $this->belongsTo(Item::class, 'linked_item_id');
+    }
+
+    /** Sold lines that carry this option — what stops a hard delete. */
+    public function saleLines(): HasMany
+    {
+        return $this->hasMany(SaleItemModifier::class);
     }
 
     public function consumesStock(): bool

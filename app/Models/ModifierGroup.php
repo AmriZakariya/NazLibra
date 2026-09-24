@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /** The rules around a set of line options: "choose 0 to 3 suppléments". */
@@ -18,6 +19,14 @@ class ModifierGroup extends Model
     public function modifiers(): HasMany
     {
         return $this->hasMany(Modifier::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /** The articles that offer this group. */
+    public function items(): BelongsToMany
+    {
+        return $this->belongsToMany(Item::class, 'item_modifier_groups')
+            ->withPivot(['tenant_id', 'sort_order'])
+            ->withTimestamps();
     }
 
     /** A group nobody can skip: the cashier must pick before the line is valid. */

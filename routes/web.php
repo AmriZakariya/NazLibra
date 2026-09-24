@@ -8,6 +8,7 @@ use App\Http\Controllers\Castlit\SubscriptionAdminController;
 use App\Http\Controllers\Castlit\SubscriptionController;
 use App\Http\Controllers\CommercialDocumentController;
 use App\Http\Controllers\LibraireProController;
+use App\Http\Controllers\ModifierController;
 use App\Http\Controllers\ProductOptionController;
 use App\Http\Controllers\OnlineStoreController;
 use App\Http\Controllers\SetupController;
@@ -244,6 +245,15 @@ Route::post('/catalogue/options/{optionType}/valeurs', [ProductOptionController:
 Route::put('/catalogue/options/valeurs/{optionValue}', [ProductOptionController::class, 'updateValue'])->name('catalog.option-values.update');
 Route::delete('/catalogue/options/valeurs/{optionValue}', [ProductOptionController::class, 'destroyValue'])->name('catalog.option-values.destroy');
 Route::post('/catalogue/articles/{item}/declinaisons', [ProductOptionController::class, 'generate'])->name('catalog.variants.generate');
+
+// Line options (modifiers): price, ticket, and sometimes another article's stock.
+Route::post('/catalogue/options-ligne', [ModifierController::class, 'storeGroup'])->name('catalog.modifier-groups.store');
+Route::put('/catalogue/options-ligne/{modifierGroup}', [ModifierController::class, 'updateGroup'])->name('catalog.modifier-groups.update');
+Route::delete('/catalogue/options-ligne/{modifierGroup}', [ModifierController::class, 'destroyGroup'])->name('catalog.modifier-groups.destroy');
+Route::post('/catalogue/options-ligne/{modifierGroup}/articles', [ModifierController::class, 'assign'])->name('catalog.modifier-groups.assign');
+Route::post('/catalogue/options-ligne/{modifierGroup}/choix', [ModifierController::class, 'storeModifier'])->name('catalog.modifiers.store');
+Route::put('/catalogue/options-ligne/choix/{modifier}', [ModifierController::class, 'updateModifier'])->name('catalog.modifiers.update');
+Route::delete('/catalogue/options-ligne/choix/{modifier}', [ModifierController::class, 'destroyModifier'])->name('catalog.modifiers.destroy');
 Route::get('/variantes', [VariantController::class, 'index'])->name('variants.index');
 Route::get('/variantes/data', [VariantController::class, 'data'])->name('variants.data');
 Route::get('/variantes/ajouter', [VariantController::class, 'create'])->name('variants.create');

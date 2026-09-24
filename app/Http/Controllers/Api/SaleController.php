@@ -45,6 +45,7 @@ class SaleController extends Controller
         private readonly InventoryLedgerService $ledger,
         private readonly DocumentNumberGenerator $numbers,
         private readonly LoyaltyService $loyalty,
+        private readonly \App\Services\Catalogue\ModifierService $modifiers,
     ) {}
 
     /**
@@ -155,6 +156,11 @@ class SaleController extends Controller
             // Which sub-product, when the article has any. The terminal sends
             // it so the sale deducts the right pile and stays attributable.
             'items.*.variant_id'       => ['nullable', 'integer'],
+            // The options ticked on the line. The server re-prices from them
+            // and consumes any linked stock, so a till that keeps them to
+            // itself sells a supplement nobody is charged for or counts.
+            'items.*.modifier_ids'     => ['nullable', 'array'],
+            'items.*.modifier_ids.*'   => ['integer'],
             'items.*.custom_name'      => ['nullable', 'string', 'max:255'],
             'items.*.quantity'         => ['required', 'integer', 'min:1'],
             'items.*.unit_price'       => ['nullable', 'numeric', 'min:0'],
@@ -259,6 +265,7 @@ class SaleController extends Controller
                 $saleLines[] = [
                     'item'        => null,
                     'variant'     => null,
+                    'modifiers'   => collect(),
                     'custom_name' => trim($line['custom_name']),
                     'quantity'    => (int) $line['quantity'],
                     'unit_price'  => $unitPrice,
@@ -292,9 +299,22 @@ class SaleController extends Controller
                 ]);
             }
 
-            $unitPrice  = $line['unit_price'] !== null
+            // Validated against the groups the article offers: a till that
+            // sends an option the shop withdrew is told, not quietly given a
+            // different order.
+            try {
+                $modifiers = $this->modifiers->resolve($item, $line['modifier_ids'] ?? []);
+            } catch (\RuntimeException $e) {
+                throw ValidationException::withMessages(['items' => $e->getMessage()]);
+            }
+
+            // `?? null`, not `!== null`: an omitted key is absent, not null,
+            // and a till that leaves the price to the catalogue used to get a
+            // 500 rather than the price it asked for.
+            $unitPrice  = ($line['unit_price'] ?? null) !== null
                 ? (float) $line['unit_price']
-                : ($variant ? $variant->price() : (float) $item->sale_price);
+                : ($variant ? $variant->price() : (float) $item->sale_price)
+                    + $this->modifiers->priceDelta($modifiers);
             $lineTotal  = round($unitPrice * (int) $line['quantity'], 2);
 
             // Snapshot the weighted-average cost at this location right now.
@@ -312,6 +332,7 @@ class SaleController extends Controller
             $saleLines[] = [
                 'item'        => $item,
                 'variant'     => $variant,
+                'modifiers'   => $modifiers,
                 'custom_name' => null,
                 'quantity'    => (int) $line['quantity'],
                 'unit_price'  => $unitPrice,
@@ -568,7 +589,7 @@ class SaleController extends Controller
             ]);
 
             foreach ($saleLines as $line) {
-                $sale->items()->create([
+                $saleItem = $sale->items()->create([
                     'item_id'    => $line['item']?->id,
                     'variant_id' => $line['variant']?->id,
                     'name'       => $line['variant']
@@ -580,6 +601,15 @@ class SaleController extends Controller
                     'unit_cost'  => $line['avg_cost'],
                     'total_cost' => $line['line_cogs'],
                 ]);
+
+                // Snapshotted name and price, and any linked stock consumed.
+                $this->modifiers->attach(
+                    $saleItem,
+                    $line['modifiers'],
+                    $tenant->id,
+                    (float) $line['quantity'],
+                    $locationId,
+                );
 
                 if ($line['item'] && $line['item']->type !== ItemType::Service->value) {
                     // InventoryLedgerService::createOutgoingMovement() handles LIFO
@@ -595,14 +625,22 @@ class SaleController extends Controller
                     $ledgerResult = $this->ledger->createOutgoingMovement([
                         'tenantId'             => $tenant->id,
                         'itemId'               => $line['item']->id,
-                        'variantId'            => null,
+                        // The size, when the line carries one. Deducting the
+                        // article's own pile instead would leave the size on
+                        // the shelf in the books and invent stock that was
+                        // never there.
+                        'variantId'            => $line['variant']?->id,
                         'locationId'           => $locationId,
                         'type'                 => InventoryMovementType::SALE,
                         'quantity'             => $line['quantity'],
                         'occurredAt'           => now()->utc(),
                         'syncedAt'             => $soldAt,
                         'userId'               => $action->actor->id,
-                        'idempotencyKey'       => 'api-sale-'.$sale->id.'-item-'.$line['item']->id,
+                        // Keyed on the LINE, not the article: two sizes of
+                        // the same shirt are two lines, and one key for both
+                        // would have the second movement deduplicated away
+                        // and its stock never deducted.
+                        'idempotencyKey'       => 'api-sale-'.$sale->id.'-line-'.$saleItem->id,
                         'referenceType'        => Sale::class,
                         'referenceId'          => $sale->id,
                         'referenceNumber'      => $sale->number,
@@ -617,8 +655,11 @@ class SaleController extends Controller
                     // Backfill sale item cost with actual LIFO-computed COGS.
                     $actualUnitCost  = $ledgerResult['unitCost'];
                     $actualTotalCost = $ledgerResult['cogs'];
+                    // This line only. Keyed on the article, a second line of
+                    // the same shirt would overwrite the first line's cost
+                    // and the sale's COGS would count one of them twice.
                     $sale->items()
-                        ->where('item_id', $line['item']->id)
+                        ->whereKey($saleItem->id)
                         ->update([
                             'unit_cost'  => $actualUnitCost,
                             'total_cost' => $actualTotalCost,

@@ -222,6 +222,33 @@ class SyncController extends Controller
             ])
             ->toArray();
 
+        // Line options, with the articles that offer them. Small and rarely
+        // changed, like the variants above — and the till needs the whole set
+        // to draw a sheet, not a page of it.
+        $modifierGroups = \App\Models\ModifierGroup::with(['modifiers', 'items:id'])
+            ->where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')->orderBy('id')
+            ->get()
+            ->map(fn ($group): array => [
+                'id' => $group->id,
+                'name' => $group->name,
+                'min_select' => (int) $group->min_select,
+                'max_select' => $group->max_select === null ? null : (int) $group->max_select,
+                'sort_order' => (int) $group->sort_order,
+                'item_ids' => $group->items->pluck('id')->all(),
+                'modifiers' => $group->modifiers
+                    ->where('is_active', true)
+                    ->map(fn ($modifier): array => [
+                        'id' => $modifier->id,
+                        'name' => $modifier->name,
+                        'price_delta' => (float) $modifier->price_delta,
+                        'sort_order' => (int) $modifier->sort_order,
+                    ])->values()->all(),
+            ])
+            ->values()
+            ->all();
+
         return response()->json([
             'ok'               => true,
             'sync_at'          => $this->formatCursorTime($syncAt),
@@ -233,6 +260,7 @@ class SyncController extends Controller
             'units'            => $units,
             'taxes'            => $taxes,
             'variants'         => $variants,
+            'modifier_groups'  => $modifierGroups,
         ]);
     }
 
