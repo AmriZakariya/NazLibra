@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\ItemLocationStock;
 use App\Models\Location;
 use App\Models\Tenant;
+use Illuminate\Support\Str;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -568,7 +569,7 @@ class StoreSettingsTest extends TestCase
         // It carried the stock ADJUSTMENT's wording and counters, on a form
         // that never updates them: "0 article(s) sélectionné(s)" whatever was
         // on screen, under a button offering to validate an adjustment.
-        $screen->assertSee('Créer le transfert');
+        $screen->assertSee('Créer et envoyer');
         $screen->assertSee('unité(s) à déplacer.');
         $screen->assertDontSee('unité(s) saisie(s).');
         $screen->assertDontSee("Valider l'ajustement");
@@ -576,13 +577,16 @@ class StoreSettingsTest extends TestCase
         $screen->assertDontSee('data-stock-adjustment-count', false);
     }
 
-    public function test_the_transfer_has_one_submit_button(): void
+    public function test_the_transfer_submits_live_in_the_footer(): void
     {
         $content = $this->transferScreen()->getContent();
 
-        // Two of them, worded differently, on one form.
-        $this->assertSame(1, substr_count($content, 'data-transfer-submit'));
+        // Two by design — brouillon and créer-et-envoyer — but both in the
+        // sticky bar. The header carried a third, worded differently again.
+        $this->assertSame(2, substr_count($content, 'data-transfer-submit'));
         $this->assertStringNotContainsString('>Créer transfert<', $content);
+        $footer = Str::between($content, 'data-transfer-count', '</form>');
+        $this->assertSame(2, substr_count($footer, 'data-transfer-submit'));
     }
 
     public function test_the_transfer_submit_starts_disabled(): void

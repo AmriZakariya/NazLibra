@@ -38,6 +38,7 @@ class StockTransferDetailTest extends TestCase
         $this->to = Location::where('tenant_id', $this->tenant->id)->whereKeyNot($this->from->id)->firstOrFail();
     }
 
+    /** A brouillon: written down, nothing moved. */
     private function create(string $note = 'Réassort rentrée'): StockTransfer
     {
         $items = Item::where('tenant_id', $this->tenant->id)->where('type', '!=', 'service')->take(2)->get();
@@ -55,6 +56,22 @@ class StockTransferDetailTest extends TestCase
         return StockTransfer::latest('id')->firstOrFail();
     }
 
+    private function send(StockTransfer $transfer): StockTransfer
+    {
+        $this->post('/catalogue/stock/transferts/'.$transfer->id.'/envoyer')->assertRedirect();
+
+        return $transfer->refresh();
+    }
+
+    /** All the way through: written, sent, received. */
+    private function completed(string $note = 'Réassort rentrée'): StockTransfer
+    {
+        $transfer = $this->send($this->create($note));
+        $this->post('/catalogue/stock/transferts/'.$transfer->id.'/receptionner')->assertRedirect();
+
+        return $transfer->refresh();
+    }
+
     private function dialog(StockTransfer $transfer): string
     {
         $content = $this->get('/stock?panel=stock-transfers&detail_transfer='.$transfer->id)
@@ -66,7 +83,7 @@ class StockTransferDetailTest extends TestCase
 
     public function test_the_receipt_says_what_moved_where_and_when(): void
     {
-        $transfer = $this->create();
+        $transfer = $this->completed();
         $dialog = $this->dialog($transfer);
 
         $this->assertStringContainsString($transfer->number, $dialog);
@@ -81,14 +98,16 @@ class StockTransferDetailTest extends TestCase
         $this->assertStringContainsString('Amina El Idrissi', $dialog);
     }
 
-    public function test_the_receipt_shows_a_completed_transfer_as_completed(): void
+    public function test_the_receipt_names_the_stage_the_goods_are_at(): void
     {
-        $this->assertStringContainsString('Effectué', $this->dialog($this->create()));
+        $this->assertStringContainsString('Brouillon', $this->dialog($this->create()));
+        $this->assertStringContainsString('En transit', $this->dialog($this->send($this->create())));
+        $this->assertStringContainsString('Reçu', $this->dialog($this->completed()));
     }
 
     public function test_each_line_carries_its_reference_and_its_note(): void
     {
-        $transfer = $this->create();
+        $transfer = $this->completed();
         $dialog = $this->dialog($transfer);
         $line = $transfer->lines[0];
 
@@ -108,7 +127,7 @@ class StockTransferDetailTest extends TestCase
 
     public function test_cancelling_is_folded_away_not_the_first_thing_offered(): void
     {
-        $dialog = $this->dialog($this->create());
+        $dialog = $this->dialog($this->completed());
 
         // The dialog opens on its own right after a transfer is created. It
         // should read as a receipt, not lead with how to undo the thing that
@@ -120,7 +139,7 @@ class StockTransferDetailTest extends TestCase
 
     public function test_a_cancelled_transfer_says_who_cancelled_it_and_why(): void
     {
-        $transfer = $this->create();
+        $transfer = $this->completed();
 
         $this->post('/catalogue/stock/transferts/'.$transfer->id.'/annuler', [
             'reason' => 'Erreur de destination',
@@ -141,7 +160,7 @@ class StockTransferDetailTest extends TestCase
 
     public function test_the_dialog_is_not_nested_inside_the_list_table(): void
     {
-        $transfer = $this->create();
+        $transfer = $this->completed();
         $content = $this->get('/stock?panel=stock-transfers&detail_transfer='.$transfer->id)
             ->assertOk()
             ->getContent();

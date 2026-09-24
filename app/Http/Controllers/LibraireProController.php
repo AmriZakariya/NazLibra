@@ -1332,7 +1332,30 @@ class LibraireProController extends Controller
         \App\Services\Inventory\StockTransferService $transfers,
     ): RedirectResponse {
         $tenant = $this->tenant();
-        $data = $request->validate([
+        $data = $this->validatedStockTransfer($request, $tenant);
+
+        $transfer = $transfers->create($tenant, $data);
+
+        // "Créer et envoyer" is one click for the shop where one person does
+        // the whole thing; the brouillon stays for the shop where someone
+        // else loads the van.
+        if ($request->boolean('send_now')) {
+            $transfers->send($transfer);
+        }
+
+        return redirect()
+            ->route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $transfer->id])
+            ->with('status', $request->boolean('send_now')
+                ? 'Transfert '.$transfer->number.' envoyé — le stock a quitté '.$transfer->store_from.'.'
+                : 'Brouillon '.$transfer->number.' enregistré. Envoyez-le quand les articles partent.');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function validatedStockTransfer(Request $request, Tenant $tenant): array
+    {
+        return $request->validate([
             'transferred_at' => ['nullable', 'date'],
             // Ids from the shop's own list, not typed names. The old free-text
             // fields were resolved by fuzzy match with a fallback to the
@@ -1351,12 +1374,6 @@ class LibraireProController extends Controller
             'destination_location_id.required' => "Choisissez l'emplacement de destination.",
             'destination_location_id.different' => 'La destination doit être différente de la source.',
         ]);
-
-        $transfer = $transfers->create($tenant, $data);
-
-        return redirect()
-            ->route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $transfer->id])
-            ->with('status', 'Transfert '.$transfer->number.' enregistré.');
     }
 
     /**
@@ -1365,6 +1382,93 @@ class LibraireProController extends Controller
      * A reversal, not a delete: the movements already happened, and a ledger
      * that can be edited afterwards answers no question anyone asks of it.
      */
+    public function updateStockTransfer(
+        Request $request,
+        StockTransfer $transfer,
+        \App\Services\Inventory\StockTransferService $transfers,
+    ): RedirectResponse {
+        $tenant = $this->tenant();
+        abort_unless($transfer->tenant_id === $tenant->id, 404);
+
+        $transfers->updateDraft($transfer, $this->validatedStockTransfer($request, $tenant));
+
+        return redirect()
+            ->route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $transfer->id])
+            ->with('status', 'Brouillon '.$transfer->number.' mis à jour.');
+    }
+
+    public function destroyStockTransfer(
+        StockTransfer $transfer,
+        \App\Services\Inventory\StockTransferService $transfers,
+    ): RedirectResponse {
+        $tenant = $this->tenant();
+        abort_unless($transfer->tenant_id === $tenant->id, 404);
+
+        $number = $transfer->number;
+        $transfers->deleteDraft($transfer);
+
+        return redirect()
+            ->route('stock', ['panel' => 'stock-transfers'])
+            ->with('status', 'Brouillon '.$number.' supprimé.');
+    }
+
+    public function sendStockTransfer(
+        StockTransfer $transfer,
+        \App\Services\Inventory\StockTransferService $transfers,
+    ): RedirectResponse {
+        $tenant = $this->tenant();
+        abort_unless($transfer->tenant_id === $tenant->id, 404);
+
+        $transfers->send($transfer);
+
+        return redirect()
+            ->route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $transfer->id])
+            ->with('status', 'Transfert '.$transfer->number.' envoyé — le stock a quitté '.$transfer->store_from.'.');
+    }
+
+    public function receiveStockTransfer(
+        Request $request,
+        StockTransfer $transfer,
+        \App\Services\Inventory\StockTransferService $transfers,
+    ): RedirectResponse {
+        $tenant = $this->tenant();
+        abort_unless($transfer->tenant_id === $tenant->id, 404);
+
+        $data = $request->validate([
+            // Absent means "all of it arrived", which is the common case and
+            // should need no typing.
+            'received' => ['nullable', 'array'],
+            'received.*' => ['nullable', 'integer', 'min:0'],
+            'receipt_note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $transfers->receive($transfer, $data['received'] ?? [], $data['receipt_note'] ?? null);
+        $transfer->refresh();
+
+        $message = 'Transfert '.$transfer->number.' réceptionné à '.$transfer->store_to.'.';
+        if ($transfer->shortfall() > 0) {
+            $message .= ' Écart : '.$transfer->shortfall().' unité(s) manquante(s).';
+        }
+
+        return redirect()
+            ->route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $transfer->id])
+            ->with('status', $message);
+    }
+
+    public function duplicateStockTransfer(
+        StockTransfer $transfer,
+        \App\Services\Inventory\StockTransferService $transfers,
+    ): RedirectResponse {
+        $tenant = $this->tenant();
+        abort_unless($transfer->tenant_id === $tenant->id, 404);
+
+        $copy = $transfers->duplicate($transfer);
+
+        return redirect()
+            ->route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $copy->id])
+            ->with('status', 'Brouillon '.$copy->number.' créé depuis '.$transfer->number.'.');
+    }
+
     public function cancelStockTransfer(
         Request $request,
         StockTransfer $transfer,

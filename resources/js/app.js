@@ -5658,7 +5658,7 @@ document.querySelectorAll('[data-transfer-picker]').forEach((picker) => {
     const searchUrl = picker.dataset.searchUrl;
     const count = form.querySelector('[data-transfer-count]');
     const total = form.querySelector('[data-transfer-total]');
-    const submit = form.querySelector('[data-transfer-submit]');
+    const submits = [...form.querySelectorAll('[data-transfer-submit]')];
 
     // The footer used to carry the stock ADJUSTMENT's wording and counters, on
     // a form that never updates them: it read "0 article(s) sélectionné(s)"
@@ -5674,12 +5674,11 @@ document.querySelectorAll('[data-transfer-picker]').forEach((picker) => {
         if (total) total.textContent = String(units);
         // A transfer needs both ends and something to move. Saying so on the
         // button beats a round trip that comes back with a validation error.
-        if (submit) {
-            submit.disabled = rows.length === 0
-                || units <= 0
-                || source.value === ''
-                || destination.value === '';
-        }
+        const blocked = rows.length === 0
+            || units <= 0
+            || source.value === ''
+            || destination.value === '';
+        submits.forEach((button) => { button.disabled = blocked; });
     };
 
     // The two ends can never be the same place. Enforced by taking the option

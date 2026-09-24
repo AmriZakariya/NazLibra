@@ -268,6 +268,11 @@ Route::post('/catalogue/import', [LibraireProController::class, 'importItems'])-
 Route::get('/catalogue/import/exemple/{kind}', [LibraireProController::class, 'importExample'])->name('catalog.import.example');
 Route::post('/catalogue/stock/ajustements', [LibraireProController::class, 'storeStockAdjustment'])->name('catalog.stock-adjustments.store');
 Route::post('/catalogue/stock/transferts', [LibraireProController::class, 'storeStockTransfer'])->name('catalog.stock-transfers.store');
+Route::put('/catalogue/stock/transferts/{transfer}', [LibraireProController::class, 'updateStockTransfer'])->name('catalog.stock-transfers.update');
+Route::delete('/catalogue/stock/transferts/{transfer}', [LibraireProController::class, 'destroyStockTransfer'])->name('catalog.stock-transfers.destroy');
+Route::post('/catalogue/stock/transferts/{transfer}/envoyer', [LibraireProController::class, 'sendStockTransfer'])->name('catalog.stock-transfers.send');
+Route::post('/catalogue/stock/transferts/{transfer}/receptionner', [LibraireProController::class, 'receiveStockTransfer'])->name('catalog.stock-transfers.receive');
+Route::post('/catalogue/stock/transferts/{transfer}/dupliquer', [LibraireProController::class, 'duplicateStockTransfer'])->name('catalog.stock-transfers.duplicate');
 Route::post('/catalogue/stock/transferts/{transfer}/annuler', [LibraireProController::class, 'cancelStockTransfer'])->name('catalog.stock-transfers.cancel');
 Route::post('/catalogue/stock/inventaires', [LibraireProController::class, 'storeStocktake'])->name('catalog.stocktakes.store');
 Route::post('/catalogue/stock/inventaires/{stocktake}/comptes', [LibraireProController::class, 'updateStocktake'])->name('catalog.stocktakes.counts.update');

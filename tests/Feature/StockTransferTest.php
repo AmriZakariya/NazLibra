@@ -49,13 +49,39 @@ class StockTransferTest extends TestCase
         return $this->inventory->available($this->tenant->id, $this->item->id, null, $location->id);
     }
 
-    private function transfer(array $overrides = []): StockTransfer
+    /** A brouillon: written down, nothing moved yet. */
+    private function draft(array $overrides = []): StockTransfer
     {
         return app(StockTransferService::class)->create($this->tenant, array_merge([
             'source_location_id' => $this->source->id,
             'destination_location_id' => $this->destination->id,
             'items' => [['item_id' => $this->item->id, 'quantity' => 4]],
         ], $overrides));
+    }
+
+    /** Sent: the goods have left the source and are en route. */
+    private function sent(array $overrides = []): StockTransfer
+    {
+        $transfer = $this->draft($overrides);
+        app(StockTransferService::class)->send($transfer);
+
+        return $transfer->refresh();
+    }
+
+    /**
+     * A transfer all the way through: written, sent, received.
+     *
+     * Creating one no longer moves stock by itself — the goods leave on
+     * "envoyer" and arrive on "réceptionner" — so a test about where the
+     * stock ended up has to walk the whole way.
+     */
+    private function transfer(array $overrides = []): StockTransfer
+    {
+        $service = app(StockTransferService::class);
+        $transfer = $this->draft($overrides);
+        $service->send($transfer);
+
+        return $service->receive($transfer->refresh());
     }
 
     public function test_stock_leaves_the_source_and_arrives_at_the_destination(): void
@@ -285,7 +311,9 @@ class StockTransferTest extends TestCase
         $transfer = $this->transfer();
         $atDestination = $this->available($this->destination);
 
-        app(StockTransferService::class)->create($this->tenant, [
+        // SENT, not merely written down: a brouillon leaves the goods where
+        // they are, and the cancel below would then succeed.
+        $this->sent([
             'source_location_id' => $this->destination->id,
             'destination_location_id' => $this->source->id,
             'items' => [['item_id' => $this->item->id, 'quantity' => $atDestination]],
@@ -298,7 +326,7 @@ class StockTransferTest extends TestCase
             // expected
         }
 
-        $this->assertSame('completed', $transfer->fresh()->status, 'a failed cancel must not change the status');
+        $this->assertSame('received', $transfer->fresh()->status, 'a failed cancel must not change the status');
     }
 
     public function test_the_form_offers_the_shops_own_locations_instead_of_a_text_box(): void
@@ -417,7 +445,7 @@ class StockTransferTest extends TestCase
         $this->post(route('catalog.stock-transfers.cancel', $transfer), ['reason' => ''])
             ->assertSessionHasErrors('reason');
 
-        $this->assertSame('completed', $transfer->fresh()->status);
+        $this->assertSame('received', $transfer->fresh()->status);
     }
 
     public function test_one_tenant_cannot_cancel_anothers_transfer(): void

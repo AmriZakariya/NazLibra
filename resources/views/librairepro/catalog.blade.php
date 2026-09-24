@@ -350,7 +350,13 @@
                     </p>
                     {{-- Grisé tant que le transfert n'a pas de quoi partir : la
                          source, la destination et au moins une ligne. --}}
-                    <button data-transfer-submit disabled class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-brand">Créer le transfert</button>
+                    <div class="flex flex-wrap items-center gap-2">
+                        {{-- Deux sorties pour deux boutiques : celle où une
+                             personne fait tout, et celle où quelqu'un d'autre
+                             charge la camionnette plus tard. --}}
+                        <button data-transfer-submit disabled class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:text-slate-200">Enregistrer le brouillon</button>
+                        <button data-transfer-submit name="send_now" value="1" disabled class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-brand">Créer et envoyer</button>
+                    </div>
                 </div>
                 </div>
             </form>
@@ -895,7 +901,7 @@
         <section class="mt-6 space-y-5">
             <div class="grid gap-3 md:grid-cols-2"><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Transferts</span><p class="mt-2 text-2xl font-semibold">{{ $stockStats['transfers'] }}</p></article><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Quantité ce mois</span><p class="mt-2 text-2xl font-semibold">{{ number_format($stockStats['transferred_month'], 0, ',', ' ') }}</p></article></div>
             <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h2 class="font-semibold">Liste de transfert</h2><p class="mt-1 text-sm text-slate-500">Suivi des déplacements entre magasins, dépôts et rayons.</p></div><a href="{{ route('stock', ['panel' => 'stock-transfer-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouveau transfert</a></div><form method="GET" action="{{ route('stock') }}" class="app-action-form mt-4"><input type="hidden" name="panel" value="stock-transfers"><input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Rechercher n°, article, magasin, entrepôt..."><input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('stock', ['panel' => 'stock-transfers']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div></form></article>
-            <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="overflow-x-auto"><table class="w-full min-w-[1040px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N°</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Source</th><th class="px-3 py-3">Destination</th><th class="px-3 py-3 text-right">Quantité</th><th class="px-3 py-3">Articles</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($stockTransfers as $transfer)<tr><td class="px-3 py-3 font-semibold">{{ $transfer->number }}</td><td class="px-3 py-3">{{ $transfer->transferred_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3">{{ collect([$transfer->store_from, $transfer->warehouse_from])->filter()->implode(' · ') ?: '—' }}</td><td class="px-3 py-3">{{ collect([$transfer->store_to, $transfer->warehouse_to])->filter()->implode(' · ') ?: '—' }}</td><td class="px-3 py-3 text-right font-semibold">{{ number_format($transfer->total_quantity, 0, ',', ' ') }}</td><td class="px-3 py-3 text-sm text-slate-500">{{ collect($transfer->lines)->pluck('name')->take(2)->implode(', ') }}{{ count($transfer->lines ?? []) > 2 ? '…' : '' }}</td><td class="px-3 py-3">@if ($transfer->isCancelled())<span class="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">Annulé</span>@else<span class="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">Effectué</span>@endif</td><td class="px-3 py-3 text-right"><button type="button" onclick="document.getElementById('transfer-detail-{{ $transfer->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</button></td></tr>@empty<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun transfert trouvé.</td></tr>@endforelse</tbody></table></div>
+            <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="overflow-x-auto"><table class="w-full min-w-[1040px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N°</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Source</th><th class="px-3 py-3">Destination</th><th class="px-3 py-3 text-right">Quantité</th><th class="px-3 py-3">Articles</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($stockTransfers as $transfer)<tr><td class="px-3 py-3 font-semibold">{{ $transfer->number }}</td><td class="px-3 py-3">{{ $transfer->transferred_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3">{{ collect([$transfer->store_from, $transfer->warehouse_from])->filter()->implode(' · ') ?: '—' }}</td><td class="px-3 py-3">{{ collect([$transfer->store_to, $transfer->warehouse_to])->filter()->implode(' · ') ?: '—' }}</td><td class="px-3 py-3 text-right font-semibold">{{ number_format($transfer->total_quantity, 0, ',', ' ') }}</td><td class="px-3 py-3 text-sm text-slate-500">{{ collect($transfer->lines)->pluck('name')->take(2)->implode(', ') }}{{ count($transfer->lines ?? []) > 2 ? '…' : '' }}</td><td class="px-3 py-3"><x-status-pill :tone="$transfer->statusTone()">{{ $transfer->statusLabel() }}</x-status-pill></td><td class="px-3 py-3 text-right"><button type="button" onclick="document.getElementById('transfer-detail-{{ $transfer->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</button></td></tr>@empty<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun transfert trouvé.</td></tr>@endforelse</tbody></table></div>
                 {{-- Les dialogues vivent HORS du tableau. Un <dialog> entre
                      deux <tr> est du HTML invalide : le parseur le sort du
                      tableau et emporte son contenu avec lui, ce qui a vidé
@@ -911,11 +917,7 @@
                             <p class="text-sm font-semibold text-brand">Transfert de stock</p>
                             <div class="mt-1 flex flex-wrap items-center gap-2">
                                 <h3 class="text-xl font-semibold">{{ $transfer->number }}</h3>
-                                @if ($transfer->isCancelled())
-                                    <x-status-pill tone="danger">Annulé</x-status-pill>
-                                @else
-                                    <x-status-pill tone="success">Effectué</x-status-pill>
-                                @endif
+                                <x-status-pill :tone="$transfer->statusTone()">{{ $transfer->statusLabel() }}</x-status-pill>
                             </div>
                         </div>
                         <button class="dialog-close grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
@@ -949,6 +951,27 @@
                             </div>
                         </dl>
 
+                        {{-- Les étapes que les marchandises ont réellement
+                             franchies. Un transfert était un instant ; il y a
+                             maintenant un moment où le stock a quitté la source
+                             sans être arrivé nulle part. --}}
+                        <ol class="mt-3 grid gap-2 sm:grid-cols-3">
+                            @foreach ([
+                                ['Brouillon', true, $transfer->created_at, $transfer->creator?->name],
+                                ['Envoyé', $transfer->sent_at !== null, $transfer->sent_at, $transfer->sender?->name],
+                                ['Reçu', $transfer->received_at !== null, $transfer->received_at, $transfer->receiver?->name],
+                            ] as [$label, $done, $at, $who])
+                                <li class="rounded-xl border p-3 {{ $done ? 'border-brand/30 bg-brand/5' : 'border-dashed border-slate-200 dark:border-white/10' }}">
+                                    <span class="flex items-center gap-1.5 text-xs font-semibold uppercase {{ $done ? 'text-brand' : 'text-slate-400' }}">
+                                        {{ $done ? '✓' : '○' }} {{ $label }}
+                                    </span>
+                                    <span class="mt-1 block text-xs {{ $done ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400' }}">
+                                        {{ $done ? $at?->format('d/m/Y H:i').($who ? ' · '.$who : '') : 'En attente' }}
+                                    </span>
+                                </li>
+                            @endforeach
+                        </ol>
+
                         <h4 class="mt-5 text-xs font-semibold uppercase text-slate-400">{{ count($transfer->lines ?? []) }} article(s) déplacé(s)</h4>
                         <div class="mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
                             <table class="w-full text-left text-sm">
@@ -965,7 +988,18 @@
                                                     <span class="mt-0.5 block text-xs italic text-slate-500">{{ $line['note'] }}</span>
                                                 @endif
                                             </td>
-                                            <td class="w-28 px-3 py-2.5 text-right font-semibold tabular-nums">{{ number_format($line['quantity'], 0, ',', ' ') }}</td>
+                                            @php
+                                                $received = $transfer->isReceived() ? (int) ($line['received_quantity'] ?? $line['quantity']) : null;
+                                                $missing = $received !== null && $received < (int) $line['quantity'];
+                                            @endphp
+                                            <td class="w-32 px-3 py-2.5 text-right font-semibold tabular-nums">
+                                                {{ number_format($line['quantity'], 0, ',', ' ') }}
+                                                @if ($missing)
+                                                    {{-- Quelle ligne a manqué, pas seulement combien :
+                                                         « il manque 1 » n'aide personne à aller voir. --}}
+                                                    <span class="mt-0.5 block text-xs font-semibold text-amber-600 dark:text-amber-400">{{ $received }} reçu(s)</span>
+                                                @endif
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -990,21 +1024,85 @@
                                 <strong class="block">Annulé le {{ $transfer->cancelled_at?->format('d/m/Y H:i') }}{{ $transfer->canceller?->name ? ' par '.$transfer->canceller->name : '' }}</strong>
                                 <span class="mt-0.5 block">{{ $transfer->cancellation_reason }} — le stock est retourné à la source.</span>
                             </div>
-                        @elseif ($transfer->isReversible())
+                        @endif
+
+                        @if ($transfer->isReceived() && $transfer->shortfall() > 0)
+                            {{-- Un écart de réception est une perte, pas un
+                                 détail : il est écrit ici plutôt qu'absorbé en
+                                 silence par la destination. --}}
+                            <div class="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                                <strong class="block">Écart de réception : {{ $transfer->shortfall() }} unité(s) manquante(s)</strong>
+                                <span class="mt-0.5 block">{{ $transfer->total_quantity }} envoyée(s), {{ $transfer->receivedQuantity() }} reçue(s).{{ $transfer->receipt_note ? ' '.$transfer->receipt_note : '' }}</span>
+                            </div>
+                        @elseif ($transfer->isReceived() && filled($transfer->receipt_note))
+                            <div class="mt-3 rounded-xl border border-slate-200 p-3 dark:border-white/10">
+                                <span class="text-xs font-semibold uppercase text-slate-400">Note de réception</span>
+                                <p class="mt-1 text-sm">{{ $transfer->receipt_note }}</p>
+                            </div>
+                        @endif
+
+                        {{-- Les actions de l'étape où se trouve le transfert,
+                             et rien d'autre : proposer « réceptionner » sur un
+                             brouillon, c'est inviter à une erreur. --}}
+                        <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-4 dark:border-white/10">
+                            @if ($transfer->isDraft())
+                                <form action="{{ route('catalog.stock-transfers.send', $transfer) }}" method="POST">
+                                    @csrf
+                                    <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110">Envoyer les articles</button>
+                                </form>
+                                <form action="{{ route('catalog.stock-transfers.destroy', $transfer) }}" method="POST" onsubmit="return confirm('Supprimer le brouillon {{ $transfer->number }} ?')">
+                                    @csrf @method('DELETE')
+                                    <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-rose-300 hover:text-rose-600 dark:border-white/10 dark:text-slate-300">Supprimer le brouillon</button>
+                                </form>
+                            @elseif ($transfer->isInTransit())
+                                <span class="text-sm text-slate-500">Les articles ont quitté {{ $transfer->store_from }} et ne sont pas encore comptés à {{ $transfer->store_to }}.</span>
+                            @endif
+
+                            @if (! $transfer->isDraft())
+                                <form action="{{ route('catalog.stock-transfers.duplicate', $transfer) }}" method="POST" class="ml-auto">
+                                    @csrf
+                                    <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold transition hover:border-brand hover:text-brand dark:border-white/10">Dupliquer</button>
+                                </form>
+                            @endif
+                        </div>
+
+                        @if ($transfer->isInTransit())
+                            {{-- La réception peut être incomplète : une palette
+                                 arrive avec un carton en moins plus souvent
+                                 qu'on ne le voudrait. Vide = tout est arrivé. --}}
+                            <form action="{{ route('catalog.stock-transfers.receive', $transfer) }}" method="POST" class="mt-3 rounded-xl border border-brand/30 bg-brand/5 p-4">
+                                @csrf
+                                <p class="text-sm font-semibold">Réceptionner à {{ $transfer->store_to }}</p>
+                                <p class="mt-0.5 text-xs text-slate-500">Laissez les quantités telles quelles si tout est arrivé.</p>
+                                <div class="mt-3 space-y-2">
+                                    @foreach ($transfer->lines ?? [] as $index => $line)
+                                        <label class="flex items-center gap-3 text-sm">
+                                            <span class="min-w-0 flex-1 truncate">{{ $line['name'] }}</span>
+                                            <span class="text-xs text-slate-500">sur {{ $line['quantity'] }}</span>
+                                            <input name="received[{{ $index }}]" type="number" min="0" max="{{ $line['quantity'] }}" value="{{ $line['quantity'] }}" class="h-9 w-24 rounded-lg border border-slate-200 px-2 text-sm tabular-nums dark:border-white/10 dark:bg-slate-900">
+                                        </label>
+                                    @endforeach
+                                </div>
+                                <input name="receipt_note" maxlength="500" class="mt-3 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note de réception (carton abîmé, colis manquant…)">
+                                <button class="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110">Confirmer la réception</button>
+                            </form>
+                        @endif
+
+                        @if (! $transfer->isCancelled() && $transfer->isReversible())
                             {{-- Annulation = mouvements inverses, pas une suppression :
                                  les mouvements ont bien eu lieu, et un registre
                                  d'inventaire modifiable après coup ne répond à
                                  aucune question. --}}
-                            <details class="mt-4 rounded-xl border border-slate-200 dark:border-white/10">
+                            <details class="mt-3 rounded-xl border border-slate-200 dark:border-white/10">
                                 <summary class="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-600 dark:text-slate-300">Annuler ce transfert</summary>
-                                <form action="{{ route('catalog.stock-transfers.cancel', $transfer) }}" method="POST" class="flex flex-wrap items-end gap-2 border-t border-slate-200 p-4 dark:border-white/10" onsubmit="return confirm('Annuler {{ $transfer->number }} ? Le stock repart vers la source.')">
+                                <form action="{{ route('catalog.stock-transfers.cancel', $transfer) }}" method="POST" class="flex flex-wrap items-end gap-2 border-t border-slate-200 p-4 dark:border-white/10" onsubmit="return confirm('Annuler {{ $transfer->number }} ? {{ $transfer->isDraft() ? 'Aucun stock n\'a bougé.' : 'Le stock repart vers la source.' }}')">
                                     @csrf
                                     <label class="flex-1 space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Motif d'annulation</span><input name="reason" required minlength="3" maxlength="500" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Erreur de saisie"></label>
                                     <button class="h-10 rounded-lg border border-rose-200 px-4 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 dark:border-rose-500/20 dark:hover:bg-rose-500/10">Annuler le transfert</button>
                                 </form>
                             </details>
-                        @else
-                            <p class="mt-4 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-white/10">Transfert enregistré sans emplacements : annulation automatique impossible.</p>
+                        @elseif (! $transfer->isCancelled())
+                            <p class="mt-3 text-xs text-slate-500">Transfert enregistré sans emplacements : annulation automatique impossible.</p>
                         @endif
                     </div>
                 </dialog>

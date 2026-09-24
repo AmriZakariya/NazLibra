@@ -203,6 +203,16 @@ class Permissions
 
             'catalog.stock-adjustments.store' => 'stock.adjust',
             'catalog.stock-transfers.store' => 'stock.transfer',
+            // Writing a brouillon, editing it, sending it and receiving it are
+            // all the same right: whoever may move stock between emplacements
+            // may do each step of it.
+            'catalog.stock-transfers.update' => 'stock.transfer',
+            'catalog.stock-transfers.send' => 'stock.transfer',
+            'catalog.stock-transfers.receive' => 'stock.transfer',
+            'catalog.stock-transfers.duplicate' => 'stock.transfer',
+            // Tearing up a brouillon undoes a transfer that never happened,
+            // which is what the cancel right is for.
+            'catalog.stock-transfers.destroy' => 'stock.transfer_cancel',
             'catalog.stock-transfers.cancel' => 'stock.transfer_cancel',
             'catalog.stocktakes.store' => 'stock.stocktake',
             'catalog.stocktakes.counts.update' => 'stock.stocktake',

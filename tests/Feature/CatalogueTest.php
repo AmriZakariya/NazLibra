@@ -1047,6 +1047,10 @@ class CatalogueTest extends TestCase
             'items' => [
                 ['item_id' => $item->id, 'quantity' => 3, 'note' => 'Carton test'],
             ],
+            // The goods leave on "envoyer" and arrive on "réceptionner" now;
+            // this is the one-click path for a shop where one person does the
+            // whole thing.
+            'send_now' => '1',
         ]);
 
         $transfer = StockTransfer::firstOrFail();
@@ -1055,6 +1059,11 @@ class CatalogueTest extends TestCase
         $this->assertSame(3, (int) $transfer->total_quantity);
 
         $this->assertSame($atSourceBefore - 3, $inventory->available($tenant->id, $item->id, null, $source->id));
+        // Sent, not yet received: they are between the two emplacements.
+        $this->assertSame($atDestinationBefore, $inventory->available($tenant->id, $item->id, null, $destination->id));
+
+        $this->post(route('catalog.stock-transfers.receive', $transfer))->assertRedirect();
+
         $this->assertSame($atDestinationBefore + 3, $inventory->available($tenant->id, $item->id, null, $destination->id));
 
         $this->get(route('stock', ['panel' => 'stock-transfers', 'q' => $destination->name]))
