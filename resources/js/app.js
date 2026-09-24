@@ -5189,6 +5189,31 @@ document.querySelectorAll('[data-table-filter]').forEach((input) => {
     });
 });
 
+// The card equivalent of the table filter above. Cards carry their own
+// `data-filter-text`, because an expanded card holds its values in form
+// inputs where textContent cannot see them.
+document.querySelectorAll('[data-card-filter]').forEach((input) => {
+    const container = document.getElementById(input.dataset.cardFilter);
+    if (!container) return;
+
+    const cards = Array.from(container.querySelectorAll('[data-filter-card]'));
+    const empty = document.querySelector(`[data-card-filter-empty="${input.dataset.cardFilter}"]`);
+
+    input.addEventListener('input', () => {
+        const query = input.value.trim().toLowerCase();
+        let visible = 0;
+
+        cards.forEach((card) => {
+            const haystack = (card.dataset.filterText || card.textContent || '').toLowerCase();
+            const hidden = query !== '' && !haystack.includes(query);
+            card.hidden = hidden;
+            if (!hidden) visible += 1;
+        });
+
+        if (empty) empty.hidden = visible !== 0;
+    });
+});
+
 document.querySelectorAll('[data-import-kind-select]').forEach((select) => {
     const form = select.closest('form');
     const link = form?.querySelector('[data-import-example-base]');

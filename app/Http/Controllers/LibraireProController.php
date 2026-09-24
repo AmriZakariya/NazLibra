@@ -3533,7 +3533,13 @@ class LibraireProController extends Controller
     public function updateCurrentStore(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();
-        $keys = collect($this->storeCatalog($tenant))->pluck('key')->all();
+        // Active ones only. A disabled emplacement is not offered in the list,
+        // but it would still be accepted here — and the top bar would then sit
+        // on a store nothing can switch away from.
+        $keys = collect($this->storeCatalog($tenant))
+            ->where('is_active', true)
+            ->pluck('key')
+            ->all();
         $data = $request->validate([
             'current_store' => ['required', Rule::in($keys)],
         ]);
@@ -3699,15 +3705,35 @@ class LibraireProController extends Controller
     {
         $tenant = $this->tenant();
         $data = $this->validateStore($request);
-        $settings = $tenant->settings ?? [];
-        $stores = collect($this->storeCatalog($tenant))->map(function (array $store) use ($storeKey, $data): array {
+        $current = collect($this->storeCatalog($tenant));
+        $existing = $current->firstWhere('key', $storeKey);
+
+        abort_unless($existing !== null, 404);
+
+        // A shop with nothing active has no till to sell from, and the current
+        // store cannot be moved off it either.
+        if ($existing['is_active'] && ! ($data['is_active'] ?? false) && $current->where('is_active', true)->count() <= 1) {
+            return back()->withErrors(['is_active' => 'Gardez au moins un emplacement actif.']);
+        }
+
+        $stores = $current->map(function (array $store) use ($storeKey, $data): array {
             return $store['key'] === $storeKey ? $this->storePayload($data, $storeKey) : $store;
         })->values()->all();
 
-        abort_unless(collect($stores)->contains(fn (array $store) => $store['key'] === $storeKey), 404);
-
+        $settings = $tenant->settings ?? [];
         $settings['stores'] = $stores;
+
+        if (($settings['current_store'] ?? null) === $storeKey && ! ($data['is_active'] ?? false)) {
+            $settings['current_store'] = collect($stores)->firstWhere('is_active', true)['key'] ?? $storeKey;
+        }
+
         $tenant->update(['settings' => $settings]);
+
+        // Per-user access is stored by NAME, so a rename orphans everyone who
+        // had access until the name is carried across.
+        if ($existing['name'] !== $data['name']) {
+            $this->renameStoreAccess($tenant, $existing['name'], $data['name']);
+        }
 
         return redirect()
             ->route('module', ['module' => 'settings', 'section' => 'warehouses'])
@@ -3718,15 +3744,29 @@ class LibraireProController extends Controller
     {
         $tenant = $this->tenant();
         $settings = $tenant->settings ?? [];
-        $stores = collect($this->storeCatalog($tenant))->reject(fn (array $store) => $store['key'] === $storeKey)->values()->all();
-        abort_if(count($stores) === 0, 422, 'Gardez au moins un magasin actif.');
-        $settings['stores'] = $stores;
+        $current = collect($this->storeCatalog($tenant));
+        $removed = $current->firstWhere('key', $storeKey);
+        $stores = $current->reject(fn (array $store) => $store['key'] === $storeKey)->values();
+
+        // Counted on what stays ACTIVE, not on what stays at all: deleting down
+        // to a single disabled emplacement leaves a shop that cannot sell.
+        // And a refusal goes back as a message — a 422 threw an error page at
+        // someone who only clicked Supprimer.
+        if ($stores->where('is_active', true)->isEmpty()) {
+            return back()->withErrors(['store' => 'Gardez au moins un emplacement actif.']);
+        }
+
+        $settings['stores'] = $stores->all();
 
         if (($settings['current_store'] ?? null) === $storeKey) {
-            $settings['current_store'] = $stores[0]['key'];
+            $settings['current_store'] = $stores->firstWhere('is_active', true)['key'];
         }
 
         $tenant->update(['settings' => $settings]);
+
+        if ($removed !== null) {
+            $this->renameStoreAccess($tenant, $removed['name'], null);
+        }
 
         return back()->with('status', 'Magasin supprimé.');
     }
@@ -9986,6 +10026,36 @@ class LibraireProController extends Controller
         $settings = $tenant->settings ?? [];
         $settings[$bucket] = $records->reject(fn (array $record) => $record['key'] === $key)->values()->all();
         $tenant->update(['settings' => $settings]);
+    }
+
+    /**
+     * Carries a store rename across every user's access list, or drops the
+     * entry when [$to] is null.
+     *
+     * Access is stored as store NAMES on the membership pivot, so without this
+     * a rename silently revokes everyone who had the store and a deletion
+     * leaves a name nothing answers to.
+     */
+    private function renameStoreAccess(Tenant $tenant, string $from, ?string $to): void
+    {
+        foreach ($tenant->users()->get() as $user) {
+            $access = json_decode($user->pivot->store_access ?? '[]', true);
+
+            if (! is_array($access) || ! in_array($from, $access, true)) {
+                continue;
+            }
+
+            $updated = collect($access)
+                ->map(fn ($name) => $name === $from ? $to : $name)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $tenant->users()->updateExistingPivot($user->id, [
+                'store_access' => json_encode($updated),
+            ]);
+        }
     }
 
     private function storeAccessOptions(Tenant $tenant): array

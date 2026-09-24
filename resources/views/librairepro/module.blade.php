@@ -4972,68 +4972,206 @@
                 </article>
 
                 @elseif ($settingsSection === 'warehouses')
-                <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                        <div>
-                            <h2 class="font-semibold">Magasins & dépôts</h2>
-                            <p class="mt-1 text-sm text-slate-500">Gérez les points de vente, dépôts et rayons. Le magasin courant apparaît dans la barre supérieure.</p>
+                @php
+                    $storeTypeMeta = [
+                        'store' => ['label' => 'Magasin', 'tone' => 'primary'],
+                        'warehouse' => ['label' => 'Dépôt', 'tone' => 'info'],
+                        'area' => ['label' => 'Rayon', 'tone' => 'neutral'],
+                        'branch' => ['label' => 'Succursale', 'tone' => 'success'],
+                    ];
+                    $activeStores = collect($stores)->where('is_active', true);
+                    $inactiveStoreCount = count($stores) - $activeStores->count();
+                    // Access is stored per user as store NAMES, so the count is
+                    // matched on the name rather than the key.
+                    $storeAccessCounts = $settingsUsers
+                        ->flatMap(fn ($user) => json_decode($user->pivot->store_access ?? '[]', true) ?: [])
+                        ->countBy()
+                        ->all();
+                @endphp
+                <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                    <div class="border-b border-slate-200 bg-white p-5 text-slate-950 dark:border-white/10 dark:bg-slate-950 dark:text-white">
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div>
+                                <p class="text-sm font-semibold text-brand">Paramètres · Réseau</p>
+                                <h2 class="mt-1 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Magasins &amp; dépôts</h2>
+                                <p class="mt-1 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">Points de vente, dépôts et rayons. Le magasin courant est celui qui apparaît dans la barre supérieure et sur lequel les ventes sont enregistrées.</p>
+                            </div>
+                            <div class="app-action-row">
+                                <x-status-pill tone="primary">Courant · {{ $currentStore['name'] }}</x-status-pill>
+                                <x-status-pill tone="neutral">{{ count($stores) }} emplacement(s)</x-status-pill>
+                            </div>
                         </div>
-                        <div class="app-action-row">
-                            <x-status-pill tone="primary">{{ $currentStore['name'] }}</x-status-pill>
-                            <x-status-pill tone="info">{{ count($stores) }} emplacement(s)</x-status-pill>
+                        <div class="mt-5 grid gap-3 sm:grid-cols-3">
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.06]">
+                                <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Emplacements actifs</span>
+                                <strong class="mt-2 block text-2xl text-slate-950 dark:text-white">{{ $activeStores->count() }}</strong>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.06]">
+                                <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Désactivés</span>
+                                <strong class="mt-2 block text-2xl text-slate-950 dark:text-white">{{ $inactiveStoreCount }}</strong>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.06]">
+                                <span class="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Dépôts &amp; rayons</span>
+                                <strong class="mt-2 block text-2xl text-slate-950 dark:text-white">{{ collect($stores)->whereIn('type', ['warehouse', 'area'])->count() }}</strong>
+                            </div>
                         </div>
                     </div>
 
-                    <form action="{{ route('settings.current-store.update') }}" method="POST" class="app-action-form mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                        @csrf
-                        <select name="current_store" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                            @foreach ($stores as $store)
-                                @if ($store['is_active'])
-                                    <option value="{{ $store['key'] }}" @selected($currentStore['key'] === $store['key'])>{{ $store['name'] }} · {{ $storeTypeLabels[$store['type']] ?? $store['type'] }}</option>
-                                @endif
-                            @endforeach
-                        </select>
-                        <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Définir courant</button>
-                    </form>
+                    <div class="p-5">
+                        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950/40">
+                            <div class="grid gap-4 border-b border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/5 xl:grid-cols-[minmax(280px,1fr)_auto] xl:items-center">
+                                <div>
+                                    <h3 class="text-base font-semibold text-slate-950 dark:text-white">Liste des emplacements</h3>
+                                    <p class="mt-1 text-sm text-slate-500">Dépliez une carte pour modifier ses informations, ou définissez-la comme magasin courant.</p>
+                                </div>
+                                <div class="grid gap-2 sm:grid-cols-[minmax(260px,420px)_auto]">
+                                    <input data-card-filter="settings-stores-grid" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Rechercher nom, type, responsable, adresse...">
+                                    <button type="button" onclick="document.getElementById('store-create-dialog').showModal()" class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20 transition hover:brightness-110">Nouvel emplacement</button>
+                                </div>
+                            </div>
 
-                    <form action="{{ route('settings.stores.store') }}" method="POST" class="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40 lg:grid-cols-6">
-                        @csrf
-                        <input name="name" required class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-2" placeholder="Nom magasin / dépôt">
-                        <select name="type" required class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                            @foreach ($storeTypeLabels as $key => $label)
-                                <option value="{{ $key }}">{{ $label }}</option>
-                            @endforeach
-                        </select>
-                        <input name="phone" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Téléphone">
-                        <input name="manager" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Responsable">
-                        <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Ajouter</button>
-                        <input name="address" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-5" placeholder="Adresse">
-                        <label class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10"><input name="is_active" value="1" type="checkbox" checked class="size-4 accent-[var(--brand-primary)]"> Actif</label>
-                    </form>
+                            <div id="settings-stores-grid" class="grid items-start gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+                                @foreach ($stores as $store)
+                                    @php
+                                        $isCurrent = $currentStore['key'] === $store['key'];
+                                        $typeMeta = $storeTypeMeta[$store['type']] ?? ['label' => $store['type'], 'tone' => 'neutral'];
+                                        $facts = array_filter([
+                                            'Téléphone' => $store['phone'],
+                                            'Responsable' => $store['manager'],
+                                            'Adresse' => $store['address'],
+                                        ]);
+                                        $accessCount = $storeAccessCounts[$store['name']] ?? 0;
+                                        // The server refuses both of these; the card says so
+                                        // up front rather than letting the cashier find out.
+                                        $isLastActive = $store['is_active'] && $activeStores->count() <= 1;
+                                    @endphp
+                                    <div data-filter-card data-filter-text="{{ \Illuminate\Support\Str::lower($store['name'].' '.$typeMeta['label'].' '.$store['phone'].' '.$store['manager'].' '.$store['address'].' '.($store['is_active'] ? 'actif' : 'désactivé inactif').($isCurrent ? ' courant' : '')) }}" class="@container flex flex-col overflow-hidden rounded-xl border bg-white shadow-sm transition dark:bg-white/[0.02] {{ $isCurrent ? 'border-brand/40 ring-1 ring-brand/20 dark:border-brand/40' : 'border-slate-200 dark:border-white/10' }} {{ $store['is_active'] ? '' : 'opacity-75' }}">
+                                        <div class="flex items-start gap-3 p-4">
+                                            <span class="grid size-10 shrink-0 place-items-center rounded-xl {{ $isCurrent ? 'bg-brand/10 text-brand' : 'bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400' }}">
+                                                @if ($store['type'] === 'warehouse')
+                                                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 12 4l9 6v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"/><path d="M7 21v-8h10v8"/></svg>
+                                                @elseif ($store['type'] === 'area')
+                                                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/></svg>
+                                                @elseif ($store['type'] === 'branch')
+                                                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V8"/><path d="M5 21V12a7 7 0 0 1 14 0v9"/><circle cx="12" cy="5" r="2"/></svg>
+                                                @else
+                                                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16l-1 11H5Z"/><path d="M4 9 6 4h12l2 5"/><path d="M9 13h6"/></svg>
+                                                @endif
+                                            </span>
+                                            <div class="min-w-0 flex-1">
+                                                <strong class="block truncate text-base text-slate-950 dark:text-white">{{ $store['name'] }}</strong>
+                                                <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
+                                                    <x-status-pill :tone="$typeMeta['tone']">{{ $typeMeta['label'] }}</x-status-pill>
+                                                    @if ($isCurrent)
+                                                        <x-status-pill tone="primary">Courant</x-status-pill>
+                                                    @endif
+                                                    <x-status-pill :tone="$store['is_active'] ? 'success' : 'warning'">{{ $store['is_active'] ? 'Actif' : 'Désactivé' }}</x-status-pill>
+                                                    @if ($accessCount > 0)
+                                                        <x-status-pill tone="neutral">{{ $accessCount }} accès</x-status-pill>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        </div>
 
-                    <div class="mt-5 grid gap-3 md:grid-cols-2">
-                        @foreach ($stores as $store)
-                            <details class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5" @if($currentStore['key'] === $store['key']) open @endif>
-                                <summary class="flex cursor-pointer list-none items-center justify-between gap-3">
-                                    <span class="min-w-0"><strong class="block truncate">{{ $store['name'] }}</strong><small class="mt-1 block truncate text-slate-500">{{ $storeTypeLabels[$store['type']] ?? $store['type'] }} · {{ $store['is_active'] ? 'Actif' : 'Désactivé' }}{{ $currentStore['key'] === $store['key'] ? ' · courant' : '' }}</small></span>
-                                    <span class="text-xs font-semibold text-brand">Modifier</span>
-                                </summary>
-                                <form action="{{ route('settings.stores.update', $store['key']) }}" method="POST" class="mt-4 grid gap-3 border-t border-slate-200 pt-4 dark:border-white/10">
-                                    @csrf
-                                    @method('PUT')
-                                    <input name="name" required value="{{ $store['name'] }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                    <select name="type" required class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($storeTypeLabels as $key => $label)<option value="{{ $key }}" @selected($store['type'] === $key)>{{ $label }}</option>@endforeach</select>
-                                    <input name="phone" value="{{ $store['phone'] }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Téléphone">
-                                    <input name="manager" value="{{ $store['manager'] }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Responsable">
-                                    <input name="address" value="{{ $store['address'] }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Adresse">
-                                    <label class="flex h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10"><input name="is_active" value="1" type="checkbox" @checked($store['is_active']) class="size-4 accent-[var(--brand-primary)]"> Actif</label>
-                                    <div class="flex justify-end gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer</button></div>
-                                </form>
-                                <form action="{{ route('settings.stores.destroy', $store['key']) }}" method="POST" class="mt-2 flex justify-end" onsubmit="return confirm('Supprimer ce magasin ?')">@csrf @method('DELETE')<button class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 dark:border-rose-500/30">Supprimer</button></form>
-                            </details>
-                        @endforeach
+                                        <dl class="grid gap-2 px-4 pb-4 text-sm">
+                                            @forelse ($facts as $label => $value)
+                                                <div class="flex items-start gap-2 text-slate-600 dark:text-slate-300">
+                                                    <dt class="w-24 shrink-0 text-xs font-semibold uppercase text-slate-400 dark:text-slate-500">{{ $label }}</dt>
+                                                    <dd class="min-w-0 flex-1 break-words">{{ $value }}</dd>
+                                                </div>
+                                            @empty
+                                                <p class="rounded-lg border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400 dark:border-white/10 dark:text-slate-500">Aucun contact ni adresse renseignés.</p>
+                                            @endforelse
+                                        </dl>
+
+                                        @if (! $isCurrent && $store['is_active'])
+                                            <form action="{{ route('settings.current-store.update') }}" method="POST" class="px-4 pb-4">
+                                                @csrf
+                                                <input type="hidden" name="current_store" value="{{ $store['key'] }}">
+                                                <button class="w-full rounded-lg border border-brand/30 px-3 py-2 text-sm font-semibold text-brand transition hover:bg-brand/5">Définir comme courant</button>
+                                            </form>
+                                        @endif
+
+                                        <details class="mt-auto border-t border-slate-200 dark:border-white/10">
+                                            <summary class="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-white/5">
+                                                <span>Modifier les informations</span>
+                                                <svg class="size-4 transition" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                                            </summary>
+                                            <div class="border-t border-slate-200 bg-slate-50/60 p-4 dark:border-white/10 dark:bg-white/5">
+                                                <form action="{{ route('settings.stores.update', $store['key']) }}" method="POST" class="grid gap-3 @sm:grid-cols-2">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <label class="space-y-1.5 @sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Nom *</span><input name="name" required value="{{ $store['name'] }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Type *</span><select name="type" required class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($storeTypeLabels as $key => $label)<option value="{{ $key }}" @selected($store['type'] === $key)>{{ $label }}</option>@endforeach</select></label>
+                                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" value="{{ $store['phone'] }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212 ..."></label>
+                                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Responsable</span><input name="manager" value="{{ $store['manager'] }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom du responsable"></label>
+                                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Adresse</span><input name="address" value="{{ $store['address'] }}" class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Rue, ville"></label>
+                                                    <label class="flex h-10 items-center gap-2 self-end rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold @sm:col-span-2 dark:border-white/10 dark:bg-slate-900 {{ $isLastActive ? 'opacity-60' : '' }}">
+                                                        <input name="is_active" value="1" type="checkbox" @checked($store['is_active']) @disabled($isLastActive) class="size-4 accent-[var(--brand-primary)]">
+                                                        Actif
+                                                        @if ($isLastActive)
+                                                            <span class="ml-auto text-xs font-normal text-slate-400">Dernier emplacement actif</span>
+                                                        @endif
+                                                    </label>
+                                                    @if ($isLastActive)
+                                                        {{-- A disabled checkbox posts nothing, which would read as "deactivate". --}}
+                                                        <input type="hidden" name="is_active" value="1">
+                                                    @endif
+                                                    <div class="flex justify-end @sm:col-span-2">
+                                                        <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110">Enregistrer</button>
+                                                    </div>
+                                                </form>
+                                                <div class="mt-3 flex items-center justify-between gap-3 border-t border-slate-200 pt-3 dark:border-white/10">
+                                                    <p class="text-xs text-slate-400 dark:text-slate-500">
+                                                        @if ($isLastActive)
+                                                            Gardez au moins un emplacement actif.
+                                                        @else
+                                                            La suppression est définitive.
+                                                        @endif
+                                                    </p>
+                                                    <form action="{{ route('settings.stores.destroy', $store['key']) }}" method="POST" onsubmit="return confirm('Supprimer « {{ $store['name'] }} » ? Cette action est définitive.')">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button @disabled($isLastActive) class="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:border-rose-500/30 dark:hover:bg-rose-500/10">Supprimer</button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </details>
+                                    </div>
+                                @endforeach
+                            </div>
+                            <p data-card-filter-empty="settings-stores-grid" hidden class="px-4 pb-6 text-center text-sm text-slate-500">Aucun emplacement ne correspond à cette recherche.</p>
+                        </div>
                     </div>
                 </article>
+
+                <dialog id="store-create-dialog" class="app-dialog w-[min(680px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                    <form action="{{ route('settings.stores.store') }}" method="POST" class="flex max-h-[calc(100dvh-2rem)] flex-col">
+                        @csrf
+                        <div class="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white p-5 dark:border-white/10 dark:bg-slate-950">
+                            <div>
+                                <p class="text-sm font-semibold text-brand">Nouvel emplacement</p>
+                                <h3 class="mt-1 text-xl font-semibold">Ajouter un magasin ou un dépôt</h3>
+                                <p class="mt-1 text-sm text-slate-500">Seul le nom et le type sont obligatoires. Le reste peut être complété plus tard.</p>
+                            </div>
+                            <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                        </div>
+                        <div class="min-h-0 flex-1 overflow-y-auto p-5">
+                            <div class="grid gap-4 sm:grid-cols-2">
+                                <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Nom *</span><input name="name" required value="{{ old('name') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Ex: Magasin centre-ville"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Type *</span><select name="type" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($storeTypeLabels as $key => $label)<option value="{{ $key }}" @selected(old('type') === $key)>{{ $label }}</option>@endforeach</select></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" value="{{ old('phone') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212 ..."></label>
+                                <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Responsable</span><input name="manager" value="{{ old('manager') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom du responsable"></label>
+                                <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Adresse</span><input name="address" value="{{ old('address') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Rue, ville"></label>
+                                <label class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 px-3 text-sm font-semibold sm:col-span-2 dark:border-white/10"><input name="is_active" value="1" type="checkbox" checked class="size-4 accent-[var(--brand-primary)]"> Actif</label>
+                            </div>
+                        </div>
+                        <div class="flex shrink-0 items-center justify-end gap-2 border-t border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950">
+                            <button type="button" class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Annuler</button>
+                            <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110">Ajouter l'emplacement</button>
+                        </div>
+                    </form>
+                </dialog>
 
                 @elseif ($settingsSection === 'users')
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
