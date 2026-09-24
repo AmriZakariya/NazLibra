@@ -229,6 +229,7 @@
             </aside>
         </section>
     @elseif ($panel === 'stock-transfer-add')
+        @php $canReceiveTransfers = \App\Support\Permissions::userCan($tenant, auth()->user(), 'stock.transfer_receive'); @endphp
         <section class="mt-6 grid gap-6 xl:grid-cols-[1fr_340px]">
             {{-- Un seul bouton d'envoi, dans la barre collante : l'en-tête en
                  portait un second, et la barre elle-même fermait une balise
@@ -355,7 +356,13 @@
                              personne fait tout, et celle où quelqu'un d'autre
                              charge la camionnette plus tard. --}}
                         <button data-transfer-submit disabled class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:text-slate-200">Enregistrer le brouillon</button>
-                        <button data-transfer-submit name="send_now" value="1" disabled class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-brand">Créer et envoyer</button>
+                        <button data-transfer-submit name="send_now" value="1" disabled class="rounded-lg border border-brand/40 px-4 py-2.5 text-sm font-semibold text-brand transition hover:bg-brand/5 disabled:cursor-not-allowed disabled:opacity-40">Créer et envoyer</button>
+                        @if ($canReceiveTransfers)
+                            {{-- Les deux emplacements dans la même pièce : pas
+                                 la peine de faire deux clics pour un transit
+                                 qui dure le temps de traverser la réserve. --}}
+                            <button data-transfer-submit name="receive_now" value="1" disabled class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-brand">Transférer maintenant</button>
+                        @endif
                     </div>
                 </div>
                 </div>
@@ -898,6 +905,7 @@
             </article>
         </section>
     @elseif ($panel === 'stock-transfers')
+        @php $canReceiveTransfers = \App\Support\Permissions::userCan($tenant, auth()->user(), 'stock.transfer_receive'); @endphp
         <section class="mt-6 space-y-5">
             <div class="grid gap-3 md:grid-cols-2"><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Transferts</span><p class="mt-2 text-2xl font-semibold">{{ $stockStats['transfers'] }}</p></article><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Quantité ce mois</span><p class="mt-2 text-2xl font-semibold">{{ number_format($stockStats['transferred_month'], 0, ',', ' ') }}</p></article></div>
             <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h2 class="font-semibold">Liste de transfert</h2><p class="mt-1 text-sm text-slate-500">Suivi des déplacements entre magasins, dépôts et rayons.</p></div><a href="{{ route('stock', ['panel' => 'stock-transfer-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouveau transfert</a></div><form method="GET" action="{{ route('stock') }}" class="app-action-form mt-4"><input type="hidden" name="panel" value="stock-transfers"><input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Rechercher n°, article, magasin, entrepôt..."><input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('stock', ['panel' => 'stock-transfers']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div></form></article>
@@ -1048,8 +1056,15 @@
                             @if ($transfer->isDraft())
                                 <form action="{{ route('catalog.stock-transfers.send', $transfer) }}" method="POST">
                                     @csrf
-                                    <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110">Envoyer les articles</button>
+                                    <button class="rounded-lg border border-brand/40 px-4 py-2 text-sm font-semibold text-brand transition hover:bg-brand/5">Envoyer les articles</button>
                                 </form>
+                                @if ($canReceiveTransfers)
+                                    <form action="{{ route('catalog.stock-transfers.send', $transfer) }}" method="POST">
+                                        @csrf
+                                        <input type="hidden" name="receive_now" value="1">
+                                        <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110">Envoyer et réceptionner</button>
+                                    </form>
+                                @endif
                                 <form action="{{ route('catalog.stock-transfers.destroy', $transfer) }}" method="POST" onsubmit="return confirm('Supprimer le brouillon {{ $transfer->number }} ?')">
                                     @csrf @method('DELETE')
                                     <button class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-rose-300 hover:text-rose-600 dark:border-white/10 dark:text-slate-300">Supprimer le brouillon</button>
@@ -1066,7 +1081,11 @@
                             @endif
                         </div>
 
-                        @if ($transfer->isInTransit())
+                        @if ($transfer->isInTransit() && ! $canReceiveTransfers)
+                            <p class="mt-3 rounded-xl border border-dashed border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-white/10">
+                                La réception se fait à {{ $transfer->store_to }}, par quelqu'un qui en a le droit.
+                            </p>
+                        @elseif ($transfer->isInTransit())
                             {{-- La réception peut être incomplète : une palette
                                  arrive avec un carton en moins plus souvent
                                  qu'on ne le voudrait. Vide = tout est arrivé. --}}

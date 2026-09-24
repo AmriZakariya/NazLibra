@@ -127,7 +127,7 @@ class ClientTenantSeeder extends Seeder
                 ['Owner', 'owner', ['*'], true],
                 ['Manager', 'manager', ['dashboard.view', 'items.*', 'sales.*', 'online_orders.*', 'purchases.*', 'contacts.*', 'finance.*', 'reports.view', 'settings.theme'], false],
                 ['Caissier', 'cashier', ['dashboard.view', 'sales.view', 'sales.create', 'online_orders.view', 'online_orders.create', 'contacts.create', 'items.view'], false],
-                ['Stockiste', 'stockist', ['dashboard.view', 'items.*', 'stock.adjust', 'stock.transfer', 'purchases.view', 'purchases.receive'], false],
+                ['Stockiste', 'stockist', ['dashboard.view', 'items.*', 'stock.adjust', 'stock.transfer', 'stock.transfer_receive', 'purchases.view', 'purchases.receive'], false],
             ];
 
             foreach ($roles as [$roleName, $roleKey, $permissions, $isSystem]) {

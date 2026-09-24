@@ -581,12 +581,13 @@ class StoreSettingsTest extends TestCase
     {
         $content = $this->transferScreen()->getContent();
 
-        // Two by design — brouillon and créer-et-envoyer — but both in the
-        // sticky bar. The header carried a third, worded differently again.
-        $this->assertSame(2, substr_count($content, 'data-transfer-submit'));
+        // Three by design — brouillon, envoyer, transférer maintenant — but
+        // all in the sticky bar. The header carried another, worded
+        // differently again.
+        $this->assertSame(3, substr_count($content, 'data-transfer-submit'));
         $this->assertStringNotContainsString('>Créer transfert<', $content);
         $footer = Str::between($content, 'data-transfer-count', '</form>');
-        $this->assertSame(2, substr_count($footer, 'data-transfer-submit'));
+        $this->assertSame(3, substr_count($footer, 'data-transfer-submit'));
     }
 
     public function test_the_transfer_submit_starts_disabled(): void

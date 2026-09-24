@@ -39,27 +39,7 @@ class EnsureTenantAccess
 
     private function permissionsFor(Tenant $tenant, $user): array
     {
-        $tenantUser = $tenant->users()->whereKey($user->id)->first();
-        $roleKey    = $tenantUser?->pivot?->role ?? '';
-
-        if (empty($roleKey)) {
-            return [];
-        }
-
-        // Owner always has full access — no DB lookup needed.
-        if ($roleKey === 'owner') {
-            return ['*'];
-        }
-
-        $rolePermissions = Role::where('tenant_id', $tenant->id)
-            ->where('key', $roleKey)
-            ->value('permissions') ?? [];
-
-        $rolePermissions = is_string($rolePermissions)
-            ? (json_decode($rolePermissions, true) ?: [])
-            : (is_array($rolePermissions) ? $rolePermissions : []);
-
-        return array_values($rolePermissions);
+        return Permissions::grantedTo($tenant, $user);
     }
 
     private function moduleForRoute(Request $request): ?string

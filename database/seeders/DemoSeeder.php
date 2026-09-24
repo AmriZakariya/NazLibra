@@ -188,7 +188,7 @@ class DemoSeeder extends Seeder
                 ['Manager', 'manager', ['dashboard.view', 'items.*', 'sales.*', 'online_orders.*', 'purchases.*', 'contacts.*', 'finance.*', 'reports.view']],
                 ['Caissier', 'cashier', ['sales.view', 'sales.create', 'online_orders.view', 'online_orders.create', 'contacts.create', 'items.view']],
                 ['Bibliothécaire', 'librarian', ['loans.*', 'contacts.view', 'items.view']],
-                ['Stockiste', 'stockist', ['items.*', 'stock.adjust', 'stock.transfer', 'purchases.view', 'purchases.receive']],
+                ['Stockiste', 'stockist', ['items.*', 'stock.adjust', 'stock.transfer', 'stock.transfer_receive', 'purchases.view', 'purchases.receive']],
             ] as [$name, $key, $permissions]) {
                 Role::create([
                     'tenant_id' => $tenant->id,

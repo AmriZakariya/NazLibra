@@ -502,4 +502,151 @@ class StockTransferWorkflowTest extends TestCase
         // And the line that arrived whole stays quiet.
         $this->assertSame(1, substr_count($dialog, 'reçu(s)'));
     }
+
+    // ── Le transfert direct, et qui a le droit d'en faire un ──────────────────
+
+    /** Puts the signed-in user on a role holding exactly [$permissions]. */
+    private function asRole(array $permissions): void
+    {
+        $user = \App\Models\User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+        \App\Models\Role::updateOrCreate(
+            ['tenant_id' => $this->tenant->id, 'key' => 'test_role'],
+            ['name' => 'Rôle test', 'permissions' => $permissions, 'is_system' => false],
+        );
+        $this->tenant->users()->updateExistingPivot($user->id, ['role' => 'test_role']);
+        $this->actingAs($user->fresh());
+    }
+
+    public function test_the_form_can_do_the_whole_thing_in_one_click(): void
+    {
+        $from = $this->available($this->source);
+        $to = $this->available($this->destination);
+
+        $this->call('POST', '/catalogue/stock/transferts', [
+            'source_location_id' => $this->source->id,
+            'destination_location_id' => $this->destination->id,
+            'items' => [['item_id' => $this->item->id, 'quantity' => 3]],
+            'receive_now' => '1',
+        ])->assertRedirect();
+
+        // Both emplacements one room apart: no point making someone click
+        // twice for a transit that lasts the walk across the réserve.
+        $transfer = StockTransfer::latest('id')->firstOrFail();
+        $this->assertTrue($transfer->isReceived());
+        $this->assertSame($from - 3, $this->available($this->source));
+        $this->assertSame($to + 3, $this->available($this->destination));
+    }
+
+    public function test_a_draft_can_be_sent_and_received_in_one_click(): void
+    {
+        $transfer = $this->draft(4);
+        $to = $this->available($this->destination);
+
+        $this->call('POST', '/catalogue/stock/transferts/'.$transfer->id.'/envoyer', [
+            'receive_now' => '1',
+        ])->assertRedirect();
+
+        $this->assertTrue($transfer->fresh()->isReceived());
+        $this->assertSame($to + 4, $this->available($this->destination));
+    }
+
+    public function test_the_three_ways_out_are_all_offered(): void
+    {
+        $screen = $this->get('/stock?panel=stock-transfer-add')->assertOk();
+
+        $screen->assertSee('Enregistrer le brouillon');
+        $screen->assertSee('Créer et envoyer');
+        $screen->assertSee('Transférer maintenant');
+    }
+
+    public function test_sending_and_receiving_are_separate_rights(): void
+    {
+        // The person who loads the van and the person who counts the boxes at
+        // the other end are rarely the same person.
+        $this->asRole(['stock.view', 'stock.transfer']);
+        $transfer = $this->draft();
+
+        $this->call('POST', '/catalogue/stock/transferts/'.$transfer->id.'/envoyer')->assertRedirect();
+        $this->call('POST', '/catalogue/stock/transferts/'.$transfer->id.'/receptionner')->assertForbidden();
+
+        $this->assertTrue($transfer->fresh()->isInTransit());
+    }
+
+    public function test_a_sender_who_cannot_receive_is_refused_the_one_click_path(): void
+    {
+        $this->asRole(['stock.view', 'stock.transfer']);
+        $from = $this->available($this->source);
+
+        $this->call('POST', '/catalogue/stock/transferts', [
+            'source_location_id' => $this->source->id,
+            'destination_location_id' => $this->destination->id,
+            'items' => [['item_id' => $this->item->id, 'quantity' => 3]],
+            'receive_now' => '1',
+        ])->assertSessionHasErrors('transfer');
+
+        // Refused outright rather than quietly doing half of it: sending when
+        // someone asked to transfer leaves stock in transit they did not
+        // expect and cannot clear themselves.
+        $this->assertSame(0, StockTransfer::count());
+        $this->assertSame($from, $this->available($this->source));
+    }
+
+    public function test_a_sender_who_cannot_receive_is_not_offered_the_button(): void
+    {
+        $this->asRole(['stock.view', 'stock.transfer']);
+
+        $screen = $this->get('/stock?panel=stock-transfer-add')->assertOk();
+
+        // A button whose own route would refuse it is a worse answer than no
+        // button.
+        $screen->assertSee('Créer et envoyer');
+        $screen->assertDontSee('Transférer maintenant');
+    }
+
+    public function test_a_receiver_sees_the_receipt_form_and_a_sender_does_not(): void
+    {
+        $transfer = $this->draft();
+        $this->service()->send($transfer);
+
+        $this->asRole(['stock.view', 'stock.transfer']);
+        $this->assertStringNotContainsString(
+            'Confirmer la réception',
+            $this->get('/stock?panel=stock-transfers')->assertOk()->getContent(),
+        );
+
+        $this->asRole(['stock.view', 'stock.transfer', 'stock.transfer_receive']);
+        $this->assertStringContainsString(
+            'Confirmer la réception',
+            $this->get('/stock?panel=stock-transfers')->assertOk()->getContent(),
+        );
+    }
+
+    public function test_the_receive_right_alone_does_not_let_someone_send(): void
+    {
+        $this->asRole(['stock.view', 'stock.transfer_receive']);
+        $transfer = StockTransfer::latest('id')->first();
+
+        $this->call('POST', '/catalogue/stock/transferts', [
+            'source_location_id' => $this->source->id,
+            'destination_location_id' => $this->destination->id,
+            'items' => [['item_id' => $this->item->id, 'quantity' => 3]],
+        ])->assertForbidden();
+    }
+
+    public function test_the_owner_is_not_locked_out_by_their_own_role_row(): void
+    {
+        $user = \App\Models\User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+        $this->tenant->users()->updateExistingPivot($user->id, ['role' => 'owner']);
+        // An owner role edited down, or missing altogether. The owner's access
+        // comes from BEING the owner, not from a row someone can narrow.
+        \App\Models\Role::where('tenant_id', $this->tenant->id)->where('key', 'owner')
+            ->update(['permissions' => json_encode(['stock.view'])]);
+        $this->actingAs($user->fresh());
+
+        $transfer = $this->draft();
+        $this->call('POST', '/catalogue/stock/transferts/'.$transfer->id.'/envoyer')->assertRedirect();
+        $this->call('POST', '/catalogue/stock/transferts/'.$transfer->id.'/receptionner')->assertRedirect();
+
+        $this->assertTrue($transfer->fresh()->isReceived());
+    }
 }

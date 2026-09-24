@@ -39,7 +39,11 @@ class Permissions
             'stock' => ['label' => 'Stock', 'permissions' => [
                 'stock.view' => 'Voir le stock',
                 'stock.adjust' => 'Ajuster le stock',
-                'stock.transfer' => 'Transférer entre emplacements',
+                'stock.transfer' => 'Préparer et envoyer un transfert',
+                // The person who loads the van and the person who counts the
+                // boxes at the other end are rarely the same person, so
+                // receiving is its own right.
+                'stock.transfer_receive' => 'Réceptionner un transfert',
                 'stock.transfer_cancel' => 'Annuler un transfert',
                 'stock.stocktake' => 'Faire un inventaire',
             ]],
@@ -208,7 +212,7 @@ class Permissions
             // may do each step of it.
             'catalog.stock-transfers.update' => 'stock.transfer',
             'catalog.stock-transfers.send' => 'stock.transfer',
-            'catalog.stock-transfers.receive' => 'stock.transfer',
+            'catalog.stock-transfers.receive' => 'stock.transfer_receive',
             'catalog.stock-transfers.duplicate' => 'stock.transfer',
             // Tearing up a brouillon undoes a transfer that never happened,
             // which is what the cancel right is for.
@@ -381,6 +385,48 @@ class Permissions
      *
      * @param  array<int, string>  $granted
      */
+    /**
+     * The permissions a user holds in a tenant.
+     *
+     * This lived privately inside the middleware, so nothing else could ask
+     * the question — and a screen drawing a button its own route would refuse
+     * is a worse answer than not drawing it.
+     *
+     * @return list<string>
+     */
+    public static function grantedTo(\App\Models\Tenant $tenant, ?\App\Models\User $user): array
+    {
+        if ($user === null) {
+            return [];
+        }
+
+        $roleKey = (string) ($tenant->users()->whereKey($user->id)->first()?->pivot?->role ?? '');
+
+        if ($roleKey === '') {
+            return [];
+        }
+
+        // Owner always has full access — no lookup needed.
+        if ($roleKey === 'owner') {
+            return ['*'];
+        }
+
+        $permissions = \App\Models\Role::where('tenant_id', $tenant->id)
+            ->where('key', $roleKey)
+            ->value('permissions') ?? [];
+
+        $permissions = is_string($permissions)
+            ? (json_decode($permissions, true) ?: [])
+            : (is_array($permissions) ? $permissions : []);
+
+        return array_values($permissions);
+    }
+
+    public static function userCan(\App\Models\Tenant $tenant, ?\App\Models\User $user, string $required): bool
+    {
+        return self::allows(self::grantedTo($tenant, $user), $required);
+    }
+
     public static function allows(array $granted, string $required): bool
     {
         if (in_array('*', $granted, true) || in_array($required, $granted, true)) {

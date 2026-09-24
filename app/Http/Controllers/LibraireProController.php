@@ -1334,20 +1334,41 @@ class LibraireProController extends Controller
         $tenant = $this->tenant();
         $data = $this->validatedStockTransfer($request, $tenant);
 
+        // Three ways out, because shops differ: leave a brouillon for whoever
+        // loads the van, send it now and let the other end count it in, or —
+        // when both emplacements are one room apart — do the whole thing in
+        // one click.
+        $receiveNow = $request->boolean('receive_now');
+        $sendNow = $receiveNow || $request->boolean('send_now');
+
+        if ($receiveNow && ! $this->canReceiveTransfers($tenant)) {
+            return back()->withInput()->withErrors([
+                'transfer' => "Vous pouvez envoyer un transfert, mais pas le réceptionner. Enregistrez-le et faites-le réceptionner à l'arrivée.",
+            ]);
+        }
+
         $transfer = $transfers->create($tenant, $data);
 
-        // "Créer et envoyer" is one click for the shop where one person does
-        // the whole thing; the brouillon stays for the shop where someone
-        // else loads the van.
-        if ($request->boolean('send_now')) {
+        if ($sendNow) {
             $transfers->send($transfer);
+        }
+        if ($receiveNow) {
+            $transfers->receive($transfer->refresh());
         }
 
         return redirect()
             ->route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $transfer->id])
-            ->with('status', $request->boolean('send_now')
-                ? 'Transfert '.$transfer->number.' envoyé — le stock a quitté '.$transfer->store_from.'.'
-                : 'Brouillon '.$transfer->number.' enregistré. Envoyez-le quand les articles partent.');
+            ->with('status', match (true) {
+                $receiveNow => 'Transfert '.$transfer->number.' effectué — le stock est à '.$transfer->store_to.'.',
+                $sendNow => 'Transfert '.$transfer->number.' envoyé — le stock a quitté '.$transfer->store_from.'.',
+                default => 'Brouillon '.$transfer->number.' enregistré. Envoyez-le quand les articles partent.',
+            });
+    }
+
+    /** Whether the signed-in user may count a transfer in at its destination. */
+    private function canReceiveTransfers(Tenant $tenant): bool
+    {
+        return \App\Support\Permissions::userCan($tenant, auth()->user(), 'stock.transfer_receive');
     }
 
     /**
@@ -1413,17 +1434,32 @@ class LibraireProController extends Controller
     }
 
     public function sendStockTransfer(
+        Request $request,
         StockTransfer $transfer,
         \App\Services\Inventory\StockTransferService $transfers,
     ): RedirectResponse {
         $tenant = $this->tenant();
         abort_unless($transfer->tenant_id === $tenant->id, 404);
 
+        $receiveNow = $request->boolean('receive_now');
+
+        if ($receiveNow && ! $this->canReceiveTransfers($tenant)) {
+            return back()->withErrors([
+                'transfer' => "Vous pouvez envoyer un transfert, mais pas le réceptionner.",
+            ]);
+        }
+
         $transfers->send($transfer);
+
+        if ($receiveNow) {
+            $transfers->receive($transfer->refresh());
+        }
 
         return redirect()
             ->route('stock', ['panel' => 'stock-transfers', 'detail_transfer' => $transfer->id])
-            ->with('status', 'Transfert '.$transfer->number.' envoyé — le stock a quitté '.$transfer->store_from.'.');
+            ->with('status', $receiveNow
+                ? 'Transfert '.$transfer->number.' effectué — le stock est à '.$transfer->store_to.'.'
+                : 'Transfert '.$transfer->number.' envoyé — le stock a quitté '.$transfer->store_from.'.');
     }
 
     public function receiveStockTransfer(
