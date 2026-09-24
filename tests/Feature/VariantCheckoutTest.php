@@ -152,6 +152,60 @@ class VariantCheckoutTest extends TestCase
         ])->assertSessionHasErrors();
     }
 
+    public function test_a_return_puts_the_goods_back_on_the_pile_they_left(): void
+    {
+        // Restocking the article's own pile instead would leave the size still
+        // missing AND invent stock that was never there — wrong twice over.
+        $this->stock('L', 5);
+        $variant = $this->item->variants()->where('name', 'L')->firstOrFail();
+        $this->checkout([
+            'id' => $this->item->id, 'variant_id' => $variant->id,
+            'quantity' => 2, 'price' => 100,
+        ])->assertRedirect();
+        $this->assertSame(3, $this->available('L'));
+
+        $sale = Sale::where('tenant_id', $this->tenant->id)->latest('id')->firstOrFail();
+        $line = SaleItem::where('sale_id', $sale->id)->firstOrFail();
+        // The article's OWN row, read directly. InventoryService::quantity()
+        // with a null variant does not mean "the article's pile" — it omits
+        // the variant filter and SUMS the article plus every size, which is a
+        // different question and would hide the bug this asserts.
+        $ownPile = fn (): int => (int) \App\Models\ItemLocationStock::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->where('item_id', $this->item->id)
+            ->whereNull('variant_id')
+            ->where('location_id', $this->location->id)
+            ->value('quantity');
+        $beforeArticle = $ownPile();
+
+        $this->post(route('sales.refund', $sale), [
+            'refund_method' => 'cash',
+            'refund_reason' => 'Taille incorrecte',
+            'return_lines' => [[
+                'sale_item_id' => $line->id,
+                'quantity' => 2,
+                'stock_action' => 'restock',
+            ]],
+        ])->assertRedirect();
+
+        $this->assertSame(5, $this->available('L'), 'the size should be back');
+        $this->assertSame($beforeArticle, $ownPile(),
+            "the article's own pile must not gain stock it never had");
+    }
+
+    public function test_the_manual_sale_form_refuses_an_article_sold_by_size(): void
+    {
+        // That form has no chooser, so it would deduct the article's own pile
+        // — empty by design — and record a sale nobody could attribute.
+        $this->stock('L', 5);
+
+        $this->post(route('sales.store'), [
+            'items' => [['item_id' => $this->item->id, 'quantity' => 1, 'unit_price' => 100]],
+            'payment_method' => 'cash',
+            'paid_amount' => 100,
+        ])->assertSessionHasErrors();
+    }
+
     public function test_the_variants_own_price_is_charged(): void
     {
         $this->stock('L', 5);

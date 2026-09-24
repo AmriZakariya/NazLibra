@@ -4991,6 +4991,17 @@ class LibraireProController extends Controller
                 ]);
 
                 foreach ($saleLines as $line) {
+                    // This form has no variant chooser. Letting an article
+                    // with sizes through would deduct its own pile — which is
+                    // empty by design — and record a sale nobody can attribute
+                    // to a size afterwards.
+                    if ($line['item']->hasVariants()) {
+                        throw new \RuntimeException(
+                            '« '.$line['item']->title.' » se vend par déclinaison : '
+                            .'utilisez la caisse pour choisir la taille.',
+                        );
+                    }
+
                     $sale->items()->create([
                         'item_id'    => $line['item']->id,
                         'name'       => $line['item']->title,
@@ -5489,6 +5500,10 @@ class LibraireProController extends Controller
                 $lines[] = [
                     'sale_item_id' => $line->id,
                     'item_id' => $line->item_id,
+                    // The pile the goods LEFT. Restocking the article's own
+                    // instead would leave the size still missing AND invent
+                    // stock that was never there — wrong twice over.
+                    'variant_id' => $line->variant_id,
                     'name' => $line->name,
                     'quantity' => $quantity,
                     'max_quantity' => $remainingQuantity,
@@ -5558,7 +5573,7 @@ class LibraireProController extends Controller
                     $inventoryService->move(new \App\Services\Inventory\MovementDTO(
                         tenantId: $tenant->id,
                         itemId: $item->id,
-                        variantId: null,
+                        variantId: $returnLine['variant_id'] ?? null,
                         locationId: $returnLocationId,
                         type: \App\Services\Inventory\InventoryMovementType::RETURN,
                         quantityChanged: $quantity,

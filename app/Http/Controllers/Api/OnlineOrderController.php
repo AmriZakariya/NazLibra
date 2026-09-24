@@ -15,6 +15,7 @@ use App\Services\Inventory\InventoryService;
 use App\Services\Inventory\MovementDTO;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -228,6 +229,16 @@ class OnlineOrderController extends Controller
                 // Create sale items + deduct stock.
                 foreach ($order->items as $line) {
                     $item = $catalogItems->get($line->item_id);
+
+                    // An online order carries no variant, so an article sold
+                    // by size cannot be turned into a sale here: it would
+                    // deduct the article's own pile, which is empty by design.
+                    if ($item && $item->hasVariants()) {
+                        throw ValidationException::withMessages([
+                            'items' => '« '.$item->title.'  » se vend par déclinaison '
+                                .'et ne peut pas être encaissé depuis une précommande.',
+                        ]);
+                    }
 
                     $sale->items()->create([
                         'item_id'    => $item->id,
