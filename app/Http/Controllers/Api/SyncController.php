@@ -438,7 +438,10 @@ class SyncController extends Controller
             ->where('tenant_id', $tenant->id)
             ->where('location_id', $request->attributes->get('api_location_id'))
             ->with([
-                'items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost',
+                // variant_id included deliberately: the column list is
+                // explicit, so a sale pulled back to a till would otherwise
+                // arrive attributable to the article and not to the size.
+                'items:id,sale_id,item_id,variant_id,name,quantity,unit_price,total_price,unit_cost,total_cost',
                 'contact:id,name,phone',
                 'user:id,name',
                 'virtualDevice:id,name',

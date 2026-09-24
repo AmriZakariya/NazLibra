@@ -635,7 +635,10 @@ class LibraireProController extends Controller
                         ->where('selected_location_stock.location_id', '=', $currentStoreLocationId)
                         ->whereNull('selected_location_stock.variant_id');
                 })
-                ->selectRaw('coalesce(selected_location_stock.quantity, 0) as store_stock_quantity')
+                ->selectRaw(
+                    '('.$this->onHandAtLocationSql($tenant->id, $currentStoreLocationId)
+                    .') as store_stock_quantity',
+                )
                 ->selectRaw('coalesce(selected_location_stock.reserved_quantity, 0) as store_reserved_quantity')
                 ->where('type', '!=', 'service')
                 ->whereKey($inventoryItemId)
@@ -667,7 +670,10 @@ class LibraireProController extends Controller
                     ->where('inventory_location_stock.location_id', '=', $currentStoreLocationId)
                     ->whereNull('inventory_location_stock.variant_id');
             })
-            ->selectRaw('coalesce(inventory_location_stock.quantity, 0) as store_stock_quantity')
+            ->selectRaw(
+                '('.$this->onHandAtLocationSql($tenant->id, $currentStoreLocationId)
+                .') as store_stock_quantity',
+            )
             ->selectRaw('coalesce(inventory_location_stock.reserved_quantity, 0) as store_reserved_quantity')
             ->selectRaw('coalesce(inventory_location_stock.average_cost, items.purchase_price, 0) as store_average_cost')
             ->selectSub(function ($builder) use ($tenant, $currentStoreLocationId): void {
@@ -871,7 +877,10 @@ class LibraireProController extends Controller
                         ->where('stock_item_location_stock.location_id', '=', $currentStoreLocationId)
                         ->whereNull('stock_item_location_stock.variant_id');
                 })
-                ->selectRaw('coalesce(stock_item_location_stock.quantity, 0) as store_stock_quantity')
+                ->selectRaw(
+                    '('.$this->onHandAtLocationSql($tenant->id, $currentStoreLocationId)
+                    .') as store_stock_quantity',
+                )
                 ->with(['category', 'brand'])
                 ->where('items.type', '!=', 'service')
                 ->when($stockItemSearch !== '', fn (Builder $builder) => $builder->where(function (Builder $builder) use ($stockItemSearch): void {
@@ -9237,6 +9246,29 @@ class LibraireProController extends Controller
      * one from the till, one from the invoicing module. Reading a max also
      * handed the same number to two simultaneous requests.
      */
+    /**
+     * Everything on the shelf for an article at one location, sizes included.
+     *
+     * The joins beside this filter `variant_id IS NULL`, which was right while
+     * only the article had stock. Now that a size holds its own pile, that
+     * filter shows an article with thirty units across three sizes as ZERO —
+     * out of stock everywhere the catalogue, the transfer picker and the
+     * adjustment picker look.
+     *
+     * A correlated subquery rather than widening the join: the join feeds
+     * several other columns (reserved, average cost) that genuinely do belong
+     * to the article's own row.
+     *
+     * Integers are cast in, never interpolated from input.
+     */
+    private function onHandAtLocationSql(int $tenantId, int $locationId): string
+    {
+        return 'select coalesce(sum(quantity), 0) from item_location_stock'
+            .' where item_location_stock.item_id = items.id'
+            .' and item_location_stock.tenant_id = '.(int) $tenantId
+            .' and item_location_stock.location_id = '.(int) $locationId;
+    }
+
     private function nextSaleInvoiceNumber(Tenant $tenant): string
     {
         return $this->numbers->nextInvoice($tenant)['number'];

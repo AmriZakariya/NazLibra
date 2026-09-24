@@ -206,6 +206,32 @@ class VariantCheckoutTest extends TestCase
         ])->assertSessionHasErrors();
     }
 
+    public function test_the_stock_list_counts_the_sizes_not_the_empty_article(): void
+    {
+        // The joins filter `variant_id IS NULL`, which was right while only
+        // the article had stock. An article with thirty units across three
+        // sizes would otherwise read ZERO — out of stock everywhere the
+        // catalogue, the transfer picker and the adjustment picker look.
+        $ownPile = (int) \App\Models\ItemLocationStock::query()
+            ->where('item_id', $this->item->id)
+            ->whereNull('variant_id')
+            ->where('location_id', $this->location->id)
+            ->value('quantity');
+        $this->stock('S', 12);
+        $this->stock('L', 18);
+
+        $html = $this->get(route('stock', ['panel' => 'stock-adjustment-add']))
+            ->assertOk()->getContent();
+
+        // Everything on the shelf: the article's own pile plus both sizes.
+        $position = strpos($html, $this->item->title);
+        $this->assertNotFalse($position);
+        $this->assertStringContainsString(
+            'data-stock="'.($ownPile + 30).'"',
+            substr($html, $position, 200),
+        );
+    }
+
     public function test_the_variants_own_price_is_charged(): void
     {
         $this->stock('L', 5);
