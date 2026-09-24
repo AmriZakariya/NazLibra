@@ -125,7 +125,13 @@ class CashRegisterController extends Controller
                 ->map(fn ($n) => (int) preg_replace('/\D+/', '', (string) $n))
                 ->max() ?? 0;
 
-            $storeKey = (string) data_get($tenant->settings, 'current_store', 'default');
+            // The default location when nothing was chosen, not the string
+            // 'default': that key belongs to no emplacement, and a drawer
+            // opened under it is invisible to every other screen.
+            $storeKey = (string) (data_get($tenant->settings, 'current_store')
+                ?: \App\Models\Location::where('tenant_id', $tenant->id)
+                    ->where('is_default', true)
+                    ->value('id'));
 
             return CashRegisterSession::create([
                 'tenant_id'            => $tenant->id,

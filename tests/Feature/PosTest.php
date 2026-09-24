@@ -356,7 +356,7 @@ class PosTest extends TestCase
             'show_out_of_stock' => '1',
             'show_cash_drawer_navbar' => '0',
             'online_store_enabled' => '0',
-            'online_pickup_store' => 'magasin-principal',
+            'online_pickup_store' => $this->storeKey(),
         ])->assertRedirect();
 
         $settings = Tenant::firstOrFail()->fresh()->settings;
@@ -366,7 +366,7 @@ class PosTest extends TestCase
         $this->assertTrue((bool) data_get($settings, 'pos.show_out_of_stock'));
         $this->assertFalse((bool) data_get($settings, 'pos.show_cash_drawer_navbar'));
         $this->assertFalse((bool) data_get($settings, 'online_store.enabled'));
-        $this->assertSame('magasin-principal', data_get($settings, 'online_store.pickup_store'));
+        $this->assertSame($this->storeKey(), data_get($settings, 'online_store.pickup_store'));
     }
 
     public function test_settings_store_section_groups_pos_and_stock_settings(): void
@@ -959,7 +959,7 @@ class PosTest extends TestCase
         $this->assertSame($initialStock - 3, $item->fresh()->stock_quantity);
 
         $this->post(route('cash-register.open'), [
-            'store_key' => 'magasin-principal',
+            'store_key' => $this->storeKey(),
             'opening_amount' => 100,
         ])->assertRedirect(route('module', 'cash-register'));
 

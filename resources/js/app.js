@@ -5656,6 +5656,31 @@ document.querySelectorAll('[data-transfer-picker]').forEach((picker) => {
     const empty = picker.querySelector('[data-transfer-empty]');
     const template = form.querySelector('[data-transfer-line-template]');
     const searchUrl = picker.dataset.searchUrl;
+    const count = form.querySelector('[data-transfer-count]');
+    const total = form.querySelector('[data-transfer-total]');
+    const submit = form.querySelector('[data-transfer-submit]');
+
+    // The footer used to carry the stock ADJUSTMENT's wording and counters, on
+    // a form that never updates them: it read "0 article(s) sélectionné(s)"
+    // however many lines were on screen, and offered "Valider l'ajustement".
+    const summarise = () => {
+        const rows = [...body.rows];
+        const units = rows.reduce(
+            (sum, row) => sum + (Number(row.querySelector('[data-line-quantity]')?.value) || 0),
+            0,
+        );
+
+        if (count) count.textContent = String(rows.length);
+        if (total) total.textContent = String(units);
+        // A transfer needs both ends and something to move. Saying so on the
+        // button beats a round trip that comes back with a validation error.
+        if (submit) {
+            submit.disabled = rows.length === 0
+                || units <= 0
+                || source.value === ''
+                || destination.value === '';
+        }
+    };
 
     // The two ends can never be the same place. Enforced by taking the option
     // away rather than by complaining after the fact.
@@ -5671,6 +5696,7 @@ document.querySelectorAll('[data-transfer-picker]').forEach((picker) => {
         hint.textContent = ready
             ? 'Les quantités affichées sont celles de la source.'
             : "Choisissez d'abord un emplacement source.";
+        summarise();
     };
 
     const renumber = () => {
@@ -5680,6 +5706,7 @@ document.querySelectorAll('[data-transfer-picker]').forEach((picker) => {
             row.querySelector('[data-line-note]').name = `items[${index}][note]`;
         });
         empty.hidden = body.rows.length > 0;
+        summarise();
     };
 
     const checkQuantity = (row) => {
@@ -5690,6 +5717,7 @@ document.querySelectorAll('[data-transfer-picker]').forEach((picker) => {
         // they end up transferring a number they never chose.
         row.querySelector('[data-line-over]').classList.toggle('hidden', !over);
         input.classList.toggle('border-rose-400', over);
+        summarise();
     };
 
     const addLine = (item) => {

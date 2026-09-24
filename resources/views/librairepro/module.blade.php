@@ -3911,7 +3911,7 @@
             $businessModes = \App\Support\BusinessMode::all();
             $currentBusinessMode = \App\Support\BusinessMode::current($tenant);
             $appModuleSettings = \App\Support\AppModules::settings($tenant);
-            $storeTypeLabels = ['store' => 'Magasin', 'warehouse' => 'Dépôt', 'area' => 'Rayon', 'branch' => 'Succursale'];
+            $storeTypeLabels = ['store' => 'Magasin', 'warehouse' => 'Dépôt', 'area' => 'Rayon', 'branch' => 'Succursale', 'stockroom' => 'Réserve', 'online' => 'En ligne', 'temporary' => 'Temporaire'];
             $settingsSection = request('section', 'overview');
             $settingsGroups = [
                 'overview' => [
@@ -4978,6 +4978,9 @@
                         'warehouse' => ['label' => 'Dépôt', 'tone' => 'info'],
                         'area' => ['label' => 'Rayon', 'tone' => 'neutral'],
                         'branch' => ['label' => 'Succursale', 'tone' => 'success'],
+                        'stockroom' => ['label' => 'Réserve', 'tone' => 'neutral'],
+                        'online' => ['label' => 'En ligne', 'tone' => 'info'],
+                        'temporary' => ['label' => 'Temporaire', 'tone' => 'warning'],
                     ];
                     $activeStores = collect($stores)->where('is_active', true);
                     $inactiveStoreCount = count($stores) - $activeStores->count();

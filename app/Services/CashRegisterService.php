@@ -101,9 +101,24 @@ class CashRegisterService
         return $movement;
     }
 
+    /**
+     * Which emplacement the drawer belongs to.
+     *
+     * Falls back on the DEFAULT location rather than on a hardcoded slug: a
+     * tenant that never chose one would otherwise get a key no emplacement
+     * answers to, and a cash sale would find no open drawer to record against.
+     */
     private function currentStoreKey(Tenant $tenant): string
     {
-        return (string) data_get($tenant->settings, 'current_store', 'magasin-principal');
+        $configured = (string) data_get($tenant->settings, 'current_store', '');
+
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        return (string) (\App\Models\Location::where('tenant_id', $tenant->id)
+            ->where('is_default', true)
+            ->value('id') ?? '');
     }
 
     private function nextMovementNumber(Tenant $tenant): string

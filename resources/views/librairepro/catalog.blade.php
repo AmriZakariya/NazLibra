@@ -218,24 +218,29 @@
                     </template>
 
                     <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note globale</span><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Détails de l'inventaire...">{{ old('note') }}</textarea></label>
-                </div>
-                <div class="sticky bottom-0 flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-4 backdrop-blur dark:border-white/10 dark:bg-slate-950/95 sm:flex-row sm:items-center sm:justify-between">
+                <div class="sticky bottom-0 z-10 flex flex-col gap-3 rounded-b-2xl border-t border-slate-200 bg-white/95 p-4 backdrop-blur dark:border-white/10 dark:bg-slate-950/95 sm:flex-row sm:items-center sm:justify-between">
                     <p class="text-sm text-slate-500"><strong data-stock-adjustment-count class="text-slate-900 dark:text-white">0</strong> article(s) sélectionné(s), <strong data-stock-adjustment-total class="text-slate-900 dark:text-white">0</strong> unité(s) saisie(s).</p>
                     <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20 transition hover:bg-brand-600">Valider l'ajustement</button>
                 </div>
+                </div>
             </form>
-            <aside class="space-y-4 2xl:sticky 2xl:top-24 2xl:self-start">
+            <aside class="space-y-4 xl:sticky xl:top-24 xl:self-start">
                 <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">Résumé stock</h3><dl class="mt-4 space-y-3 text-sm"><div class="flex justify-between"><dt class="text-slate-500">Ajustements</dt><dd class="font-semibold">{{ $stockStats['adjustments'] }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Qté ajustée ce mois</dt><dd class="font-semibold">{{ number_format($stockStats['adjusted_month'], 0, ',', ' ') }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Alertes stock</dt><dd class="font-semibold text-amber-600">{{ $catalogStats['low'] }}</dd></div></dl></article>
             </aside>
         </section>
     @elseif ($panel === 'stock-transfer-add')
         <section class="mt-6 grid gap-6 xl:grid-cols-[1fr_340px]">
-            <form action="{{ route('catalog.stock-transfers.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+            {{-- Un seul bouton d'envoi, dans la barre collante : l'en-tête en
+                 portait un second, et la barre elle-même fermait une balise
+                 ouverte ailleurs, si bien qu'elle débordait de la carte et
+                 recouvrait le résumé. --}}
+            <form action="{{ route('catalog.stock-transfers.store') }}" method="POST" data-transfer-form class="flex flex-col overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 @csrf
-                <div class="flex flex-col gap-2 border-b border-slate-200 pb-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
-                    <div><h2 class="text-lg font-semibold">Transfert de stock</h2><p class="mt-1 text-sm text-slate-500">Déplacez du stock d'un emplacement à un autre. Le stock quitte la source et arrive à la destination.</p></div>
-                    <button class="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">Créer transfert</button>
+                <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                    <h2 class="text-lg font-semibold">Transfert de stock</h2>
+                    <p class="mt-1 text-sm text-slate-500">Déplacez du stock d'un emplacement à un autre. Le stock quitte la source et arrive à la destination.</p>
                 </div>
+                <div class="space-y-5 p-5">
                 {{-- Emplacements choisis dans la liste du magasin, jamais saisis
                      à la main : l'ancien formulaire résolvait un nom approché et
                      retombait sur l'emplacement par défaut, si bien qu'une faute
@@ -333,80 +338,19 @@
                 </template>
 
                 <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note globale</span><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="Détails de l'inventaire...">{{ old('note') }}</textarea></label>
+                <div class="sticky bottom-0 z-10 flex flex-col gap-3 rounded-b-2xl border-t border-slate-200 bg-white/95 p-4 backdrop-blur dark:border-white/10 dark:bg-slate-950/95 sm:flex-row sm:items-center sm:justify-between">
+                    <p class="text-sm text-slate-500">
+                        <strong data-transfer-count class="text-slate-900 dark:text-white">0</strong> article(s),
+                        <strong data-transfer-total class="text-slate-900 dark:text-white">0</strong> unité(s) à déplacer.
+                    </p>
+                    {{-- Grisé tant que le transfert n'a pas de quoi partir : la
+                         source, la destination et au moins une ligne. --}}
+                    <button data-transfer-submit disabled class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20 transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-brand">Créer le transfert</button>
                 </div>
-                <div class="sticky bottom-0 flex flex-col gap-3 border-t border-slate-200 bg-white/95 p-4 backdrop-blur dark:border-white/10 dark:bg-slate-950/95 sm:flex-row sm:items-center sm:justify-between">
-                    <p class="text-sm text-slate-500"><strong data-stock-adjustment-count class="text-slate-900 dark:text-white">0</strong> article(s) sélectionné(s), <strong data-stock-adjustment-total class="text-slate-900 dark:text-white">0</strong> unité(s) saisie(s).</p>
-                    <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-brand/20 transition hover:bg-brand-600">Valider l'ajustement</button>
                 </div>
             </form>
             <aside class="space-y-4 2xl:sticky 2xl:top-24 2xl:self-start">
                 <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">Résumé stock</h3><dl class="mt-4 space-y-3 text-sm"><div class="flex justify-between"><dt class="text-slate-500">Ajustements</dt><dd class="font-semibold">{{ $stockStats['adjustments'] }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Qté ajustée ce mois</dt><dd class="font-semibold">{{ number_format($stockStats['adjusted_month'], 0, ',', ' ') }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Alertes stock</dt><dd class="font-semibold text-amber-600">{{ $catalogStats['low'] }}</dd></div></dl></article>
-            </aside>
-        </section>
-    @elseif ($panel === 'stock-transfer-add')
-        <section class="mt-6 grid gap-6 xl:grid-cols-[1fr_340px]">
-            <form action="{{ route('catalog.stock-transfers.store') }}" method="POST" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                @csrf
-                <div class="flex flex-col gap-2 border-b border-slate-200 pb-4 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
-                    <div><h2 class="text-lg font-semibold">Transfert de stock</h2><p class="mt-1 text-sm text-slate-500">Déplacez du stock d'un emplacement à un autre. Le stock quitte la source et arrive à la destination.</p></div>
-                    <button class="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">Créer transfert</button>
-                </div>
-                {{-- Emplacements choisis dans la liste du magasin, jamais saisis
-                     à la main : l'ancien formulaire résolvait un nom approché et
-                     retombait sur l'emplacement par défaut, si bien qu'une faute
-                     de frappe déplaçait le stock ailleurs sans rien signaler. --}}
-                <div class="grid gap-4 lg:grid-cols-3">
-                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date</span><input name="transferred_at" value="{{ old('transferred_at', now()->format('Y-m-d\TH:i')) }}" type="datetime-local" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                    <label class="space-y-1.5">
-                        <span class="text-xs font-semibold uppercase text-slate-500">Emplacement source</span>
-                        <select name="source_location_id" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                            <option value="">Choisir…</option>
-                            @foreach ($locations as $location)
-                                <option value="{{ $location->id }}" @selected(old('source_location_id') == $location->id)>{{ $location->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('source_location_id')<span class="text-xs font-semibold text-rose-600">{{ $message }}</span>@enderror
-                    </label>
-                    <label class="space-y-1.5">
-                        <span class="text-xs font-semibold uppercase text-slate-500">Emplacement destination</span>
-                        <select name="destination_location_id" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                            <option value="">Choisir…</option>
-                            @foreach ($locations as $location)
-                                <option value="{{ $location->id }}" @selected(old('destination_location_id') == $location->id)>{{ $location->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('destination_location_id')<span class="text-xs font-semibold text-rose-600">{{ $message }}</span>@enderror
-                    </label>
-                </div>
-                @if ($locations->count() < 2)
-                    <p class="rounded-lg bg-amber-50 px-4 py-3 text-sm font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
-                        Un transfert a besoin d'au moins deux emplacements. Créez-en un second dans Paramètres → Emplacements.
-                    </p>
-                @endif
-                <div class="space-y-3">
-                    <div class="grid gap-2 text-xs font-semibold uppercase text-slate-500 lg:grid-cols-[2fr_120px_1fr_40px]"><span>Article</span><span>Quantité</span><span>Note ligne</span><span></span></div>
-                    @for ($i = 0; $i < 8; $i++)
-                        <div class="stock-line grid gap-2 lg:grid-cols-[2fr_120px_1fr_40px]">
-                            <select name="items[{{ $i }}][item_id]" data-searchable-select data-placeholder="Rechercher article..." class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                <option value="">Article</option>
-                                @foreach ($stockItems as $item)
-                                    @php
-                                        $storeStock = (int) ($item->store_stock_quantity ?? $item->stock_quantity);
-                                    @endphp
-                                    <option value="{{ $item->id }}" @selected(old("items.$i.item_id") == $item->id)>{{ $item->title }} · stock {{ $storeStock }} · {{ $item->barcode ?? $item->item_code }}</option>
-                                @endforeach
-                            </select>
-                            <input name="items[{{ $i }}][quantity]" value="{{ old("items.$i.quantity") }}" type="number" min="1" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="0">
-                            <input name="items[{{ $i }}][note]" value="{{ old("items.$i.note") }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Carton, rayon...">
-                            <span class="grid h-10 place-items-center rounded-lg bg-slate-50 text-xs font-semibold text-slate-400 dark:bg-white/5">{{ $i + 1 }}</span>
-                        </div>
-                    @endfor
-                </div>
-                <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note globale</span><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Transporteur, responsable, commentaire...">{{ old('note') }}</textarea></label>
-            </form>
-            <aside class="space-y-4">
-                <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">Résumé transferts</h3><dl class="mt-4 space-y-3 text-sm"><div class="flex justify-between"><dt class="text-slate-500">Transferts</dt><dd class="font-semibold">{{ $stockStats['transfers'] }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Qté transférée ce mois</dt><dd class="font-semibold">{{ number_format($stockStats['transferred_month'], 0, ',', ' ') }}</dd></div></dl></article>
-                <article class="rounded-xl border border-slate-200 bg-white p-5 text-sm shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">Version multi-dépôt</h3><p class="mt-2 text-slate-500">Le transfert prépare l'historique magasin/dépôt. Le stock par dépôt pourra ensuite s'appuyer sur ces lignes sans migration douloureuse.</p></article>
             </aside>
         </section>
     @elseif ($panel === 'stock-adjustments')

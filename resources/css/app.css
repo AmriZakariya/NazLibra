@@ -5,6 +5,14 @@
 @source '../**/*.blade.php';
 @source '../**/*.js';
 
+/* L'application bascule une classe `dark` sur <html> ; sans cette ligne la
+   variante `dark:` de Tailwind v4 suit `prefers-color-scheme`, c'est-à-dire le
+   thème du système. Les deux se contredisaient : sur un Mac en sombre, un
+   écran clair recevait quand même les styles sombres — la barre collante du
+   transfert s'affichait en noir — et le bouton de thème de l'application ne
+   changeait rien du tout sur un système en clair. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
     --font-sans: Inter, Geist, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';

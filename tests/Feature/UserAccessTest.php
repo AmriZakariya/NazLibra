@@ -149,17 +149,23 @@ class UserAccessTest extends TestCase
             'is_active' => '1',
         ])->assertRedirect(route('module', ['module' => 'settings', 'section' => 'warehouses']));
 
-        $tenant->refresh();
-        $store = collect($tenant->settings['stores'])->firstWhere('name', 'Boutique Maarif');
+        // In the `locations` table, not in a second list in the settings JSON:
+        // an emplacement created here is the same row a transfer moves stock
+        // to, which is what makes this screen worth using at all.
+        $store = \App\Models\Location::where('tenant_id', $tenant->id)
+            ->where('name', 'Boutique Maarif')
+            ->first();
 
         $this->assertNotNull($store);
+        $this->assertSame('branch', $store->type);
+        $this->assertSame('Amina', $store->manager_name);
 
         $this->post(route('settings.current-store.update'), [
-            'current_store' => $store['key'],
+            'current_store' => (string) $store->id,
         ])->assertRedirect();
 
         $tenant->refresh();
-        $this->assertSame($store['key'], $tenant->settings['current_store']);
+        $this->assertSame((string) $store->id, $tenant->settings['current_store']);
     }
 
     public function test_modules_can_be_enabled_disabled_and_ordered(): void

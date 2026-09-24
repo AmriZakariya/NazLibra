@@ -22,7 +22,7 @@ class CashRegisterTest extends TestCase
         $tenant = Tenant::firstOrFail();
         $account = FinancialAccount::create([
             'tenant_id' => $tenant->id,
-            'store_key' => 'magasin-principal',
+            'store_key' => $this->storeKey(),
             'name' => 'Tiroir test',
             'type' => 'cash',
             'opening_balance' => 0,
@@ -37,7 +37,7 @@ class CashRegisterTest extends TestCase
 
         $this->post(route('cash-register.open'), [
             'financial_account_id' => $account->id,
-            'store_key' => 'magasin-principal',
+            'store_key' => $this->storeKey(),
             'opening_amount' => 100,
             'note' => 'Ouverture test',
         ])->assertRedirect(route('module', 'cash-register'));
@@ -80,7 +80,7 @@ class CashRegisterTest extends TestCase
         $price = round((float) $item->sale_price, 2);
 
         $this->post(route('cash-register.open'), [
-            'store_key' => 'magasin-principal',
+            'store_key' => $this->storeKey(),
             'opening_amount' => 50,
         ])->assertRedirect(route('module', 'cash-register'));
 
@@ -110,7 +110,7 @@ class CashRegisterTest extends TestCase
         $tenant = Tenant::firstOrFail();
 
         $this->post(route('cash-register.open'), [
-            'store_key' => 'magasin-principal',
+            'store_key' => $this->storeKey(),
             'opening_amount' => 20,
         ])->assertRedirect(route('module', 'cash-register'));
 

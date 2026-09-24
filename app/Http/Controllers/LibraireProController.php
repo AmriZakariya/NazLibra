@@ -19,6 +19,7 @@ use App\Models\FinancialAccount;
 use App\Models\Estimate;
 use App\Models\Invoice;
 use App\Models\Item;
+use App\Models\InventoryMovement;
 use App\Models\ItemLocationStock;
 use App\Models\ItemVariant;
 use App\Models\Loan;
@@ -3548,7 +3549,15 @@ class LibraireProController extends Controller
         $settings['current_store'] = $data['current_store'];
         $tenant->update(['settings' => $settings]);
 
-        return back()->with('status', 'Magasin courant mis à jour.');
+        // Inventory falls back on the default location when a write names no
+        // emplacement. Keeping it on the current one means that fallback lands
+        // where the till is actually selling.
+        Location::where('tenant_id', $tenant->id)->where('is_default', true)
+            ->update(['is_default' => false]);
+        Location::where('tenant_id', $tenant->id)->whereKey($data['current_store'])
+            ->update(['is_default' => true]);
+
+        return back()->with('status', 'Emplacement courant mis à jour.');
     }
 
     public function storePaymentType(Request $request): RedirectResponse
@@ -3688,87 +3697,140 @@ class LibraireProController extends Controller
     {
         $tenant = $this->tenant();
         $data = $this->validateStore($request);
+
+        if ($this->storeNameTaken($tenant, $data['name'])) {
+            return back()->withInput()->withErrors(['name' => 'Un emplacement porte déjà ce nom.']);
+        }
+
+        $location = Location::create([
+            'tenant_id' => $tenant->id,
+            'name' => $data['name'],
+            'type' => $data['type'],
+            'address' => $data['address'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'manager_name' => $data['manager'] ?? null,
+            'is_active' => (bool) ($data['is_active'] ?? false),
+            // The first one a tenant has is what inventory falls back on when
+            // nothing names an emplacement.
+            'is_default' => ! Location::where('tenant_id', $tenant->id)->where('is_default', true)->exists(),
+        ]);
+
         $settings = $tenant->settings ?? [];
-        $stores = $this->storeCatalog($tenant);
-        $key = $this->uniqueStoreKey($stores, $data['name']);
-        $stores[] = $this->storePayload($data, $key);
-        $settings['stores'] = $stores;
-        $settings['current_store'] ??= $key;
+        $settings['current_store'] ??= (string) $location->id;
         $tenant->update(['settings' => $settings]);
 
         return redirect()
             ->route('module', ['module' => 'settings', 'section' => 'warehouses'])
-            ->with('status', 'Magasin '.$data['name'].' ajouté.');
+            ->with('status', 'Emplacement '.$data['name'].' ajouté.');
     }
 
     public function updateStore(Request $request, string $storeKey): RedirectResponse
     {
         $tenant = $this->tenant();
         $data = $this->validateStore($request);
-        $current = collect($this->storeCatalog($tenant));
-        $existing = $current->firstWhere('key', $storeKey);
+        $location = Location::where('tenant_id', $tenant->id)->find($storeKey);
 
-        abort_unless($existing !== null, 404);
+        abort_unless($location !== null, 404);
+
+        if ($this->storeNameTaken($tenant, $data['name'], $location->id)) {
+            return back()->withErrors(['name' => 'Un emplacement porte déjà ce nom.']);
+        }
+
+        $stillActive = (bool) ($data['is_active'] ?? false);
 
         // A shop with nothing active has no till to sell from, and the current
-        // store cannot be moved off it either.
-        if ($existing['is_active'] && ! ($data['is_active'] ?? false) && $current->where('is_active', true)->count() <= 1) {
+        // emplacement cannot be moved off it either.
+        if ($location->is_active && ! $stillActive && $this->activeStoreCount($tenant) <= 1) {
             return back()->withErrors(['is_active' => 'Gardez au moins un emplacement actif.']);
         }
 
-        $stores = $current->map(function (array $store) use ($storeKey, $data): array {
-            return $store['key'] === $storeKey ? $this->storePayload($data, $storeKey) : $store;
-        })->values()->all();
+        $previousName = $location->name;
+        $location->update([
+            'name' => $data['name'],
+            'type' => $data['type'],
+            'address' => $data['address'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'manager_name' => $data['manager'] ?? null,
+            'is_active' => $stillActive,
+        ]);
 
         $settings = $tenant->settings ?? [];
-        $settings['stores'] = $stores;
-
-        if (($settings['current_store'] ?? null) === $storeKey && ! ($data['is_active'] ?? false)) {
-            $settings['current_store'] = collect($stores)->firstWhere('is_active', true)['key'] ?? $storeKey;
+        if (($settings['current_store'] ?? null) === $storeKey && ! $stillActive) {
+            $settings['current_store'] = (string) (Location::where('tenant_id', $tenant->id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->value('id') ?? $storeKey);
+            $tenant->update(['settings' => $settings]);
         }
-
-        $tenant->update(['settings' => $settings]);
 
         // Per-user access is stored by NAME, so a rename orphans everyone who
         // had access until the name is carried across.
-        if ($existing['name'] !== $data['name']) {
-            $this->renameStoreAccess($tenant, $existing['name'], $data['name']);
+        if ($previousName !== $data['name']) {
+            $this->renameStoreAccess($tenant, $previousName, $data['name']);
         }
 
         return redirect()
             ->route('module', ['module' => 'settings', 'section' => 'warehouses'])
-            ->with('status', 'Magasin mis à jour.');
+            ->with('status', 'Emplacement mis à jour.');
     }
 
     public function destroyStore(string $storeKey): RedirectResponse
     {
         $tenant = $this->tenant();
-        $settings = $tenant->settings ?? [];
-        $current = collect($this->storeCatalog($tenant));
-        $removed = $current->firstWhere('key', $storeKey);
-        $stores = $current->reject(fn (array $store) => $store['key'] === $storeKey)->values();
+        $location = Location::where('tenant_id', $tenant->id)->find($storeKey);
+
+        abort_unless($location !== null, 404);
 
         // Counted on what stays ACTIVE, not on what stays at all: deleting down
         // to a single disabled emplacement leaves a shop that cannot sell.
-        // And a refusal goes back as a message — a 422 threw an error page at
-        // someone who only clicked Supprimer.
-        if ($stores->where('is_active', true)->isEmpty()) {
+        if ($location->is_active && $this->activeStoreCount($tenant) <= 1) {
             return back()->withErrors(['store' => 'Gardez au moins un emplacement actif.']);
         }
 
-        $settings['stores'] = $stores->all();
+        // An emplacement is an inventory identity, not a label: stock sits on
+        // it and movements point at it. Deleting one that holds anything
+        // strands that stock where no screen can reach it, so it is refused
+        // and the shop is told to move or count it out first.
+        $onHand = (float) ItemLocationStock::where('tenant_id', $tenant->id)
+            ->where('location_id', $location->id)
+            ->sum('quantity');
 
-        if (($settings['current_store'] ?? null) === $storeKey) {
-            $settings['current_store'] = $stores->firstWhere('is_active', true)['key'];
+        if (abs($onHand) > 0.0001) {
+            return back()->withErrors([
+                'store' => 'Cet emplacement détient encore du stock. Transférez-le avant de le supprimer.',
+            ]);
         }
 
-        $tenant->update(['settings' => $settings]);
-
-        if ($removed !== null) {
-            $this->renameStoreAccess($tenant, $removed['name'], null);
+        if (InventoryMovement::where('tenant_id', $tenant->id)->where('location_id', $location->id)->exists()) {
+            return back()->withErrors([
+                'store' => 'Cet emplacement a un historique de mouvements. Désactivez-le plutôt que de le supprimer.',
+            ]);
         }
 
-        return back()->with('status', 'Magasin supprimé.');
+        $name = $location->name;
+        $wasDefault = (bool) $location->is_default;
+        $location->delete();
+
+        $fallback = Location::where('tenant_id', $tenant->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->first();
+
+        // Inventory falls back on the default when nothing names an
+        // emplacement; leaving none would send those writes nowhere.
+        if ($wasDefault && $fallback !== null) {
+            $fallback->update(['is_default' => true]);
+        }
+
+        $settings = $tenant->settings ?? [];
+        if (($settings['current_store'] ?? null) === $storeKey && $fallback !== null) {
+            $settings['current_store'] = (string) $fallback->id;
+            $tenant->update(['settings' => $settings]);
+        }
+
+        $this->renameStoreAccess($tenant, $name, null);
+
+        return back()->with('status', 'Emplacement supprimé.');
     }
 
     public function storeUser(Request $request): RedirectResponse
@@ -10058,6 +10120,20 @@ class LibraireProController extends Controller
         }
     }
 
+    private function activeStoreCount(Tenant $tenant): int
+    {
+        return Location::where('tenant_id', $tenant->id)->where('is_active', true)->count();
+    }
+
+    /** The table carries a unique (tenant, name); this turns it into a message. */
+    private function storeNameTaken(Tenant $tenant, string $name, ?int $exceptId = null): bool
+    {
+        return Location::where('tenant_id', $tenant->id)
+            ->where('name', $name)
+            ->when($exceptId !== null, fn ($query) => $query->whereKeyNot($exceptId))
+            ->exists();
+    }
+
     private function storeAccessOptions(Tenant $tenant): array
     {
         $settingsStores = collect($this->storeCatalog($tenant))->pluck('name');
@@ -10069,38 +10145,33 @@ class LibraireProController extends Controller
             ->all();
     }
 
+    /**
+     * The emplacements a tenant sells and stores from.
+     *
+     * Reads the `locations` TABLE — the same rows inventory, transfers and
+     * stocktakes use. It used to read a parallel list in the tenant's settings
+     * JSON, which meant the emplacement screen and the stock screens were
+     * editing two different things under one word: adding a dépôt in
+     * Paramètres created nothing a transfer could move stock to, and the
+     * screen's own warning sent people back to the page that could not help.
+     *
+     * `key` stays a string because every caller treats it as one.
+     */
     private function storeCatalog(Tenant $tenant): array
     {
-        $stores = collect(data_get($tenant->settings, 'stores', []))
-            ->map(function ($store): array {
-                if (! is_array($store)) {
-                    $store = ['name' => (string) $store];
-                }
-
-                $name = trim((string) ($store['name'] ?? 'Magasin principal'));
-
-                return [
-                    'key' => (string) ($store['key'] ?? Str::slug($name)),
-                    'name' => $name,
-                    'type' => (string) ($store['type'] ?? 'store'),
-                    'address' => $store['address'] ?? null,
-                    'phone' => $store['phone'] ?? null,
-                    'manager' => $store['manager'] ?? null,
-                    'is_active' => (bool) ($store['is_active'] ?? true),
-                ];
-            })
-            ->filter(fn (array $store) => $store['name'] !== '')
-            ->values();
-
-        if ($stores->isEmpty()) {
-            $stores = collect([
-                ['key' => 'magasin-principal', 'name' => 'Magasin principal', 'type' => 'store', 'address' => $tenant->address, 'phone' => $tenant->phone, 'manager' => null, 'is_active' => true],
-                ['key' => 'depot', 'name' => 'Dépôt', 'type' => 'warehouse', 'address' => null, 'phone' => null, 'manager' => null, 'is_active' => true],
-                ['key' => 'rayon-scolaire', 'name' => 'Rayon scolaire', 'type' => 'area', 'address' => null, 'phone' => null, 'manager' => null, 'is_active' => true],
-            ]);
-        }
-
-        return $stores->unique('key')->values()->all();
+        return Location::where('tenant_id', $tenant->id)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Location $location): array => [
+                'key' => (string) $location->id,
+                'name' => $location->name,
+                'type' => $location->type,
+                'address' => $location->address,
+                'phone' => $location->phone,
+                'manager' => $location->manager_name,
+                'is_active' => (bool) $location->is_active,
+            ])
+            ->all();
     }
 
     private function currentStore(Tenant $tenant): array
@@ -10108,14 +10179,28 @@ class LibraireProController extends Controller
         $stores = collect($this->storeCatalog($tenant));
         $currentKey = data_get($tenant->settings, 'current_store');
 
-        return $stores->firstWhere('key', $currentKey) ?? $stores->first();
+        if ($matched = $stores->firstWhere('key', $currentKey)) {
+            return $matched;
+        }
+
+        // Nothing matched — a tenant that never chose, or a key left over from
+        // before emplacements became rows. Falls back on the DEFAULT location,
+        // which is where inventory writes land when nothing names one, rather
+        // than on whichever name happens to sort first.
+        $defaultKey = (string) Location::where('tenant_id', $tenant->id)
+            ->where('is_default', true)
+            ->value('id');
+
+        return $stores->firstWhere('key', $defaultKey)
+            ?? $stores->firstWhere('is_active', true)
+            ?? $stores->first();
     }
 
     private function validateStore(Request $request): array
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:120'],
-            'type' => ['required', 'in:store,warehouse,area,branch'],
+            'type' => ['required', 'in:store,warehouse,area,branch,stockroom,online,temporary'],
             'address' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:60'],
             'manager' => ['nullable', 'string', 'max:120'],

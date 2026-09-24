@@ -20,7 +20,7 @@ class AccountsSectionTest extends TestCase
         $response = $this->post(route('accounts.store'), [
             'name' => 'Caisse principale',
             'type' => 'cash',
-            'store_key' => 'magasin-principal',
+            'store_key' => $this->storeKey(),
             'holder_name' => 'Librairie Atlas',
             'opening_balance' => 500,
             'is_active' => '1',
@@ -50,7 +50,7 @@ class AccountsSectionTest extends TestCase
 
         $cash = FinancialAccount::create([
             'tenant_id' => $tenant->id,
-            'store_key' => 'magasin-principal',
+            'store_key' => $this->storeKey(),
             'name' => 'Caisse',
             'type' => 'cash',
             'opening_balance' => 100,
@@ -58,7 +58,7 @@ class AccountsSectionTest extends TestCase
         ]);
         $bank = FinancialAccount::create([
             'tenant_id' => $tenant->id,
-            'store_key' => 'magasin-principal',
+            'store_key' => $this->storeKey(),
             'name' => 'Banque',
             'type' => 'bank',
             'opening_balance' => 1000,
