@@ -3677,25 +3677,23 @@ class LibraireProController extends Controller
         // Active ones only. A disabled emplacement is not offered in the list,
         // but it would still be accepted here — and the top bar would then sit
         // on a store nothing can switch away from.
-        $keys = collect($this->storeCatalog($tenant))
-            ->where('is_active', true)
+        $keys = app(\App\Services\StoreLocations::class)->catalog($tenant, $request->user())
             ->pluck('key')
             ->all();
         $data = $request->validate([
             'current_store' => ['required', Rule::in($keys)],
         ]);
 
-        $settings = $tenant->settings ?? [];
-        $settings['current_store'] = $data['current_store'];
-        $tenant->update(['settings' => $settings]);
-
-        // Inventory falls back on the default location when a write names no
-        // emplacement. Keeping it on the current one means that fallback lands
-        // where the till is actually selling.
-        Location::where('tenant_id', $tenant->id)->where('is_default', true)
-            ->update(['is_default' => false]);
-        Location::where('tenant_id', $tenant->id)->whereKey($data['current_store'])
-            ->update(['is_default' => true]);
+        DB::transaction(function () use ($tenant, $data): void {
+            $locked = Tenant::whereKey($tenant->id)->lockForUpdate()->firstOrFail();
+            $settings = $locked->settings ?? [];
+            $settings['current_store'] = (string) $data['current_store'];
+            $locked->update(['settings' => $settings]);
+            Location::where('tenant_id', $tenant->id)->where('is_default', true)
+                ->update(['is_default' => false]);
+            Location::where('tenant_id', $tenant->id)->whereKey($data['current_store'])
+                ->update(['is_default' => true]);
+        });
 
         return back()->with('status', 'Emplacement courant mis à jour.');
     }

@@ -34,7 +34,7 @@ class ResolveApiContext
 
         $location = $this->resolveLocation($request, $tenant);
 
-        if (($request->header('X-Location-Id') ?? $request->input('location_id')) && ! $location) {
+        if (! $this->isLocationIndependent($request) && ($request->header('X-Location-Id') ?? $request->input('location_id')) && ! $location) {
             return response()->json(['ok' => false, 'error' => 'invalid_location', 'message' => 'Emplacement invalide pour ce tenant.'], 422);
         }
 
@@ -55,15 +55,20 @@ class ResolveApiContext
         return TenantContext::resolve($request, $user);
     }
 
+    private function isLocationIndependent(Request $request): bool
+    {
+        return $request->is('api/v1/locations', 'api/v1/virtual-devices/disconnect', 'api/v1/auth/logout');
+    }
+
     private function resolveLocation(Request $request, Tenant $tenant): ?Location
     {
-        $locationId = $request->header('X-Location-Id') ?? $request->input('location_id');
-
-        if ($locationId) {
-            return Location::where('tenant_id', $tenant->id)->where('id', (int) $locationId)->first();
+        $locationId = $this->isLocationIndependent($request) ? null
+            : ($request->header('X-Location-Id') ?? $request->input('location_id'));
+        $query = app(\App\Services\StoreLocations::class)->available($tenant, $request->user());
+        if ($locationId !== null && $locationId !== '') {
+            if (! ctype_digit((string) $locationId)) return null;
+            return $query->whereKey((int) $locationId)->first();
         }
-
-        return Location::where('tenant_id', $tenant->id)->where('is_default', true)->first()
-            ?? Location::where('tenant_id', $tenant->id)->first();
+        return $query->orderByDesc('is_default')->orderBy('id')->first();
     }
 }

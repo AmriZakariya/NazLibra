@@ -131,10 +131,8 @@ class AuthController extends Controller
         // Remember tenant for future requests from this token.
         $user->update(['current_tenant_id' => $tenant->id]);
 
-        $location = \App\Models\Location::where('tenant_id', $tenant->id)
-            ->where('is_default', true)
-            ->first()
-            ?? \App\Models\Location::where('tenant_id', $tenant->id)->first();
+        $location = app(\App\Services\StoreLocations::class)->available($tenant, $user)
+            ->orderByDesc('is_default')->orderBy('id')->first();
 
         return response()->json([
             'ok'    => true,

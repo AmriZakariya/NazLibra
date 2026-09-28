@@ -82,6 +82,12 @@ class VirtualDeviceApiController extends Controller
         $device = VirtualDevice::where('tenant_id', $tenant->id)
             ->findOrFail($data['virtual_device_id']);
 
+        if ($device->location_id !== null
+            && (int) $device->location_id !== (int) $request->attributes->get('api_location_id')) {
+            return response()->json(['ok' => false, 'error' => 'invalid_virtual_device',
+                'message' => 'Ce terminal ne correspond pas au magasin sélectionné.'], 422);
+        }
+
         try {
             $session = $this->sessions->claim(
                 $tenant,

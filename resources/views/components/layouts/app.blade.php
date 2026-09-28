@@ -30,28 +30,10 @@
     $releaseLabel = app()->environment('production') ? $tr('Production') : \Illuminate\Support\Str::headline(app()->environment());
     $authUser = auth()->user();
     $isOwner = $authUser !== null && (string) ($tenant->users()->whereKey($authUser->id)->first()?->pivot?->role ?? '') === 'owner';
-    $layoutStores = collect($tenant->settings['stores'] ?? [])
-        ->map(fn ($store) => is_array($store) ? $store : ['name' => (string) $store])
-        ->map(function (array $store) use ($tenant) {
-            $name = trim((string) ($store['name'] ?? 'Magasin principal'));
-
-            return [
-                'key' => (string) ($store['key'] ?? Str::slug($name)),
-                'name' => $name,
-                'type' => (string) ($store['type'] ?? 'store'),
-                'is_active' => (bool) ($store['is_active'] ?? true),
-            ];
-        })
-        ->filter(fn ($store) => $store['name'] !== '')
-        ->values();
-    if ($layoutStores->isEmpty()) {
-        $layoutStores = collect([
-            ['key' => 'magasin-principal', 'name' => 'Magasin principal', 'type' => 'store', 'is_active' => true],
-            ['key' => 'depot', 'name' => 'Dépôt', 'type' => 'warehouse', 'is_active' => true],
-            ['key' => 'rayon-scolaire', 'name' => 'Rayon scolaire', 'type' => 'area', 'is_active' => true],
-        ]);
-    }
-    $layoutCurrentStore = $layoutStores->firstWhere('key', $tenant->settings['current_store'] ?? null) ?? $layoutStores->first();
+    $layoutStores = app(\App\Services\StoreLocations::class)->catalog($tenant, $authUser);
+    $layoutCurrentStore = $layoutStores->firstWhere('key', (string) data_get($tenant->settings, 'current_store'))
+        ?? $layoutStores->firstWhere('is_default', true)
+        ?? $layoutStores->first();
     $layoutMoney = fn ($amount): string => number_format((float) $amount, 2, ',', ' ').' DH';
     $virtualDevicesEnabled = (bool) data_get($tenant->settings, 'features.virtual_devices', false);
     $showCashDrawerNavbar = (bool) data_get($tenant->settings, 'pos.show_cash_drawer_navbar', true) && ($enabledModules['cash_register'] ?? true);

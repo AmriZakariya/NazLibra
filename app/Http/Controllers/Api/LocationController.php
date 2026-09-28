@@ -48,8 +48,7 @@ class LocationController extends Controller
         /** @var Tenant $tenant */
         $tenant = $request->attributes->get('api_tenant');
 
-        $locations = Location::where('tenant_id', $tenant->id)
-            ->where('is_active', true)
+        $locations = app(\App\Services\StoreLocations::class)->available($tenant, $request->user())
             ->orderByDesc('is_default')
             ->get(['id', 'name', 'type', 'address', 'is_default', 'is_active']);
 
