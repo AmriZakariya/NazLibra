@@ -46,6 +46,10 @@ if (config('castlit.is_master')) {
     // Legal pages (privacy policy required by Google Play / App Store).
     Route::get('/privacy', [MarketingController::class, 'privacy'])->name('castlit.privacy');
     Route::get('/politique-confidentialite', [MarketingController::class, 'privacy']);
+    // Le manuel client. Une page publique : un commerçant doit pouvoir
+    // l'ouvrir depuis la caisse, depuis son téléphone, et avant d'acheter.
+    Route::get('/guide', [MarketingController::class, 'guide'])->name('castlit.guide');
+    Route::get('/manuel', [MarketingController::class, 'guide']);
     Route::get('/terms', [MarketingController::class, 'terms'])->name('castlit.terms');
     Route::get('/conditions', [MarketingController::class, 'terms']);
 

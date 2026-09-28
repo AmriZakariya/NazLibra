@@ -64,6 +64,15 @@ class MarketingController extends Controller
     }
 
     /** Terms of service. */
+    public function guide(Request $request): View
+    {
+        $this->resolveLocale($request);
+
+        return view('castlit.guide', [
+            'mainDomain' => config('castlit.main_domain'),
+        ]);
+    }
+
     public function terms(Request $request): View
     {
         $this->resolveLocale($request);
