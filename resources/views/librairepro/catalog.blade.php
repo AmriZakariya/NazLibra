@@ -1963,6 +1963,53 @@
                 </div>
             </article>
 
+            {{-- La page avait tous les outils et n'expliquait rien. Le seul
+                 choix qui compte — déclinaison ou option de ligne — se devine
+                 mal, et se corrige lourdement : une taille créée en option de
+                 ligne ne compte aucun stock, et on ne s'en aperçoit qu'à
+                 l'inventaire. --}}
+            <article class="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="border-b border-slate-200 px-5 py-4 dark:border-white/10">
+                    <h3 class="font-semibold">Déclinaison ou option de ligne ?</h3>
+                    <p class="mt-1 text-sm text-slate-500">Une seule question à se poser : <strong class="text-slate-700 dark:text-slate-200">est-ce que j'ai besoin de compter le stock séparément ?</strong></p>
+                </div>
+                <div class="grid gap-px bg-slate-200 sm:grid-cols-2 dark:bg-white/10">
+                    <div class="bg-white p-5 dark:bg-slate-950/40">
+                        <div class="flex items-center gap-2">
+                            <x-status-pill tone="primary">Déclinaison</x-status-pill>
+                            <span class="text-xs font-semibold text-slate-500">stock propre</span>
+                        </div>
+                        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Le même article vendu en plusieurs formes, chacune comptée à part.</p>
+                        <ul class="mt-3 space-y-1.5 text-sm">
+                            <li class="flex gap-2"><span class="text-brand">·</span> Chemise en <strong>S / M / L</strong></li>
+                            <li class="flex gap-2"><span class="text-brand">·</span> Stylo <strong>bleu / noir / rouge</strong></li>
+                        </ul>
+                        <p class="mt-3 text-xs text-slate-500">Chaque forme a son stock, son prix et son code-barres. C'est ce qui permet de répondre à « combien de L ai-je vendu ? ».</p>
+                    </div>
+                    <div class="bg-white p-5 dark:bg-slate-950/40">
+                        <div class="flex items-center gap-2">
+                            <x-status-pill tone="neutral">Option de ligne</x-status-pill>
+                            <span class="text-xs font-semibold text-slate-500">pas de stock propre</span>
+                        </div>
+                        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Un choix fait au moment de la vente, qui change le prix et le ticket.</p>
+                        <ul class="mt-3 space-y-1.5 text-sm">
+                            <li class="flex gap-2"><span class="text-slate-400">·</span> <strong>Supplément fromage</strong> +5 DH</li>
+                            <li class="flex gap-2"><span class="text-slate-400">·</span> <strong>Sans oignon</strong>, <strong>emballage cadeau</strong></li>
+                        </ul>
+                        <p class="mt-3 text-xs text-slate-500">Peut consommer le stock d'un <em>autre</em> article (le fromage), mais n'en a pas pour elle-même.</p>
+                    </div>
+                </div>
+                <div class="border-t border-slate-200 bg-slate-50 px-5 py-4 dark:border-white/10 dark:bg-white/5">
+                    <p class="text-xs font-semibold uppercase text-slate-500">Créer des déclinaisons, dans l'ordre</p>
+                    <ol class="mt-2 grid gap-2 text-sm sm:grid-cols-3">
+                        <li class="flex gap-2"><span class="grid size-5 shrink-0 place-items-center rounded-full bg-brand text-[11px] font-bold text-white">1</span> Créez l'axe (« Taille ») et ses valeurs (S, M, L) ci-dessous.</li>
+                        <li class="flex gap-2"><span class="grid size-5 shrink-0 place-items-center rounded-full bg-brand text-[11px] font-bold text-white">2</span> Choisissez l'article, cochez les valeurs qu'il existe.</li>
+                        <li class="flex gap-2"><span class="grid size-5 shrink-0 place-items-center rounded-full bg-brand text-[11px] font-bold text-white">3</span> Générez : chaque combinaison devient une déclinaison à compter.</li>
+                    </ol>
+                    <p class="mt-3 text-xs text-slate-500">Attention : une taille créée en <em>option de ligne</em> ne compte aucun stock — l'erreur ne se voit qu'à l'inventaire.</p>
+                </div>
+            </article>
+
             {{-- Les axes d'abord : une déclinaison sans option derrière elle
                  n'est qu'un nom libre, et c'est ce que le pivot supprime. --}}
             <div class="mt-5 grid gap-5 xl:grid-cols-[1fr_1.3fr]">
