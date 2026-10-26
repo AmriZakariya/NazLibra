@@ -14,7 +14,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="device-heartbeat" content="{{ route('device.heartbeat') }}">
-    <title>{{ $tr('Sélectionner un appareil') }} · LibrairePro</title>
+    <title>{{ $tr('Sélectionner un appareil') }} · {{ $tenant->name }}</title>
     <style>
         *, ::before, ::after { box-sizing: border-box; margin: 0; padding: 0; }
         body {

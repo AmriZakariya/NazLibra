@@ -90,7 +90,8 @@ fi
 # ============================================================================
 emit "▸ Copying application from master ($SOURCE_DIR)"
 # tar-pipe: one pass, honours excludes, needs no rsync. Skip per-install files,
-# the master's caches (would carry the master's config!), git and node_modules.
+# the master's caches (would carry the master's config!), git and node_modules,
+# and the master's own logo and icons — a new shop starts from its initials.
 ( cd "$SOURCE_DIR" && tar \
     --exclude='./.git' \
     --exclude='./.env' \
@@ -101,6 +102,9 @@ emit "▸ Copying application from master ($SOURCE_DIR)"
     --exclude='./storage/framework/sessions/*' \
     --exclude='./storage/framework/views/*' \
     --exclude='./public/storage' \
+    --exclude='./storage/app/branding' \
+    --exclude='./public/icons' \
+    --exclude='./public/logos' \
     --exclude='./database/*.sqlite' \
     --exclude="./*.$MAIN_DOMAIN" \
     --exclude='./_preview.html' \

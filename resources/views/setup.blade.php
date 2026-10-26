@@ -41,7 +41,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ $isMaintenance ? 'Maintenance' : 'Configuration' }} · LibrairePro</title>
+    <title>{{ $isMaintenance ? 'Maintenance' : 'Configuration' }} · {{ config('castlit.brand.name', 'Castl-it-POS') }}</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         :root {
@@ -272,7 +272,7 @@
             <div class="flex items-center gap-3">
                 <div class="grid size-9 shrink-0 place-items-center rounded-xl text-xs font-black text-white" style="background:var(--brand)">LP</div>
                 <div class="min-w-0">
-                    <p class="truncate text-[11px] font-semibold uppercase tracking-widest" style="color:rgba(255,255,255,.4)">LibrairePro</p>
+                    <p class="truncate text-[11px] font-semibold uppercase tracking-widest" style="color:rgba(255,255,255,.4)">{{ config('castlit.brand.name', 'Castl-it-POS') }}</p>
                     <p class="truncate text-sm font-semibold text-white">{{ $modeLabel }}</p>
                 </div>
             </div>
@@ -337,7 +337,7 @@
         {{-- Mobile top bar --}}
         <div class="flex items-center gap-3 border-b border-slate-200 bg-white px-5 py-3.5 lg:hidden">
             <div class="grid size-8 shrink-0 place-items-center rounded-lg text-xs font-black text-white" style="background:var(--brand)">LP</div>
-            <p class="flex-1 text-sm font-semibold text-slate-900">{{ $modeLabel }} · LibrairePro</p>
+            <p class="flex-1 text-sm font-semibold text-slate-900">{{ $modeLabel }} · {{ config('castlit.brand.name', 'Castl-it-POS') }}</p>
             @if ($step !== 'secret')
                 <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold text-white" style="background:var(--brand)">{{ $steps[$step]['label'] ?? '' }}</span>
             @endif

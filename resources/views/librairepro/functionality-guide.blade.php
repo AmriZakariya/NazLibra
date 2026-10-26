@@ -6,7 +6,7 @@
     ];
 @endphp
 
-<x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · Guide fonctionnalités">
+<x-layouts.app :tenant="$tenant" :active="$active" title="Guide fonctionnalités">
     <section class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
             <p class="text-sm font-medium text-brand">App Functionality Summary</p>

@@ -3,7 +3,7 @@
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
     $tzDate = fn ($date, string $format = 'd/m/Y H:i'): string => \App\Support\TenantClock::format($date, $tenant, $format);
 @endphp
-<x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · {{ $tr('Mon profil') }}">
+<x-layouts.app :tenant="$tenant" :active="$active" title="{{ $tr('Mon profil') }}">
     <section class="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-white/[0.03] lg:flex-row lg:items-center lg:justify-between">
         <div class="flex items-center gap-4">
             <x-user-avatar :user="$user" size="xl" rounded="rounded-2xl" />

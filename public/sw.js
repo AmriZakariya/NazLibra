@@ -1,9 +1,6 @@
-const CACHE_NAME = 'librairepro-v3';
+const CACHE_NAME = 'librairepro-v4';
 const STATIC_ASSETS = [
     '/manifest.json',
-    '/icons/icon-32x32.png',
-    '/icons/icon-192x192.png',
-    '/icons/icon-512x512.png',
 ];
 
 self.addEventListener('install', (event) => {

@@ -191,7 +191,8 @@ emit "▸ Updating code from master ($SOURCE_DIR)"
 maintenance_down
 # Overwrite CODE (app, config, routes, resources, public/build, vendor,
 # database/migrations) but NEVER the client's data: .env, the SQLite DB,
-# storage/ (uploads, logs, sessions) and its .htaccess are excluded. tar merges,
+# storage/ (uploads, logs, sessions, the app icon), public/logos (the shop's
+# document logo) and its .htaccess are excluded. tar merges,
 # so existing files are replaced and new ones added; stale removed files linger
 # harmlessly.
 ( cd "$SOURCE_DIR" && tar \
@@ -202,6 +203,8 @@ maintenance_down
     --exclude='./bootstrap/cache/*' \
     --exclude='./storage' \
     --exclude='./public/storage' \
+    --exclude='./public/icons' \
+    --exclude='./public/logos' \
     --exclude='./database/*.sqlite' \
     --exclude='./suspended.html' \
     --exclude='./.suspended' \

@@ -60,7 +60,7 @@
     $activeSectionLabel = collect($sections)->flatMap(fn ($links) => $links)->get($panel)['label'] ?? 'Navigation rapide';
 @endphp
 
-<x-layouts.app :tenant="$tenant" :active="$active" :title="$isStockWorkspace ? 'LibrairePro · Stock' : 'LibrairePro · Catalogue'">
+<x-layouts.app :tenant="$tenant" :active="$active" :title="$isStockWorkspace ? 'Stock' : 'Catalogue'">
     <section class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
             <p class="text-sm font-medium text-brand">{{ $pageEyebrow }}</p>

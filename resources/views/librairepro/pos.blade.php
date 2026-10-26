@@ -10,7 +10,7 @@
     $resumeNote = old('note', $resumeTicket?->note ?? '');
 @endphp
 
-<x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · Caisse">
+<x-layouts.app :tenant="$tenant" :active="$active" title="Caisse">
     <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? $sourceCart ?? [])' data-discount-rules='@json($posDiscountRules)' data-pos-search-url="{{ route('pos.search') }}" data-coupon-preview-url="{{ route('pos.coupons.preview') }}" data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}" data-show-out-of-stock="{{ $showOutOfStock ? '1' : '0' }}">
         <div class="min-w-0 space-y-5">
             @if ($lastSale)

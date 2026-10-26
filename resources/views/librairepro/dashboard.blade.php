@@ -43,7 +43,7 @@
     })->implode(' ');
 @endphp
 
-<x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · Tableau de bord">
+<x-layouts.app :tenant="$tenant" :active="$active" title="Tableau de bord">
     <section class="dashboard-hero">
         <div class="min-w-0">
             <p class="text-sm font-semibold text-brand">{{ $tr('Tableau de bord opérationnel') }}</p>

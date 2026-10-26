@@ -19,7 +19,7 @@
     ])->filter();
 @endphp
 
-<x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · Étiquettes">
+<x-layouts.app :tenant="$tenant" :active="$active" title="Étiquettes">
     <section id="top" class="no-print flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
             <p class="text-sm font-medium text-brand">Étiquettes & code-barres</p>
@@ -226,7 +226,7 @@
                                 <div class="label-price">{{ $money($item->sale_price) }}</div>
                             @endif
                             @if ($template === 'large')
-                                <div class="label-meta">Réf. {{ $item->item_code ?? 'LP-'.$item->id }} · {{ $item->brand?->name ?? 'LibrairePro' }}</div>
+                                <div class="label-meta">Réf. {{ $item->item_code ?? 'LP-'.$item->id }} · {{ $item->brand?->name ?? $tenant->name }}</div>
                             @endif
                         </article>
                     @endfor

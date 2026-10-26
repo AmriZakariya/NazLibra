@@ -45,9 +45,14 @@
             ->latest('opened_at')
             ->first()
         : null;
-    $appIcon32 = route('app.icon', 32);
-    $appIcon192 = route('app.icon', 192);
-    $appIcon512 = route('app.icon', 512);
+    $layoutIcon = app(\App\Services\AppIcon::class);
+    $appIconSource = $layoutIcon->source($tenant);
+    $appIcon32 = $layoutIcon->url($tenant, 32);
+    $appIcon192 = $layoutIcon->url($tenant, 192);
+    $appIcon512 = $layoutIcon->url($tenant, 512);
+    $tenantInitials = \App\Services\AppIcon::initials((string) $tenant->name);
+    // "Caisse · spa paris": the page, then the shop — never the product's old name.
+    $documentTitle = filled($title ?? null) ? $title.' · '.$tenant->name : $tenant->name;
 @endphp
 <!DOCTYPE html>
 <html lang="{{ $locale }}" dir="{{ $direction }}" data-locale="{{ $locale }}" style="--brand-primary: {{ $theme['primary'] }}; --brand-accent: {{ $theme['accent'] }}; --brand-success: {{ $theme['success'] }}; --brand-warning: {{ $theme['warning'] ?? '#D97706' }}; --brand-danger: {{ $theme['danger'] ?? '#E11D48' }}; --brand-info: {{ $theme['info'] ?? '#0284C7' }}; --app-bg: {{ $theme['background'] }}; --surface: {{ $theme['surface_color'] }}; --surface-muted: {{ $theme['surface_muted'] }}; --text-main: {{ $theme['text'] }}; --text-muted: {{ $theme['muted'] }}; --border-soft: {{ $theme['border'] }}; --font-scale: {{ $theme['font_scale'] }}; --brand-radius: {{ $theme['radius'] }}px;">
@@ -76,7 +81,7 @@
         @if ($virtualDevicesEnabled)
             <meta name="device-heartbeat" content="{{ route('device.heartbeat') }}">
         @endif
-        <title>{{ $title ?? 'LibrairePro' }}</title>
+        <title>{{ $documentTitle }}</title>
         <link rel="manifest" href="/manifest.json">
         <meta name="theme-color" content="{{ $theme['primary'] }}">
         <meta name="apple-mobile-web-app-capable" content="yes">
@@ -414,10 +419,14 @@
             <aside class="app-sidebar sticky top-0 hidden h-screen w-72 shrink-0 overflow-hidden md:flex md:flex-col" data-sidebar>
                 <div class="sidebar-brand flex h-[76px] shrink-0 items-center gap-3 px-4">
                     <a href="{{ route('dashboard') }}" class="sidebar-brand-link flex min-w-0 flex-1 items-center gap-3" title="{{ $tenant->name }}">
-                        <span class="sidebar-logo grid size-10 shrink-0 place-items-center bg-brand text-sm font-bold text-white shadow-sm">LP</span>
+                        @if ($appIconSource === \App\Services\AppIcon::SOURCE_INITIALS)
+                            <span class="sidebar-logo grid size-10 shrink-0 place-items-center bg-brand text-sm font-bold text-white shadow-sm" data-sidebar-logo>{{ $tenantInitials }}</span>
+                        @else
+                            <span class="sidebar-logo grid size-10 shrink-0 place-items-center overflow-hidden shadow-sm" style="background:#fff !important" data-sidebar-logo><img src="{{ $appIcon192 }}" alt="" class="object-contain" style="width:100%; height:100%"></span>
+                        @endif
                         <span class="sidebar-label min-w-0">
                             <span class="block truncate text-sm font-semibold">{{ $tenant->name }}</span>
-                            <span class="block truncate text-xs text-slate-500 dark:text-slate-400">SaaS {{ $layoutBusinessMode['short_label'] }} · {{ strtoupper($tenant->currency) }}</span>
+                            <span class="block truncate text-xs text-slate-500 dark:text-slate-400">{{ $tr($layoutBusinessMode['short_label']) }} · {{ strtoupper($tenant->currency) }}</span>
                         </span>
                     </a>
                     <button class="sidebar-toggle grid size-9 shrink-0 place-items-center" type="button" aria-label="Réduire le menu" aria-pressed="false" data-sidebar-toggle>

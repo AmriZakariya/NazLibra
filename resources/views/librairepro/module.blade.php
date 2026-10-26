@@ -1,6 +1,6 @@
 @php
     $money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' DH';
-    $pageTitle = 'LibrairePro · '.$meta['title'];
+    $pageTitle = $meta['title'];
     $locale = \App\Support\Locale::current($tenant);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
     $tzDate = fn ($date, string $fmt = 'd/m/Y H:i'): string => \App\Support\TenantClock::format($date, $tenant, $fmt);
@@ -3904,7 +3904,7 @@
             $businessActivity = \App\Support\ItemTypes::activityForTenant($tenant);
             $activityOptions  = \App\Support\ItemTypes::activityOptions();
             $themePresets = [
-                'default' => ['name' => 'LibrairePro', 'hint' => 'Bleu moderne, accent vert, recommandé', 'colors' => ['#3157D5', '#0F9F8A', '#FFFFFF', '#F4F7FB']],
+                'default' => ['name' => 'Castl-it-POS', 'hint' => 'Bleu moderne, accent vert, recommandé', 'colors' => ['#3157D5', '#0F9F8A', '#FFFFFF', '#F4F7FB']],
                 'classic' => ['name' => 'Indigo classic', 'hint' => 'Plus proche du thème initial', 'colors' => ['#4F46E5', '#0EA5E9', '#FFFFFF', '#F8FAFC']],
                 'graphite' => ['name' => 'Graphite', 'hint' => 'Compact et sobre', 'colors' => ['#334155', '#0F766E', '#FFFFFF', '#F7F7F5']],
             ];
@@ -4852,11 +4852,137 @@
                             </div>
                         </section>
 
+                        @php
+                            $iconService = app(\App\Services\AppIcon::class);
+                            $iconSource = $iconService->source($tenant);
+                            $iconUrl = $iconService->url($tenant, 192);
+                            $iconInitials = \App\Services\AppIcon::initials((string) $tenant->name);
+                            // What "Retirer ce logo" falls back to, for the preview.
+                            $docLogoUrl = !empty($companyProfile['store_logo']) ? asset($companyProfile['store_logo']) : '';
+                            $iconSourceLabel = [
+                                \App\Services\AppIcon::SOURCE_CUSTOM => 'Votre logo',
+                                \App\Services\AppIcon::SOURCE_LOGO => 'Logo des documents',
+                                \App\Services\AppIcon::SOURCE_INITIALS => 'Initiales du commerce',
+                            ][$iconSource];
+                            $iconShowsImage = $iconSource !== \App\Services\AppIcon::SOURCE_INITIALS;
+                            $iconActivity = \App\Support\BusinessMode::current($tenant)['short_label'];
+                        @endphp
+                        <section id="app-icon" class="scroll-mt-24 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
+                                 data-app-icon-card data-initials="{{ $iconInitials }}" data-fallback-src="{{ $docLogoUrl }}">
+                            <div class="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                    <h3 class="text-sm font-semibold">Logo de l'application</h3>
+                                    <p class="mt-1 text-xs text-slate-500">Affiché dans le menu, sur l'onglet du navigateur et sur l'écran d'accueil du téléphone.</p>
+                                </div>
+                                <span class="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-2.5 py-1 text-xs font-semibold text-brand" data-icon-source>{{ $iconSourceLabel }}</span>
+                            </div>
+
+                            <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                                {{-- Live preview: the three places the icon appears. --}}
+                                <div class="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40" aria-label="Aperçu">
+                                    <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Aperçu</p>
+
+                                    <div class="flex items-center gap-3 rounded-xl px-3 py-2.5" style="background:#141B34">
+                                        <span data-icon-tile class="grid size-10 shrink-0 place-items-center overflow-hidden" style="border-radius:11px; background: {{ $iconShowsImage ? '#fff' : 'var(--brand-primary)' }}">
+                                            <img data-icon-img src="{{ $iconShowsImage ? $iconUrl : '' }}" alt="" style="width:100%; height:100%" class="object-contain {{ $iconShowsImage ? '' : 'hidden' }}">
+                                            <span data-icon-initials class="text-sm font-bold text-white {{ $iconShowsImage ? 'hidden' : '' }}">{{ $iconInitials }}</span>
+                                        </span>
+                                        <span class="min-w-0">
+                                            <span class="block truncate text-sm font-semibold text-white">{{ $tenant->name }}</span>
+                                            <span class="block truncate text-xs" style="color:#9AA3BF">{{ $iconActivity }} · {{ strtoupper($tenant->currency) }}</span>
+                                        </span>
+                                        <span class="ms-auto text-[10px] font-semibold uppercase tracking-wider" style="color:#6B7493">Menu</span>
+                                    </div>
+
+                                    <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 dark:border-white/10 dark:bg-white/5">
+                                        <span data-icon-tile class="grid size-4 shrink-0 place-items-center overflow-hidden" style="border-radius:3px; background: {{ $iconShowsImage ? '#fff' : 'var(--brand-primary)' }}">
+                                            <img data-icon-img src="{{ $iconShowsImage ? $iconUrl : '' }}" alt="" style="width:100%; height:100%" class="object-contain {{ $iconShowsImage ? '' : 'hidden' }}">
+                                            <span data-icon-initials style="font-size:7px" class="font-bold leading-none text-white {{ $iconShowsImage ? 'hidden' : '' }}">{{ $iconInitials }}</span>
+                                        </span>
+                                        <span class="truncate text-xs text-slate-700 dark:text-slate-200">Tableau de bord · {{ $tenant->name }}</span>
+                                        <span class="ms-auto text-[10px] font-semibold uppercase tracking-wider text-slate-400">Onglet</span>
+                                    </div>
+
+                                    <div class="flex items-end gap-4">
+                                        <span class="flex w-16 flex-col items-center gap-1">
+                                            <span data-icon-tile class="grid size-14 place-items-center overflow-hidden rounded-2xl border border-slate-200 shadow-sm dark:border-white/10" style="background: {{ $iconShowsImage ? '#fff' : 'var(--brand-primary)' }}">
+                                                <img data-icon-img src="{{ $iconShowsImage ? $iconUrl : '' }}" alt="" style="width:100%; height:100%" class="object-contain {{ $iconShowsImage ? '' : 'hidden' }}">
+                                                <span data-icon-initials class="text-lg font-bold text-white {{ $iconShowsImage ? 'hidden' : '' }}">{{ $iconInitials }}</span>
+                                            </span>
+                                            <span class="w-full truncate text-center text-[11px] text-slate-600 dark:text-slate-300">{{ $tenant->name }}</span>
+                                        </span>
+                                        <span class="pb-5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Écran d'accueil</span>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-3">
+                                    <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">
+                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                        {{ $iconSource === \App\Services\AppIcon::SOURCE_CUSTOM ? 'Changer le logo' : 'Choisir un logo' }}
+                                        <input type="file" name="app_icon" accept="image/png,image/jpeg,image/webp,image/gif" class="sr-only" data-icon-input>
+                                    </label>
+                                    <p class="text-sm text-slate-600 dark:text-slate-300" data-icon-filename></p>
+                                    @error('app_icon')
+                                        <p class="text-sm font-semibold text-rose-600">{{ $message }}</p>
+                                    @enderror
+                                    <ul class="space-y-1 text-xs leading-relaxed text-slate-500">
+                                        <li>Carré de préférence, 512 × 512 px ou plus.</li>
+                                        <li>PNG, JPG ou WEBP, 4 Mo maximum. Un fond transparent est accepté.</li>
+                                        <li>Une image rectangulaire est centrée sur fond blanc, jamais déformée ni coupée.</li>
+                                        <li>Sans logo, l'application utilise le logo des documents, sinon les initiales du commerce.</li>
+                                    </ul>
+                                    @if ($iconSource === \App\Services\AppIcon::SOURCE_CUSTOM)
+                                        <label class="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+                                            <input type="checkbox" name="remove_app_icon" value="1" class="size-4 accent-rose-500" data-icon-remove>
+                                            Retirer ce logo ({{ !empty($companyProfile['store_logo']) ? 'revenir au logo des documents' : 'revenir aux initiales' }})
+                                        </label>
+                                    @endif
+                                    <p class="text-xs text-slate-500">Enregistrez en bas de la page pour appliquer.</p>
+                                </div>
+                            </div>
+                        </section>
+                        <script>
+                            (() => {
+                                const card = document.querySelector('[data-app-icon-card]');
+                                if (!card) return;
+                                const input = card.querySelector('[data-icon-input]');
+                                const remove = card.querySelector('[data-icon-remove]');
+                                const original = Array.from(card.querySelectorAll('[data-icon-img]')).map((img) => img.getAttribute('src'));
+                                const badge = card.querySelector('[data-icon-source]');
+                                const badgeText = badge.textContent;
+                                const show = (src) => {
+                                    card.querySelectorAll('[data-icon-tile]').forEach((tile, i) => {
+                                        const img = tile.querySelector('[data-icon-img]');
+                                        const initials = tile.querySelector('[data-icon-initials]');
+                                        const url = src === undefined ? original[i] : src;
+                                        img.classList.toggle('hidden', !url);
+                                        initials.classList.toggle('hidden', !!url);
+                                        if (url) img.src = url;
+                                        tile.style.background = url ? '#fff' : 'var(--brand-primary)';
+                                    });
+                                };
+                                input?.addEventListener('change', () => {
+                                    const file = input.files?.[0];
+                                    card.querySelector('[data-icon-filename]').textContent = file ? file.name : '';
+                                    if (remove) remove.checked = false;
+                                    show(file ? URL.createObjectURL(file) : undefined);
+                                    badge.textContent = file ? 'Nouveau logo · à enregistrer' : badgeText;
+                                });
+                                remove?.addEventListener('change', () => {
+                                    if (remove.checked && input) input.value = '';
+                                    card.querySelector('[data-icon-filename]').textContent = '';
+                                    show(remove.checked ? (card.dataset.fallbackSrc || '') : undefined);
+                                    badge.textContent = remove.checked ? 'Retrait · à enregistrer' : badgeText;
+                                });
+                            })();
+                        </script>
+
                         <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                             <h3 class="text-sm font-semibold">Branding, signature & banque</h3>
                             <div class="mt-4 grid gap-3 md:grid-cols-2">
                                 <div class="space-y-1.5">
-                                    <span class="text-xs font-semibold uppercase text-slate-500">Logo magasin</span>
+                                    <span class="text-xs font-semibold uppercase text-slate-500">Logo des documents</span>
+                                    <p class="text-xs text-slate-500">Imprimé sur les tickets, factures et devis. Sert aussi de logo de l'application si vous n'en choisissez pas.</p>
                                     <div class="flex items-center gap-3">
                                         @if (!empty($companyProfile['store_logo']))
                                             <img src="{{ asset($companyProfile['store_logo']) }}" alt="Logo" class="size-14 rounded-lg border border-slate-200 object-contain dark:border-white/10">
@@ -4878,33 +5004,6 @@
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Signature (URL ou chemin fichier)</span><input name="signature" value="{{ old('signature', $companyProfile['signature']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                 <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-slate-950/40"><input name="show_signature" value="1" type="checkbox" @checked(old('show_signature', $companyProfile['show_signature'])) class="size-4 accent-[var(--brand-primary)]"> Afficher la signature</label>
                                 <label class="space-y-1.5 md:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Coordonnées bancaires</span><textarea name="bank_details" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900">{{ old('bank_details', $companyProfile['bank_details']) }}</textarea></label>
-                            </div>
-                            <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <h4 class="text-sm font-semibold">Icône de l'application</h4>
-                                        <p class="text-xs text-slate-500">Utilisée pour l'installation PWA (192×192 et 512×512 px). Formats : PNG, JPG, WEBP.</p>
-                                    </div>
-                                    @if (!empty($companyProfile['app_icon']))
-                                            <img src="{{ route('app.icon', 192) }}" alt="App icon" class="size-12 rounded-xl object-cover">
-                                    @else
-                                        <span class="grid size-12 place-items-center rounded-xl bg-slate-100 text-lg text-slate-400 dark:bg-slate-800">🖼</span>
-                                    @endif
-                                </div>
-                                <div class="mt-3 flex flex-wrap items-center gap-3">
-                                    <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">
-                                        <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                                        Choisir une image
-                                        <input type="file" name="app_icon" accept="image/png,image/jpeg,image/webp,image/gif" class="sr-only" onchange="this.closest('form').querySelector('.app-icon-filename').textContent = this.files[0]?.name || ''">
-                                    </label>
-                                    <span class="app-icon-filename text-sm text-slate-600 dark:text-slate-300"></span>
-                                    @if (!empty($companyProfile['app_icon']))
-                                        <label class="flex items-center gap-2 text-sm font-semibold text-rose-600">
-                                            <input type="checkbox" name="remove_app_icon" value="1" class="size-4 accent-rose-500">
-                                            Réinitialiser l'icône par défaut
-                                        </label>
-                                    @endif
-                                </div>
                             </div>
                         </section>
 

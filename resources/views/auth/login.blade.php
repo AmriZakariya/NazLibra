@@ -20,6 +20,9 @@
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
     $productName = config('app.name', 'NAZ POS');
     $tenantName = $tenant?->name ?? $tr('Votre commerce');
+    $loginIcon = app(\App\Services\AppIcon::class);
+    $loginIconSource = $tenant ? $loginIcon->source($tenant) : null;
+    $loginFavicon = $tenant ? $loginIcon->url($tenant, 32) : route('app.icon', 32);
     $appVersion = config('app.version', '1.0.0-beta.5');
     $releaseLabel = app()->environment('production') ? $tr('Production') : \Illuminate\Support\Str::headline(app()->environment());
 @endphp
@@ -28,9 +31,9 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>{{ $tr('Connexion') }} · {{ $productName }}</title>
-        <link rel="icon" type="image/png" sizes="32x32" href="{{ route('app.icon', 32) }}">
-        <link rel="shortcut icon" href="{{ route('app.icon', 32) }}" type="image/x-icon">
+        <title>{{ $tr('Connexion') }} · {{ $tenant?->name ?? $productName }}</title>
+        <link rel="icon" type="image/png" sizes="32x32" href="{{ $loginFavicon }}">
+        <link rel="shortcut icon" href="{{ $loginFavicon }}" type="image/x-icon">
         <script>
             window.libraireProLocale = @json($locale);
             window.libraireProTranslations = @json($locale === 'ar' ? \App\Support\Locale::arabic() : []);
@@ -280,6 +283,9 @@
                     <div class="login-brand">
                         <div class="flex items-center gap-3">
                             <div class="login-logomark">
+                                @if ($loginIconSource && $loginIconSource !== \App\Services\AppIcon::SOURCE_INITIALS)
+                                <img src="{{ $loginIcon->url($tenant, 192) }}" alt="" style="width:100%; height:100%; object-fit:contain; border-radius:14px;">
+                                @else
                                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <defs>
                                         <linearGradient id="lg" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
@@ -293,6 +299,7 @@
                                     <circle cx="17" cy="8.5" r="1.5" fill="white"/>
                                     <circle cx="17" cy="15.5" r="1.5" fill="white"/>
                                 </svg>
+                                @endif
                             </div>
                             <div>
                                 <p class="login-wordmark">{{ $productName }}</p>

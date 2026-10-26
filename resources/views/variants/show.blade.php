@@ -18,7 +18,7 @@
     ];
 @endphp
 
-<x-layouts.app :tenant="$tenant" :active="$active" title="LibrairePro · {{ $variant->name }}">
+<x-layouts.app :tenant="$tenant" :active="$active" title="{{ $variant->name }}">
     <header class="mb-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
         <div class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div class="min-w-0 flex-1">

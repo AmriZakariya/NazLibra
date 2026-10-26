@@ -53,6 +53,7 @@ use App\Models\VariantOption;
 use App\Models\VirtualDevice;
 use App\Models\VirtualDeviceSession;
 use App\Rules\FourDigitPin;
+use App\Services\AppIcon;
 use App\Services\CashRegisterService;
 use App\Services\Documents\DocumentBranding;
 use App\Services\Documents\DocumentNumberGenerator;
@@ -2960,7 +2961,7 @@ class LibraireProController extends Controller
             'purchase_return_payment_init' => ['nullable', 'string', 'max:20'],
             'expense_payment_init' => ['nullable', 'string', 'max:20'],
             'cust_advance_init' => ['nullable', 'string', 'max:20'],
-            'app_icon' => ['nullable', 'image', 'max:2048'],
+            'app_icon' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp,gif', 'max:4096', 'dimensions:min_width=64,min_height=64'],
             'remove_app_icon' => ['nullable', 'boolean'],
         ]);
 
@@ -2971,15 +2972,17 @@ class LibraireProController extends Controller
         $businessMode = BusinessMode::get($data['business_mode'] ?? data_get($tenant->settings, 'company_profile.business_mode'));
         $data['business_mode'] = $businessMode['key'];
 
-        if ($request->boolean('remove_app_icon')) {
-            $this->deleteAppIconFiles();
-            $data['app_icon'] = null;
-        } elseif ($request->hasFile('app_icon')) {
-            $this->processAppIconUpload($request->file('app_icon'));
-            $data['app_icon'] = 'custom';
-        } else {
-            $data['app_icon'] = $tenant->settings['company_profile']['app_icon'] ?? null;
+        $appIcon = app(AppIcon::class);
+        if ($request->hasFile('app_icon')) {
+            try {
+                $appIcon->store($tenant, $request->file('app_icon'));
+            } catch (\InvalidArgumentException $e) {
+                throw ValidationException::withMessages(['app_icon' => $e->getMessage()]);
+            }
+        } elseif ($request->boolean('remove_app_icon')) {
+            $appIcon->reset($tenant);
         }
+        $data['app_icon'] = $appIcon->source($tenant) === AppIcon::SOURCE_CUSTOM ? 'custom' : null;
 
         if ($request->boolean('remove_store_logo')) {
             $old = $tenant->settings['company_profile']['store_logo'] ?? '';
@@ -3052,6 +3055,7 @@ class LibraireProController extends Controller
         $businessMode = BusinessMode::current($tenant);
         $locale = $tenant?->locale ?? 'fr';
         $dir = str_starts_with($locale, 'ar') ? 'rtl' : 'ltr';
+        $icon = fn (int $size): string => $tenant ? app(AppIcon::class)->url($tenant, $size) : route('app.icon', $size);
 
         return response()->json([
             'name' => $tenant?->name ?? config('castlit.brand.name', 'Castl-it-POS'),
@@ -3070,17 +3074,17 @@ class LibraireProController extends Controller
             'scope' => '/',
             'icons' => [
                 [
-                    'src' => route('app.icon', 192),
+                    'src' => $icon(192),
                     'sizes' => '192x192',
                     'type' => 'image/png',
                 ],
                 [
-                    'src' => route('app.icon', 512),
+                    'src' => $icon(512),
                     'sizes' => '512x512',
                     'type' => 'image/png',
                 ],
                 [
-                    'src' => route('app.icon', 192),
+                    'src' => $icon(192),
                     'sizes' => '192x192',
                     'type' => 'image/png',
                     'purpose' => 'maskable',
@@ -3094,107 +3098,16 @@ class LibraireProController extends Controller
 
     public function appIcon(string $size): \Symfony\Component\HttpFoundation\BinaryFileResponse|\Illuminate\Http\Response
     {
-        $path = public_path("icons/icon-{$size}x{$size}.png");
-
-        if (!file_exists($path)) {
-            $this->ensureDefaultAppIconGenerated($size);
-        }
-
-        if (file_exists($path)) {
-            return response()->file($path, ['Content-Type' => 'image/png']);
-        }
-
-        return response('', 404);
-    }
-
-    private function ensureDefaultAppIconGenerated(int $size): void
-    {
-        $iconsDir = public_path('icons');
-        if (!is_dir($iconsDir)) {
-            mkdir($iconsDir, 0755, true);
-        }
-
         $tenant = TenantContext::resolve(request());
-        $primary = data_get($tenant?->settings, 'theme.primary', '#3157D5');
-        $name = $tenant?->name ?? 'LP';
-        $initials = $this->tenantInitials($name);
-
-        $this->generateAppIconPng($iconsDir."/icon-{$size}x{$size}.png", $size, $primary, $initials);
-    }
-
-    private function tenantInitials(string $name): string
-    {
-        $words = preg_split('/\s+/', trim($name));
-        $initials = '';
-        foreach (array_slice($words, 0, 2) as $word) {
-            $initials .= mb_strtoupper(mb_substr($word, 0, 1));
-        }
-        return $initials ?: 'LP';
-    }
-
-    private function generateAppIconPng(string $destination, int $size, string $color, string $text): void
-    {
-        $image = imagecreatetruecolor($size, $size);
-        imagealphablending($image, false);
-        imagesavealpha($image, true);
-
-        // Parse color
-        $rgb = sscanf(ltrim($color, '#'), '%2x%2x%2x');
-        $r = (int) ($rgb[0] ?? 49);
-        $g = (int) ($rgb[1] ?? 87);
-        $b = (int) ($rgb[2] ?? 213);
-
-        // Transparent background
-        $transparent = imagecolorallocatealpha($image, 0, 0, 0, 127);
-        imagefill($image, 0, 0, $transparent);
-
-        // Rounded rectangle background
-        $bgColor = imagecolorallocate($image, $r, $g, $b);
-        $radius = (int) ($size * 0.22);
-        $this->imageRoundedRectangle($image, 0, 0, $size - 1, $size - 1, $radius, $bgColor);
-
-        // Text color (white)
-        $textColor = imagecolorallocate($image, 255, 255, 255);
-
-        // Font size proportional to icon size
-        $fontSize = (int) ($size * 0.35);
-        $text = mb_strtoupper($text);
-        $fontPath = public_path('fonts/Inter-Bold.ttf');
-        if (!file_exists($fontPath)) {
-            $fontPath = '/System/Library/Fonts/Helvetica.ttc';
-            if (!file_exists($fontPath)) {
-                $fontPath = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
-            }
-        }
-        $bbox = file_exists($fontPath) ? imagettfbbox($fontSize, 0, $fontPath, $text) : false;
-        if ($bbox === false) {
-            // Fallback to built-in font if TTF not available
-            $fontSize = max(1, (int) ($size * 0.15));
-            $textWidth = imagefontwidth($fontSize) * strlen($text);
-            $textHeight = imagefontheight($fontSize);
-            $x = (int) (($size - $textWidth) / 2);
-            $y = (int) (($size - $textHeight) / 2 + $textHeight * 0.8);
-            imagestring($image, $fontSize, $x, $y, $text, $textColor);
-        } else {
-            $textWidth = $bbox[2] - $bbox[0];
-            $textHeight = $bbox[1] - $bbox[7];
-            $x = (int) (($size - $textWidth) / 2);
-            $y = (int) (($size + $textHeight) / 2 - $bbox[1]);
-            imagettftext($image, $fontSize, 0, $x, $y, $textColor, $fontPath, $text);
+        if (! $tenant) {
+            return response()->file(public_path('img/app-icon.png'), ['Content-Type' => 'image/png']);
         }
 
-        imagepng($image, $destination, 9);
-        imagedestroy($image);
-    }
-
-    private function imageRoundedRectangle(\GdImage $image, int $x1, int $y1, int $x2, int $y2, int $radius, int $color): void
-    {
-        imagefilledrectangle($image, $x1 + $radius, $y1, $x2 - $radius, $y2, $color);
-        imagefilledrectangle($image, $x1, $y1 + $radius, $x2, $y2 - $radius, $color);
-        imagefilledellipse($image, $x1 + $radius, $y1 + $radius, $radius * 2, $radius * 2, $color);
-        imagefilledellipse($image, $x2 - $radius, $y1 + $radius, $radius * 2, $radius * 2, $color);
-        imagefilledellipse($image, $x1 + $radius, $y2 - $radius, $radius * 2, $radius * 2, $color);
-        imagefilledellipse($image, $x2 - $radius, $y2 - $radius, $radius * 2, $radius * 2, $color);
+        // Every link carries ?v=<version>, so a cached copy is never stale.
+        return response()->file(app(AppIcon::class)->path($tenant, (int) $size), [
+            'Content-Type' => 'image/png',
+            'Cache-Control' => 'public, max-age=604800',
+        ]);
     }
 
     public function updatePosSettings(Request $request): RedirectResponse
@@ -9583,61 +9496,6 @@ class LibraireProController extends Controller
         ]);
 
         return $pdf->download($document['filename']);
-    }
-
-    private function processAppIconUpload(\Illuminate\Http\UploadedFile $file): void
-    {
-        $source = $file->getRealPath();
-        $sizes = [32 => 'icon-32x32.png', 192 => 'icon-192x192.png', 512 => 'icon-512x512.png'];
-        $iconsDir = public_path('icons');
-
-        if (! is_dir($iconsDir)) {
-            mkdir($iconsDir, 0755, true);
-        }
-
-        foreach ($sizes as $size => $filename) {
-            $this->resizePng($source, $iconsDir.'/'.$filename, $size, $size);
-        }
-    }
-
-    private function deleteAppIconFiles(): void
-    {
-        $iconsDir = public_path('icons');
-        if (!is_dir($iconsDir)) {
-            mkdir($iconsDir, 0755, true);
-        }
-
-        foreach ([32, 192, 512] as $size) {
-            $this->ensureDefaultAppIconGenerated($size);
-        }
-    }
-
-    private function resizePng(string $source, string $destination, int $width, int $height): void
-    {
-        $info = getimagesize($source);
-        $mime = $info['mime'] ?? 'image/png';
-        $srcWidth = $info[0];
-        $srcHeight = $info[1];
-
-        $srcImage = match ($mime) {
-            'image/jpeg' => imagecreatefromjpeg($source),
-            'image/png' => imagecreatefrompng($source),
-            'image/webp' => imagecreatefromwebp($source),
-            'image/gif' => imagecreatefromgif($source),
-            default => imagecreatefrompng($source),
-        };
-
-        $dstImage = imagecreatetruecolor($width, $height);
-        imagealphablending($dstImage, false);
-        imagesavealpha($dstImage, true);
-        $transparent = imagecolorallocatealpha($dstImage, 0, 0, 0, 127);
-        imagefill($dstImage, 0, 0, $transparent);
-
-        imagecopyresampled($dstImage, $srcImage, 0, 0, 0, 0, $width, $height, $srcWidth, $srcHeight);
-        imagepng($dstImage, $destination, 9);
-
-        imagedestroy($srcImage);
-        imagedestroy($dstImage);
     }
 
     private function companyProfile(Tenant $tenant): array
