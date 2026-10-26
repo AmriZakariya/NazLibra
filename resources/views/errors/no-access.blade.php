@@ -24,8 +24,12 @@
                 @endif
 
                 <div class="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-                    <a href="{{ route('dashboard') }}" class="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">Retour au tableau de bord</a>
-                    <a href="{{ route('profile') }}" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Mon profil</a>
+                    {{-- The master site has no dashboard or profile: a refusal there
+                         crashed into a 500 while rendering these links. --}}
+                    <a href="{{ \Illuminate\Support\Facades\Route::has('dashboard') ? route('dashboard') : url('/') }}" class="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">{{ \Illuminate\Support\Facades\Route::has('dashboard') ? 'Retour au tableau de bord' : "Retour à l'accueil" }}</a>
+                    @if (\Illuminate\Support\Facades\Route::has('profile'))
+                        <a href="{{ route('profile') }}" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700">Mon profil</a>
+                    @endif
                     <form action="{{ route('logout') }}" method="POST">
                         @csrf
                         <button class="w-full rounded-lg border border-rose-200 px-4 py-2.5 text-sm font-semibold text-rose-600 sm:w-auto">Déconnexion</button>

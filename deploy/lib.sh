@@ -25,7 +25,10 @@ ErrorDocument 503 /suspended.html
     RewriteRule ^(app|bootstrap|config|database|lang|resources|routes|scripts|tests|vendor)(/|$) - [F,L]
     RewriteRule ^(composer\.(json|lock)|package(-lock)?\.json|artisan|phpunit\.xml|vite\.config\.js)$ - [F,L]
     RewriteRule \.(md|sqlite)$ - [F,L]
-    RewriteRule ^(build|css|fonts|img|js|storage)/(.*)$ public/$1/$2 [L]
+    # Photos and logos are served by the app: LWS refuses the storage:link
+    # symlink (403). The storage/ folder itself is never reachable directly.
+    RewriteRule ^storage/ public/index.php [L]
+    RewriteRule ^(build|css|fonts|img|js)/(.*)$ public/$1/$2 [L]
     RewriteRule ^favicon\.ico$ public/favicon.ico [L]
 </IfModule>
 FallbackResource /public/index.php

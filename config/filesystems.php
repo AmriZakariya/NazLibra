@@ -33,7 +33,9 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Off: its /storage/{path} route would answer 403 for the public
+            // photos served at the same address (PublicStorageController).
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],

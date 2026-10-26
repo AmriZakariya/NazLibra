@@ -64,6 +64,8 @@ if (config('castlit.is_master')) {
             // Client (install) manager — must precede the /{subscription} route.
             Route::get('/clients', [ClientAdminController::class, 'index'])->name('clients');
             Route::post('/clients/git-pull', [ClientAdminController::class, 'pullFromGit'])->name('clients.git-pull');
+            Route::get('/clients/journal', [ClientAdminController::class, 'journal'])->name('clients.journal');
+            Route::get('/clients/journal/telecharger', [ClientAdminController::class, 'journalDownload'])->name('clients.journal.download');
             // All per-client operations go through ONE flat endpoint (id + action
             // in the body). Path is "op" (not "action") because the edge cache
             // poisoned /clients/action with a 404 from stray GET reloads; a fresh

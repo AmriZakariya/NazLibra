@@ -256,6 +256,7 @@
                                             </form>
                                         @endif
                                     @endif
+                                    <a class="btn-sm" href="{{ route('castlit.admin.clients.journal', ['install' => $install->id]) }}">Journal d'erreurs</a>
                                     @if ($sub)
                                         <a class="btn-sm" href="{{ route('castlit.admin.show', $sub) }}">Détails</a>
                                     @endif

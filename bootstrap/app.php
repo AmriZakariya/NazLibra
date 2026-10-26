@@ -10,6 +10,13 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        // Product photos and logos, without the web group: see
+        // App\Http\Controllers\PublicStorageController.
+        then: function (): void {
+            \Illuminate\Support\Facades\Route::get('/storage/{path}', \App\Http\Controllers\PublicStorageController::class)
+                ->where('path', '.*')
+                ->name('storage.public');
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // PIN whitespace is significant: never normalize an invalid value into

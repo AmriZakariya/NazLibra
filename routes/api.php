@@ -68,6 +68,10 @@ Route::prefix('v1')->group(function (): void {
         // Locations
         Route::get('locations', [LocationController::class, 'index']);
 
+        // What failed on the device, for the platform admin's error journal.
+        Route::post('diagnostics/sync-error', [\App\Http\Controllers\Api\DiagnosticsController::class, 'syncError'])
+            ->middleware('throttle:30,1');
+
         // Dashboard KPIs
         Route::get('dashboard', [DashboardController::class, 'index']);
 

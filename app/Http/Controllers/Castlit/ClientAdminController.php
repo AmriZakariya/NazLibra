@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Castlit;
 
+use App\Support\LogTail;
 use App\Support\MasterVersion;
 use App\Http\Controllers\Controller;
 use App\Jobs\ManageClientJob;
@@ -18,6 +19,57 @@ use Illuminate\View\View;
  */
 class ClientAdminController extends Controller
 {
+    /**
+     * A client's latest errors, read from its own log on this same account.
+     *
+     * Telescope is off in production, and support used to have nothing to go
+     * on but a screenshot. The app reports its sync failures to the server
+     * ("App sync failed"), so they show here beside the server's own errors.
+     * Flat URL with the id in the query, like the other client operations.
+     */
+    public function journal(Request $request): View
+    {
+        $install = TenantInstall::with('subscription')->findOrFail((int) $request->query('install'));
+        $file = $this->clientLogFile($install);
+        $all = $request->boolean('tout');
+
+        return view('castlit.admin.journal', [
+            'install' => $install,
+            'file' => $file,
+            'entries' => $file ? LogTail::entries($file, 150, ! $all) : [],
+            'all' => $all,
+            'size' => $file ? filesize($file) : 0,
+            'updatedAt' => $file ? \Illuminate\Support\Carbon::createFromTimestamp(filemtime($file)) : null,
+        ]);
+    }
+
+    /** The end of the client's log as a text file, to read in full or forward. */
+    public function journalDownload(Request $request): \Symfony\Component\HttpFoundation\Response
+    {
+        $install = TenantInstall::findOrFail((int) $request->query('install'));
+        $file = $this->clientLogFile($install);
+        abort_unless($file !== null, 404);
+
+        return response(LogTail::tail($file), 200, [
+            'Content-Type' => 'text/plain; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="journal-'.$install->subdomain.'-'.now()->format('Ymd-His').'.log"',
+        ]);
+    }
+
+    /** The client's newest log file — only ever inside the hosting folder clients live in. */
+    private function clientLogFile(TenantInstall $install): ?string
+    {
+        $base = realpath((string) config('castlit.provision.public_html'));
+        $docroot = $install->docroot ?: ($base ? $base.'/'.$install->domain : null);
+        $root = $docroot ? realpath($docroot) : false;
+
+        if (! $base || ! $root || ! str_starts_with($root.'/', rtrim($base, '/').'/')) {
+            return null;
+        }
+
+        return LogTail::latestFile($root.'/storage/logs');
+    }
+
     /** List every install with its live/enabled state and version vs master. */
     public function index(): View
     {
