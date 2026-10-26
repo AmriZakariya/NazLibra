@@ -2481,11 +2481,30 @@ class LibraireProController extends Controller
         $ledger = app(\App\Services\Inventory\InventoryLedgerService::class);
         $defaultLocation = Location::where('tenant_id', $tenant->id)->where('is_default', true)->first();
         $data = $request->validate([
-            'catalog_file' => ['required', 'file', 'max:20480'],
+            // A ZIP carries the sheet and its photos, so it may be large; the
+            // server's own upload limit still applies first.
+            'catalog_file' => ['required', 'file', 'max:512000'],
             'kind' => ['required', 'in:items,services,categories,brands,variants'],
         ]);
 
-        $rows = $this->rowsFromUpload($request->file('catalog_file'));
+        $photos = app(\App\Services\Catalogue\ItemPhotos::class);
+        $upload = $request->file('catalog_file');
+        $unzipped = null;
+        if (strtolower($upload->getClientOriginalExtension()) === 'zip') {
+            try {
+                $unzipped = $photos->unzip($upload->getRealPath());
+            } catch (\InvalidArgumentException $e) {
+                return back()->withErrors(['catalog_file' => 'Import impossible : '.$e->getMessage().'.']);
+            }
+            if ($unzipped['sheet'] === null) {
+                \App\Services\Catalogue\ItemPhotos::cleanup($unzipped['dir']);
+
+                return back()->withErrors(['catalog_file' => "Import impossible : l'archive ZIP ne contient pas de fichier Excel (.xlsx) ou CSV."]);
+            }
+            $rows = $this->rowsFromPath($unzipped['sheet'], pathinfo($unzipped['sheet'], PATHINFO_EXTENSION));
+        } else {
+            $rows = $this->rowsFromUpload($upload);
+        }
 
         if ($data['kind'] === 'categories') {
             return $this->importCategories($tenant, $rows);
@@ -2503,6 +2522,10 @@ class LibraireProController extends Controller
         $updated = 0;
         $skipped = 0;
         $services = 0;
+        // Photos are attached after the rows are committed: a failed download
+        // must not roll back the catalogue, and a rolled-back row must not
+        // leave a photo behind.
+        $photoJobs = [];
 
         // ── Pre-cache all lookup tables (eliminates N×4 per-row queries) ─────────
         $catCache   = Category::where('tenant_id', $tenant->id)->get()->keyBy(fn ($c) => Str::slug($c->name));
@@ -2611,7 +2634,7 @@ class LibraireProController extends Controller
             $byBarcode, $byIsbn, $byCode,
             $resolveCat, $resolveBrand, $resolveUnit, $resolveTax, $resolveNextCode,
             $defaultMinStock,
-            &$ledgerQtyMap, &$created, &$updated, &$skipped, &$services,
+            &$ledgerQtyMap, &$created, &$updated, &$skipped, &$services, &$photoJobs,
         ) {
             foreach ($rows as $row) {
                 $title = trim((string) $this->rowValue($row, ['title', 'titre', 'name', 'nom', 'item_name', 'nom_article', 'nom_de_l_article']));
@@ -2710,6 +2733,12 @@ class LibraireProController extends Controller
                     }
                 }
 
+                $photoJobs[] = [
+                    'item_id' => $model->id,
+                    'image' => trim((string) $this->rowValue($row, ['image', 'images', 'photo', 'photos', 'image_url', 'url_image', 'url_de_l_image', 'lien_image', 'lien_photo', 'photo_url', 'url_photo'])),
+                    'codes' => array_values(array_filter([$barcode, $isbn, $model->item_code])),
+                ];
+
                 if ($model->type !== 'service' && $stock > 0 && $defaultLocation) {
                     // Use pre-loaded ledger qty — no per-row availableQuantity() query
                     $currentLedgerQty = (float) ($ledgerQtyMap[$model->id] ?? 0.0);
@@ -2739,6 +2768,8 @@ class LibraireProController extends Controller
         });
 
         $message = "{$created} créée(s), {$updated} mise(s) à jour, {$skipped} ignorée(s).";
+        $message .= $this->attachImportPhotos($photos, $photoJobs, $unzipped['photos'] ?? [], $unzipped !== null);
+        \App\Services\Catalogue\ItemPhotos::cleanup($unzipped['dir'] ?? null);
         // Services do not show in the Articles list; say where they went.
         $articles = $created + $updated - $services;
         if ($services > 0 && $data['kind'] !== 'services') {
@@ -2746,6 +2777,150 @@ class LibraireProController extends Controller
         }
 
         return back()->with('status', $message);
+    }
+
+    /**
+     * Attach the photos an import named: a link, a file in the ZIP, or —
+     * with no Image column — a photo in the ZIP named after the barcode or
+     * item code. Returns what to add to the import message.
+     *
+     * @param  list<array{item_id: int, image: string, codes: list<string>}>  $jobs
+     * @param  array<string, string>  $zipPhotos  lower-cased file name => extracted path
+     */
+    private function attachImportPhotos(\App\Services\Catalogue\ItemPhotos $photos, array $jobs, array $zipPhotos, bool $fromZip): string
+    {
+        $zipByKey = [];
+        foreach ($zipPhotos as $name => $path) {
+            foreach (\App\Services\Catalogue\ItemPhotos::keysFor($name) as $key) {
+                $zipByKey[mb_strtolower($key)] ??= $path;
+            }
+        }
+
+        $wanted = array_filter($jobs, fn (array $job): bool => $job['image'] !== '' || $zipByKey !== []);
+        if ($wanted === []) {
+            return '';
+        }
+        @set_time_limit(600);
+
+        $added = 0;
+        $failed = [];
+        foreach ($wanted as $job) {
+            $source = null;
+            $temp = null;
+            $label = $job['image'];
+
+            try {
+                if ($job['image'] !== '' && \App\Services\Catalogue\ItemPhotos::isUrl($job['image'])) {
+                    $source = $temp = $photos->download($job['image']);
+                } elseif ($job['image'] !== '') {
+                    $name = mb_strtolower(basename(str_replace('\\', '/', $job['image'])));
+                    $source = $zipPhotos[$name] ?? $zipByKey[mb_strtolower(pathinfo($name, PATHINFO_FILENAME))] ?? null;
+                    if ($source === null) {
+                        throw new \InvalidArgumentException($fromZip ? 'absente du ZIP' : 'importez un ZIP avec les photos');
+                    }
+                } else {
+                    foreach ($job['codes'] as $code) {
+                        $source ??= $zipByKey[mb_strtolower($code)] ?? null;
+                    }
+                    if ($source === null) {
+                        continue; // no photo for this row, and none was asked for
+                    }
+                }
+
+                $item = Item::find($job['item_id']);
+                if ($item) {
+                    $photos->attach($item, $photos->store($source));
+                    $added++;
+                }
+            } catch (\InvalidArgumentException $e) {
+                $failed[] = Str::limit($label !== '' ? $label : '#'.$job['item_id'], 40).' ('.$e->getMessage().')';
+            } finally {
+                if ($temp) {
+                    @unlink($temp);
+                }
+            }
+        }
+
+        $message = " Photos : {$added} ajoutée(s)";
+        if ($failed !== []) {
+            $message .= ', '.count($failed).' non ajoutée(s) — '.implode(' ; ', array_slice($failed, 0, 5)).(count($failed) > 5 ? ' …' : '');
+        }
+
+        return $message.'.';
+    }
+
+    /**
+     * Which product each photo file would go to, before anything is uploaded:
+     * the "Photos en masse" screen shows ✓ / ⚠ / ↺ from this.
+     */
+    public function photoMatches(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'names' => ['required', 'array', 'max:1000'],
+            'names.*' => ['required', 'string', 'max:255'],
+        ]);
+        $match = app(\App\Services\Catalogue\ItemPhotos::class)->matcher($this->tenant());
+
+        return response()->json([
+            'matches' => collect($data['names'])->map(function (string $name) use ($match): array {
+                $found = $match($name);
+
+                return [
+                    'name' => $name,
+                    'item_id' => $found['item']->id ?? null,
+                    'title' => $found['item']->title ?? null,
+                    'by' => $found['by'] ?? null,
+                    'service' => ($found['item']->type ?? null) === 'service',
+                    'has_photo' => ! empty($found['item']->images ?? []),
+                ];
+            })->values(),
+        ]);
+    }
+
+    /** One batch of "Photos en masse": each file becomes its product's main photo. */
+    public function storePhotos(Request $request): JsonResponse
+    {
+        $tenant = $this->tenant();
+        $data = $request->validate([
+            'photos' => ['required', 'array', 'max:50'],
+            'photos.*' => ['required', 'file', 'max:20480'],
+            'names' => ['nullable', 'array'],
+            'names.*' => ['nullable', 'string', 'max:255'],
+            'skip_existing' => ['nullable', 'boolean'],
+        ]);
+
+        $photos = app(\App\Services\Catalogue\ItemPhotos::class);
+        $match = $photos->matcher($tenant);
+        $skipExisting = $request->boolean('skip_existing');
+        $results = [];
+
+        foreach ($request->file('photos') as $index => $file) {
+            // The browser may have shrunk the photo and renamed it; the name
+            // it was matched on is sent beside it.
+            $name = (string) ($data['names'][$index] ?? $file->getClientOriginalName());
+            $found = $match($name);
+            $item = $found['item'] ?? null;
+
+            if (! $item) {
+                $results[] = ['name' => $name, 'ok' => false, 'error' => 'aucun article ne correspond à ce nom'];
+
+                continue;
+            }
+            if ($skipExisting && ! empty($item->images)) {
+                $results[] = ['name' => $name, 'ok' => false, 'skipped' => true, 'title' => $item->title, 'error' => 'a déjà une photo'];
+
+                continue;
+            }
+
+            try {
+                $photos->attach(Item::findOrFail($item->id), $photos->store($file->getRealPath()));
+                $results[] = ['name' => $name, 'ok' => true, 'title' => $item->title];
+            } catch (\InvalidArgumentException $e) {
+                $results[] = ['name' => $name, 'ok' => false, 'title' => $item->title, 'error' => $e->getMessage()];
+            }
+        }
+
+        return response()->json(['results' => $results]);
     }
 
     public function importExample(string $kind)
@@ -11017,19 +11192,19 @@ class LibraireProController extends Controller
             'services' => [
                 'title' => 'Liste des services',
                 'filename' => 'exemple-import-services.xlsx',
-                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément"],
+                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément", 'Image'],
                 'rows' => [
-                    ['', 'Photocopie A4 noir et blanc', 'Services[SERVICE]', 'Service', '0.20', '0.50', 'Sans TVA(0.00%)', 'Active', 'impression, rapide', 'Photocopie standard A4 noir et blanc', 'Service'],
-                    ['', 'Adhésion annuelle', 'Services[SERVICE]', 'Service', '0.00', '100.00', 'Sans TVA(0.00%)', 'Active', 'adhésion, bibliothèque', 'Abonnement annuel membre', 'Service'],
+                    ['', 'Photocopie A4 noir et blanc', 'Services[SERVICE]', 'Service', '0.20', '0.50', 'Sans TVA(0.00%)', 'Active', 'impression, rapide', 'Photocopie standard A4 noir et blanc', 'Service', 'photocopie.jpg'],
+                    ['', 'Adhésion annuelle', 'Services[SERVICE]', 'Service', '0.00', '100.00', 'Sans TVA(0.00%)', 'Active', 'adhésion, bibliothèque', 'Abonnement annuel membre', 'Service', ''],
                 ],
             ],
             default => [
                 'title' => "Liste d'articles",
                 'filename' => 'exemple-import-articles.xlsx',
-                'headers' => ['Code de barre', 'ISBN', "Nom de l'article", "Catégorie/Type d'élément", 'Marque', 'Auteur', 'Unité', 'Stock', "Quantité d'alerte", "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément"],
+                'headers' => ['Code de barre', 'ISBN', "Nom de l'article", "Catégorie/Type d'élément", 'Marque', 'Auteur', 'Unité', 'Stock', "Quantité d'alerte", "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément", 'Image'],
                 'rows' => [
-                    ['9780000000001', '', 'Cahier 96 pages grand format', 'FOURNITURE SCOLAIRE[ITEM]', 'OXFORD', '', 'Pièce', '50', '5', '8.00', '12.00', 'Sans TVA(0.00%)', 'Active', 'rentrée, scolaire', 'Cahier grand format 96 pages ligné', 'Article'],
-                    ['9782000000002', '9782000000002', 'Roman exemple relié', 'ROMANS[ITEM]', 'BORDAS', 'Auteur Exemple', 'Pièce', '8', '2', '55.00', '85.00', 'TVA 7%(7.00%)', 'Active', 'roman, lecture', 'Roman relié, édition récente', 'Livre'],
+                    ['9780000000001', '', 'Cahier 96 pages grand format', 'FOURNITURE SCOLAIRE[ITEM]', 'OXFORD', '', 'Pièce', '50', '5', '8.00', '12.00', 'Sans TVA(0.00%)', 'Active', 'rentrée, scolaire', 'Cahier grand format 96 pages ligné', 'Article', '9780000000001.jpg'],
+                    ['9782000000002', '9782000000002', 'Roman exemple relié', 'ROMANS[ITEM]', 'BORDAS', 'Auteur Exemple', 'Pièce', '8', '2', '55.00', '85.00', 'TVA 7%(7.00%)', 'Active', 'roman, lecture', 'Roman relié, édition récente', 'Livre', 'https://exemple.com/photos/roman.jpg'],
                 ],
             ],
         };
@@ -11052,10 +11227,16 @@ class LibraireProController extends Controller
      */
     private function rowsFromUpload($file): array
     {
-        $extension = strtolower($file->getClientOriginalExtension());
+        return $this->rowsFromPath($file->getRealPath(), $file->getClientOriginalExtension());
+    }
+
+    /** The rows of a sheet on disk — an upload, or the sheet inside an import ZIP. */
+    private function rowsFromPath(string $path, string $extension): array
+    {
+        $extension = strtolower($extension);
 
         if ($extension === 'xlsx') {
-            return $this->rowsFromXlsx($file->getRealPath());
+            return $this->rowsFromXlsx($path);
         }
 
         if (! in_array($extension, ['csv', 'tsv'], true)) {
@@ -11063,7 +11244,7 @@ class LibraireProController extends Controller
         }
 
         $delimiter = $extension === 'tsv' ? "\t" : ',';
-        $handle = fopen($file->getRealPath(), 'r');
+        $handle = fopen($path, 'r');
         $headers = [];
         $rows = [];
 

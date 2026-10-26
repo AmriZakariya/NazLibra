@@ -41,6 +41,7 @@
             'ajouter' => ['label' => 'Ajouter article', 'hint' => $physicalTypeSummary, 'href' => route('catalog', ['panel' => 'ajouter'])],
             'ajouter-service' => ['label' => 'Ajouter service', 'hint' => 'Non physique', 'href' => route('catalog', ['panel' => 'ajouter-service'])],
             'import' => ['label' => 'Importer', 'hint' => 'Excel / CSV', 'href' => route('catalog', ['panel' => 'import', 'kind' => request('kind', 'items')])],
+            'photos' => ['label' => 'Photos en masse', 'hint' => 'Images par lot', 'href' => route('catalog', ['panel' => 'photos'])],
         ],
         'Référentiels' => [
             'categories' => ['label' => 'Catégories', 'hint' => 'Structure', 'href' => route('catalog', ['panel' => 'categories'])],
@@ -1603,6 +1604,219 @@
         </section>
     @endif
 
+    @if ($panel === 'photos')
+        @php $photoLimits = \App\Services\Catalogue\ItemPhotos::uploadLimits(); @endphp
+        {{-- Photos for products that already exist: drop them, they are matched
+             by file name (barcode, item code or product name), checked, then
+             sent in batches small enough for a shared host's upload limit. --}}
+        <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]" data-bulk-photos
+                 data-match-url="{{ route('catalog.photos.match') }}"
+                 data-store-url="{{ route('catalog.photos.store') }}"
+                 data-limits='@json($photoLimits)'>
+            <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="border-b border-slate-200 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/5">
+                    <p class="text-xs font-semibold uppercase text-brand">Photos en masse</p>
+                    <h2 class="mt-1 text-lg font-semibold">Ajouter les photos de plusieurs produits d'un coup</h2>
+                    <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">Nommez chaque photo avec le <strong>code-barres</strong>, le <strong>code article</strong> ou le <strong>nom du produit</strong>, puis déposez-les ici. Vous vérifiez les correspondances avant l'envoi.</p>
+                </div>
+                <div class="p-5">
+                    <label data-photo-drop class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center transition hover:border-brand/50 hover:bg-brand/5 dark:border-white/15 dark:bg-white/5">
+                        <svg class="size-8 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                        <span class="text-sm font-semibold">Glissez vos photos ici, ou cliquez pour les choisir</span>
+                        <span class="text-xs text-slate-500">JPG, PNG, WEBP — autant que vous voulez</span>
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple class="sr-only" data-photo-input>
+                    </label>
+
+                    <div class="mt-4 hidden flex-wrap items-center gap-2" data-photo-summary>
+                        <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300" data-count="new">0</span>
+                        <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300" data-count="replace">0</span>
+                        <span class="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300" data-count="none">0</span>
+                        <label class="ms-auto flex items-center gap-2 text-sm"><input type="checkbox" class="size-4 accent-[var(--brand-primary)]" data-photo-skip> Ne pas remplacer les photos existantes</label>
+                    </div>
+
+                    <div class="mt-4 hidden overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10" data-photo-table-wrap>
+                        <table class="w-full min-w-[560px] text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-2 w-16">Photo</th><th class="px-3 py-2">Fichier</th><th class="px-3 py-2">Produit</th><th class="px-3 py-2 w-40">État</th></tr></thead>
+                            <tbody data-photo-rows></tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-4 hidden flex-wrap items-center gap-3" data-photo-actions>
+                        <button type="button" class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-sm disabled:opacity-50" data-photo-send>Ajouter les photos</button>
+                        <button type="button" class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold dark:border-white/10" data-photo-reset>Recommencer</button>
+                        <div class="h-2 min-w-[160px] flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10"><div class="h-full w-0 rounded-full bg-brand transition-all" data-photo-progress></div></div>
+                        <span class="text-sm font-semibold text-slate-600 dark:text-slate-300" data-photo-status></span>
+                    </div>
+                </div>
+            </article>
+            <aside class="rounded-xl border border-slate-200 bg-white p-5 text-sm shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <h2 class="text-base font-semibold">Comment nommer les photos</h2>
+                <ul class="mt-3 space-y-2 text-slate-600 dark:text-slate-300">
+                    <li><code>6111000000101.jpg</code> — le code-barres</li>
+                    <li><code>IT26100004.jpg</code> — le code article</li>
+                    <li><code>Massage relaxant.jpg</code> — le nom exact du produit</li>
+                    <li><code>6111000000101 (2).jpg</code> — un suffixe « (2) » ou « _2 » est ignoré</li>
+                </ul>
+                <p class="mt-4 text-xs leading-5 text-slate-500">Chaque photo devient la photo principale du produit. Elles sont redressées, réduites à 1000 px et compressées automatiquement — une photo de téléphone de 5 Mo devient ~150 Ko. Pour un nouveau catalogue, vous pouvez aussi <a class="font-semibold text-brand" href="{{ route('catalog', ['panel' => 'import']) }}">importer un ZIP</a> (Excel + photos).</p>
+            </aside>
+        </section>
+        <script>
+            (() => {
+                const root = document.querySelector('[data-bulk-photos]');
+                if (!root) return;
+                const limits = JSON.parse(root.dataset.limits);
+                const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const input = root.querySelector('[data-photo-input]');
+                const drop = root.querySelector('[data-photo-drop]');
+                const rowsNode = root.querySelector('[data-photo-rows]');
+                const sendButton = root.querySelector('[data-photo-send]');
+                const statusNode = root.querySelector('[data-photo-status]');
+                const progress = root.querySelector('[data-photo-progress]');
+                const skip = root.querySelector('[data-photo-skip]');
+                const show = (selector, visible) => {
+                    const node = root.querySelector(selector);
+                    node.classList.toggle('hidden', !visible);
+                    if (selector !== '[data-photo-table-wrap]') node.classList.toggle('flex', visible);
+                };
+                let entries = [];
+
+                const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
+                const tones = {
+                    ok: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
+                    warn: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
+                    bad: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
+                };
+                const pill = (tone, text) => `<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${tones[tone]}">${esc(text)}</span>`;
+
+                const stateOf = (e) => {
+                    if (e.result) return e.result.ok ? pill('ok', '✓ Ajoutée') : pill(e.result.skipped ? 'warn' : 'bad', e.result.skipped ? 'Ignorée (déjà une photo)' : '✗ ' + (e.result.error || 'Échec'));
+                    if (!e.match?.item_id) return pill('bad', '⚠ Aucun produit');
+                    if (e.match.has_photo) return pill('warn', skip.checked ? 'Sera ignorée' : '↺ Remplacera la photo');
+                    return pill('ok', '✓ Nouvelle photo');
+                };
+
+                const render = () => {
+                    rowsNode.innerHTML = entries.map((e, i) => `<tr class="border-t border-slate-100 dark:border-white/5">
+                        <td class="px-3 py-2"><img src="${e.preview}" alt="" class="size-12 rounded-lg object-cover"></td>
+                        <td class="px-3 py-2 break-all">${esc(e.file.name)}</td>
+                        <td class="px-3 py-2">${e.match?.item_id ? `<strong>${esc(e.match.title)}</strong><span class="block text-xs text-slate-500">par ${esc(e.match.by)}${e.match.service ? ' · service' : ''}</span>` : '<span class="text-xs text-slate-500">Renommez la photo avec le code-barres, le code article ou le nom du produit.</span>'}</td>
+                        <td class="px-3 py-2">${stateOf(e)}</td></tr>`).join('');
+                    const matched = entries.filter((e) => e.match?.item_id);
+                    const replacing = matched.filter((e) => e.match.has_photo);
+                    root.querySelector('[data-count="new"]').textContent = `${matched.length - replacing.length} nouvelle(s)`;
+                    root.querySelector('[data-count="replace"]').textContent = `${replacing.length} déjà avec photo`;
+                    root.querySelector('[data-count="none"]').textContent = `${entries.length - matched.length} sans produit`;
+                    const sendable = matched.filter((e) => !(skip.checked && e.match.has_photo) && !e.result);
+                    sendButton.disabled = sendable.length === 0;
+                    sendButton.textContent = `Ajouter ${sendable.length} photo(s)`;
+                };
+
+                const add = async (files) => {
+                    const images = [...files].filter((f) => /^image\//.test(f.type));
+                    if (!images.length) return;
+                    entries = entries.concat(images.map((file) => ({ file, preview: URL.createObjectURL(file), match: null, result: null })));
+                    ['[data-photo-summary]', '[data-photo-table-wrap]', '[data-photo-actions]'].forEach((s) => show(s, true));
+                    statusNode.textContent = 'Recherche des produits…';
+                    const response = await fetch(root.dataset.matchUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': token },
+                        body: JSON.stringify({ names: entries.map((e) => e.file.name) }),
+                    });
+                    const payload = response.ok ? await response.json() : { matches: [] };
+                    entries.forEach((e, i) => { e.match = payload.matches[i] || null; });
+                    statusNode.textContent = response.ok ? '' : 'Correspondances indisponibles, réessayez.';
+                    render();
+                };
+
+                // Phone photos are 4–8 MB; shrink them here so a batch fits the
+                // server's upload limit. The server normalises them again.
+                const shrink = async (file) => {
+                    try {
+                        const bitmap = await createImageBitmap(file);
+                        const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+                        if (scale === 1 && file.size < 1.5 * 1024 * 1024) return file;
+                        const canvas = document.createElement('canvas');
+                        canvas.width = Math.round(bitmap.width * scale);
+                        canvas.height = Math.round(bitmap.height * scale);
+                        const ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#fff';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+                        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+                        return blob || file;
+                    } catch (_) {
+                        return file;
+                    }
+                };
+
+                const send = async () => {
+                    const queue = entries.filter((e) => e.match?.item_id && !e.result && !(skip.checked && e.match.has_photo));
+                    if (!queue.length) return;
+                    sendButton.disabled = true;
+                    const perBatch = Math.max(1, Math.min(10, limits.max_files - 1));
+                    const budget = Math.max(512 * 1024, Math.floor(limits.post_bytes * 0.7));
+                    let done = 0;
+                    let added = 0;
+                    while (queue.length) {
+                        const form = new FormData();
+                        const batch = [];
+                        let bytes = 0;
+                        while (queue.length && batch.length < perBatch) {
+                            const entry = queue[0];
+                            const blob = await shrink(entry.file);
+                            if (batch.length && bytes + blob.size > budget) break;
+                            queue.shift();
+                            if (blob.size > limits.file_bytes) {
+                                entry.result = { ok: false, error: 'photo trop lourde pour le serveur' };
+                                done++;
+                                continue;
+                            }
+                            bytes += blob.size;
+                            batch.push(entry);
+                            form.append('photos[]', blob, entry.file.name.replace(/\.[^.]+$/, '') + '.jpg');
+                            form.append('names[]', entry.file.name);
+                        }
+                        if (batch.length) {
+                            form.append('skip_existing', skip.checked ? '1' : '0');
+                            try {
+                                const response = await fetch(root.dataset.storeUrl, { method: 'POST', headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token }, body: form });
+                                const payload = response.ok ? await response.json() : null;
+                                batch.forEach((entry, i) => {
+                                    entry.result = payload?.results?.[i] || { ok: false, error: response.status === 413 ? 'envoi trop lourd' : 'erreur serveur' };
+                                    if (entry.result.ok) added++;
+                                });
+                            } catch (_) {
+                                batch.forEach((entry) => { entry.result = { ok: false, error: 'connexion interrompue' }; });
+                            }
+                            done += batch.length;
+                        }
+                        const total = done + queue.length;
+                        progress.style.width = `${Math.round((done / Math.max(1, total)) * 100)}%`;
+                        statusNode.textContent = `${done} / ${total}`;
+                        render();
+                    }
+                    statusNode.textContent = `Terminé : ${added} photo(s) ajoutée(s).`;
+                    render();
+                };
+
+                input.addEventListener('change', () => { add(input.files); input.value = ''; });
+                drop.addEventListener('dragover', (event) => { event.preventDefault(); drop.classList.add('border-brand'); });
+                drop.addEventListener('dragleave', () => drop.classList.remove('border-brand'));
+                drop.addEventListener('drop', (event) => { event.preventDefault(); drop.classList.remove('border-brand'); add(event.dataTransfer.files); });
+                skip.addEventListener('change', render);
+                sendButton.addEventListener('click', send);
+                root.querySelector('[data-photo-reset]').addEventListener('click', () => {
+                    entries.forEach((e) => URL.revokeObjectURL(e.preview));
+                    entries = [];
+                    rowsNode.innerHTML = '';
+                    progress.style.width = '0';
+                    statusNode.textContent = '';
+                    ['[data-photo-summary]', '[data-photo-table-wrap]', '[data-photo-actions]'].forEach((s) => show(s, false));
+                });
+            })();
+        </script>
+    @endif
+
     @if ($panel === 'import')
         <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
             <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -1618,10 +1832,23 @@
                     <form action="{{ route('catalog.import') }}" method="POST" enctype="multipart/form-data" class="app-action-form rounded-2xl border border-dashed border-slate-300 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
                         @csrf
                         <select name="kind" data-import-kind-select class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="items" @selected($selectedImportKind === 'items')>Articles</option><option value="services" @selected($selectedImportKind === 'services')>Services</option><option value="categories" @selected($selectedImportKind === 'categories')>Catégories</option><option value="brands" @selected($selectedImportKind === 'brands')>Marques / éditeurs</option><option value="variants" @selected($selectedImportKind === 'variants')>Variantes</option></select>
-                        <input name="catalog_file" required type="file" accept=".csv,.tsv,.xlsx" class="min-h-11 rounded-lg border border-dashed border-slate-300 p-2 text-sm dark:border-white/10">
+                        <input name="catalog_file" required type="file" accept=".csv,.tsv,.xlsx,.zip" class="min-h-11 rounded-lg border border-dashed border-slate-300 p-2 text-sm dark:border-white/10">
                         <a href="{{ route('catalog.import.example', $selectedImportKind) }}" data-import-example-base="{{ url('/catalogue/import/exemple') }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Exemple Excel</a>
                         <button class="rounded-lg bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20">Importer</button>
                     </form>
+                    @if (session('status'))
+                        <p data-import-result class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-200">{{ session('status') }}</p>
+                    @endif
+                    @php $photoLimits = \App\Services\Catalogue\ItemPhotos::uploadLimits(); @endphp
+                    <div class="mt-5 rounded-xl border border-slate-200 p-4 text-sm dark:border-white/10" data-import-photos-help>
+                        <p class="font-semibold">Importer avec les photos</p>
+                        <ul class="mt-2 space-y-2 text-slate-600 dark:text-slate-300">
+                            <li><strong>ZIP :</strong> mettez le fichier Excel et les photos dans un même ZIP et importez-le. Dans la colonne <em>Image</em>, écrivez le nom du fichier (<code>massage.jpg</code>) — ou laissez-la vide et nommez chaque photo avec le code-barres (<code>6111000000101.jpg</code>).</li>
+                            <li><strong>Lien :</strong> dans la colonne <em>Image</em>, collez l'adresse web de la photo. Les liens de partage Google Drive et Dropbox fonctionnent s'ils sont publics.</li>
+                            <li><strong>Produits déjà créés :</strong> utilisez <a href="{{ route('catalog', ['panel' => 'photos']) }}" class="font-semibold text-brand">Photos en masse</a> — déposez les photos, elles sont associées par leur nom.</li>
+                        </ul>
+                        <p class="mt-2 text-xs text-slate-500">Taille maximale d'un envoi sur ce serveur : {{ max(1, (int) floor(min($photoLimits['file_bytes'], $photoLimits['post_bytes']) / 1048576)) }} Mo. Au-delà, découpez le ZIP ou utilisez Photos en masse, qui envoie par lots. Les photos sont redressées et réduites automatiquement.</p>
+                    </div>
                     <div class="mt-5 grid gap-3 md:grid-cols-3"><div class="rounded-lg bg-slate-50 p-4 text-sm dark:bg-white/5"><strong>Détection</strong><p class="mt-1 text-slate-500">Colonnes legacy FR/EN et accents reconnues.</p></div><div class="rounded-lg bg-slate-50 p-4 text-sm dark:bg-white/5"><strong>Mise à jour</strong><p class="mt-1 text-slate-500">Articles par barcode/ISBN, référentiels par nom.</p></div><div class="rounded-lg bg-slate-50 p-4 text-sm dark:bg-white/5"><strong>Rapport</strong><p class="mt-1 text-slate-500">Créés, mis à jour, ignorés après import.</p></div></div>
                     <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm dark:border-white/10 dark:bg-white/5">
                         <summary class="cursor-pointer font-semibold">Colonnes reconnues</summary>
@@ -1629,13 +1856,13 @@
                             <p><strong>Obligatoire :</strong> Nom de l'article.</p>
                             <p><strong>Prix :</strong> <em>Prix d'achat</em> (coût), <em>Prix de vente</em>. Sans prix d'achat, la valorisation du stock et la marge ne sont pas calculées.</p>
                             <p><strong>Recommandé :</strong> Code de barre, ISBN, Catégorie/Type d'élément, Marque, Unité, Stock, Quantité d'alerte, Impôt, Statut.</p>
-                            <p><strong>Optionnel :</strong> Auteur, Éditeur, Description, Tags, SKU, Type d'élément (Article / Livre / Service).</p>
+                            <p><strong>Optionnel :</strong> Auteur, Éditeur, Description, Tags, SKU, Type d'élément (Article / Livre / Service), Image (nom du fichier photo dans le ZIP, ou lien web).</p>
                             <p class="text-xs text-slate-500">Les libellés FR/EN et les accents sont détectés automatiquement. Téléchargez l'exemple pour l'ordre et le format des colonnes.</p>
                         </div>
                     </details>
                 </div>
             </article>
-            <aside class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h2 class="text-base font-semibold">Préparation</h2><ul class="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300"><li>1. Choisir le type qui correspond au fichier.</li><li>2. XLSX, CSV et TSV sont acceptés.</li><li>3. Les catégories d’articles suppriment automatiquement le suffixe [ITEM].</li><li>4. Les doublons mettent à jour au lieu de planter.</li></ul></aside>
+            <aside class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h2 class="text-base font-semibold">Préparation</h2><ul class="mt-4 space-y-2 text-sm text-slate-600 dark:text-slate-300"><li>1. Choisir le type qui correspond au fichier.</li><li>2. XLSX, CSV et TSV sont acceptés — ou un ZIP qui contient le fichier Excel et les photos.</li><li>3. Les catégories d’articles suppriment automatiquement le suffixe [ITEM].</li><li>4. Les doublons mettent à jour au lieu de planter.</li></ul></aside>
         </section>
     @endif
 

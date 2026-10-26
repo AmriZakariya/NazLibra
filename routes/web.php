@@ -270,6 +270,8 @@ Route::post('/variantes/{variant}/basculer', [VariantController::class, 'toggle'
 Route::delete('/variantes/{variant}', [VariantController::class, 'destroy'])->name('variants.destroy');
 Route::post('/catalogue/import', [LibraireProController::class, 'importItems'])->name('catalog.import');
 Route::get('/catalogue/import/exemple/{kind}', [LibraireProController::class, 'importExample'])->name('catalog.import.example');
+Route::post('/catalogue/photos/correspondances', [LibraireProController::class, 'photoMatches'])->name('catalog.photos.match');
+Route::post('/catalogue/photos', [LibraireProController::class, 'storePhotos'])->name('catalog.photos.store');
 Route::post('/catalogue/stock/ajustements', [LibraireProController::class, 'storeStockAdjustment'])->name('catalog.stock-adjustments.store');
 Route::post('/catalogue/stock/transferts', [LibraireProController::class, 'storeStockTransfer'])->name('catalog.stock-transfers.store');
 Route::put('/catalogue/stock/transferts/{transfer}', [LibraireProController::class, 'updateStockTransfer'])->name('catalog.stock-transfers.update');

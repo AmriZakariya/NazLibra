@@ -199,6 +199,10 @@ class Permissions
             'catalog.modifiers.update' => 'items.edit',
             'catalog.modifiers.destroy' => 'items.delete',
             'catalog.import' => 'items.import',
+            // Matching names is read-only, but it sits behind the same right as
+            // the upload it prepares.
+            'catalog.photos.match' => 'items.edit',
+            'catalog.photos.store' => 'items.edit',
             'variants.store' => 'items.edit',
             'variants.update' => 'items.edit',
             'variants.duplicate' => 'items.edit',
