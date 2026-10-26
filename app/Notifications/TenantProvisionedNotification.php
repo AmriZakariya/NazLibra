@@ -9,8 +9,14 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Sent to a new client once their Castl-it-POS install is live, with the URL and
- * first-login credentials. Delivered on-demand to the subscription email.
+ * Sent to a new client once their Castl-it-POS install is live — and again by
+ * the admin's "Renvoyer les accès". Delivered on-demand to the subscription
+ * email.
+ *
+ * It carries everything the client needs on either side: the address and
+ * login for the web, and the client name + verification code the mobile app
+ * asks for before it shows a login screen at all. Without the code the email
+ * only got a client halfway — they could open the site but not the app.
  */
 class TenantProvisionedNotification extends Notification
 {
@@ -29,21 +35,32 @@ class TenantProvisionedNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $mail = (new MailMessage)
+        return (new MailMessage)
             ->subject('Votre espace Castl-it-POS est prêt 🎉')
-            ->greeting('Bonjour '.$this->subscription->contact_name.',')
-            ->line('Votre boutique « '.$this->subscription->business_name.' » est maintenant en ligne sur Castl-it-POS.')
-            ->line('Adresse de connexion : '.$this->install->url())
-            ->action('Ouvrir mon espace', $this->install->url());
+            ->view(
+                ['castlit.emails.tenant-provisioned', 'castlit.emails.tenant-provisioned-text'],
+                $this->details(),
+            );
+    }
 
-        $mail->line('**Identifiant :** '.$this->install->owner_email);
-        if ($this->password) {
-            $mail->line('**Mot de passe provisoire :** '.$this->password)
-                ->line('Pensez à le changer après votre première connexion.');
-        } else {
-            $mail->line('Utilisez le mot de passe défini lors de votre inscription, ou la fonction « mot de passe oublié ».');
-        }
-
-        return $mail->line('Merci de votre confiance et bienvenue à bord !');
+    /** @return array<string, string|null> */
+    public function details(): array
+    {
+        return [
+            'contactName'  => $this->subscription->contact_name,
+            'businessName' => $this->subscription->business_name,
+            'url'          => $this->install->url(),
+            'domain'       => $this->install->domain,
+            // What the app's "Nom du client" field expects.
+            'clientName'   => $this->install->subdomain,
+            // An install created before codes existed gets one now, so a
+            // resend never goes out with a blank where the code should be.
+            'code'         => $this->install->ensureAccessCode(),
+            'login'        => $this->install->owner_email,
+            'password'     => $this->password,
+            'playStore'    => (string) config('castlit.brand.play_store'),
+            'appStore'     => (string) config('castlit.brand.app_store'),
+            'support'      => (string) config('castlit.brand.email'),
+        ];
     }
 }
