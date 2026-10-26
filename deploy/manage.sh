@@ -228,6 +228,15 @@ write_suspended_page "$DOC_ROOT"
 # A code update must not resurrect a suspended client.
 [ -f "$DOC_ROOT/.suspended" ] && : > "$DOC_ROOT/.suspended"
 
+# Mail settings follow the master's on every update, so a client provisioned
+# while the master was still on "log" — every one so far — starts sending once
+# the master is configured, without being reprovisioned. Not fatal: the code
+# is already updated, and a client that cannot send is better than one left
+# half-way.
+emit "▸ Mail settings"
+"$PHP_BIN" "$LIB_DIR/env-set.php" "$DOC_ROOT/.env" >&2 2>&1 \
+  || emit "  ! mail settings not applied"
+
 emit "▸ artisan migrate / cache refresh"
 # config:clear first so a stale cached config can't break the boot, then a full
 # optimize:clear (cache, compiled, config, events, routes, views) so new code —

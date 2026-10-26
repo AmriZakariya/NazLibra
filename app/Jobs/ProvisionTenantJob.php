@@ -135,7 +135,8 @@ class ProvisionTenantJob implements ShouldQueue
             'DB_PREFIX'   => $cfg['db_prefix'],
             'PHP_BIN'     => $cfg['php_bin'],
             'PATH'        => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin',
-        ];
+            // The space sends through the master's mailbox (deploy/env-set.php).
+        ] + \App\Support\ClientMailSettings::forScripts();
     }
 
     /**

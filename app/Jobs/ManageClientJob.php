@@ -121,7 +121,8 @@ class ManageClientJob implements ShouldQueue
             'SOURCE_DIR'  => base_path(),
             'PHP_BIN'     => $cfg['php_bin'],
             'PATH'        => getenv('PATH') ?: '/usr/local/bin:/usr/bin:/bin',
-        ];
+            // The space sends through the master's mailbox (deploy/env-set.php).
+        ] + \App\Support\ClientMailSettings::forScripts();
     }
 
     /** Persist the growing log + latest "▸ step" so the admin sees live progress. */

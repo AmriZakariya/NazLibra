@@ -146,7 +146,6 @@ fi
     "DB_CONNECTION"=>$argv[6],"DB_HOST"=>"127.0.0.1","DB_PORT"=>"3306",
     "DB_DATABASE"=>$argv[3],"DB_USERNAME"=>$argv[4],"DB_PASSWORD"=>$argv[5],
     "SESSION_DRIVER"=>"database","QUEUE_CONNECTION"=>"database","CACHE_STORE"=>"database",
-    "MAIL_MAILER"=>"log",
   ];
   $c=is_file($f)?file_get_contents($f):"";
   foreach($set as $k=>$v){$l=$k."=".$v;
@@ -155,6 +154,12 @@ fi
   file_put_contents($f,$c);
 ' "$ENV_DST" "https://$FULL_DOMAIN" "$DB_DATABASE_VAL" "$DB_USER_VAL" "$DB_PASS_VAL" "$DB_CONN" >&2 2>&1 \
   || final '{"status":"error","step":"env","message":".env render failed."}' 1
+
+# Mail: the master's SMTP settings (CLIENT_MAIL_*), so the space can send its
+# own password resets, invoices and messages. It used to be "log" hard-coded:
+# every email a client space ever produced was written to a file instead.
+"$PHP_BIN" "$LIB_DIR/env-set.php" "$ENV_DST" \
+  || final '{"status":"error","step":"env","message":"mail settings could not be written."}' 1
 
 # ============================================================================
 # STEP 5 — Key, clear stale caches, migrate, storage link
