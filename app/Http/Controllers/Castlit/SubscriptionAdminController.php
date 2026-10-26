@@ -32,9 +32,18 @@ class SubscriptionAdminController extends Controller
             $status = 'all';
         }
 
+        // Counted in PHP rather than SQL: requests from before the `source`
+        // column are read from what they did record (see origin()), and the
+        // table is a few hundred rows at most.
+        $origins = Subscription::query()->get(['id', 'source', 'meta'])
+            ->groupBy(fn (Subscription $s): string => $s->originLabel())
+            ->map->count()
+            ->sortDesc();
+
         return view('castlit.admin.index', [
             'subscriptions' => $query->paginate(20)->withQueryString(),
             'status'        => $status,
+            'origins'       => $origins,
             'counts'        => [
                 'pending'  => Subscription::where('status', Subscription::STATUS_PENDING)->count(),
                 'approved' => Subscription::where('status', Subscription::STATUS_APPROVED)->count(),
@@ -56,6 +65,7 @@ class SubscriptionAdminController extends Controller
         return view('castlit.admin.create', [
             'activities' => collect(BusinessMode::all())->map(fn (array $m) => $m['label'] ?? '')->toArray(),
             'currencies' => ['MAD', 'EUR', 'USD', 'XOF', 'DZD', 'TND'],
+            'countries'  => \App\Support\Countries::all(),
         ]);
     }
 
@@ -65,6 +75,7 @@ class SubscriptionAdminController extends Controller
         $request->merge([
             'desired_subdomain' => preg_replace('/[^a-z0-9]/', '', strtolower(trim((string) $request->input('desired_subdomain')))) ?? '',
             'currency'          => strtoupper(trim((string) $request->input('currency', 'MAD'))),
+            'country'           => strtoupper(trim((string) $request->input('country', \App\Support\Countries::DEFAULT))),
         ]);
 
         $data = $request->validate([
@@ -77,6 +88,8 @@ class SubscriptionAdminController extends Controller
             // Admin may use demo/test/staging etc. — only truly system names are blocked.
             'desired_subdomain' => ['required', 'string', 'regex:/^[a-z0-9]{2,30}$/', Rule::notIn(config('castlit.system_subdomains', []))],
             'heard_about'       => ['nullable', 'string', 'max:120'],
+            'country'           => ['required', 'string', Rule::in(\App\Support\Countries::codes())],
+            'city'              => ['nullable', 'string', 'max:120'],
         ], [
             'desired_subdomain.regex'  => 'Le sous-domaine doit contenir 2 à 30 caractères (lettres minuscules et chiffres).',
             'desired_subdomain.not_in' => 'Ce sous-domaine est réservé au système (www, api, admin, mail…).',
@@ -96,7 +109,12 @@ class SubscriptionAdminController extends Controller
             'email'             => $data['email'],
             'phone'             => $data['phone'] ?? null,
             'desired_subdomain' => $data['desired_subdomain'],
-            'heard_about'       => $data['heard_about'] ?: 'Ajout manuel (admin)',
+            // `??` before `?:`: a field left out of the request is absent from
+            // $data, not null, and reading it bare is a 500.
+            'heard_about'       => ($data['heard_about'] ?? null) ?: 'Ajout manuel (admin)',
+            'source'            => Subscription::SOURCE_ADMIN,
+            'country'           => $data['country'],
+            'city'              => filled($data['city'] ?? null) ? trim($data['city']) : null,
             'status'            => Subscription::STATUS_APPROVED,
             'reviewed_by'       => $request->user()->id,
             'reviewed_at'       => now(),

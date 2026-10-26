@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Tests\Concerns\ActsAsMasterInstall;
 use Tests\TestCase;
 
 /**
@@ -15,16 +16,9 @@ use Tests\TestCase;
  */
 class GuidePageTest extends TestCase
 {
+    use ActsAsMasterInstall;
     use RefreshDatabase;
 
-    protected function setUp(): void
-    {
-        // Routes are registered at boot from this flag, so config() set inside
-        // a test comes too late.
-        putenv('CASTLIT_MASTER=true');
-        $_ENV['CASTLIT_MASTER'] = 'true';
-        parent::setUp();
-    }
 
     private function page(): string
     {

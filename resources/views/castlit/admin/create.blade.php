@@ -77,6 +77,8 @@
                         </div>
                     </div>
 
+                    @include('castlit.partials.place-fields')
+
                     <div class="fld">
                         <label for="desired_subdomain">Adresse (sous-domaine) <span class="req">*</span></label>
                         <div class="subdomain-row">

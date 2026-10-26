@@ -51,6 +51,11 @@
            font-size: 12px; white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow: auto; line-height: 1.6; }
     .url-live { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--brand); }
     @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+    .origin { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 4px 10px;
+              border-radius: 999px; border: 1px solid var(--sand); white-space: nowrap; }
+    .origin svg { width: 14px; height: 14px; flex: none; }
+    .origin-website { color: #7FA3FF; } .origin-android { color: #3DDC84; } .origin-ios { color: #E6E8EF; }
+    .origin-mobile { color: #B9A7FF; } .origin-desktop { color: #5EC8F0; } .origin-admin, .origin-unknown { color: var(--muted); }
 </style>
 
 <main class="detail">
@@ -74,6 +79,9 @@
                         <div class="kv"><span class="k">Contact</span><span class="v">{{ $subscription->contact_name }}</span></div>
                         <div class="kv"><span class="k">Email</span><span class="v">{{ $subscription->email }}</span></div>
                         <div class="kv"><span class="k">Téléphone</span><span class="v">{{ $subscription->phone ?: '—' }}</span></div>
+                        <div class="kv"><span class="k">Ville</span><span class="v">{{ $subscription->city ?: '—' }}</span></div>
+                        <div class="kv"><span class="k">Pays</span><span class="v">@if ($subscription->country){{ \App\Support\Countries::flag($subscription->country) }} {{ $subscription->countryName() }}@else — @endif</span></div>
+                        <div class="kv"><span class="k">Provenance</span><span class="v">@include('castlit.admin.partials.origin', ['sub' => $subscription])</span></div>
                         <div class="kv"><span class="k">Nous a connus via</span><span class="v">{{ $subscription->heard_about ?: '—' }}</span></div>
                         <div class="kv"><span class="k">Reçue le</span><span class="v">{{ $subscription->created_at->format('d/m/Y à H:i') }}</span></div>
                         @if ($subscription->reviewed_at)

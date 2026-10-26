@@ -100,6 +100,8 @@ class PublicController extends Controller
         $request->merge([
             'desired_subdomain' => strtolower((string) preg_replace('/[^a-zA-Z0-9]/', '', (string) $request->input('desired_subdomain'))),
             'currency' => strtoupper(trim((string) $request->input('currency', 'MAD'))),
+            'country' => strtoupper(trim((string) $request->input('country', \App\Support\Countries::DEFAULT))),
+            'platform' => strtolower(trim((string) $request->input('platform', ''))),
         ]);
 
         $reserved = config('castlit.reserved_subdomains', []);
@@ -113,6 +115,11 @@ class PublicController extends Controller
             'phone'             => ['nullable', 'string', 'max:40'],
             'desired_subdomain' => ['required', 'string', 'regex:/^[a-z0-9]{2,30}$/', Rule::notIn($reserved)],
             'heard_about'       => ['nullable', 'string', 'max:120'],
+            'country'           => ['required', 'string', Rule::in(\App\Support\Countries::codes())],
+            'city'              => ['nullable', 'string', 'max:120'],
+            // Optional: builds released before this field existed do not
+            // send it, and must still be able to sign a shop up.
+            'platform'          => ['nullable', 'string', Rule::in(['', 'android', 'ios', 'windows', 'macos', 'linux', 'web'])],
         ], [
             'desired_subdomain.regex' => 'Le sous-domaine doit contenir 2 à 30 caractères (lettres minuscules et chiffres).',
             'desired_subdomain.not_in' => 'Ce sous-domaine est réservé, choisissez-en un autre.',
@@ -140,11 +147,19 @@ class PublicController extends Controller
             'phone'             => $validated['phone'] ?? null,
             'desired_subdomain' => $sub,
             'heard_about'       => $validated['heard_about'] ?? null,
+            'source'            => match ($validated['platform'] ?? '') {
+                'android' => Subscription::SOURCE_ANDROID,
+                'ios'     => Subscription::SOURCE_IOS,
+                'windows', 'macos', 'linux' => Subscription::SOURCE_DESKTOP,
+                'web'     => Subscription::SOURCE_WEBSITE,
+                default   => Subscription::SOURCE_MOBILE,
+            },
+            'country'           => $validated['country'],
+            'city'              => filled($validated['city'] ?? null) ? trim($validated['city']) : null,
             'status'            => Subscription::STATUS_PENDING,
             'meta'              => [
                 'ip'         => $request->ip(),
                 'user_agent' => Str::limit((string) $request->userAgent(), 250, ''),
-                'source'     => 'mobile',
             ],
         ]);
 

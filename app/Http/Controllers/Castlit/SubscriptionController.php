@@ -21,6 +21,7 @@ class SubscriptionController extends Controller
         $request->merge([
             'desired_subdomain' => $this->normalizeSubdomain((string) $request->input('desired_subdomain')),
             'currency'          => strtoupper(trim((string) $request->input('currency', 'MAD'))),
+            'country'           => strtoupper(trim((string) $request->input('country', \App\Support\Countries::DEFAULT))),
         ]);
 
         $reserved = config('castlit.reserved_subdomains', []);
@@ -37,6 +38,8 @@ class SubscriptionController extends Controller
                 Rule::notIn($reserved),
             ],
             'heard_about'       => ['nullable', 'string', 'max:120'],
+            'country'           => ['required', 'string', Rule::in(\App\Support\Countries::codes())],
+            'city'              => ['nullable', 'string', 'max:120'],
             // Honeypot — must stay empty (bots fill it).
             'website'           => ['nullable', 'size:0'],
         ], [
@@ -61,6 +64,9 @@ class SubscriptionController extends Controller
             'phone'             => $validated['phone'] ?? null,
             'desired_subdomain' => $validated['desired_subdomain'],
             'heard_about'       => $validated['heard_about'] ?? null,
+            'source'            => Subscription::SOURCE_WEBSITE,
+            'country'           => $validated['country'],
+            'city'              => filled($validated['city'] ?? null) ? trim($validated['city']) : null,
             'status'            => Subscription::STATUS_PENDING,
             'meta'              => [
                 'ip'         => $request->ip(),

@@ -37,6 +37,19 @@
     .row-link { color: var(--brand); font-weight: 650; font-size: 13.5px; }
     .empty { padding: 48px; text-align: center; color: var(--muted); }
     .muted { color: var(--muted); font-size: 12.5px; }
+    .origin { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 4px 10px;
+              border-radius: 999px; border: 1px solid var(--sand); background: color-mix(in srgb, var(--surface) 70%, transparent); white-space: nowrap; }
+    .origin svg { width: 14px; height: 14px; flex: none; }
+    .origin-website { color: #7FA3FF; }
+    .origin-android { color: #3DDC84; }
+    .origin-ios { color: #E6E8EF; }
+    .origin-mobile { color: #B9A7FF; }
+    .origin-desktop { color: #5EC8F0; }
+    .origin-admin, .origin-unknown { color: var(--muted); }
+    .place { margin-top: 6px; font-size: 12.5px; color: var(--ink); white-space: nowrap; }
+    .place .none { color: var(--muted); }
+    .origins { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: -6px 0 16px; font-size: 13px; color: var(--muted); }
+    .origins strong { color: var(--ink); font-variant-numeric: tabular-nums; }
     .pager { margin-top: 18px; }
     .pager a, .pager span { display: inline-block; }
 </style>
@@ -74,12 +87,25 @@
             @endforeach
         </div>
 
+        {{-- D'où viennent les demandes, toutes périodes confondues : c'est ce
+             qui dit si l'argent mis dans une boutique d'applications ou dans
+             le site rapporte des commerces. --}}
+        @if (isset($origins) && $origins->isNotEmpty())
+            <div class="origins" data-origins>
+                <span>Provenance :</span>
+                @foreach ($origins as $label => $n)
+                    <span>{{ $label }} <strong>{{ $n }}</strong></span>
+                @endforeach
+            </div>
+        @endif
+
         <div class="card">
             <table class="tbl">
                 <thead>
                     <tr>
                         <th>Commerce</th>
                         <th>Contact</th>
+                        <th>Provenance</th>
                         <th>Statut</th>
                         <th>Provisioning</th>
                         <th>Reçue</th>
@@ -90,16 +116,22 @@
                     @forelse ($subscriptions as $sub)
                         <tr>
                             <td>
-                                <div class="biz">{{ $sub->business_name }}
-                                    @if (data_get($sub->meta, 'source') === 'manual')
-                                        <span class="tag-manual" title="Créé manuellement depuis l'admin">Manuel</span>
-                                    @endif
-                                </div>
+                                <div class="biz">{{ $sub->business_name }}</div>
                                 <div class="sd">{{ $sub->desired_subdomain }}.{{ config('castlit.main_domain') }}</div>
                             </td>
                             <td>
                                 {{ $sub->contact_name }}<br>
                                 <span class="muted">{{ $sub->email }}</span>
+                            </td>
+                            <td data-origin="{{ $sub->origin() ?? 'unknown' }}">
+                                @include('castlit.admin.partials.origin', ['sub' => $sub])
+                                <div class="place">
+                                    @if ($sub->place())
+                                        {{ \App\Support\Countries::flag($sub->country) }} {{ $sub->place() }}
+                                    @else
+                                        <span class="none">Lieu non renseigné</span>
+                                    @endif
+                                </div>
                             </td>
                             <td><span class="pill pill-{{ $sub->status }}">{{ $tabs[$sub->status] ?? $sub->status }}</span></td>
                             <td>
@@ -115,7 +147,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="empty">Aucune demande dans cette catégorie.</td></tr>
+                        <tr><td colspan="7" class="empty">Aucune demande dans cette catégorie.</td></tr>
                     @endforelse
                 </tbody>
             </table>
