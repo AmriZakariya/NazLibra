@@ -103,6 +103,8 @@ return [
     'f_your_name' => 'اسمك',
     'f_your_name_ph' => 'الاسم الكامل',
     'f_country'   => 'البلد',
+    'f_country_frequent' => 'الأكثر شيوعاً',
+    'f_country_all' => 'باقي البلدان',
     'f_city'      => 'المدينة',
     'f_city_ph'   => 'الدار البيضاء',
     'f_phone'     => 'الهاتف',

@@ -7,16 +7,26 @@
      retrouvait créée en dirhams. --}}
 @php
     $placeLocale = in_array(app()->getLocale(), ['fr', 'ar', 'en'], true) ? app()->getLocale() : 'fr';
-    $placeCountries = \App\Support\Countries::localized($placeLocale);
+    $placeGroups = \App\Support\Countries::grouped($placeLocale);
     $selectedCountry = old('country', \App\Support\Countries::DEFAULT);
 @endphp
 <div class="grid2" data-place-fields data-currency-map='@json(\App\Support\Countries::currencyMap())'>
     <div class="fld">
         <label for="country">{{ __('castlit.f_country') }} <span class="req">*</span></label>
         <select id="country" name="country" required data-country>
-            @foreach ($placeCountries as $code => $name)
-                <option value="{{ $code }}" @selected($selectedCountry === $code)>{{ \App\Support\Countries::flag($code) }} {{ $name }}</option>
-            @endforeach
+            {{-- Les pays d'où viennent réellement les demandes d'abord, puis
+                 tous les autres par ordre alphabétique : 248 pays sans
+                 regroupement, c'est le Maroc noyé au milieu de la liste. --}}
+            <optgroup label="{{ __('castlit.f_country_frequent') }}">
+                @foreach ($placeGroups['frequent'] as $code => $name)
+                    <option value="{{ $code }}" @selected($selectedCountry === $code)>{{ \App\Support\Countries::flag($code) }} {{ $name }}</option>
+                @endforeach
+            </optgroup>
+            <optgroup label="{{ __('castlit.f_country_all') }}">
+                @foreach ($placeGroups['others'] as $code => $name)
+                    <option value="{{ $code }}" @selected($selectedCountry === $code)>{{ \App\Support\Countries::flag($code) }} {{ $name }}</option>
+                @endforeach
+            </optgroup>
         </select>
         @error('country')<span class="field-error">{{ $message }}</span>@enderror
     </div>

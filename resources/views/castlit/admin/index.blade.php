@@ -49,6 +49,16 @@
     .place { margin-top: 6px; font-size: 12.5px; color: var(--ink); white-space: nowrap; }
     .place .none { color: var(--muted); }
     .origins { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: -6px 0 16px; font-size: 13px; color: var(--muted); }
+    /* Same look as on the Clients page. */
+    .accode { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+    .accode-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+    .accode code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; font-weight: 700;
+                   letter-spacing: 1px; background: var(--surface); border: 1px solid var(--sand); border-radius: 7px; padding: 2px 8px; }
+    .accode-btn { border: 1px solid var(--sand); background: var(--surface); color: var(--muted); border-radius: 7px;
+                  width: 26px; height: 26px; cursor: pointer; line-height: 1; }
+    .accode-btn:hover { border-color: var(--brand); color: var(--brand); }
+    .accode form { margin: 0; }
+    .accode-btn.copied { border-color: var(--ok); color: var(--ok); }
     .origins strong { color: var(--ink); font-variant-numeric: tabular-nums; }
     .pager { margin-top: 18px; }
     .pager a, .pager span { display: inline-block; }
@@ -118,6 +128,19 @@
                             <td>
                                 <div class="biz">{{ $sub->business_name }}</div>
                                 <div class="sd">{{ $sub->desired_subdomain }}.{{ config('castlit.main_domain') }}</div>
+                                {{-- Le code que le client saisit dans l'application pour
+                                     trouver son espace. Affiché ici pour pouvoir le lui
+                                     donner au téléphone sans changer de page ; la
+                                     régénération reste sur la page Clients, puisqu'elle
+                                     invalide l'ancien code. --}}
+                                @if ($sub->install?->access_code)
+                                    <div class="accode" data-access-code="{{ $sub->install->access_code }}">
+                                        <span class="accode-label">Code d'accès</span>
+                                        <code>{{ $sub->install->access_code }}</code>
+                                        <button type="button" class="accode-btn" title="Copier le code"
+                                                onclick="navigator.clipboard?.writeText(this.closest('[data-access-code]').dataset.accessCode).then(() => { this.classList.add('copied'); this.textContent = '✓'; setTimeout(() => { this.classList.remove('copied'); this.textContent = '⧉'; }, 1500); })">⧉</button>
+                                    </div>
+                                @endif
                             </td>
                             <td>
                                 {{ $sub->contact_name }}<br>

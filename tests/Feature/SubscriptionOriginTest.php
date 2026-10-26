@@ -258,4 +258,65 @@ class SubscriptionOriginTest extends TestCase
         $this->assertNull($sub->fresh()->country);
         $this->assertNull($sub->fresh()->place());
     }
+
+    // ── The access code on the list ───────────────────────────────────────────
+
+    public function test_the_list_shows_each_clients_access_code(): void
+    {
+        $sub = Subscription::create($this->request(['status' => Subscription::STATUS_APPROVED, 'desired_subdomain' => 'withcode']));
+        \App\Models\TenantInstall::create([
+            'subscription_id' => $sub->id, 'subdomain' => 'withcode', 'domain' => 'withcode.castlitpos.com',
+            'status' => \App\Models\TenantInstall::STATUS_LIVE, 'access_code' => 'HK7M2Q',
+        ]);
+
+        $page = $this->actingAs($this->admin())->get('/castlit-admin?status=approved')->assertOk()->getContent();
+
+        // On the row of THAT client, so the code given on the phone is the right one.
+        $row = Str::before(Str::after($page, 'withcode.castlitpos.com'), '</tr>');
+        $this->assertStringContainsString('data-access-code="HK7M2Q"', $row);
+        $this->assertStringContainsString('<code>HK7M2Q</code>', $row);
+    }
+
+    public function test_a_request_with_no_space_yet_shows_no_code(): void
+    {
+        Subscription::create($this->request(['status' => Subscription::STATUS_PENDING, 'desired_subdomain' => 'waiting']));
+
+        $page = $this->actingAs($this->admin())->get('/castlit-admin')->assertOk()->getContent();
+        $row = Str::before(Str::after($page, 'waiting.castlitpos.com'), '</tr>');
+
+        $this->assertStringNotContainsString('data-access-code', $row);
+    }
+
+    public function test_the_list_does_not_offer_to_regenerate_the_code(): void
+    {
+        // Regenerating invalidates the code a client is already using; that
+        // stays on the Clients page, behind its confirmation.
+        $sub = Subscription::create($this->request(['status' => Subscription::STATUS_APPROVED, 'desired_subdomain' => 'regen']));
+        \App\Models\TenantInstall::create([
+            'subscription_id' => $sub->id, 'subdomain' => 'regen', 'domain' => 'regen.castlitpos.com',
+            'status' => \App\Models\TenantInstall::STATUS_LIVE, 'access_code' => 'ABCD23',
+        ]);
+
+        $page = $this->actingAs($this->admin())->get('/castlit-admin?status=approved')->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('regenerate-code', $page);
+    }
+
+    public function test_a_spa_can_sign_up_as_a_spa(): void
+    {
+        $this->post('/inscription', $this->request(['activity' => 'beauty']))
+            ->assertRedirect(route('castlit.subscribe.success'));
+
+        $this->assertSame('beauty', $this->latest()->activity);
+    }
+
+    public function test_the_form_offers_every_activity(): void
+    {
+        $page = $this->get('/')->assertOk()->getContent();
+        $select = Str::before(Str::after($page, 'name="activity"'), '</select>');
+
+        foreach (array_keys(\App\Support\BusinessMode::all()) as $key) {
+            $this->assertStringContainsString('value="'.$key.'"', $select, $key);
+        }
+    }
 }

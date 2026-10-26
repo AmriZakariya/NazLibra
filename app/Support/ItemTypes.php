@@ -41,6 +41,41 @@ class ItemTypes
                 'supply'   => ['label' => 'Accessoire', 'hint' => 'Stock physique divers',    'fields' => null],
             ],
         ],
+        'grocery' => [
+            'label' => 'Épicerie / Supérette',
+            'types' => [
+                'supply' => ['label' => 'Produit', 'hint' => 'Alimentaire, boissons, hygiène', 'fields' => null],
+            ],
+        ],
+        'bakery' => [
+            'label' => 'Boulangerie / Pâtisserie',
+            'types' => [
+                'book'   => ['label' => 'Pain / pâtisserie',    'hint' => 'Pain, viennoiserie, gâteau…', 'fields' => null],
+                'supply' => ['label' => 'Ingrédient / produit', 'hint' => 'Farine, beurre, emballage…',  'fields' => null],
+            ],
+        ],
+        // Mostly services — a haircut, a massage — which every activity has.
+        // The physical type is what the salon also sells.
+        'beauty' => [
+            'label' => 'Beauté / Spa / Coiffure',
+            'types' => [
+                'supply' => ['label' => 'Produit de soin', 'hint' => 'Shampoing, crème, vernis…', 'fields' => null],
+            ],
+        ],
+        'cosmetics' => [
+            'label' => 'Cosmétique / Parfumerie',
+            'types' => [
+                'book'   => ['label' => 'Parfum / soin',      'hint' => 'Parfum, soin, coffret…',   'fields' => null],
+                'supply' => ['label' => 'Produit cosmétique', 'hint' => 'Maquillage, accessoires…', 'fields' => null],
+            ],
+        ],
+        'electronics' => [
+            'label' => 'Téléphonie / Électronique',
+            'types' => [
+                'book'   => ['label' => 'Appareil',   'hint' => 'Téléphone, tablette, ordinateur…', 'fields' => null],
+                'supply' => ['label' => 'Accessoire', 'hint' => 'Coque, chargeur, câble…',          'fields' => null],
+            ],
+        ],
         'general' => [
             'label' => 'Commerce général',
             'types' => [
@@ -116,7 +151,16 @@ class ItemTypes
             'coffee' => 'cafe',
             'pharmacy' => 'pharmacy',
             'library' => 'bookstore',
+            'clothing' => 'clothing',
+            'grocery' => 'grocery',
+            'bakery' => 'bakery',
+            'beauty' => 'beauty',
+            'cosmetics' => 'cosmetics',
+            'electronics' => 'electronics',
             'drugstore', 'retail' => 'general',
+            // Only reached by a mode with no arm above — and that would hand a
+            // spa or a phone shop the bookshop's "Livre". BusinessModeTest
+            // fails for any mode that lands here.
             default => self::defaultActivity(),
         };
     }

@@ -232,6 +232,19 @@ class TenantProvisioningService
                 ['Pièce', 'Unité standard'], ['Portion', 'Portion servie'],
                 ['Menu', 'Formule ou menu composé'], ['Service', 'Prestation non physique'],
             ],
+            'bakery' => [
+                ['Pièce', 'Unité standard'], ['Kg', 'Vendu au poids'],
+                ['Part', 'Part de gâteau'], ['Service', 'Prestation non physique'],
+            ],
+            'grocery' => [
+                ['Pièce', 'Unité standard'], ['Kg', 'Vendu au poids'],
+                ['Litre', 'Vendu au volume'], ['Pack', 'Lot composé'],
+                ['Service', 'Prestation non physique'],
+            ],
+            'beauty' => [
+                ['Pièce', 'Produit vendu'], ['Séance', 'Prestation unitaire'],
+                ['Forfait', 'Ensemble de séances'], ['Service', 'Prestation non physique'],
+            ],
             default => [
                 ['Pièce', 'Unité standard'], ['Pack', 'Lot composé'],
                 ['Boîte', 'Conditionnement'], ['Service', 'Prestation non physique'],
@@ -256,6 +269,12 @@ class TenantProvisioningService
             'restaurant' => ['Entrées', 'Plats', 'Desserts', 'Boissons'],
             'coffee'     => ['Boissons chaudes', 'Boissons fraîches', 'Snacks', 'Pâtisseries'],
             'pharmacy'   => ['Médicaments', 'Parapharmacie', 'Hygiène', 'Divers'],
+            'clothing'   => ['Femme', 'Homme', 'Enfant', 'Chaussures', 'Accessoires'],
+            'grocery'    => ['Alimentation', 'Boissons', 'Produits laitiers', 'Hygiène', 'Entretien'],
+            'bakery'     => ['Pains', 'Viennoiseries', 'Pâtisseries', 'Gâteaux sur commande', 'Boissons'],
+            'beauty'     => ['Coiffure', 'Soins visage', 'Soins corps', 'Onglerie', 'Produits'],
+            'cosmetics'  => ['Parfums', 'Maquillage', 'Soins', 'Coffrets', 'Accessoires'],
+            'electronics' => ['Téléphones', 'Tablettes & ordinateurs', 'Accessoires', 'Audio', 'Réparations'],
             default      => ['Général'],
         };
     }

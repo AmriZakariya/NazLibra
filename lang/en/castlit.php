@@ -103,6 +103,8 @@ return [
     'f_your_name' => 'Your name',
     'f_your_name_ph' => 'First name Last name',
     'f_country'   => 'Country',
+    'f_country_frequent' => 'Most common',
+    'f_country_all' => 'All other countries',
     'f_city'      => 'City',
     'f_city_ph'   => 'Casablanca',
     'f_phone'     => 'Phone',
