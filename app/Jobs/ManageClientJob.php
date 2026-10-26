@@ -158,6 +158,23 @@ class ManageClientJob implements ShouldQueue
 
     private function stepLabel(string $action): string
     {
+        return self::labelFor($action);
+    }
+
+    /**
+     * Whether the last run of [$action] on [$install] went through.
+     *
+     * The job records its outcome in `current_step` — "… ✓" or "… — échec :
+     * …" — rather than throwing, so the admin page can show it. Anything that
+     * runs the job and needs the answer asks here instead of matching strings.
+     */
+    public static function succeeded(TenantInstall $install, string $action): bool
+    {
+        return $install->current_step === self::labelFor($action).' ✓';
+    }
+
+    public static function labelFor(string $action): string
+    {
         return match ($action) {
             'update'      => 'Mise à jour du code',
             'clear-cache' => 'Vidage du cache',

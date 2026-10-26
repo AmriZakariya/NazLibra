@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Castlit;
 
+use App\Support\MasterVersion;
 use App\Http\Controllers\Controller;
 use App\Jobs\ManageClientJob;
 use App\Models\TenantInstall;
@@ -395,19 +396,11 @@ class ClientAdminController extends Controller
         @rmdir($dir);
     }
 
-    /** Path of the marker file recording the last tarball-deployed sha. */
     private function deployedShaPath(): string
     {
-        return storage_path('app/castlit_deployed.sha');
+        return MasterVersion::markerPath();
     }
 
-    /** Read the last deployed sha from the marker file (null if absent). */
-    private function deployedShaMarker(): ?string
-    {
-        $path = $this->deployedShaPath();
-
-        return is_file($path) ? (trim((string) file_get_contents($path)) ?: null) : null;
-    }
 
     /** Persist the deployed sha so the version display survives a missing git binary. */
     private function writeDeployedSha(string $sha): void
@@ -462,21 +455,14 @@ class ClientAdminController extends Controller
         return back()->with('success', $okMessage);
     }
 
-    /** Short HEAD sha of the master checkout (cached 60s) — the "latest" version. */
     private function masterSha(): ?string
     {
-        return Cache::remember('castlit.master_sha', 60, function (): ?string {
-            $out = $this->runGit(['rev-parse', '--short', 'HEAD']);
-            $sha = $out !== null ? trim($out) : '';
-            if ($sha !== '') {
-                return $sha; // git binary works — authoritative
-            }
+        // A working git binary is authoritative; this host has none, so in
+        // practice this is MasterVersion — the same answer the console reads.
+        $out = $this->runGit(['rev-parse', '--short', 'HEAD']);
+        $sha = $out !== null ? trim($out) : '';
 
-            // No git binary: prefer the marker written by a tarball deploy
-            // (the .git checkout is stale after a tarball extract), then fall
-            // back to reading .git directly so the version still shows.
-            return $this->deployedShaMarker() ?: $this->shaFromGitDir();
-        });
+        return $sha !== '' ? $sha : MasterVersion::sha();
     }
 
     /**
@@ -604,42 +590,6 @@ class ClientAdminController extends Controller
         return null;
     }
 
-    /** Read the short HEAD sha straight from .git (no git binary needed). */
-    private function shaFromGitDir(): ?string
-    {
-        try {
-            $head = base_path('.git/HEAD');
-            if (! is_file($head)) {
-                return null;
-            }
-            $ref = trim((string) file_get_contents($head));
-
-            // Detached HEAD: the file holds the sha directly.
-            if (! str_starts_with($ref, 'ref:')) {
-                return substr($ref, 0, 7) ?: null;
-            }
-
-            $refPath = trim(substr($ref, 4));                 // e.g. refs/heads/main
-            $loose = base_path('.git/'.$refPath);
-            if (is_file($loose)) {
-                return substr(trim((string) file_get_contents($loose)), 0, 7) ?: null;
-            }
-
-            // Packed refs: "<sha> refs/heads/main".
-            $packed = base_path('.git/packed-refs');
-            if (is_file($packed)) {
-                foreach (file($packed, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
-                    if (str_ends_with($line, ' '.$refPath)) {
-                        return substr((string) strtok($line, ' '), 0, 7) ?: null;
-                    }
-                }
-            }
-
-            return null;
-        } catch (\Throwable) {
-            return null;
-        }
-    }
 
     /** Conventional-commit prefix → a short label for colour-coding the log. */
     private function commitType(string $subject): string
