@@ -161,7 +161,8 @@
                 ['label' => 'Liste des impôts', 'icon' => '%', 'href' => route('catalog', ['panel' => 'impots'])],
                 ['label' => 'Liste des variantes', 'icon' => '≡', 'href' => route('catalog', ['panel' => 'variantes'])],
                 ['label' => 'Imprimer des étiquettes', 'icon' => '▥', 'href' => route('catalog.labels')],
-                ['label' => "Services d'importation", 'icon' => '↤', 'href' => route('catalog', ['panel' => 'import', 'kind' => 'items'])],
+                ['label' => 'Importer (Excel / ZIP)', 'icon' => '↤', 'href' => route('catalog', ['panel' => 'import', 'kind' => 'items'])],
+                ['label' => 'Photos en masse', 'icon' => '▣', 'href' => route('catalog', ['panel' => 'photos'])],
             ];
             $quickAdds = [
                 ['module_key' => 'sales', 'label' => 'Ventes', 'href' => route('pos')],

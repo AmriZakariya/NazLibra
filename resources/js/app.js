@@ -2,6 +2,7 @@ import DataTable from 'datatables.net-dt';
 import 'datatables.net-dt/css/dataTables.dataTables.css';
 import './hardware.js';
 import { currencySymbol, formatMoney } from './money.js';
+import './zip-images.js';
 
 window.DataTable = DataTable;
 

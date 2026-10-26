@@ -1623,9 +1623,9 @@
                 <div class="p-5">
                     <label data-photo-drop class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center transition hover:border-brand/50 hover:bg-brand/5 dark:border-white/15 dark:bg-white/5">
                         <svg class="size-8 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-                        <span class="text-sm font-semibold">Glissez vos photos ici, ou cliquez pour les choisir</span>
-                        <span class="text-xs text-slate-500">JPG, PNG, WEBP — autant que vous voulez</span>
-                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple class="sr-only" data-photo-input>
+                        <span class="text-sm font-semibold">Glissez vos photos ou un ZIP de photos ici, ou cliquez pour les choisir</span>
+                        <span class="text-xs text-slate-500">JPG, PNG, WEBP, ou un .zip qui les contient — inutile de le décompresser</span>
+                        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,.zip,application/zip" multiple class="sr-only" data-photo-input>
                     </label>
 
                     <div class="mt-4 hidden flex-wrap items-center gap-2" data-photo-summary>
@@ -1712,12 +1712,38 @@
                     sendButton.textContent = `Ajouter ${sendable.length} photo(s)`;
                 };
 
+                // A ZIP is opened here, in the browser: only its photos are
+                // sent, in batches, so its size never meets the upload limit.
+                const expand = async (files) => {
+                    const images = [];
+                    for (const file of files) {
+                        if (window.CastlitZip?.isZip(file)) {
+                            if (!window.CastlitZip.canReadZip()) {
+                                statusNode.textContent = 'Ce navigateur ne sait pas ouvrir un ZIP : décompressez-le puis déposez les photos.';
+                                continue;
+                            }
+                            statusNode.textContent = `Ouverture de ${file.name}…`;
+                            try {
+                                images.push(...await window.CastlitZip.zipImages(file));
+                            } catch (_) {
+                                statusNode.textContent = `${file.name} n'a pas pu être ouvert. Décompressez-le puis déposez les photos.`;
+                            }
+                        } else if (/^image\//.test(file.type) || /\.(jpe?g|png|webp|gif)$/i.test(file.name)) {
+                            images.push(file);
+                        }
+                    }
+                    return images;
+                };
+
                 const add = async (files) => {
-                    const images = [...files].filter((f) => /^image\//.test(f.type));
-                    if (!images.length) return;
-                    entries = entries.concat(images.map((file) => ({ file, preview: URL.createObjectURL(file), match: null, result: null })));
                     ['[data-photo-summary]', '[data-photo-table-wrap]', '[data-photo-actions]'].forEach((s) => show(s, true));
-                    statusNode.textContent = 'Recherche des produits…';
+                    const images = await expand([...files]);
+                    if (!images.length) {
+                        if (!entries.length) statusNode.textContent ||= 'Aucune photo trouvée.';
+                        return;
+                    }
+                    entries = entries.concat(images.map((file) => ({ file, preview: URL.createObjectURL(file), match: null, result: null })));
+                    statusNode.textContent = `${images.length} photo(s) — recherche des produits…`;
                     const response = await fetch(root.dataset.matchUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': token },
@@ -1846,7 +1872,7 @@
                         <ul class="mt-2 space-y-2 text-slate-600 dark:text-slate-300">
                             <li><strong>ZIP :</strong> mettez le fichier Excel et les photos dans un même ZIP et importez-le. Dans la colonne <em>Image</em>, écrivez le nom du fichier (<code>massage.jpg</code>) — ou laissez-la vide et nommez chaque photo avec le code-barres (<code>6111000000101.jpg</code>).</li>
                             <li><strong>Lien :</strong> dans la colonne <em>Image</em>, collez l'adresse web de la photo. Les liens de partage Google Drive et Dropbox fonctionnent s'ils sont publics.</li>
-                            <li><strong>Produits déjà créés :</strong> utilisez <a href="{{ route('catalog', ['panel' => 'photos']) }}" class="font-semibold text-brand">Photos en masse</a> — déposez les photos, elles sont associées par leur nom.</li>
+                            <li><strong>Produits déjà créés :</strong> utilisez <a href="{{ route('catalog', ['panel' => 'photos']) }}" class="font-semibold text-brand">Photos en masse</a> — déposez les photos, ou directement le ZIP qui les contient : elles sont associées par leur nom.</li>
                         </ul>
                         <p class="mt-2 text-xs text-slate-500">Taille maximale d'un envoi sur ce serveur : {{ max(1, (int) floor(min($photoLimits['file_bytes'], $photoLimits['post_bytes']) / 1048576)) }} Mo. Au-delà, découpez le ZIP ou utilisez Photos en masse, qui envoie par lots. Les photos sont redressées et réduites automatiquement.</p>
                     </div>

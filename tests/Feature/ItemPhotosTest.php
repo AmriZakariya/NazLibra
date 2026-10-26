@@ -208,13 +208,29 @@ class ItemPhotosTest extends TestCase
         $this->assertNotEmpty($item->fresh()->images);
     }
 
-    public function test_the_panel_is_reachable_from_the_catalogue(): void
+    public function test_the_panel_is_reachable_from_the_sidebar(): void
     {
-        $this->actingAs($this->owner)
+        // A shop with a ZIP of photos could not find where to put it: the
+        // screen was only in the catalogue's section menu.
+        $html = $this->actingAs($this->owner)
             ->get(route('catalog', ['panel' => 'photos']))
             ->assertOk()
             ->assertSee('data-bulk-photos', false)
-            ->assertSee('Photos en masse');
+            ->assertSee('ou un ZIP de photos')
+            ->getContent();
+
+        $this->assertStringContainsString('href="'.route('catalog', ['panel' => 'photos']).'"', $html);
+        $this->assertStringContainsString('Importer (Excel / ZIP)', $html);
+        $this->assertStringNotContainsString("Services d'importation", $html);
+    }
+
+    public function test_the_screen_can_open_a_zip_in_the_browser(): void
+    {
+        $manifest = json_decode(file_get_contents(public_path('build/manifest.json')), true);
+        $js = file_get_contents(public_path('build/'.$manifest['resources/js/app.js']['file']));
+
+        $this->assertStringContainsString('CastlitZip', $js);
+        $this->assertStringContainsString('deflate-raw', $js);
     }
 
     // ── Import with photos ────────────────────────────────────────────────────
