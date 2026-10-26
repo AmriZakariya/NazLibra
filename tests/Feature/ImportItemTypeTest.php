@@ -153,15 +153,14 @@ class ImportItemTypeTest extends TestCase
             ])
             ->assertRedirect()
             ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '3 créée(s)')
-                && str_contains($message, "1 article(s) dans l'onglet Articles")
-                && str_contains($message, "2 prestation(s) dans l'onglet Services"));
+                && str_contains($message, 'Dont 1 article(s) et 2 service(s)'));
 
-        $services = Item::where('tenant_id', $this->tenant->id)->where('type', 'service')->count();
-        $this->assertGreaterThanOrEqual(2, $services);
-
-        $this->get(route('catalog', ['panel' => 'articles']))
-            ->assertOk()
-            ->assertSee('data-services-pointer', false)
-            ->assertSee("dans l'onglet Services", false);
+        // And they are in the article list itself, not on a tab of their own.
+        $list = $this->getJson(route('catalog.data', [
+            'panel' => 'articles', 'draw' => 1, 'start' => 0, 'length' => 10, 'q' => 'test',
+        ]))->assertOk()->json('data');
+        $titles = collect($list)->pluck('title')->implode(' ');
+        $this->assertStringContainsString('Massage test 60 min', $titles);
+        $this->assertStringContainsString('Shampooing test 250ml', $titles);
     }
 }

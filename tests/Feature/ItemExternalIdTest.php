@@ -181,7 +181,7 @@ class ItemExternalIdTest extends TestCase
                 'search' => ['value' => $title],
             ]))->assertOk();
             $this->assertStringContainsString($title, data_get($webRow->json(), 'data.0.title', ''));
-            $this->assertStringContainsString($label, data_get($webRow->json(), 'data.0.category_type', ''));
+            $this->assertStringContainsString($label, data_get($webRow->json(), 'data.0.title', ''));
         }
     }
 

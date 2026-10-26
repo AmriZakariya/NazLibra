@@ -7192,3 +7192,486 @@
     background: color-mix(in srgb, var(--brand-primary) 12%, transparent);
     outline: none;
 }
+
+/* ── Catalogue list ──────────────────────────────────────────────────────────
+   One list for products, services and packs: type chips, a single live
+   search, compact rows that fit a 1280 px screen, cards on a phone.
+   Unlayered on purpose: it has to win over the DataTables stylesheet. */
+.catalog-filters {
+    border: 1px solid var(--border-soft);
+    border-radius: 0.9rem;
+    background: var(--surface);
+    padding: 0.9rem;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+}
+
+.catalog-type-chips {
+    display: flex;
+    gap: 0.4rem;
+    overflow-x: auto;
+    padding-bottom: 0.2rem;
+    scrollbar-width: none;
+}
+
+.catalog-chip {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    background: var(--surface);
+    padding: 0.4rem 0.8rem;
+    font-size: 0.82rem;
+    font-weight: 650;
+    color: var(--text-main);
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.catalog-chip span {
+    border-radius: 999px;
+    background: var(--surface-muted);
+    padding: 0.05rem 0.45rem;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+}
+
+.catalog-chip:hover {
+    border-color: color-mix(in srgb, var(--brand-primary) 40%, var(--border-soft));
+}
+
+.catalog-chip.is-active {
+    border-color: var(--brand-primary);
+    background: var(--brand-primary);
+    color: #fff;
+}
+
+.catalog-chip.is-active span {
+    background: rgb(255 255 255 / 22%);
+    color: #fff;
+}
+
+.catalog-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.catalog-search {
+    position: relative;
+    display: flex;
+    min-width: 220px;
+    flex: 1 1 320px;
+    align-items: center;
+}
+
+.catalog-search svg {
+    position: absolute;
+    left: 0.8rem;
+    width: 1.05rem;
+    height: 1.05rem;
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.catalog-search input,
+.catalog-select select,
+.catalog-more-filters input,
+.catalog-more-filters select {
+    height: 2.6rem;
+    width: 100%;
+    border: 1px solid var(--border-soft);
+    border-radius: 0.65rem;
+    background: var(--surface);
+    padding-inline: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text-main);
+    outline: none;
+}
+
+.catalog-search input {
+    padding-left: 2.3rem;
+    background: var(--surface-muted);
+}
+
+.catalog-search input:focus,
+.catalog-select select:focus,
+.catalog-more-filters input:focus,
+.catalog-more-filters select:focus {
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-primary) 14%, transparent);
+}
+
+.catalog-select {
+    flex: 0 1 200px;
+    min-width: 150px;
+}
+
+.catalog-more-toggle,
+.catalog-reset {
+    display: inline-flex;
+    height: 2.6rem;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid var(--border-soft);
+    border-radius: 0.65rem;
+    background: var(--surface);
+    padding-inline: 0.85rem;
+    font-size: 0.85rem;
+    font-weight: 650;
+    color: var(--text-main);
+    white-space: nowrap;
+}
+
+.catalog-more-toggle span {
+    display: inline-grid;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--brand-primary);
+    font-size: 0.7rem;
+    color: #fff;
+}
+
+.catalog-more-toggle[aria-expanded="true"] {
+    border-color: color-mix(in srgb, var(--brand-primary) 45%, var(--border-soft));
+    color: var(--brand-primary);
+}
+
+.catalog-reset {
+    border-color: transparent;
+    background: transparent;
+    color: var(--brand-primary);
+}
+
+.catalog-more-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.6rem;
+    margin-top: 0.75rem;
+    border-top: 1px dashed var(--border-soft);
+    padding-top: 0.75rem;
+}
+
+.catalog-more-filters.hidden,
+.catalog-reset.hidden {
+    display: none;
+}
+
+.catalog-more-filters label span {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.catalog-list-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-bottom: 1px solid var(--border-soft);
+    padding: 0.9rem 1rem;
+}
+
+.catalog-table-wrap {
+    overflow-x: auto;
+}
+
+.catalog-data-table thead th {
+    padding: 0.7rem 0.75rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: var(--surface-muted);
+}
+
+.catalog-data-table tbody td {
+    padding: 0.65rem 0.75rem;
+}
+
+.catalog-col-check {
+    width: 2.5rem;
+}
+
+.catalog-article {
+    display: flex;
+    min-width: 240px;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.catalog-thumb {
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    flex-shrink: 0;
+    place-items: center;
+    border-radius: 0.65rem;
+    object-fit: cover;
+    background: var(--surface-muted);
+}
+
+.catalog-thumb svg {
+    width: 1.3rem;
+    height: 1.3rem;
+}
+
+.catalog-article-body {
+    min-width: 0;
+}
+
+.catalog-article-name {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--text-main);
+}
+
+.catalog-article-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.3rem;
+}
+
+.catalog-article-codes {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.catalog-article-variants {
+    font-size: 0.72rem;
+    font-weight: 650;
+    color: var(--brand-primary);
+}
+
+/* Type colours: the badge, the placeholder tile and the chip share them. */
+.catalog-type-badge {
+    display: inline-flex;
+    border-radius: 999px;
+    padding: 0.12rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.catalog-type-badge.is-product, .catalog-thumb.is-product { background: #eff6ff; color: #1d4ed8; }
+.catalog-type-badge.is-service, .catalog-thumb.is-service { background: #f5f3ff; color: #6d28d9; }
+.catalog-type-badge.is-book, .catalog-thumb.is-book { background: #ecfeff; color: #0e7490; }
+.catalog-type-badge.is-medication, .catalog-thumb.is-medication { background: #fff1f2; color: #be123c; }
+.catalog-type-badge.is-clothing, .catalog-thumb.is-clothing { background: #fffbeb; color: #b45309; }
+.catalog-chip.is-service:not(.is-active) { color: #6d28d9; }
+
+.dark .catalog-type-badge.is-product, .dark .catalog-thumb.is-product { background: rgb(30 64 175 / 28%); color: #93c5fd; }
+.dark .catalog-type-badge.is-service, .dark .catalog-thumb.is-service { background: rgb(91 33 182 / 30%); color: #c4b5fd; }
+.dark .catalog-type-badge.is-book, .dark .catalog-thumb.is-book { background: rgb(14 116 144 / 28%); color: #67e8f9; }
+.dark .catalog-type-badge.is-medication, .dark .catalog-thumb.is-medication { background: rgb(190 18 60 / 26%); color: #fda4af; }
+.dark .catalog-type-badge.is-clothing, .dark .catalog-thumb.is-clothing { background: rgb(180 83 9 / 28%); color: #fcd34d; }
+.dark .catalog-chip.is-service:not(.is-active) { color: #c4b5fd; }
+
+.catalog-price,
+.catalog-stock,
+.catalog-updated {
+    display: flex;
+    flex-direction: column;
+    white-space: nowrap;
+}
+
+.catalog-price,
+.catalog-stock {
+    align-items: flex-end;
+    text-align: right;
+}
+
+.catalog-price strong {
+    font-variant-numeric: tabular-nums;
+}
+
+.catalog-price small,
+.catalog-stock small,
+.catalog-updated small {
+    margin-top: 0.2rem;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.catalog-updated {
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-main);
+}
+
+.catalog-stock-badge {
+    min-width: 3rem;
+    padding: 0.2rem 0.6rem;
+    font-variant-numeric: tabular-nums;
+    box-shadow: none;
+}
+
+.catalog-stock-badge.is-danger { background: #fff1f2; color: #be123c; }
+.catalog-stock-badge.is-service { background: #f5f3ff; color: #6d28d9; }
+.dark .catalog-stock-badge.is-danger { background: rgb(190 18 60 / 26%); color: #fda4af; }
+.dark .catalog-stock-badge.is-service { background: rgb(91 33 182 / 30%); color: #c4b5fd; }
+
+.catalog-state {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.catalog-state-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.74rem;
+    font-weight: 650;
+}
+
+.catalog-state-pill::before {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: currentColor;
+    content: "";
+}
+
+.catalog-state-pill.is-ok { background: #ecfdf5; color: #047857; }
+.catalog-state-pill.is-muted { background: var(--surface-muted); color: var(--text-muted); }
+.dark .catalog-state-pill.is-ok { background: rgb(6 78 59 / 32%); color: #86efac; }
+
+.catalog-flag {
+    border-radius: 999px;
+    background: #fffbeb;
+    padding: 0.12rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 650;
+    color: #b45309;
+}
+
+.dark .catalog-flag { background: rgb(120 53 15 / 34%); color: #fbbf24; }
+
+.catalog-row-actions {
+    min-width: 0;
+}
+
+.catalog-row-button.is-icon {
+    width: 2.15rem;
+    padding: 0;
+}
+
+.catalog-row-button.is-icon svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+.catalog-empty {
+    padding: 3rem 1rem;
+    text-align: center;
+}
+
+.catalog-empty p {
+    color: var(--text-muted);
+}
+
+.catalog-empty a {
+    display: inline-flex;
+    margin-top: 0.75rem;
+    border-radius: 0.65rem;
+    background: var(--brand-primary);
+    padding: 0.5rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 650;
+    color: #fff;
+}
+
+/* A phone: one card per item instead of a table that scrolls sideways. */
+@media (max-width: 700px) {
+    .catalog-data-table thead {
+        display: none;
+    }
+
+    .catalog-data-table,
+    .catalog-data-table tbody {
+        display: block;
+        width: 100% !important;
+    }
+
+    .catalog-data-table tbody tr {
+        display: grid;
+        grid-template-columns: 1.75rem minmax(0, 1fr) auto;
+        grid-template-areas:
+            "check article article"
+            ".     state   price"
+            ".     action  stock";
+        align-items: center;
+        gap: 0.35rem 0.6rem;
+        border-bottom: 1px solid var(--border-soft);
+        padding: 0.75rem 0.85rem;
+    }
+
+    .catalog-data-table tbody td {
+        display: block;
+        border: 0 !important;
+        padding: 0 !important;
+    }
+
+    .catalog-data-table tbody td.cc-check { grid-area: check; align-self: start; padding-top: 0.8rem !important; }
+    .catalog-data-table tbody td.cc-article { grid-area: article; }
+    .catalog-data-table tbody td.cc-price { grid-area: price; }
+    .catalog-data-table tbody td.cc-stock { grid-area: stock; }
+    .catalog-data-table tbody td.cc-state { grid-area: state; }
+    .catalog-data-table tbody td.cc-action { grid-area: action; }
+    .catalog-data-table tbody td.cc-category,
+    .catalog-data-table tbody td.cc-updated { display: none; }
+
+    .catalog-data-table tbody td.dt-empty {
+        grid-column: 1 / -1;
+    }
+
+    .catalog-article {
+        min-width: 0;
+    }
+
+    .catalog-row-actions {
+        justify-content: flex-start;
+    }
+
+    .catalog-select {
+        flex: 1 1 140px;
+    }
+
+    .catalog-page-actions,
+    .catalog-list-head .app-action-row {
+        display: grid;
+        width: 100%;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+
+    .catalog-page-actions > :last-child:nth-child(odd) {
+        grid-column: 1 / -1;
+    }
+
+    .catalog-page-actions > *,
+    .catalog-list-head .app-action-row > * {
+        width: auto;
+        text-align: center;
+        font-size: 0.8rem;
+    }
+}

@@ -4065,55 +4065,35 @@ document.querySelectorAll('.label-workbench').forEach((form) => {
 });
 
 document.querySelectorAll('[data-yajra-table]').forEach((table) => {
-    const panel = table.dataset.panel || 'articles';
-    const hasAlertColumn = panel !== 'services';
-
-    const baseColumns = [
-        { data: 'checkbox', name: 'checkbox', orderable: false, searchable: false },
-        { data: 'image', name: 'image', orderable: false, searchable: false },
-        { data: 'barcode', name: 'items.barcode', orderable: true, searchable: true },
-        { data: 'title', name: 'items.title', orderable: true, searchable: true },
-        { data: 'category_type', name: 'category_sort', orderable: true, searchable: true },
-        { data: 'unit_label', name: 'unit_sort', orderable: true, searchable: true },
-        { data: 'stock_quantity', name: 'items.stock_quantity', orderable: true, searchable: false },
+    // The catalogue list: every type in one table, narrowed by the type chips
+    // and one live search. Column classes (cc-*) drive the phone card layout.
+    const column = (data, name, className, orderable = true) => ({ data, name, className, orderable, searchable: false });
+    const columns = [
+        column('checkbox', 'checkbox', 'cc-check dt-center', false),
+        column('title', 'items.title', 'cc-article'),
+        column('category_type', 'category_sort', 'cc-category'),
+        column('sale_price', 'items.sale_price', 'cc-price dt-right'),
+        column('stock_quantity', 'items.stock_quantity', 'cc-stock dt-right'),
+        column('status', 'items.status', 'cc-state'),
+        column('timestamps', 'items.updated_at', 'cc-updated'),
+        column('action', 'action', 'cc-action dt-right', false),
     ];
+    const resetUrl = table.dataset.resetUrl || window.location.pathname;
+    const empty = `<div class="catalog-empty"><p>${translate('Aucun élément ne correspond à ces filtres.')}</p><a href="${resetUrl}">${translate('Réinitialiser les filtres')}</a></div>`;
+    const countNode = document.querySelector('[data-catalog-count]');
 
-    const columns = hasAlertColumn
-        ? [
-            ...baseColumns,
-            { data: 'min_stock_threshold', name: 'items.min_stock_threshold', orderable: true, searchable: false },
-            { data: 'sale_price', name: 'items.sale_price', orderable: true, searchable: false },
-            { data: 'tax_label', name: 'tax_sort', orderable: true, searchable: true },
-            { data: 'status', name: 'items.status', orderable: true, searchable: false },
-            { data: 'timestamps', name: 'timestamps', orderable: false, searchable: false },
-            { data: 'action', name: 'action', orderable: false, searchable: false },
-        ]
-        : [
-            ...baseColumns,
-            { data: 'sale_price', name: 'items.sale_price', orderable: true, searchable: false },
-            { data: 'tax_label', name: 'tax_sort', orderable: true, searchable: true },
-            { data: 'status', name: 'items.status', orderable: true, searchable: false },
-            { data: 'timestamps', name: 'timestamps', orderable: false, searchable: false },
-            { data: 'action', name: 'action', orderable: false, searchable: false },
-        ];
-
-    new DataTable(table, {
+    const dt = new DataTable(table, {
         ajax: table.dataset.ajaxUrl,
         columns,
-        order: [[3, 'asc']],
+        order: [[1, 'asc']],
         pageLength: Number(table.dataset.length || 25),
         processing: true,
         serverSide: true,
         autoWidth: false,
-        scrollX: true,
-        language: dataTableLanguage(),
-        columnDefs: [
-            { targets: [0, 1], className: 'dt-center' },
-            { targets: [2], className: 'catalog-code-column' },
-            { targets: hasAlertColumn ? [6, 7, 8] : [6, 7], className: 'dt-right' },
-            { targets: [-1], className: 'dt-right' },
-            { targets: '_all', defaultContent: '' },
-        ],
+        // The page's own search box drives the list; no second one here.
+        layout: { topStart: 'pageLength', topEnd: null, bottomStart: 'info', bottomEnd: 'paging' },
+        language: dataTableLanguage({ zeroRecords: empty, emptyTable: empty }),
+        columnDefs: [{ targets: '_all', defaultContent: '' }],
         createdRow: (row, data) => {
             if (data?.row_url) {
                 row.dataset.rowHref = data.row_url;
@@ -4125,7 +4105,71 @@ document.querySelectorAll('[data-yajra-table]').forEach((table) => {
             document.querySelectorAll('.catalog-check-all').forEach((checkbox) => {
                 checkbox.checked = false;
             });
+            if (countNode) {
+                const total = dt?.page?.info()?.recordsDisplay;
+                if (typeof total === 'number') countNode.textContent = `${total.toLocaleString('fr-FR')} ${translate('élément(s)')}`;
+            }
         },
+    });
+
+    const form = document.querySelector('[data-catalog-filter-form]');
+    if (!form) return;
+    const typeInput = form.querySelector('[data-type-input]');
+    const resetLink = form.querySelector('[data-catalog-reset]');
+    const moreToggle = form.querySelector('[data-more-filters-toggle]');
+    const more = form.querySelector('[data-more-filters]');
+
+    const params = () => {
+        const query = new URLSearchParams();
+        new FormData(form).forEach((value, key) => {
+            const text = String(value).trim();
+            if (text !== '' && text !== 'all') query.set(key, text);
+        });
+        return query;
+    };
+
+    const reload = () => {
+        const query = params();
+        const active = [...query.keys()].some((key) => key !== 'panel');
+        resetLink?.classList.toggle('hidden', !active);
+        dt.ajax.url(`${table.dataset.dataBase}?${query.toString()}`).load();
+        window.history.replaceState(null, '', `${window.location.pathname}?${query.toString()}`);
+    };
+
+    let timer;
+    form.addEventListener('input', (event) => {
+        if (event.target.matches('[data-catalog-search], input')) {
+            clearTimeout(timer);
+            timer = setTimeout(reload, 300);
+        }
+    });
+    form.addEventListener('change', (event) => {
+        if (event.target.matches('select')) reload();
+    });
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        reload();
+    });
+    form.querySelectorAll('[data-type-chip]').forEach((chip) => {
+        chip.addEventListener('click', () => {
+            typeInput.value = chip.dataset.typeChip;
+            const add = document.querySelector('[data-catalog-add]');
+            if (add) {
+                const service = chip.dataset.typeChip === 'service';
+                add.href = service ? add.dataset.serviceUrl : add.dataset.itemUrl;
+                add.textContent = translate(service ? 'Nouveau service' : 'Ajouter');
+            }
+            form.querySelectorAll('[data-type-chip]').forEach((other) => {
+                const on = other === chip;
+                other.classList.toggle('is-active', on);
+                other.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+            reload();
+        });
+    });
+    moreToggle?.addEventListener('click', () => {
+        const open = more.classList.toggle('hidden') === false;
+        moreToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
 });
 

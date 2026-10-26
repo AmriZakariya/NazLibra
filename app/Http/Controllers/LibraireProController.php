@@ -952,6 +952,7 @@ class LibraireProController extends Controller
             ],
             'editItem' => $editItem,
             'editItemLocationStock' => $editItemLocationStock,
+            'typeCounts' => $tenant->items()->selectRaw('type, count(*) as total')->groupBy('type')->pluck('total', 'type')->map(fn ($n) => (int) $n)->all(),
             'catalogStats' => [
                 'items' => $tenant->items()->where('type', '!=', 'service')->count(),
                 'services' => $tenant->items()->where('type', 'service')->count(),
@@ -1026,67 +1027,86 @@ class LibraireProController extends Controller
                         ->orWhere('catalog_taxes.name', 'like', "%{$search}%");
                 });
             })
-            ->addColumn('checkbox', fn (Item $item): string => '<input class="catalog-item-check rounded border-slate-300" value="'.$item->id.'" type="checkbox">')
-            ->addColumn('image', function (Item $item): string {
+            ->addColumn('checkbox', fn (Item $item): string => '<input class="catalog-item-check rounded border-slate-300" value="'.$item->id.'" type="checkbox" aria-label="Sélectionner '.e($item->title).'">')
+            // One cell says what the thing is: photo (or an icon for its
+            // type), name, a coloured type badge, codes.
+            ->editColumn('title', function (Item $item): string {
                 $image = collect($item->images)->first();
+                $thumb = $image
+                    ? '<img src="'.e(asset('storage/'.$image)).'" alt="" loading="lazy" class="catalog-thumb">'
+                    : '<span class="catalog-thumb is-placeholder is-'.e($this->catalogTypeTone($item->type)).'">'.$this->catalogTypeIcon($item->type).'</span>';
+                $codes = collect([$item->barcode ?: ($item->isbn ?: $item->sku), $item->item_code])->filter()->unique()->implode(' · ');
+                $variants = $item->variants->isNotEmpty()
+                    ? '<span class="catalog-article-variants">'.$item->variants->count().' variante(s)</span>'
+                    : '';
 
-                if ($image) {
-                    return '<img src="'.e(asset('storage/'.$image)).'" alt="" class="size-11 rounded-lg object-cover">';
+                return '<div class="catalog-article">'.$thumb.'<div class="catalog-article-body">'
+                    .'<p class="catalog-article-name">'.e($item->title).'</p>'
+                    .'<p class="catalog-article-meta"><span class="catalog-type-badge is-'.e($this->catalogTypeTone($item->type)).'">'.e($this->typeLabel($item->type)).'</span>'
+                    .($codes !== '' ? '<span class="catalog-article-codes">'.e($codes).'</span>' : '')
+                    .$variants.'</p></div></div>';
+            })
+            ->addColumn('category_type', fn (Item $item): string => '<span class="catalog-main-text">'.e($item->category?->name ?? 'Sans catégorie').'</span>'
+                .($item->brand?->name ? '<span class="catalog-sub-text">'.e($item->brand->name).'</span>' : ''))
+            ->editColumn('sale_price', function (Item $item): string {
+                $sale = (float) $item->sale_price;
+                $cost = (float) $item->purchase_price;
+                $details = [];
+                if ($cost > 0) {
+                    $details[] = 'Achat '.$this->money($cost);
+                    if ($sale > 0) {
+                        $details[] = 'Marge '.number_format(($sale - $cost) / $sale * 100, 0, ',', ' ').' %';
+                    }
+                }
+                if ($item->tax) {
+                    $details[] = $item->tax->name;
                 }
 
-                return '<div class="grid size-11 place-items-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500 dark:bg-white/10 dark:text-slate-300">'.e(mb_substr($item->title, 0, 2)).'</div>';
+                return '<div class="catalog-price"><strong>'.$this->money($sale).'</strong>'
+                    .($details ? '<small>'.e(implode(' · ', $details)).'</small>' : '').'</div>';
             })
-            ->editColumn('barcode', fn (Item $item): string => '<span class="catalog-code-cell">'.e($item->barcode ?? $item->isbn ?? $item->sku ?? '—').'</span>')
-            ->editColumn('title', function (Item $item): string {
-                $brand = $item->brand?->name ? ' · '.$item->brand->name : '';
-                $variants = $item->variants->isNotEmpty() ? '<p class="mt-1 text-xs font-medium text-brand">'.$item->variants->count().' variante(s)</p>' : '';
+            ->editColumn('stock_quantity', function (Item $item): string {
+                if ($item->type === 'service') {
+                    return '<div class="catalog-stock"><span class="catalog-stock-badge is-service">Service</span><small>sans stock</small></div>';
+                }
+                $quantity = (float) $item->stock_quantity;
+                $tone = $quantity <= 0 ? 'is-danger' : ($item->is_low_stock ? 'is-warning' : 'is-ok');
+                $unit = $item->unit?->name;
+                $details = array_filter([$unit, $item->min_stock_threshold > 0 ? 'alerte ≤ '.number_format($item->min_stock_threshold, 0, ',', ' ') : null]);
 
-                return '<div class="catalog-item-title-cell"><p>'.e($item->title).'</p><small>'.e($item->item_code ?? 'Sans code interne').e($brand).'</small>'.$variants.'</div>';
+                return '<div class="catalog-stock"><span class="catalog-stock-badge '.$tone.'">'.number_format($quantity, 0, ',', ' ').'</span>'
+                    .($details ? '<small>'.e(implode(' · ', $details)).'</small>' : '').'</div>';
             })
-            ->addColumn('category_type', fn (Item $item): string => '<span class="catalog-main-text">'.e($item->category?->name ?? 'Sans catégorie').'</span><span class="catalog-sub-text">'.e($this->typeLabel($item->type)).'</span>')
-            ->addColumn('unit_label', fn (Item $item): string => e($item->unit?->name ?? '—'))
-            ->editColumn('stock_quantity', fn (Item $item): string => '<span class="catalog-stock-badge '.($item->is_low_stock && $item->type !== 'service' ? 'is-warning' : 'is-ok').'">'.($item->type === 'service' ? 'Illimité' : number_format($item->stock_quantity, 0, ',', ' ')).'</span>')
-            ->editColumn('min_stock_threshold', fn (Item $item): string => $item->type === 'service' ? '—' : number_format($item->min_stock_threshold, 0, ',', ' '))
-            ->editColumn('sale_price', fn (Item $item): string => '<strong>'.$this->money($item->sale_price).'</strong>')
-            ->addColumn('tax_label', fn (Item $item): string => e($item->tax ? $item->tax->name.' ('.number_format((float) $item->tax->rate, 2, ',', ' ').'%)' : '—'))
+            // One state, not four pills: the flags only appear when something
+            // is hidden, which is the case worth noticing.
             ->editColumn('status', function (Item $item): string {
-                $isEnabled = (bool) $item->is_enabled && $item->status !== 'archived';
-                $checkoutVisible = (bool) $item->checkout_visible;
-                $onlineVisible = (bool) $item->online_store_visible;
-                $enabledTone = $isEnabled
-                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                    : 'bg-slate-100 text-slate-700 ring-slate-200';
-                $stateLabel = $item->type === 'service' ? 'Service' : $this->statusLabel($item->status);
-                $stateTone = $item->type === 'service'
-                    ? 'bg-violet-50 text-violet-700 ring-violet-200'
-                    : match ($item->status) {
-                        'out_of_stock' => 'bg-rose-50 text-rose-700 ring-rose-200',
-                        'archived' => 'bg-slate-100 text-slate-700 ring-slate-200',
-                        default => 'bg-blue-50 text-blue-700 ring-blue-200',
-                    };
-                $checkoutTone = $checkoutVisible && $isEnabled
-                    ? 'bg-blue-50 text-blue-700 ring-blue-200'
-                    : 'bg-amber-50 text-amber-700 ring-amber-200';
-                $checkoutLabel = $checkoutVisible && $isEnabled ? 'Visible caisse' : 'Caché caisse';
-                $onlineTone = $onlineVisible && $isEnabled
-                    ? 'bg-indigo-50 text-indigo-700 ring-indigo-200'
-                    : 'bg-slate-100 text-slate-700 ring-slate-200';
-                $onlineLabel = $onlineVisible && $isEnabled ? 'Visible boutique' : 'Caché boutique';
+                $enabled = (bool) $item->is_enabled && $item->status !== 'archived';
+                [$label, $tone] = match (true) {
+                    $item->status === 'archived' => ['Archivé', 'is-muted'],
+                    ! $enabled => ['Désactivé', 'is-muted'],
+                    default => ['Actif', 'is-ok'],
+                };
+                $flags = '';
+                if ($enabled && ! $item->checkout_visible) {
+                    $flags .= '<span class="catalog-flag" title="Ne s\'affiche pas en caisse">Caché caisse</span>';
+                }
+                if ($enabled && ! $item->online_store_visible) {
+                    $flags .= '<span class="catalog-flag" title="Ne s\'affiche pas dans la boutique en ligne">Caché boutique</span>';
+                }
 
-                return '<div class="catalog-status-stack">'
-                    .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$enabledTone.'">'.e($isEnabled ? 'Activé' : 'Désactivé').'</span>'
-                    .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$stateTone.'">'.e($stateLabel).'</span>'
-                    .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$checkoutTone.'">'.e($checkoutLabel).'</span>'
-                    .'<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$onlineTone.'">'.e($onlineLabel).'</span>'
-                    .'</div>';
+                return '<div class="catalog-state"><span class="catalog-state-pill '.$tone.'">'.$label.'</span>'.$flags.'</div>';
             })
-            ->addColumn('timestamps', fn (Item $item): string => '<div class="text-xs text-slate-500 whitespace-nowrap"><p title="Créé le">'.e($item->created_at?->copy()->setTimezone(TenantClock::timezone($tenant))->format('d/m/Y H:i') ?? '—').'</p><p class="mt-0.5" title="Modifié le">'.e($item->updated_at?->copy()->setTimezone(TenantClock::timezone($tenant))->format('d/m/Y H:i') ?? '—').'</p></div>')
+            ->addColumn('timestamps', fn (Item $item): string => '<div class="catalog-updated" title="Créé le '.e($item->created_at?->copy()->setTimezone(TenantClock::timezone($tenant))->format('d/m/Y H:i') ?? '—').'">'
+                .e($item->updated_at?->copy()->setTimezone(TenantClock::timezone($tenant))->format('d/m/Y') ?? '—')
+                .'<small>'.e($item->updated_at?->copy()->setTimezone(TenantClock::timezone($tenant))->format('H:i') ?? '').'</small></div>')
             ->addColumn('action', fn (Item $item): string => '<div class="catalog-row-actions">'
-                .'<a href="'.e(route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $item->id])).'#inventory-history" class="catalog-row-button is-muted">Historique</a>'
+                .($item->type !== 'service'
+                    ? '<a href="'.e(route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $item->id])).'#inventory-history" class="catalog-row-button is-muted is-icon" title="Historique du stock" aria-label="Historique du stock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg></a>'
+                    : '<a href="'.e(route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $item->id])).'#inventory-history" class="sr-only">Historique</a>')
                 .'<a href="'.e(route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id])).'#edit-item" data-row-primary-action class="catalog-row-button is-primary">Modifier</a>'
                 .'</div>')
             ->addColumn('row_url', fn (Item $item): string => route('catalog', ['panel' => $panel === 'services' ? 'services' : 'articles', 'edit' => $item->id]).'#edit-item')
-            ->rawColumns(['checkbox', 'image', 'barcode', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'timestamps', 'action', 'row_url'])
+            ->rawColumns(['checkbox', 'title', 'category_type', 'stock_quantity', 'sale_price', 'status', 'timestamps', 'action', 'row_url'])
             ->toJson();
     }
 
@@ -2046,8 +2066,6 @@ class LibraireProController extends Controller
     {
         $panel = $request->query('panel', 'articles');
         $quickSearch = trim((string) $request->query('q'));
-        $tableSearch = trim((string) data_get($request->input('search', []), 'value', ''));
-        $hasSearch = $quickSearch !== '' || $tableSearch !== '';
         $status = $request->query('status', 'all');
         $type = $request->query('type', 'all');
         $category = $request->query('category', 'all');
@@ -2096,8 +2114,10 @@ class LibraireProController extends Controller
             ->when(is_numeric($minPrice), fn (Builder $builder) => $builder->where('items.sale_price', '>=', (float) $minPrice))
             ->when(is_numeric($maxPrice), fn (Builder $builder) => $builder->where('items.sale_price', '<=', (float) $maxPrice))
             ->when(in_array($panel, ['services', 'ajouter-service'], true), fn (Builder $builder) => $builder->where('items.type', 'service'))
-            ->when(! in_array($panel, ['services', 'ajouter-service', 'all'], true) && $type !== 'all', fn (Builder $builder) => $builder->where('items.type', $type))
-            ->when(! in_array($panel, ['services', 'ajouter-service', 'all'], true) && $type === 'all' && ! $hasSearch, fn (Builder $builder) => $builder->where('items.type', '!=', 'service'));
+            // The article list is the whole catalogue — products, services,
+            // packs — narrowed by the type chips. It used to drop services
+            // unless one searched, and a spa thought half its import was lost.
+            ->when(! in_array($panel, ['services', 'ajouter-service'], true) && $type !== 'all', fn (Builder $builder) => $builder->where('items.type', $type));
     }
 
     public function storeItem(Request $request): RedirectResponse
@@ -2770,10 +2790,9 @@ class LibraireProController extends Controller
         $message = "{$created} créée(s), {$updated} mise(s) à jour, {$skipped} ignorée(s).";
         $message .= $this->attachImportPhotos($photos, $photoJobs, $unzipped['photos'] ?? [], $unzipped !== null);
         \App\Services\Catalogue\ItemPhotos::cleanup($unzipped['dir'] ?? null);
-        // Services do not show in the Articles list; say where they went.
         $articles = $created + $updated - $services;
         if ($services > 0 && $data['kind'] !== 'services') {
-            $message .= " Dont {$articles} article(s) dans l'onglet Articles et {$services} prestation(s) dans l'onglet Services.";
+            $message .= " Dont {$articles} article(s) et {$services} service(s).";
         }
 
         return back()->with('status', $message);
@@ -11006,6 +11025,32 @@ class LibraireProController extends Controller
     private function contactStatus(mixed $status): string
     {
         return $this->legacyActive($status) ? 'active' : 'archived';
+    }
+
+    /** The colour family of a type's badge in the catalogue list. */
+    private function catalogTypeTone(?string $type): string
+    {
+        return match ($type) {
+            'service' => 'service',
+            'book' => 'book',
+            'medication' => 'medication',
+            'clothing' => 'clothing',
+            default => 'product',
+        };
+    }
+
+    /** An icon for a product without a photo, by type: a box, a book, a sparkle for a service… */
+    private function catalogTypeIcon(?string $type): string
+    {
+        $path = match ($this->catalogTypeTone($type)) {
+            'service' => '<path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+            'book' => '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>',
+            'medication' => '<rect x="3" y="9" width="18" height="6" rx="3"/><path d="M12 9v6"/>',
+            'clothing' => '<path d="M8 3l-5 3 2 4 2-1v12h10V9l2 1 2-4-5-3a4 4 0 0 1-8 0z"/>',
+            default => '<path d="M21 8l-9-5-9 5 9 5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+        };
+
+        return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'.$path.'</svg>';
     }
 
     private function typeLabel(string $type): string

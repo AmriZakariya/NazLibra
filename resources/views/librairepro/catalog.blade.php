@@ -69,7 +69,7 @@
             <h1 class="mt-1 text-2xl font-semibold tracking-normal">{{ $pageTitle }}</h1>
             <p class="mt-2 max-w-4xl text-sm text-slate-600 dark:text-slate-300">{{ $pageDescription }}</p>
         </div>
-        <div class="app-action-row">
+        <div class="app-action-row catalog-page-actions">
             @if ($isStockWorkspace)
                 <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/[0.05]">Ajustements</a>
                 <a href="{{ route('stock', ['panel' => 'stock-transfers']) }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/[0.05]">Transferts</a>
@@ -83,11 +83,12 @@
         </div>
     </section>
 
-    <section class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article class="rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white"><p class="text-sm font-medium text-slate-600 dark:text-slate-300">Articles physiques</p><p class="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{{ $catalogStats['items'] }}</p></article>
-        <article class="rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white"><p class="text-sm font-medium text-slate-600 dark:text-slate-300">Services</p><p class="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{{ $catalogStats['services'] }}</p></article>
-        <article class="rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white"><p class="text-sm font-medium text-slate-600 dark:text-slate-300">Alertes stock</p><p class="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{{ $catalogStats['low'] }}</p></article>
-        <article class="rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white"><p class="text-sm font-medium text-slate-600 dark:text-slate-300">Valorisation achat</p><p class="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{{ $money($catalogStats['value']) }}</p></article>
+    {{-- Shortcuts as much as figures: each opens the list it counts. --}}
+    <section class="mt-6 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        <a href="{{ route('catalog', ['panel' => 'articles']) }}" class="catalog-kpi rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-brand/40 sm:p-4 dark:border-white/10 dark:bg-slate-950"><p class="text-xs font-medium text-slate-600 sm:text-sm dark:text-slate-300">Articles physiques</p><p class="mt-1 text-xl font-semibold text-slate-950 sm:mt-2 sm:text-2xl dark:text-white">{{ $catalogStats['items'] }}</p></a>
+        <a href="{{ route('catalog', ['panel' => 'articles', 'type' => 'service']) }}" class="catalog-kpi rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-brand/40 sm:p-4 dark:border-white/10 dark:bg-slate-950"><p class="text-xs font-medium text-slate-600 sm:text-sm dark:text-slate-300">Services</p><p class="mt-1 text-xl font-semibold text-slate-950 sm:mt-2 sm:text-2xl dark:text-white">{{ $catalogStats['services'] }}</p></a>
+        <a href="{{ route('catalog', ['panel' => 'articles', 'stock' => 'low']) }}" class="catalog-kpi rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-brand/40 sm:p-4 dark:border-white/10 dark:bg-slate-950"><p class="text-xs font-medium text-slate-600 sm:text-sm dark:text-slate-300">Alertes stock</p><p class="mt-1 text-xl font-semibold text-slate-950 sm:mt-2 sm:text-2xl dark:text-white">{{ $catalogStats['low'] }}</p></a>
+        <a href="{{ route('stock') }}" class="catalog-kpi rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-brand/40 sm:p-4 dark:border-white/10 dark:bg-slate-950"><p class="text-xs font-medium text-slate-600 sm:text-sm dark:text-slate-300">Valorisation achat</p><p class="mt-1 text-xl font-semibold text-slate-950 sm:mt-2 sm:text-2xl dark:text-white">{{ $money($catalogStats['value']) }}</p></a>
     </section>
 
     <details class="app-collapsible-menu mt-6" data-collapsible-menu data-menu-key="catalog-sections">
@@ -1298,90 +1299,90 @@
             </article>
         </section>
     @elseif (in_array($panel, ['articles', 'services'], true))
-        <section class="mt-6 flex flex-col gap-6">
-            {{-- Services live on their own tab. A spa that imported 13 services
-                 and 12 products saw 12 rows here and thought the rest were lost. --}}
-            @if ($panel === 'articles' && ($catalogStats['services'] ?? 0) > 0)
-                <a href="{{ route('catalog', ['panel' => 'services']) }}" data-services-pointer class="flex items-center justify-between gap-3 rounded-xl border border-brand/20 bg-brand/5 px-4 py-3 text-sm text-slate-700 transition hover:bg-brand/10 dark:text-slate-200">
-                    <span><strong class="text-brand">{{ $catalogStats['services'] }} {{ $catalogStats['services'] > 1 ? 'prestations' : 'prestation' }}</strong> {{ $catalogStats['services'] > 1 ? 'sont' : 'est' }} dans l'onglet Services, pas dans cette liste d'articles.</span>
-                    <span class="shrink-0 font-semibold text-brand">Voir les services →</span>
-                </a>
-            @endif
-            <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                <form action="{{ route('catalog') }}" class="flex flex-wrap items-end gap-3">
-                    <input type="hidden" name="panel" value="{{ $panel }}">
-                    <label class="block min-w-[220px] flex-[1_1_280px]"><span class="text-xs font-semibold uppercase text-slate-500">Recherche rapide</span><input name="q" value="{{ $query }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="Nom, code barre, ISBN, SKU"></label>
-                    <label class="block min-w-[135px] flex-[1_1_145px]"><span class="text-xs font-semibold uppercase text-slate-500">Type</span><select name="type" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" @disabled($panel === 'services')><option value="all" @selected($type === 'all')>Tous</option>@foreach ($catalogTypeLabels as $typeKey => $typeName)<option value="{{ $typeKey }}" @selected($type === $typeKey)>{{ $typeName }}</option>@endforeach</select></label>
-                    <label class="block min-w-[180px] flex-[1_1_210px]"><span class="text-xs font-semibold uppercase text-slate-500">Catégorie</span><select name="category" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Toutes</option><option value="uncategorized" @selected($categoryFilter === 'uncategorized')>Sans catégorie</option>@foreach ($categories as $category)<option value="{{ $category->id }}" @selected((string) $categoryFilter === (string) $category->id)>{{ $category->name }}</option>@endforeach</select></label>
-                    <label class="block min-w-[170px] flex-[1_1_190px]"><span class="text-xs font-semibold uppercase text-slate-500">Marque / éditeur</span><select name="brand" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Toutes</option>@foreach ($brands as $brand)<option value="{{ $brand->id }}" @selected((string) $brandFilter === (string) $brand->id)>{{ $brand->name }}</option>@endforeach</select></label>
-                    <label class="block min-w-[140px] flex-[1_1_150px]"><span class="text-xs font-semibold uppercase text-slate-500">Unité</span><select name="unit" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Toutes</option>@foreach ($units as $unit)<option value="{{ $unit->id }}" @selected((string) $unitFilter === (string) $unit->id)>{{ $unit->name }}</option>@endforeach</select></label>
-                    <label class="block min-w-[140px] flex-[1_1_150px]"><span class="text-xs font-semibold uppercase text-slate-500">Impôt</span><select name="tax" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Tous</option>@foreach ($taxes as $tax)<option value="{{ $tax->id }}" @selected((string) $taxFilter === (string) $tax->id)>{{ $tax->name }}</option>@endforeach</select></label>
-                    <label class="block min-w-[135px] flex-[1_1_145px]"><span class="text-xs font-semibold uppercase text-slate-500">Stock</span><select name="stock" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all" @selected($stock === 'all')>Tout</option><option value="low" @selected($stock === 'low')>Stock bas</option><option value="out" @selected($stock === 'out')>Rupture</option></select></label>
-                    <label class="block min-w-[135px] flex-[1_1_145px]"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="status" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all" @selected($status === 'all')>Tous</option><option value="active" @selected($status === 'active')>Actif</option><option value="archived" @selected($status === 'archived')>Archivé</option><option value="out_of_stock" @selected($status === 'out_of_stock')>Rupture</option></select></label>
-                    <label class="block min-w-[105px] flex-[1_1_115px]"><span class="text-xs font-semibold uppercase text-slate-500">Prix min</span><input name="min_price" value="{{ request('min_price') }}" inputmode="decimal" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Min ({{ $shopMoney->symbol() }})"></label>
-                    <label class="block min-w-[105px] flex-[1_1_115px]"><span class="text-xs font-semibold uppercase text-slate-500">Prix max</span><input name="max_price" value="{{ request('max_price') }}" inputmode="decimal" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Max ({{ $shopMoney->symbol() }})"></label>
-                    <div class="grid min-w-[180px] flex-[0_1_220px] grid-cols-2 gap-2 max-sm:flex-1">
-                        <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white" type="submit">Filtrer</button>
-                        <a href="{{ route('catalog', ['panel' => $panel]) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Reset</a>
+        @php
+            // The list is the whole catalogue; the chips narrow it by type.
+            $listType = $panel === 'services' ? 'service' : $type;
+            $typeTotal = array_sum($typeCounts ?? []);
+            $typeChips = collect($typeCounts ?? [])
+                ->filter(fn (int $n) => $n > 0)
+                ->map(fn (int $n, string $key) => ['key' => $key, 'label' => $catalogTypeLabels[$key] ?? ($key === 'service' ? 'Service' : \Illuminate\Support\Str::headline($key)), 'count' => $n])
+                ->sortBy(fn (array $chip) => $chip['key'] === 'service' ? 1 : 0)
+                ->values();
+            $moreFilters = collect(['brand' => $brandFilter, 'unit' => $unitFilter, 'tax' => $taxFilter, 'status' => $status])
+                ->filter(fn ($value) => $value !== null && $value !== '' && $value !== 'all')->count()
+                + (request('min_price') !== null && request('min_price') !== '' ? 1 : 0)
+                + (request('max_price') !== null && request('max_price') !== '' ? 1 : 0);
+            $hasFilters = $query !== '' || $listType !== 'all' || ($categoryFilter ?? 'all') !== 'all' || $stock !== 'all' || $moreFilters > 0;
+            $toneOf = fn (string $key): string => match ($key) {
+                'service' => 'service', 'book' => 'book', 'medication' => 'medication', 'clothing' => 'clothing', default => 'product',
+            };
+        @endphp
+        <section class="mt-6 flex flex-col gap-4">
+            <article class="catalog-filters" data-catalog-filters>
+                <form action="{{ route('catalog') }}" data-catalog-filter-form>
+                    <input type="hidden" name="panel" value="articles">
+                    <input type="hidden" name="type" value="{{ $listType }}" data-type-input>
+
+                    <div class="catalog-type-chips" role="tablist" aria-label="Type d'élément">
+                        <button type="button" role="tab" class="catalog-chip {{ $listType === 'all' ? 'is-active' : '' }}" data-type-chip="all" aria-selected="{{ $listType === 'all' ? 'true' : 'false' }}">Tous <span>{{ $typeTotal }}</span></button>
+                        @foreach ($typeChips as $chip)
+                            <button type="button" role="tab" class="catalog-chip is-{{ $toneOf($chip['key']) }} {{ $listType === $chip['key'] ? 'is-active' : '' }}" data-type-chip="{{ $chip['key'] }}" aria-selected="{{ $listType === $chip['key'] ? 'true' : 'false' }}">{{ $chip['label'] }} <span>{{ $chip['count'] }}</span></button>
+                        @endforeach
+                    </div>
+
+                    <div class="catalog-filter-row">
+                        <label class="catalog-search">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                            <span class="sr-only">Rechercher</span>
+                            <input name="q" value="{{ $query }}" type="search" autocomplete="off" placeholder="Rechercher : nom, code-barres, code article, marque…" data-catalog-search>
+                        </label>
+                        <label class="catalog-select"><span class="sr-only">Catégorie</span><select name="category"><option value="all">Toutes les catégories</option><option value="uncategorized" @selected($categoryFilter === 'uncategorized')>Sans catégorie</option>@foreach ($categories as $category)<option value="{{ $category->id }}" @selected((string) $categoryFilter === (string) $category->id)>{{ $category->name }}</option>@endforeach</select></label>
+                        <label class="catalog-select"><span class="sr-only">Stock</span><select name="stock"><option value="all" @selected($stock === 'all')>Tout le stock</option><option value="low" @selected($stock === 'low')>Stock bas</option><option value="out" @selected($stock === 'out')>Rupture</option></select></label>
+                        <button type="button" class="catalog-more-toggle" data-more-filters-toggle aria-expanded="{{ $moreFilters > 0 ? 'true' : 'false' }}">Plus de filtres @if ($moreFilters > 0)<span>{{ $moreFilters }}</span>@endif</button>
+                        <a href="{{ route('catalog', ['panel' => 'articles']) }}" class="catalog-reset {{ $hasFilters ? '' : 'hidden' }}" data-catalog-reset>Réinitialiser</a>
+                        <noscript><button class="catalog-reset" type="submit">Filtrer</button></noscript>
+                    </div>
+
+                    <div class="catalog-more-filters {{ $moreFilters > 0 ? '' : 'hidden' }}" data-more-filters>
+                        <label><span>Marque / éditeur</span><select name="brand"><option value="all">Toutes</option>@foreach ($brands as $brand)<option value="{{ $brand->id }}" @selected((string) $brandFilter === (string) $brand->id)>{{ $brand->name }}</option>@endforeach</select></label>
+                        <label><span>Unité</span><select name="unit"><option value="all">Toutes</option>@foreach ($units as $unit)<option value="{{ $unit->id }}" @selected((string) $unitFilter === (string) $unit->id)>{{ $unit->name }}</option>@endforeach</select></label>
+                        <label><span>TVA</span><select name="tax"><option value="all">Toutes</option>@foreach ($taxes as $tax)<option value="{{ $tax->id }}" @selected((string) $taxFilter === (string) $tax->id)>{{ $tax->name }}</option>@endforeach</select></label>
+                        <label><span>Statut</span><select name="status"><option value="all" @selected($status === 'all')>Tous</option><option value="active" @selected($status === 'active')>Actif</option><option value="archived" @selected($status === 'archived')>Archivé</option><option value="out_of_stock" @selected($status === 'out_of_stock')>Rupture</option></select></label>
+                        <label><span>Prix min ({{ $shopMoney->symbol() }})</span><input name="min_price" value="{{ request('min_price') }}" inputmode="decimal" placeholder="0"></label>
+                        <label><span>Prix max ({{ $shopMoney->symbol() }})</span><input name="max_price" value="{{ request('max_price') }}" inputmode="decimal" placeholder="∞"></label>
                     </div>
                 </form>
             </article>
 
-            <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03] catalog-grid-shell">
-                <div class="flex flex-col gap-3 border-b border-slate-200 p-4 dark:border-white/10 lg:flex-row lg:items-center lg:justify-between">
+            <article class="catalog-grid-shell overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                <div class="catalog-list-head">
                     <div>
-                        <h2 class="text-base font-semibold">{{ $panel === 'services' ? 'Liste des services' : 'Liste des articles' }}</h2>
-                        <p class="mt-1 text-sm text-slate-500">{{ $items->total() }} résultat(s), page {{ $items->currentPage() }} sur {{ $items->lastPage() }}. Recherche serveur, tri et export alignés sur les filtres.</p>
+                        <h2 class="text-base font-semibold">{{ $panel === 'services' ? 'Services' : 'Articles et services' }}</h2>
+                        <p class="text-sm text-slate-500" data-catalog-count>{{ $items->total() }} élément(s)</p>
                     </div>
                     <div class="app-action-row">
                         <button class="catalog-labels rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold dark:border-white/10" type="button">Étiquettes sélectionnées</button>
-                        <a href="{{ $exportLink }}" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold dark:border-white/10">Exporter vue</a>
-                        <a href="{{ route('catalog.export', ['all' => 1]) }}" class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Exporter tout</a>
-                        <a href="{{ route('catalog', ['panel' => $panel === 'services' ? 'ajouter-service' : 'ajouter']) }}" class="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white">Ajouter</a>
+                        <a href="{{ $exportLink }}" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold dark:border-white/10" title="Exporter les éléments filtrés (CSV)">Exporter vue</a>
+                        <a href="{{ route('catalog.export', ['all' => 1]) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold dark:border-white/10" title="Exporter tout le catalogue (CSV)">Exporter tout</a>
+                        <a href="{{ route('catalog', ['panel' => $listType === 'service' ? 'ajouter-service' : 'ajouter']) }}" class="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white" data-catalog-add data-item-url="{{ route('catalog', ['panel' => 'ajouter']) }}" data-service-url="{{ route('catalog', ['panel' => 'ajouter-service']) }}">{{ $listType === 'service' ? 'Nouveau service' : 'Ajouter' }}</a>
                     </div>
                 </div>
-                @php
-                    $listImportKind = $panel === 'services' ? 'services' : 'items';
-                @endphp
-                <details class="m-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                    <summary class="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <span>
-                            <span class="block text-sm font-semibold">{{ $importLabels[$listImportKind]['title'] }}</span>
-                            <span class="mt-1 block text-xs text-slate-500">{{ $importLabels[$listImportKind]['hint'] }}</span>
-                        </span>
-                        <span class="inline-flex items-center justify-center rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">Uploader Excel</span>
-                    </summary>
-                    <form action="{{ route('catalog.import') }}" method="POST" enctype="multipart/form-data" class="app-action-form mt-4">
-                        @csrf
-                        <input type="hidden" name="kind" value="{{ $listImportKind }}">
-                        <input name="catalog_file" required type="file" accept=".csv,.tsv,.xlsx" class="rounded-lg border border-dashed border-slate-300 bg-white p-2 text-sm dark:border-white/10 dark:bg-slate-900">
-                        <a href="{{ route('catalog.import.example', $listImportKind) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-center text-sm font-semibold dark:border-white/10">{{ $importLabels[$listImportKind]['example'] }}</a>
-                        <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Importer</button>
-                    </form>
-                </details>
-                <div class="overflow-x-auto">
-                    <table class="catalog-data-table w-full min-w-[1180px] text-left text-sm" data-yajra-table data-ajax-url="{{ route('catalog.data', request()->query()) }}" data-panel="{{ $panel }}" data-length="{{ $perPage }}">
-                        <thead class="sticky top-0 z-10 bg-slate-50 text-xs uppercase text-slate-500 shadow-[inset_0_-1px_0_var(--border-soft)] dark:bg-slate-900 dark:text-slate-400">
+                <div class="catalog-table-wrap">
+                    <table class="catalog-data-table w-full text-left text-sm" data-yajra-table data-ajax-url="{{ route('catalog.data', array_merge(request()->query(), ['panel' => $panel, 'type' => $listType])) }}" data-data-base="{{ route('catalog.data') }}" data-panel="{{ $panel }}" data-length="{{ $perPage }}" data-reset-url="{{ route('catalog', ['panel' => 'articles']) }}">
+                        <thead>
                             <tr>
-                                <th class="px-4 py-3"><input class="catalog-check-all rounded border-slate-300" type="checkbox"></th>
-                                <th class="px-4 py-3">Image</th>
-                                <th class="px-4 py-3">Code de barre</th>
-                                <th class="px-4 py-3">Nom de l'article</th>
-                                <th class="px-4 py-3">Catégorie/<br>Type d'élément</th>
-                                <th class="px-4 py-3">Unité</th>
-                                <th class="px-4 py-3">Stock</th>
-                                @if ($panel !== 'services')
-                                    <th class="px-4 py-3">Quantité d'alerte</th>
-                                @endif
-                                <th class="px-4 py-3">Prix de vente</th>
-                                <th class="px-4 py-3">Impôt</th>
-                                <th class="px-4 py-3">Statut</th>
-                                <th class="px-4 py-3 whitespace-nowrap">Créé / Modifié</th>
-                                <th class="px-4 py-3 text-right min-w-[170px]">Action</th>
+                                <th class="catalog-col-check"><input class="catalog-check-all rounded border-slate-300" type="checkbox" aria-label="Tout sélectionner"></th>
+                                <th>Article</th>
+                                <th>Catégorie</th>
+                                <th class="text-right">Prix</th>
+                                <th class="text-right">Stock</th>
+                                <th>État</th>
+                                <th>Modifié</th>
+                                <th class="text-right"><span class="sr-only">Actions</span></th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-200 dark:divide-white/10">
-                            <tr><td colspan="{{ $panel === 'services' ? 12 : 13 }}" class="px-4 py-12 text-center text-sm text-slate-500">Chargement de la table...</td></tr>
+                        <tbody>
+                            <tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Chargement…</td></tr>
                         </tbody>
                     </table>
                 </div>

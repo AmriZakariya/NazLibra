@@ -307,22 +307,19 @@ class CatalogueTest extends TestCase
         $hiddenItem = Item::where('type', '!=', 'service')->where('id', '!=', $item->id)->firstOrFail();
         $hiddenItem->update(['checkout_visible' => false]);
 
+        // Seven columns that fit a laptop screen; unit, VAT and alert level
+        // live under the price and stock instead of in columns of their own.
         $this->get(route('catalog', ['panel' => 'articles', 'q' => $item->barcode ?? $item->title]))
             ->assertOk()
-            ->assertSee('Code de barre')
-            ->assertSee("Nom de l'article", false)
-            ->assertSee("Catégorie/")
-            ->assertSee("Type d'élément", false)
-            ->assertSee("Quantité d'alerte", false)
-            ->assertSee('Prix de vente')
-            ->assertSee('Impôt')
+            ->assertSeeInOrder(['<th>Article</th>', '<th>Catégorie</th>', 'Prix</th>', 'Stock</th>', '<th>État</th>', '<th>Modifié</th>'], false)
+            ->assertDontSee("Quantité d'alerte", false)
             ->assertSee('Exporter vue')
             ->assertSee('Exporter tout');
 
         $this->get(route('catalog', ['panel' => 'services']))
             ->assertOk()
-            ->assertSee('Liste des services')
-            ->assertDontSee("Quantité d'alerte", false);
+            ->assertSee('data-type-chip="service"', false)
+            ->assertSee('Nouveau service');
 
         $servicesData = $this->getJson(route('catalog.data', [
             'panel' => 'services',
@@ -346,7 +343,7 @@ class CatalogueTest extends TestCase
         ]))->assertOk();
 
         $hiddenStatusHtml = data_get($hiddenStatusResponse->json(), 'data.0.status');
-        $this->assertStringContainsString('Activé', $hiddenStatusHtml);
+        $this->assertStringContainsString('Actif', $hiddenStatusHtml);
         $this->assertStringContainsString('Caché caisse', $hiddenStatusHtml);
 
         $this->get(route('pos', ['q' => $hiddenItem->title]))
