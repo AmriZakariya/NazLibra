@@ -42,6 +42,20 @@ class AuthTest extends TestCase
             ->assertSee('Réinitialiser');
     }
 
+    /** The app's "Mot de passe oublié ?" opens this page with the email it already has. */
+    public function test_forgot_password_page_fills_in_the_email_it_is_given(): void
+    {
+        $this->seed();
+
+        $this->get(route('password.request', ['email' => 'owner@spa.ma']))
+            ->assertOk()
+            ->assertSee('value="owner@spa.ma"', false);
+
+        $this->get(route('password.request', ['email' => '"><script>x</script>']))
+            ->assertOk()
+            ->assertDontSee('"><script>x</script>', false);
+    }
+
     /**
      * The view brands itself from the resolved tenant, and for a guest the
      * ONLY thing the request contributes to TenantContext::resolve() is the

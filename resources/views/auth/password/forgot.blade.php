@@ -69,7 +69,7 @@
                             @csrf
                             <label class="block space-y-1.5">
                                 <span class="text-xs font-semibold uppercase text-slate-500">Email</span>
-                                <input name="email" value="{{ old('email') }}" type="email" required autofocus autocomplete="email" class="h-12 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="vous@entreprise.ma">
+                                <input name="email" value="{{ old('email', request()->query('email')) }}" type="email" required autofocus autocomplete="email" class="h-12 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="vous@entreprise.ma">
                             </label>
                             <button class="h-12 w-full rounded-xl bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20 transition hover:brightness-110">{{ $tr('Envoyer le lien') }}</button>
                         </form>
