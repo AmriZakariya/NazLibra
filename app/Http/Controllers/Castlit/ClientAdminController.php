@@ -194,9 +194,15 @@ class ClientAdminController extends Controller
             // Clear ALL compiled caches (routes included) in-process so newly
             // added routes/controllers are picked up — proc_open is unavailable
             // on the shared host, so this runs via Artisan::call, not the CLI.
+            $migrationError = $this->migrateMaster();
             $this->runArtisan(['optimize:clear']);
             $this->resetOpcache();
             $sha = $this->masterSha();
+
+            if ($migrationError !== null) {
+                return back()->with('error', 'Code déployé'.($sha ? " (version {$sha})" : '')
+                    .', mais la migration de la base a échoué : '.$migrationError);
+            }
 
             return back()->with('success',
                 'Code déployé depuis GitHub'.($sha ? " (version {$sha})" : '')
@@ -205,6 +211,7 @@ class ClientAdminController extends Controller
         }
 
         // Clear ALL compiled caches (routes included) so the new code is served.
+        $migrationError = $this->migrateMaster();
         $this->runArtisan(['optimize:clear']);
         $this->resetOpcache();
 
@@ -216,8 +223,41 @@ class ClientAdminController extends Controller
 
         $sha = $this->masterSha();
 
+        if ($migrationError !== null) {
+            return back()->with('error', 'Code mis à jour'.($sha ? " (version {$sha})" : '')
+                .', mais la migration de la base a échoué : '.$migrationError);
+        }
+
         return back()->with('success',
             'Code mis à jour depuis Git'.($sha ? " (version {$sha})" : '').'.');
+    }
+
+    /**
+     * Migrates the MASTER's own database after new code lands.
+     *
+     * Client updates have always migrated (manage.sh runs migrate --force),
+     * but this button only cleared caches — so a change to a master table,
+     * like the origin columns on subscriptions, left every signup on the
+     * website and in the app failing on an unknown column until someone
+     * reached the host over SSH, which is what this button exists to avoid.
+     *
+     * Not best-effort like the cache clears: a failed migration is reported,
+     * because code that expects a column the database does not have is a
+     * broken site, not a slow one.
+     *
+     * @return string|null the failure, or null when it went through
+     */
+    private function migrateMaster(): ?string
+    {
+        try {
+            $code = \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+
+            return $code === 0
+                ? null
+                : (trim(\Illuminate\Support\Facades\Artisan::output()) ?: 'code de sortie '.$code);
+        } catch (\Throwable $e) {
+            return $e->getMessage();
+        }
     }
 
     /**
