@@ -130,10 +130,11 @@ class VariantController extends Controller
                 return $lines ? '<div class="space-y-0.5">'.implode('', $lines).'</div>' : '<span class="text-xs text-slate-400">—</span>';
             })
             ->addColumn('price', function (ItemVariant $variant) {
-                $price = number_format($variant->sale_price, 2, ',', ' ');
-                $cost = number_format($variant->purchase_price, 2, ',', ' ');
+                $money = \App\Support\Money::for(\App\Support\TenantContext::resolve(request()));
+                $price = $money->format($variant->sale_price);
+                $cost = $money->format($variant->purchase_price);
                 $margin = $variant->margin_percent;
-                return '<span class="text-sm font-semibold">'.$price.' DH</span><p class="text-xs text-slate-400">Achat: '.$cost.' DH</p><p class="text-xs '.($margin > 0 ? 'text-emerald-600' : 'text-rose-600').'">Marge: '.$margin.'%</p>';
+                return '<span class="text-sm font-semibold">'.$price.'</span><p class="text-xs text-slate-400">Achat: '.$cost.'</p><p class="text-xs '.($margin > 0 ? 'text-emerald-600' : 'text-rose-600').'">Marge: '.$margin.'%</p>';
             })
             ->addColumn('stock', function (ItemVariant $variant) {
                 $qty = $variant->stock_quantity;

@@ -31,6 +31,8 @@ class LoyaltyService
             'redeem_rate'       => (float) ($s['redeem_rate']       ?? 0.1),
             'min_redeem_points' => (int)   ($s['min_redeem_points'] ?? 50),
             'max_redeem_pct'    => (float) ($s['max_redeem_pct']    ?? 30.0),
+            // The shop's currency, so a message about money names the right one.
+            'currency'          => \App\Support\Money::normalizeCode($tenant->currency ?? null),
         ];
     }
 
@@ -84,7 +86,7 @@ class LoyaltyService
 
         if ($discountAmount > $maxDiscount) {
             throw new \InvalidArgumentException(
-                "Les points ne peuvent couvrir que {$cfg['max_redeem_pct']}% du total ({$maxDiscount} {$this->currencyLabel($cfg)})."
+                "Les points ne peuvent couvrir que {$cfg['max_redeem_pct']}% du total ({$this->currencyLabel($cfg, $maxDiscount)})."
             );
         }
 
@@ -220,8 +222,8 @@ class LoyaltyService
 
     // ── Private ────────────────────────────────────────────────────────────────
 
-    private function currencyLabel(array $cfg): string
+    private function currencyLabel(array $cfg, float $amount): string
     {
-        return 'MAD'; // TODO: pass currency through if multi-currency needed
+        return (new \App\Support\Money($cfg['currency'] ?? \App\Support\Money::DEFAULT_CURRENCY))->format($amount);
     }
 }

@@ -27,6 +27,10 @@ class AmountInWords
         'MAD' => ['dirham', 'dirhams', 'centime', 'centimes'],
         'EUR' => ['euro', 'euros', 'centime', 'centimes'],
         'USD' => ['dollar', 'dollars', 'cent', 'cents'],
+        'XOF' => ['franc CFA', 'francs CFA', 'centime', 'centimes'],
+        'DZD' => ['dinar', 'dinars', 'centime', 'centimes'],
+        'CHF' => ['franc', 'francs', 'centime', 'centimes'],
+        'CAD' => ['dollar', 'dollars', 'cent', 'cents'],
     ];
 
     public static function money(float|string $amount, string $currency = 'MAD'): string

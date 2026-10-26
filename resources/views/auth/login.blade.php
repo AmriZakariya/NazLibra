@@ -337,7 +337,7 @@
                                 <span class="login-feature-eyebrow">{{ $tr('Accès rapide') }}</span>
                                 <strong class="login-feature-label">{{ $tr('Caisse, catalogue et rapports') }}</strong>
                             </div>
-                            <span class="login-currency-pill">MAD · DH</span>
+                            <span class="login-currency-pill">{{ \App\Support\Money::for($tenant)->code }} · {{ \App\Support\Money::for($tenant)->symbol() }}</span>
                         </div>
                     </div>
                 </div>

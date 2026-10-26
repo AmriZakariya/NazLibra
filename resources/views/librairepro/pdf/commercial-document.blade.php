@@ -1,8 +1,11 @@
 @php
     use App\Support\AmountInWords;
 
-    $currency = $document->currency ?: 'MAD';
-    $money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' '.$currency;
+    // The document's own currency (it keeps the one it was issued in), laid
+    // out the shop's way: "12,00 €", not "12,00 EUR".
+    $currency = \App\Support\Money::normalizeCode($document->currency);
+    $documentMoney = \App\Support\Money::for($document->tenant)->withCode($currency);
+    $money = fn ($amount) => $documentMoney->format($amount);
     $date = fn ($value) => $value ? \Illuminate\Support\Carbon::parse($value)->format('d/m/Y') : '—';
     $snapshot = $document->customer_snapshot ?? [];
     $isInvoice = $documentType === 'invoice';

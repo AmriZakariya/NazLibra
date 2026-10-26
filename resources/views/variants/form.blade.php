@@ -1,4 +1,5 @@
 @php
+    $shopMoney = \App\Support\Money::for($tenant);
     $tr = $tr ?? fn (string $text): string => \App\Support\Locale::t($text, $locale ?? null);
     $isEdit = isset($variant);
     $heading = $isEdit ? $tr('Modifier la variante') : $tr('Nouvelle variante');
@@ -138,14 +139,14 @@
                             <span class="text-sm font-semibold text-slate-700 dark:text-slate-300">{{ $tr('Prix d\'achat') }} <span class="text-rose-500">*</span></span>
                             <div class="relative">
                                 <input name="purchase_price" value="{{ old('purchase_price', $variant?->purchase_price) }}" required min="0" step="0.01" type="number" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 pr-12 text-sm text-slate-950 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900 dark:text-white">
-                                <span class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400">DH</span>
+                                <span class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400">{{ $shopMoney->symbol() }}</span>
                             </div>
                         </label>
                         <label class="space-y-2">
                             <span class="text-sm font-semibold text-slate-700 dark:text-slate-300">{{ $tr('Prix de vente') }} <span class="text-rose-500">*</span></span>
                             <div class="relative">
                                 <input name="sale_price" value="{{ old('sale_price', $variant?->sale_price) }}" required min="0" step="0.01" type="number" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 pr-12 text-sm text-slate-950 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900 dark:text-white">
-                                <span class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400">DH</span>
+                                <span class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400">{{ $shopMoney->symbol() }}</span>
                             </div>
                         </label>
                         <label class="space-y-2">

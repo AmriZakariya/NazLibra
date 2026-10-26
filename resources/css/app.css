@@ -4,6 +4,9 @@
 @source '../../storage/framework/views/*.php';
 @source '../**/*.blade.php';
 @source '../**/*.js';
+/* Emails are styled inline, not with Tailwind: their dark-mode CSS would
+   otherwise add a prefers-color-scheme rule to the app. */
+@source not '../views/castlit/emails';
 
 /* L'application bascule une classe `dark` sur <html> ; sans cette ligne la
    variante `dark:` de Tailwind v4 suit `prefers-color-scheme`, c'est-à-dire le

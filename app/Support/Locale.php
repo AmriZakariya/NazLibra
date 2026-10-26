@@ -469,6 +469,7 @@ class Locale
             'Mode' => 'الوضع',
             'Multi-magasin' => 'متعدد المتاجر',
             'Devise' => 'العملة',
+            'Exemple' => 'مثال',
             'Connexion sécurisée' => 'تسجيل دخول آمن',
             'Bienvenue' => 'مرحبا',
             'Utilisez votre compte équipe pour accéder à l’espace de gestion.' => 'استعمل حساب الفريق للوصول إلى فضاء الإدارة.',
@@ -629,7 +630,7 @@ class Locale
             'Sélectionner un client' => 'اختيار زبون',
             'Créer un client rapide' => 'إنشاء زبون سريع',
             'Montant fixe ou pourcentage.' => 'مبلغ ثابت أو نسبة مئوية.',
-            'Fixe en DH' => 'ثابت بالدرهم',
+            'Montant fixe' => 'مبلغ ثابت',
             'Confirmer remise' => 'تأكيد التخفيض',
             'Vérifiez le code avant d’encaisser.' => 'تحقق من الرمز قبل التحصيل.',
             'Code coupon' => 'رمز القسيمة',
@@ -676,7 +677,7 @@ class Locale
             'La remise en pourcentage est limitée à 100%.' => 'التخفيض بالنسبة محدد بـ 100%.',
             'La remise ne peut pas dépasser le total après coupon.' => 'لا يمكن أن يتجاوز التخفيض المجموع بعد القسيمة.',
             'Pourcentage, montant appliqué' => 'نسبة مئوية، المبلغ المطبق',
-            'Fixe en DH, maximum' => 'ثابت بالدرهم، الحد الأقصى',
+            'Montant fixe, maximum' => 'مبلغ ثابت، الحد الأقصى',
             'Panier vide' => 'السلة فارغة',
 
             // Profile & Activity

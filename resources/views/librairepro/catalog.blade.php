@@ -1,5 +1,6 @@
 @php
-    $money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' DH';
+    $shopMoney = \App\Support\Money::for($tenant);
+    $money = fn ($amount): string => $shopMoney->format($amount);
     $tr = fn (string $text): string => \App\Support\Locale::t($text);
     $tzDate = fn ($date, string $fmt = 'd/m/Y H:i'): string => \App\Support\TenantClock::format($date, $tenant, $fmt);
     $requiredNoticeHtml = new \Illuminate\Support\HtmlString(str_replace(
@@ -1297,6 +1298,14 @@
         </section>
     @elseif (in_array($panel, ['articles', 'services'], true))
         <section class="mt-6 flex flex-col gap-6">
+            {{-- Services live on their own tab. A spa that imported 13 services
+                 and 12 products saw 12 rows here and thought the rest were lost. --}}
+            @if ($panel === 'articles' && ($catalogStats['services'] ?? 0) > 0)
+                <a href="{{ route('catalog', ['panel' => 'services']) }}" data-services-pointer class="flex items-center justify-between gap-3 rounded-xl border border-brand/20 bg-brand/5 px-4 py-3 text-sm text-slate-700 transition hover:bg-brand/10 dark:text-slate-200">
+                    <span><strong class="text-brand">{{ $catalogStats['services'] }} {{ $catalogStats['services'] > 1 ? 'prestations' : 'prestation' }}</strong> {{ $catalogStats['services'] > 1 ? 'sont' : 'est' }} dans l'onglet Services, pas dans cette liste d'articles.</span>
+                    <span class="shrink-0 font-semibold text-brand">Voir les services →</span>
+                </a>
+            @endif
             <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 <form action="{{ route('catalog') }}" class="flex flex-wrap items-end gap-3">
                     <input type="hidden" name="panel" value="{{ $panel }}">
@@ -1308,8 +1317,8 @@
                     <label class="block min-w-[140px] flex-[1_1_150px]"><span class="text-xs font-semibold uppercase text-slate-500">Impôt</span><select name="tax" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all">Tous</option>@foreach ($taxes as $tax)<option value="{{ $tax->id }}" @selected((string) $taxFilter === (string) $tax->id)>{{ $tax->name }}</option>@endforeach</select></label>
                     <label class="block min-w-[135px] flex-[1_1_145px]"><span class="text-xs font-semibold uppercase text-slate-500">Stock</span><select name="stock" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all" @selected($stock === 'all')>Tout</option><option value="low" @selected($stock === 'low')>Stock bas</option><option value="out" @selected($stock === 'out')>Rupture</option></select></label>
                     <label class="block min-w-[135px] flex-[1_1_145px]"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="status" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="all" @selected($status === 'all')>Tous</option><option value="active" @selected($status === 'active')>Actif</option><option value="archived" @selected($status === 'archived')>Archivé</option><option value="out_of_stock" @selected($status === 'out_of_stock')>Rupture</option></select></label>
-                    <label class="block min-w-[105px] flex-[1_1_115px]"><span class="text-xs font-semibold uppercase text-slate-500">Prix min</span><input name="min_price" value="{{ request('min_price') }}" inputmode="decimal" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Min DH"></label>
-                    <label class="block min-w-[105px] flex-[1_1_115px]"><span class="text-xs font-semibold uppercase text-slate-500">Prix max</span><input name="max_price" value="{{ request('max_price') }}" inputmode="decimal" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Max DH"></label>
+                    <label class="block min-w-[105px] flex-[1_1_115px]"><span class="text-xs font-semibold uppercase text-slate-500">Prix min</span><input name="min_price" value="{{ request('min_price') }}" inputmode="decimal" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Min ({{ $shopMoney->symbol() }})"></label>
+                    <label class="block min-w-[105px] flex-[1_1_115px]"><span class="text-xs font-semibold uppercase text-slate-500">Prix max</span><input name="max_price" value="{{ request('max_price') }}" inputmode="decimal" class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Max ({{ $shopMoney->symbol() }})"></label>
                     <div class="grid min-w-[180px] flex-[0_1_220px] grid-cols-2 gap-2 max-sm:flex-1">
                         <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white" type="submit">Filtrer</button>
                         <a href="{{ route('catalog', ['panel' => $panel]) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Reset</a>
@@ -1993,7 +2002,7 @@
                         </div>
                         <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">Un choix fait au moment de la vente, qui change le prix et le ticket.</p>
                         <ul class="mt-3 space-y-1.5 text-sm">
-                            <li class="flex gap-2"><span class="text-slate-400">·</span> <strong>Supplément fromage</strong> +5 DH</li>
+                            <li class="flex gap-2"><span class="text-slate-400">·</span> <strong>Supplément fromage</strong> +5 {{ $shopMoney->symbol() }}</li>
                             <li class="flex gap-2"><span class="text-slate-400">·</span> <strong>Sans oignon</strong>, <strong>emballage cadeau</strong></li>
                         </ul>
                         <p class="mt-3 text-xs text-slate-500">Peut consommer le stock d'un <em>autre</em> article (le fromage), mais n'en a pas pour elle-même.</p>
@@ -2168,7 +2177,7 @@
                             <form action="{{ route('catalog.modifiers.store', $group) }}" method="POST" class="mt-3 grid gap-2 lg:grid-cols-[1.4fr_110px_1.4fr_110px_auto]">
                                 @csrf
                                 <input name="name" required maxlength="120" placeholder="Fromage" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                <input name="price_delta" type="number" step="0.01" value="0" placeholder="+/- DH" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                <input name="price_delta" type="number" step="0.01" value="0" placeholder="+/- {{ $shopMoney->symbol() }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                                 <select name="linked_item_id" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                                     <option value="">Ne consomme aucun stock</option>
                                     @foreach ($variantItems as $candidate)

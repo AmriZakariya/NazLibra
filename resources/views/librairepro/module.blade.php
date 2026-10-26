@@ -1,5 +1,6 @@
 @php
-    $money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' DH';
+    $shopMoney = \App\Support\Money::for($tenant);
+    $money = fn ($amount): string => $shopMoney->format($amount);
     $pageTitle = $meta['title'];
     $locale = \App\Support\Locale::current($tenant);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
@@ -103,7 +104,7 @@
                                 </div>
                                 <div class="flex flex-wrap gap-2">
                                     <x-status-pill tone="primary">{{ $nextSaleNumber ?? 'BL' }}</x-status-pill>
-                                    <x-status-pill tone="info">MAD · DH</x-status-pill>
+                                    <x-status-pill tone="info">{{ $shopMoney->code }} · {{ $shopMoney->symbol() }}</x-status-pill>
                                     @if ($manualSaleSource)
                                         <x-status-pill tone="warning">Source {{ $manualSaleSource->number }}</x-status-pill>
                                     @endif
@@ -133,7 +134,7 @@
                         <div class="overflow-x-auto">
                             <table class="w-full min-w-[1080px] text-left text-sm manual-sale-lines">
                                 <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
-                                    <tr><th class="px-3 py-3">Article *</th><th class="px-3 py-3 w-24">Qté</th><th class="px-3 py-3 w-32">Prix DH</th><th class="px-3 py-3 w-32">Remise</th><th class="px-3 py-3 w-28">Taxe</th><th class="px-3 py-3">Description</th><th class="px-3 py-3 w-32 text-right">Total</th></tr>
+                                    <tr><th class="px-3 py-3">Article *</th><th class="px-3 py-3 w-24">Qté</th><th class="px-3 py-3 w-32">Prix ({{ $shopMoney->symbol() }})</th><th class="px-3 py-3 w-32">Remise</th><th class="px-3 py-3 w-28">Taxe</th><th class="px-3 py-3">Description</th><th class="px-3 py-3 w-32 text-right">Total</th></tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                                     @for ($i = 0; $i < max(8, $manualSalePrefillLines->count()); $i++)
@@ -150,7 +151,7 @@
                                             <td class="px-3 py-3"><input name="items[{{ $i }}][discount_amount]" data-manual-sale-line-discount value="{{ old("items.$i.discount_amount", $prefillLine?->discount_amount ?? 0) }}" type="number" min="0" step="0.01" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></td>
                                             <td class="px-3 py-3"><input name="items[{{ $i }}][tax_rate]" data-manual-sale-tax value="{{ old("items.$i.tax_rate", $prefillTaxRate) }}" type="number" min="0" max="100" step="0.01" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></td>
                                             <td class="px-3 py-3"><input name="items[{{ $i }}][description]" value="{{ old("items.$i.description", $prefillDescription ?: ($prefillLine ? 'Depuis '.$manualSaleReference : null)) }}" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Description / note ligne"></td>
-                                            <td class="px-3 py-3 text-right font-semibold" data-manual-sale-line-total>0,00 DH</td>
+                                            <td class="px-3 py-3 text-right font-semibold" data-manual-sale-line-total>{{ $money(0) }}</td>
                                         </tr>
                                     @endfor
                                 </tbody>
@@ -162,8 +163,8 @@
                         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                             <h3 class="font-semibold">Remises, charges & note</h3>
                             <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale DH</span><input name="discount_amount" data-manual-sale-discount value="{{ old('discount_amount', $manualSaleInvoice?->document_discount_total ?? $manualSaleOrderDocumentDiscount) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Autres charges DH</span><input name="other_charges" data-manual-sale-charges value="{{ old('other_charges', $manualSaleInvoice?->fee_total ?? 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale ({{ $shopMoney->symbol() }})</span><input name="discount_amount" data-manual-sale-discount value="{{ old('discount_amount', $manualSaleInvoice?->document_discount_total ?? $manualSaleOrderDocumentDiscount) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Autres charges ({{ $shopMoney->symbol() }})</span><input name="other_charges" data-manual-sale-charges value="{{ old('other_charges', $manualSaleInvoice?->fee_total ?? 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                 <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Note</span><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Conditions, commentaire, école, classe...">{{ old('note', $manualSaleSource ? 'Vente créée depuis '.$manualSaleSource->number.($manualSaleOrder?->customer_note ? ' · '.$manualSaleOrder->customer_note : '') : null) }}</textarea></label>
                             </div>
                         </div>
@@ -199,13 +200,13 @@
                     <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                         <h3 class="font-semibold">Résumé vente</h3>
                         <dl class="mt-4 space-y-3 text-sm">
-                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold" data-manual-sale-subtotal>0,00 DH</dd></div>
-                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Remises</dt><dd class="font-semibold" data-manual-sale-discount-total>0,00 DH</dd></div>
-                            <div class="flex justify-between gap-3"><dt class="text-slate-500">TVA incluse</dt><dd class="font-semibold" data-manual-sale-tax-total>0,00 DH</dd></div>
-                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Autres charges</dt><dd class="font-semibold" data-manual-sale-charges-total>0,00 DH</dd></div>
-                            <div class="flex justify-between gap-3 border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-semibold">Total</dt><dd class="font-bold" data-manual-sale-total>0,00 DH</dd></div>
-                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Payé</dt><dd class="font-semibold text-emerald-600" data-manual-sale-paid>0,00 DH</dd></div>
-                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Reste</dt><dd class="font-semibold text-rose-600" data-manual-sale-due>0,00 DH</dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold" data-manual-sale-subtotal>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Remises</dt><dd class="font-semibold" data-manual-sale-discount-total>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-slate-500">TVA incluse</dt><dd class="font-semibold" data-manual-sale-tax-total>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Autres charges</dt><dd class="font-semibold" data-manual-sale-charges-total>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between gap-3 border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-semibold">Total</dt><dd class="font-bold" data-manual-sale-total>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Payé</dt><dd class="font-semibold text-emerald-600" data-manual-sale-paid>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between gap-3"><dt class="text-slate-500">Reste</dt><dd class="font-semibold text-rose-600" data-manual-sale-due>{{ $money(0) }}</dd></div>
                         </dl>
                     </div>
                     <div class="hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03] xl:block">
@@ -248,7 +249,7 @@
                                     <select name="items[{{ $i }}][item_id]" data-quote-item data-searchable-select data-placeholder="Rechercher article..." class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value=""></option>@foreach ($quoteItems as $item)<option value="{{ $item->id }}" data-price="{{ $item->sale_price }}">{{ $item->title }} · {{ $money($item->sale_price) }} · stock {{ $item->type === 'service' ? '∞' : $item->stock_quantity }}</option>@endforeach</select>
                                     <input name="items[{{ $i }}][quantity]" data-quote-qty type="number" min="1" value="1" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-center dark:border-white/10 dark:bg-slate-900">
                                     <input name="items[{{ $i }}][unit_price]" data-quote-price type="number" min="0" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900">
-                                    <div class="flex h-10 items-center justify-end rounded-lg bg-slate-50 px-3 text-sm font-semibold dark:bg-white/5" data-quote-line-total>0,00 DH</div>
+                                    <div class="flex h-10 items-center justify-end rounded-lg bg-slate-50 px-3 text-sm font-semibold dark:bg-white/5" data-quote-line-total>{{ $money(0) }}</div>
                                     <button type="button" class="quote-remove-line grid size-10 place-items-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Retirer"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
                                 </div>
                             @endfor
@@ -256,17 +257,17 @@
                     </div>
                     <div class="grid gap-4 lg:grid-cols-[1fr_200px]">
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note / Conditions</span><textarea name="note" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Conditions, délai, commentaire...">{{ old('note') }}</textarea></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale (DH)</span><input name="discount_amount" data-quote-discount value="{{ old('discount_amount', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><span class="block text-xs text-slate-500">La TVA incluse (20%) sera calculée automatiquement.</span></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale ({{ $shopMoney->symbol() }})</span><input name="discount_amount" data-quote-discount value="{{ old('discount_amount', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><span class="block text-xs text-slate-500">La TVA incluse (20%) sera calculée automatiquement.</span></label>
                     </div>
                 </form>
                 <aside class="space-y-4">
                     <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                         <h3 class="font-semibold">Récapitulatif</h3>
                         <dl class="mt-4 space-y-3 text-sm">
-                            <div class="flex justify-between"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold" data-quote-summary-subtotal>0,00 DH</dd></div>
-                            <div class="flex justify-between"><dt class="text-slate-500">Remise</dt><dd class="font-semibold text-rose-600" data-quote-summary-discount>0,00 DH</dd></div>
-                            <div class="flex justify-between"><dt class="text-slate-500">TVA (20%)</dt><dd class="font-semibold" data-quote-summary-tax>0,00 DH</dd></div>
-                            <div class="flex justify-between border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-semibold">Total TTC</dt><dd class="font-bold text-brand" data-quote-summary-total>0,00 DH</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold" data-quote-summary-subtotal>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Remise</dt><dd class="font-semibold text-rose-600" data-quote-summary-discount>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">TVA (20%)</dt><dd class="font-semibold" data-quote-summary-tax>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-semibold">Total TTC</dt><dd class="font-bold text-brand" data-quote-summary-total>{{ $money(0) }}</dd></div>
                         </dl>
                     </article>
                     <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -591,7 +592,7 @@
                             @endforeach
                         </select>
                         <select name="method" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="cash">Espèces</option><option value="card">Carte</option><option value="transfer">Virement</option><option value="advance">Avance</option></select>
-                        <input name="amount" inputmode="decimal" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Montant DH" required>
+                        <input name="amount" inputmode="decimal" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Montant ({{ $shopMoney->symbol() }})" required>
                         <input name="reference" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Référence">
                         <input name="note" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note">
                         <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Ajouter</button>
@@ -779,8 +780,8 @@
                         <option value="advance" @selected(request('payment_method') === 'advance')>Avance</option>
                         <option value="mixed" @selected(request('payment_method') === 'mixed')>Mixte</option>
                     </select>
-                    <input name="min_total" value="{{ request('min_total') }}" inputmode="decimal" class="h-11 min-w-[105px] flex-[1_1_110px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Min DH">
-                    <input name="max_total" value="{{ request('max_total') }}" inputmode="decimal" class="h-11 min-w-[105px] flex-[1_1_110px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Max DH">
+                    <input name="min_total" value="{{ request('min_total') }}" inputmode="decimal" class="h-11 min-w-[105px] flex-[1_1_110px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Min ({{ $shopMoney->symbol() }})">
+                    <input name="max_total" value="{{ request('max_total') }}" inputmode="decimal" class="h-11 min-w-[105px] flex-[1_1_110px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Max ({{ $shopMoney->symbol() }})">
                     <select name="per_page" class="h-11 min-w-[120px] flex-[0_1_130px] rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-900" onchange="this.form.submit()">
                         @foreach ([10, 25, 50, 100] as $pageSize)
                             <option value="{{ $pageSize }}" @selected((int) ($salesPerPage ?? 25) === $pageSize)>{{ $pageSize }} / page</option>
@@ -2039,8 +2040,8 @@
                                     <select name="lines[{{ $i }}][item_id]" data-quote-item data-searchable-select data-placeholder="Rechercher article..." class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value=""></option>@foreach ($quoteItems as $item)<option value="{{ $item->id }}" data-price="{{ $item->sale_price }}">{{ $item->title }} · {{ $money($item->sale_price) }} · stock {{ $item->type === 'service' ? '∞' : $item->stock_quantity }}</option>@endforeach</select>
                                     <input name="lines[{{ $i }}][quantity]" data-quote-qty type="number" min="1" value="1" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-center dark:border-white/10 dark:bg-slate-900">
                                     <input name="lines[{{ $i }}][unit_price]" data-quote-price type="number" min="0" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900">
-                                    <input name="lines[{{ $i }}][discount_value]" data-quote-discount-line type="number" min="0" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900" placeholder="DH">
-                                    <div class="flex h-10 items-center justify-end rounded-lg bg-slate-50 px-3 text-sm font-semibold dark:bg-white/5" data-quote-line-total>0,00 DH</div>
+                                    <input name="lines[{{ $i }}][discount_value]" data-quote-discount-line type="number" min="0" step="0.01" class="h-10 rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900" placeholder="{{ $shopMoney->symbol() }}">
+                                    <div class="flex h-10 items-center justify-end rounded-lg bg-slate-50 px-3 text-sm font-semibold dark:bg-white/5" data-quote-line-total>{{ $money(0) }}</div>
                                     <button type="button" class="quote-remove-line grid size-10 place-items-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600" title="Retirer"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
                                     <input type="hidden" name="lines[{{ $i }}][discount_type]" value="fixed">
                                     <input type="hidden" name="lines[{{ $i }}][tax_rate]" value="20">
@@ -2050,8 +2051,8 @@
                     </div>
                     <div class="grid gap-4 lg:grid-cols-[1fr_200px_200px]">
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Message client</span><textarea name="customer_message" class="min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Message...">{{ old('customer_message') }}</textarea></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale (DH)</span><input name="document_discount_value" data-quote-discount value="{{ old('document_discount_value', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Frais (DH)</span><input name="fee_total" value="{{ old('fee_total', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale ({{ $shopMoney->symbol() }})</span><input name="document_discount_value" data-quote-discount value="{{ old('document_discount_value', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Frais ({{ $shopMoney->symbol() }})</span><input name="fee_total" value="{{ old('fee_total', 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                     </div>
                     <input type="hidden" name="document_discount_type" value="fixed">
                     <div class="grid gap-4 lg:grid-cols-2">
@@ -2063,10 +2064,10 @@
                     <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                         <h3 class="font-semibold">Récapitulatif</h3>
                         <dl class="mt-4 space-y-3 text-sm">
-                            <div class="flex justify-between"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold" data-quote-summary-subtotal>0,00 DH</dd></div>
-                            <div class="flex justify-between"><dt class="text-slate-500">Remise</dt><dd class="font-semibold text-rose-600" data-quote-summary-discount>0,00 DH</dd></div>
-                            <div class="flex justify-between"><dt class="text-slate-500">TVA (20%)</dt><dd class="font-semibold" data-quote-summary-tax>0,00 DH</dd></div>
-                            <div class="flex justify-between border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-semibold">Total TTC</dt><dd class="font-bold text-brand" data-quote-summary-total>0,00 DH</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold" data-quote-summary-subtotal>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Remise</dt><dd class="font-semibold text-rose-600" data-quote-summary-discount>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">TVA (20%)</dt><dd class="font-semibold" data-quote-summary-tax>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-semibold">Total TTC</dt><dd class="font-bold text-brand" data-quote-summary-total>{{ $money(0) }}</dd></div>
                         </dl>
                     </article>
                     <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -2203,11 +2204,11 @@
                                     <label class="block"><span class="block text-xs font-semibold uppercase text-slate-500 lg:hidden">Remise</span>
                                         <div class="mt-1 flex lg:mt-0">
                                             <input name="lines[{{ $i }}][discount_value]" data-invoice-discount-line type="number" min="0" step="0.01" value="{{ data_get($line, 'discount_value') }}" class="h-11 w-full min-w-0 rounded-l-lg border border-slate-200 px-2 text-sm text-right dark:border-white/10 dark:bg-slate-900" placeholder="0">
-                                            <button type="button" data-invoice-discount-toggle class="h-11 shrink-0 rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 px-2 text-xs font-bold text-slate-600 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300" title="Basculer remise fixe / pourcentage">{{ data_get($line, 'discount_type', 'fixed') === 'percentage' ? '%' : 'DH' }}</button>
+                                            <button type="button" data-invoice-discount-toggle class="h-11 shrink-0 rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 px-2 text-xs font-bold text-slate-600 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300" title="Basculer remise fixe / pourcentage">{{ data_get($line, 'discount_type', 'fixed') === 'percentage' ? '%' : $shopMoney->symbol() }}</button>
                                         </div>
                                     </label>
                                     <label class="block"><span class="block text-xs font-semibold uppercase text-slate-500 lg:hidden">TVA</span><input name="lines[{{ $i }}][tax_rate]" data-invoice-tax type="number" min="0" max="100" step="0.01" value="{{ data_get($line, 'tax_rate', 0) }}" class="mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm text-right dark:border-white/10 dark:bg-slate-900 lg:mt-0"></label>
-                                    <div class="flex h-11 items-center justify-between gap-3 rounded-lg bg-slate-100 px-3 text-sm font-semibold text-slate-900 dark:bg-white/10 dark:text-slate-100"><span class="text-xs uppercase text-slate-500 lg:hidden">Total</span><span data-invoice-line-total>0,00 DH</span></div>
+                                    <div class="flex h-11 items-center justify-between gap-3 rounded-lg bg-slate-100 px-3 text-sm font-semibold text-slate-900 dark:bg-white/10 dark:text-slate-100"><span class="text-xs uppercase text-slate-500 lg:hidden">Total</span><span data-invoice-line-total>{{ $money(0) }}</span></div>
                                     <button type="button" class="invoice-remove-line grid size-11 place-items-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-500/10" title="Retirer"><svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
                                     <input type="hidden" name="lines[{{ $i }}][discount_type]" data-invoice-discount-type value="{{ data_get($line, 'discount_type', 'fixed') }}">
                                     <input type="hidden" name="lines[{{ $i }}][tax_inclusive]" data-invoice-tax-inclusive value="{{ data_get($line, 'tax_inclusive', 0) ? 1 : 0 }}">
@@ -2222,10 +2223,10 @@
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Remise globale</span>
                             <div class="flex">
                                 <input name="document_discount_value" data-invoice-discount value="{{ old('document_discount_value', $editInvoice?->document_discount_value ?? 0) }}" type="number" min="0" step="0.01" class="h-11 w-full min-w-0 rounded-l-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                                <button type="button" data-invoice-doc-discount-toggle class="h-11 shrink-0 rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300" title="Basculer remise fixe / pourcentage">{{ $docDiscountPercentage ? '%' : 'DH' }}</button>
+                                <button type="button" data-invoice-doc-discount-toggle class="h-11 shrink-0 rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-600 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300" title="Basculer remise fixe / pourcentage">{{ $docDiscountPercentage ? '%' : $shopMoney->symbol() }}</button>
                             </div>
                         </label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Frais (DH)</span><input name="fee_total" data-invoice-fee value="{{ old('fee_total', $editInvoice?->fee_total ?? 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Frais ({{ $shopMoney->symbol() }})</span><input name="fee_total" data-invoice-fee value="{{ old('fee_total', $editInvoice?->fee_total ?? 0) }}" type="number" min="0" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                     </div>
                     <input type="hidden" name="document_discount_type" data-invoice-doc-discount-type value="{{ $docDiscountPercentage ? 'percentage' : 'fixed' }}">
                     <div class="grid gap-4 lg:grid-cols-3">
@@ -2241,11 +2242,11 @@
                             <span class="rounded-full bg-brand/10 px-2.5 py-1 text-[11px] font-bold text-brand">Live</span>
                         </div>
                         <dl class="mt-4 space-y-3 text-sm">
-                            <div class="flex justify-between"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold" data-invoice-summary-subtotal>0,00 DH</dd></div>
-                            <div class="flex justify-between"><dt class="text-slate-500">Remise</dt><dd class="font-semibold text-rose-600" data-invoice-summary-discount>0,00 DH</dd></div>
-                            <div class="flex justify-between"><dt class="text-slate-500">TVA</dt><dd class="font-semibold" data-invoice-summary-tax>0,00 DH</dd></div>
-                            <div class="flex justify-between"><dt class="text-slate-500">Frais</dt><dd class="font-semibold" data-invoice-summary-fees>0,00 DH</dd></div>
-                            <div class="flex justify-between border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-semibold">Total TTC</dt><dd class="font-bold text-brand" data-invoice-summary-total>0,00 DH</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Sous-total</dt><dd class="font-semibold" data-invoice-summary-subtotal>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Remise</dt><dd class="font-semibold text-rose-600" data-invoice-summary-discount>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">TVA</dt><dd class="font-semibold" data-invoice-summary-tax>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between"><dt class="text-slate-500">Frais</dt><dd class="font-semibold" data-invoice-summary-fees>{{ $money(0) }}</dd></div>
+                            <div class="flex justify-between border-t border-slate-200 pt-3 text-lg dark:border-white/10"><dt class="font-semibold">Total TTC</dt><dd class="font-bold text-brand" data-invoice-summary-total>{{ $money(0) }}</dd></div>
                         </dl>
                         <button type="button" onclick="this.closest('[data-invoice-screen]').querySelector('[data-invoice-submit]')?.click()" class="mt-5 w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">{{ $isEditingInvoice ? 'Enregistrer' : 'Créer la facture' }}</button>
                     </article>
@@ -2627,8 +2628,8 @@
                                         </div>
                                     </div>
                                     <label><span>Qté</span><input name="items[{{ $lineIndex }}][quantity]" data-purchase-item-quantity type="number" min="1" value="{{ data_get($line, 'quantity', 1) }}"></label>
-                                    <label><span>Coût DH</span><input name="items[{{ $lineIndex }}][unit_cost]" data-purchase-item-cost type="number" min="0" step="0.01" value="{{ data_get($line, 'unit_cost', $oldPurchaseItem?->purchase_price ?? 0) }}"></label>
-                                    <div class="purchase-item-line-total"><span>Ligne</span><strong data-purchase-item-line-total>0,00 DH</strong></div>
+                                    <label><span>Coût ({{ $shopMoney->symbol() }})</span><input name="items[{{ $lineIndex }}][unit_cost]" data-purchase-item-cost type="number" min="0" step="0.01" value="{{ data_get($line, 'unit_cost', $oldPurchaseItem?->purchase_price ?? 0) }}"></label>
+                                    <div class="purchase-item-line-total"><span>Ligne</span><strong data-purchase-item-line-total>{{ $money(0) }}</strong></div>
                                     <button type="button" class="purchase-item-remove" data-purchase-item-remove>Retirer</button>
                                 </div>
                             @empty
@@ -2640,7 +2641,7 @@
                         </div>
                         <div class="purchase-item-footer">
                             <span><strong data-purchase-item-selected>{{ $purchaseOldLines->count() }}</strong> ligne(s)</span>
-                            <span>Total estimé <strong data-purchase-item-total>0,00 DH</strong></span>
+                            <span>Total estimé <strong data-purchase-item-total>{{ $money(0) }}</strong></span>
                         </div>
                         <template data-purchase-item-template>
                             <div class="purchase-item-row" data-purchase-item-row data-item-id="">
@@ -2653,8 +2654,8 @@
                                     </div>
                                 </div>
                                 <label><span>Qté</span><input name="items[__INDEX__][quantity]" data-purchase-item-quantity type="number" min="1" value="1"></label>
-                                <label><span>Coût DH</span><input name="items[__INDEX__][unit_cost]" data-purchase-item-cost type="number" min="0" step="0.01" value="0"></label>
-                                <div class="purchase-item-line-total"><span>Ligne</span><strong data-purchase-item-line-total>0,00 DH</strong></div>
+                                <label><span>Coût ({{ $shopMoney->symbol() }})</span><input name="items[__INDEX__][unit_cost]" data-purchase-item-cost type="number" min="0" step="0.01" value="0"></label>
+                                <div class="purchase-item-line-total"><span>Ligne</span><strong data-purchase-item-line-total>{{ $money(0) }}</strong></div>
                                 <button type="button" class="purchase-item-remove" data-purchase-item-remove>Retirer</button>
                             </div>
                         </template>
@@ -3543,7 +3544,7 @@
                     </div>
                     <div class="grid gap-4 lg:grid-cols-2">
                         <label class="space-y-1.5 lg:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Client requis</span><select name="contact_id" required data-searchable-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Sélectionner un client</option>@foreach ($financeClients as $client)<option value="{{ $client->id }}" @selected(old('contact_id') == $client->id)>{{ $client->code ?? 'CL' }} · {{ $client->name }} · solde avance {{ $money($client->advance_balance) }}</option>@endforeach</select></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Montant DH requis</span><input name="amount" value="{{ old('amount') }}" required type="number" min="0.01" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="0,00"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Montant ({{ $shopMoney->symbol() }}) requis</span><input name="amount" value="{{ old('amount') }}" required type="number" min="0.01" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="0,00"></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date de paiement</span><input name="paid_at" value="{{ old('paid_at', now()->format('Y-m-d\TH:i')) }}" type="datetime-local" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Mode de paiement</span><select name="payment_method" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="cash" @selected(old('payment_method') === 'cash')>Espèces</option><option value="card" @selected(old('payment_method') === 'card')>Carte</option><option value="transfer" @selected(old('payment_method') === 'transfer')>Virement</option><option value="cheque" @selected(old('payment_method') === 'cheque')>Chèque</option><option value="other" @selected(old('payment_method') === 'other')>Autre</option></select></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Référence</span><input name="reference" value="{{ old('reference') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Reçu, virement, chèque..."></label>
@@ -3636,12 +3637,12 @@
             </section>
         @elseif ($financeSection === 'deposits')
             <section class="mt-6 grid gap-6 xl:grid-cols-[380px_1fr]">
-                <form action="{{ route('accounts.deposits.store') }}" method="POST" class="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">@csrf<h2 class="text-lg font-semibold">Nouveau dépôt</h2><select name="financial_account_id" required data-searchable-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Compte destination</option>@foreach($financialAccounts->where('is_active', true) as $account)<option value="{{ $account->id }}">{{ $account->name }} · {{ $money($account->current_balance) }}</option>@endforeach</select><input name="amount" required type="number" min="0.01" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Montant DH"><select name="payment_method" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="cash">Espèces</option><option value="card">Carte</option><option value="transfer">Virement</option><option value="cheque">Chèque</option><option value="other">Autre</option></select><input name="transacted_at" type="datetime-local" value="{{ now()->format('Y-m-d\TH:i') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="reference" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Référence"><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note"></textarea><button class="w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">Enregistrer dépôt</button></form>
+                <form action="{{ route('accounts.deposits.store') }}" method="POST" class="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">@csrf<h2 class="text-lg font-semibold">Nouveau dépôt</h2><select name="financial_account_id" required data-searchable-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Compte destination</option>@foreach($financialAccounts->where('is_active', true) as $account)<option value="{{ $account->id }}">{{ $account->name }} · {{ $money($account->current_balance) }}</option>@endforeach</select><input name="amount" required type="number" min="0.01" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Montant ({{ $shopMoney->symbol() }})"><select name="payment_method" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="cash">Espèces</option><option value="card">Carte</option><option value="transfer">Virement</option><option value="cheque">Chèque</option><option value="other">Autre</option></select><input name="transacted_at" type="datetime-local" value="{{ now()->format('Y-m-d\TH:i') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="reference" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Référence"><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note"></textarea><button class="w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">Enregistrer dépôt</button></form>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">@include('librairepro.partials.account-transactions-table', ['transactions' => $accountTransactions, 'money' => $money])</article>
             </section>
         @elseif ($financeSection === 'transfers')
             <section class="mt-6 grid gap-6 xl:grid-cols-[420px_1fr]">
-                <form action="{{ route('accounts.transfers.store') }}" method="POST" class="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">@csrf<h2 class="text-lg font-semibold">Nouveau transfert d'argent</h2><select name="from_account_id" required data-searchable-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Compte source</option>@foreach($financialAccounts->where('is_active', true) as $account)<option value="{{ $account->id }}">{{ $account->name }} · {{ $money($account->current_balance) }}</option>@endforeach</select><select name="to_account_id" required data-searchable-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Compte destination</option>@foreach($financialAccounts->where('is_active', true) as $account)<option value="{{ $account->id }}">{{ $account->name }} · {{ $money($account->current_balance) }}</option>@endforeach</select><input name="amount" required type="number" min="0.01" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Montant DH"><input name="transacted_at" type="datetime-local" value="{{ now()->format('Y-m-d\TH:i') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="reference" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Référence"><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note"></textarea><button class="w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">Transférer</button></form>
+                <form action="{{ route('accounts.transfers.store') }}" method="POST" class="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">@csrf<h2 class="text-lg font-semibold">Nouveau transfert d'argent</h2><select name="from_account_id" required data-searchable-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Compte source</option>@foreach($financialAccounts->where('is_active', true) as $account)<option value="{{ $account->id }}">{{ $account->name }} · {{ $money($account->current_balance) }}</option>@endforeach</select><select name="to_account_id" required data-searchable-select class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Compte destination</option>@foreach($financialAccounts->where('is_active', true) as $account)<option value="{{ $account->id }}">{{ $account->name }} · {{ $money($account->current_balance) }}</option>@endforeach</select><input name="amount" required type="number" min="0.01" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Montant ({{ $shopMoney->symbol() }})"><input name="transacted_at" type="datetime-local" value="{{ now()->format('Y-m-d\TH:i') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="reference" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Référence"><textarea name="note" class="min-h-24 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note"></textarea><button class="w-full rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white">Transférer</button></form>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">@include('librairepro.partials.account-transactions-table', ['transactions' => $accountTransactions, 'money' => $money])</article>
             </section>
         @elseif ($financeSection === 'cash')
@@ -3664,7 +3665,7 @@
                     <div class="grid gap-4 lg:grid-cols-2">
                         <label class="space-y-1.5 lg:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Libellé requis</span><input name="label" value="{{ old('label') }}" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Ex: Transport fournisseur, loyer, internet..."></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Catégorie requise</span><input name="category" value="{{ old('category') }}" required list="expense-category-options" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Choisir ou saisir une catégorie"><datalist id="expense-category-options">@foreach ($expenseCategories as $category)<option value="{{ $category->name }}">@if($category->icon){{ $category->icon }} @endif{{ $category->name }}</option>@endforeach</datalist></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Montant DH requis</span><input name="amount" value="{{ old('amount') }}" required type="number" min="0.01" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="0,00"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Montant ({{ $shopMoney->symbol() }}) requis</span><input name="amount" value="{{ old('amount') }}" required type="number" min="0.01" step="0.01" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="0,00"></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date</span><input name="spent_at" value="{{ old('spent_at', now()->toDateString()) }}" type="date" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Paiement</span><select name="payment_method" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="cash">Espèces</option><option value="card">Carte</option><option value="transfer">Virement</option><option value="cheque">Chèque</option><option value="other">Autre</option></select></label>
                         <label class="space-y-1.5 lg:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Référence</span><input name="reference" value="{{ old('reference') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Laisser vide pour auto-génération (DEP-REF-XXXXX)"></label>
@@ -4473,7 +4474,7 @@
                                 </div>
                                 <div class="mt-4 grid gap-3 text-sm">
                                     <div class="settings-info-row"><span>Magasin courant</span><strong>{{ $currentStore['name'] ?? $tenant->name }}</strong></div>
-                                    <div class="settings-info-row"><span>Devise</span><strong>{{ strtoupper($tenant->currency) }} · DH</strong></div>
+                                    <div class="settings-info-row"><span>Devise</span><strong>{{ $shopMoney->code }} · {{ $shopMoney->symbol() }}</strong></div>
                                     <div class="settings-info-row"><span>Fuseau</span><strong>{{ $tenantTimezoneLabel }}</strong></div>
                                     <div class="settings-info-row"><span>Langues</span><strong>Français · العربية</strong></div>
                                 </div>
@@ -5022,7 +5023,14 @@
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Format date</span><select name="date_format" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach(['dd/mm/yyyy','dd-mm-yyyy','mm-dd-yyyy','yyyy-mm-dd'] as $format)<option value="{{ $format }}" @selected(old('date_format', $companyProfile['date_format']) === $format)>{{ $format }}</option>@endforeach</select></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Format heure</span><select name="time_format" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="24" @selected(old('time_format', $companyProfile['time_format']) === '24')>24 heures</option><option value="12" @selected(old('time_format', $companyProfile['time_format']) === '12')>12 heures</option></select></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Langue</span><select name="language_id" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="fr" @selected(old('language_id', $companyProfile['language_id']) === 'fr')>Français</option><option value="ar" @selected(old('language_id', $companyProfile['language_id']) === 'ar')>العربية</option><option value="en" @selected(old('language_id', $companyProfile['language_id']) === 'en')>English</option></select></label>
-                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Devise</span><input name="currency" required maxlength="3" value="{{ old('currency', strtoupper($companyProfile['currency'])) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm uppercase dark:border-white/10 dark:bg-slate-900"></label>
+                                @php
+                                    $currencyValue = strtoupper((string) old('currency', $companyProfile['currency']));
+                                    $currencyOptions = \App\Support\Money::NAMES;
+                                    if ($currencyValue !== '' && ! isset($currencyOptions[$currencyValue])) {
+                                        $currencyOptions[$currencyValue] = $currencyValue;
+                                    }
+                                @endphp
+                                <label id="currency" class="space-y-1.5 scroll-mt-24"><span class="text-xs font-semibold uppercase text-slate-500">Devise</span><select name="currency" required class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach ($currencyOptions as $code => $name)<option value="{{ $code }}" @selected($currencyValue === $code)>{{ $code }} · {{ \App\Support\Money::symbolFor($code) }} — {{ $name }}</option>@endforeach</select><span class="block text-xs text-slate-500">Changer la devise ne convertit pas les prix : seul le symbole affiché change.</span></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Placement devise</span><select name="currency_placement" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="Right" @selected(old('currency_placement', $companyProfile['currency_placement']) === 'Right')>Droite</option><option value="Left" @selected(old('currency_placement', $companyProfile['currency_placement']) === 'Left')>Gauche</option></select></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Décimales prix</span><input name="decimals" type="number" min="0" max="4" value="{{ old('decimals', $companyProfile['decimals']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Décimales quantité</span><input name="qty_decimals" type="number" min="0" max="4" value="{{ old('qty_decimals', $companyProfile['qty_decimals']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>

@@ -1,4 +1,5 @@
 @php
+    $shopMoney = \App\Support\Money::for($tenant);
     $tr = $tr ?? fn (string $text): string => \App\Support\Locale::t($text, $locale ?? null);
     $statusLabels = [
         'active' => 'Actif',
@@ -138,11 +139,11 @@
                 <div class="mt-4 grid gap-4 sm:grid-cols-3">
                     <div class="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-500/20 dark:bg-emerald-500/10">
                         <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600">{{ $tr('Prix de vente') }}</p>
-                        <p class="mt-1 text-2xl font-bold text-emerald-700 dark:text-emerald-300">{{ number_format($variant->sale_price, 2, ',', ' ') }} <span class="text-sm font-normal">DH</span></p>
+                        <p class="mt-1 text-2xl font-bold text-emerald-700 dark:text-emerald-300">{{ $shopMoney->number($variant->sale_price) }} <span class="text-sm font-normal">{{ $shopMoney->symbol() }}</span></p>
                     </div>
                     <div class="rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-white/5 dark:bg-slate-900">
                         <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $tr('Prix d\'achat') }}</p>
-                        <p class="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-200">{{ number_format($variant->purchase_price, 2, ',', ' ') }} <span class="text-sm font-normal">DH</span></p>
+                        <p class="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-200">{{ $shopMoney->number($variant->purchase_price) }} <span class="text-sm font-normal">{{ $shopMoney->symbol() }}</span></p>
                     </div>
                     @if ($variant->margin_percent > 0)
                         <div class="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 dark:border-indigo-500/20 dark:bg-indigo-500/10">

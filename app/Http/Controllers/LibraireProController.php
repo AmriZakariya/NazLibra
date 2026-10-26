@@ -62,6 +62,7 @@ use App\Support\AppModules;
 use App\Support\BusinessMode;
 use App\Support\ItemTypes;
 use App\Support\Locale;
+use App\Support\Money;
 use App\Support\TenantContext;
 use App\Support\TenantClock;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -2501,6 +2502,7 @@ class LibraireProController extends Controller
         $created = 0;
         $updated = 0;
         $skipped = 0;
+        $services = 0;
 
         // ── Pre-cache all lookup tables (eliminates N×4 per-row queries) ─────────
         $catCache   = Category::where('tenant_id', $tenant->id)->get()->keyBy(fn ($c) => Str::slug($c->name));
@@ -2609,7 +2611,7 @@ class LibraireProController extends Controller
             $byBarcode, $byIsbn, $byCode,
             $resolveCat, $resolveBrand, $resolveUnit, $resolveTax, $resolveNextCode,
             $defaultMinStock,
-            &$ledgerQtyMap, &$created, &$updated, &$skipped,
+            &$ledgerQtyMap, &$created, &$updated, &$skipped, &$services,
         ) {
             foreach ($rows as $row) {
                 $title = trim((string) $this->rowValue($row, ['title', 'titre', 'name', 'nom', 'item_name', 'nom_article', 'nom_de_l_article']));
@@ -2621,6 +2623,9 @@ class LibraireProController extends Controller
                 [$taxName, $taxRate] = $this->taxParts((string) ($this->rowValue($row, ['tax', 'tax_name', 'taxe', 'impot']) ?: 'Sans TVA'), $this->rowValue($row, ['tax_rate', 'tax_value', 'taux_taxe']));
                 $tax  = $resolveTax($taxName, (float) $taxRate);
                 $type = $this->importedItemType($row, $data['kind']);
+                if ($type === 'service') {
+                    $services++;
+                }
                 $stock = $type === 'service' ? 9999 : (int) $this->decimalValue($this->rowValue($row, ['stock', 'stock_quantity', 'opening_stock', 'stock_ouverture']));
 
                 $barcode  = trim((string) $this->rowValue($row, ['barcode', 'custom_barcode', 'code_barres', 'code_de_barre'])) ?: null;
@@ -2733,7 +2738,14 @@ class LibraireProController extends Controller
             }
         });
 
-        return back()->with('status', "{$created} créée(s), {$updated} mise(s) à jour, {$skipped} ignorée(s).");
+        $message = "{$created} créée(s), {$updated} mise(s) à jour, {$skipped} ignorée(s).";
+        // Services do not show in the Articles list; say where they went.
+        $articles = $created + $updated - $services;
+        if ($services > 0 && $data['kind'] !== 'services') {
+            $message .= " Dont {$articles} article(s) dans l'onglet Articles et {$services} prestation(s) dans l'onglet Services.";
+        }
+
+        return back()->with('status', $message);
     }
 
     public function importExample(string $kind)
@@ -4677,7 +4689,7 @@ class LibraireProController extends Controller
                         ])->values()->all(),
                         'cogs' => [
                             'total' => round($totalCogs, 4),
-                            'currency' => 'MAD',
+                            'currency' => Money::normalizeCode($tenant->currency),
                         ],
                         'discount' => [
                             'amount' => $discount,
@@ -4754,7 +4766,7 @@ class LibraireProController extends Controller
                         'amount' => $allocatedAmount,
                         'paid_at' => now(),
                         'reference' => $sale->number,
-                        'note' => $method === 'cash' && $amount > $allocatedAmount ? 'Paiement POS · reçu '.number_format($amount, 2, ',', ' ').' DH' : 'Paiement POS',
+                        'note' => $method === 'cash' && $amount > $allocatedAmount ? 'Paiement POS · reçu '.$this->money($amount) : 'Paiement POS',
                     ]);
                     $remainingPaymentToAllocate = max(0, round($remainingPaymentToAllocate - $allocatedAmount, 2));
                 }
@@ -5185,7 +5197,7 @@ class LibraireProController extends Controller
                         'delivery_note' => $data['delivery_note'] ?? null,
                         'cogs' => [
                             'total' => round($totalCogs, 4),
-                            'currency' => 'MAD',
+                            'currency' => Money::normalizeCode($tenant->currency),
                         ],
                         'system_note' => $this->saleSystemNote($tenant, $saleNumber, 'manual_sale', $contact, count($saleLines), $total, $paymentMethod, $status, $soldAt, $data['reference_number'] ?? null),
                         'note' => $data['note'] ?? null,
@@ -5928,7 +5940,7 @@ class LibraireProController extends Controller
             $amount = round((float) $data['amount'], 2);
             if ($amount - $remaining > 0.001) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    'amount' => 'Le montant reçu ne peut pas dépasser le reste à payer ('.number_format($remaining, 2, ',', ' ').' DH).',
+                    'amount' => 'Le montant reçu ne peut pas dépasser le reste à payer ('.$this->money($remaining).').',
                 ]);
             }
 
@@ -7137,7 +7149,7 @@ class LibraireProController extends Controller
 
             if ($amount > $remaining + 0.001) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    'amount' => 'Le montant ne peut pas dépasser le reste à payer ('.number_format($remaining, 2, ',', ' ').' DH).',
+                    'amount' => 'Le montant ne peut pas dépasser le reste à payer ('.$this->money($remaining).').',
                 ]);
             }
 
@@ -9428,7 +9440,7 @@ class LibraireProController extends Controller
         $storeName = $this->currentStore($tenant)['name'] ?? $tenant->name;
         $userName = auth()->user()?->name ?? 'Système';
         $clientName = $contact?->name ?? 'Client comptoir';
-        $formattedTotal = number_format($total, 2, ',', ' ').' DH';
+        $formattedTotal = $this->money($total);
         $referenceText = $reference ? ' Référence: '.$reference.'.' : '';
 
         return "Note système: vente {$saleNumber} créée automatiquement depuis {$sourceLabel} le ".$soldAt->format('d/m/Y H:i')." par {$userName}. Client: {$clientName}. {$lineCount} ligne(s), total {$formattedTotal}, paiement {$paymentMethod}, statut {$statusLabel}, magasin {$storeName}.{$referenceText}";
@@ -11190,7 +11202,7 @@ class LibraireProController extends Controller
 
     private function money(float|int|string|null $amount): string
     {
-        return number_format((float) $amount, 2, ',', ' ').' DH';
+        return Money::for($this->tenant())->format($amount);
     }
 
     private function purchaseStatusBadge(?string $status): string

@@ -1,14 +1,12 @@
 import DataTable from 'datatables.net-dt';
 import 'datatables.net-dt/css/dataTables.dataTables.css';
 import './hardware.js';
+import { currencySymbol, formatMoney } from './money.js';
 
 window.DataTable = DataTable;
 
-const money = new Intl.NumberFormat('fr-MA', {
-    style: 'currency',
-    currency: 'MAD',
-    currencyDisplay: 'narrowSymbol',
-});
+// In the shop's currency (window.appCurrency), the way the server writes it.
+const money = { format: formatMoney };
 
 const appLocale = document.documentElement.dataset.locale || window.libraireProLocale || 'fr';
 const translations = window.libraireProTranslations || {};
@@ -1336,7 +1334,7 @@ document.querySelectorAll('[data-quote-form]').forEach((form) => {
     const summaryTax = form.querySelector('[data-quote-summary-tax]');
     const summaryTotal = form.querySelector('[data-quote-summary-total]');
 
-    const fmt = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' DH';
+    const fmt = formatMoney;
 
     const recalc = () => {
         let subtotal = 0;
@@ -1392,7 +1390,7 @@ document.querySelectorAll('[data-quote-form]').forEach((form) => {
             const name = el.getAttribute('name');
             if (name) el.setAttribute('name', name.replace(/(lines|items)\[\d+\]/, `$1[${idx}]`));
             if (el.tagName === 'INPUT' && el.type !== 'hidden') el.value = el.type === 'number' && el.dataset.quoteQty ? '1' : '';
-            if (el.dataset.quoteLineTotal) el.textContent = '0,00 DH';
+            if (el.dataset.quoteLineTotal) el.textContent = formatMoney(0);
         });
         clone.querySelectorAll('[data-searchable-select]').forEach((el) => el.classList.remove('choices--enabled'));
         linesContainer.appendChild(clone);
@@ -1409,7 +1407,7 @@ document.querySelectorAll('[data-quote-form]').forEach((form) => {
             const row = btn.closest('.quote-line');
             row.querySelectorAll('input:not([type="hidden"])').forEach((el) => { el.value = ''; });
             row.querySelectorAll('select').forEach((el) => { el.value = ''; });
-            row.querySelector('[data-quote-line-total]').textContent = '0,00 DH';
+            row.querySelector('[data-quote-line-total]').textContent = formatMoney(0);
         } else {
             btn.closest('.quote-line').remove();
         }
@@ -1435,7 +1433,7 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
     const summaryFees = invoiceScope.querySelector('[data-invoice-summary-fees]');
     const summaryTotal = invoiceScope.querySelector('[data-invoice-summary-total]');
 
-    const fmt = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' DH';
+    const fmt = formatMoney;
     const searchEndpoint = linesContainer?.dataset.productSearchUrl;
     const searchCache = new Map();
     let searchAbort;
@@ -1575,7 +1573,7 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
                             <strong>${escapeHtml(item.title)}</strong>
                             <small>${escapeHtml(compactMeta([item.code, item.type_label, item.category, item.brand, stock]))}</small>
                         </span>
-                        <em>${escapeHtml(item.price || '0,00 DH')}</em>
+                        <em>${escapeHtml(item.price || formatMoney(0))}</em>
                     </button>`;
                 }).join('')}
             </div>
@@ -1724,13 +1722,13 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
                 el.value = '';
             }
         });
-        clone.querySelector('[data-invoice-line-total]').textContent = '0,00 DH';
+        clone.querySelector('[data-invoice-line-total]').textContent = formatMoney(0);
         clone.querySelector('[data-invoice-selected-item]')?.classList.add('hidden');
         clone.querySelector('[data-invoice-item-results]')?.classList.add('hidden');
         clone.querySelector('[data-invoice-item-search]')?.removeAttribute('data-invoice-search-ready');
         // Reset the new per-line controls to their defaults (fixed discount, HT).
         const cloneDiscountToggle = clone.querySelector('[data-invoice-discount-toggle]');
-        if (cloneDiscountToggle) cloneDiscountToggle.textContent = 'DH';
+        if (cloneDiscountToggle) cloneDiscountToggle.textContent = currencySymbol();
         clone.querySelectorAll('[data-invoice-tax-mode]').forEach((b) => {
             const on = b.dataset.invoiceTaxMode === '0';
             b.classList.toggle('bg-brand', on);
@@ -1778,7 +1776,7 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
             });
             renderSelectedItem(row, null);
             row.querySelector('[data-invoice-item-results]')?.classList.add('hidden');
-            row.querySelector('[data-invoice-line-total]').textContent = '0,00 DH';
+            row.querySelector('[data-invoice-line-total]').textContent = formatMoney(0);
         } else {
             btn.closest('.invoice-line').remove();
         }
@@ -1790,14 +1788,14 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
         form.querySelectorAll('[data-invoice-item-results]').forEach((panel) => panel.classList.add('hidden'));
     });
 
-    // ── Discount-type (DH/%) and HT/TTC toggles ──────────────────────────────
+    // ── Discount-type (amount/%) and HT/TTC toggles ──────────────────────────────
     form.addEventListener('click', (event) => {
         const lineToggle = event.target.closest('[data-invoice-discount-toggle]');
         if (lineToggle) {
             const hidden = lineToggle.closest('.invoice-line')?.querySelector('[data-invoice-discount-type]');
             if (hidden) {
                 hidden.value = hidden.value === 'percentage' ? 'fixed' : 'percentage';
-                lineToggle.textContent = hidden.value === 'percentage' ? '%' : 'DH';
+                lineToggle.textContent = hidden.value === 'percentage' ? '%' : currencySymbol();
                 recalc();
             }
             return;
@@ -1806,7 +1804,7 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
         const docToggle = event.target.closest('[data-invoice-doc-discount-toggle]');
         if (docToggle && docDiscountTypeInput) {
             docDiscountTypeInput.value = docDiscountTypeInput.value === 'percentage' ? 'fixed' : 'percentage';
-            docToggle.textContent = docDiscountTypeInput.value === 'percentage' ? '%' : 'DH';
+            docToggle.textContent = docDiscountTypeInput.value === 'percentage' ? '%' : currencySymbol();
             recalc();
             return;
         }
@@ -3029,7 +3027,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         if (discountHelper) {
             const appliedText = total.discountType === 'percentage'
                 ? translate('Pourcentage, montant appliqué') + ' ' + money.format(total.discount)
-                : translate('Fixe en DH, maximum') + ' ' + money.format(Math.max(0, total.subtotal - total.couponAmount));
+                : translate('Montant fixe, maximum') + ' ' + money.format(Math.max(0, total.subtotal - total.couponAmount));
             if (selectedDiscountRule()) {
                 updateDiscountDraftHelper();
             } else if (!discountDraftDirty) {

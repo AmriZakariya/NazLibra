@@ -1,5 +1,6 @@
 @php
-    $money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' DH';
+    $shopMoney = \App\Support\Money::for($tenant);
+    $money = fn ($amount): string => $shopMoney->format($amount);
     $labelClass = [
         'small' => 'label-small',
         'medium' => 'label-medium',

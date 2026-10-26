@@ -1,6 +1,7 @@
 @php
     $tr = fn (string $text) => \App\Support\Locale::t($text);
-    $money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' DH';
+    $shopMoney = \App\Support\Money::for($tenant);
+    $money = fn ($amount): string => $shopMoney->format($amount);
     $maxTrend = max(1, (float) $salesTrend->max('total'));
     $maxPayment = max(1, (float) $paymentBreakdown->max('total'));
     $maxTopItem = max(1, (float) $topItems->max('quantity'));
@@ -112,7 +113,7 @@
                     <h2 class="text-base font-semibold">{{ $tr('Revenus par jour') }}</h2>
                     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $tr('Affiche jusqu’à 31 jours et garde les journées sans vente visibles.') }}</p>
                 </div>
-                <x-status-pill tone="info">MAD</x-status-pill>
+                <x-status-pill tone="info">{{ $shopMoney->code }}</x-status-pill>
             </div>
 
             <div class="mt-6 grid min-h-72 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">

@@ -132,4 +132,36 @@ class ImportItemTypeTest extends TestCase
             }
         }
     }
+
+    /**
+     * A spa imported 13 services and 12 products, saw 12 rows in Articles and
+     * thought the rest were lost: services live on their own tab.
+     */
+    public function test_a_mixed_import_says_where_the_services_went(): void
+    {
+        $csv = "Code de barre,Nom de l'article,Catégorie/Type d'élément,Unité,Stock,Prix de vente,Statut,Type d'élément\n"
+            .'9900000000001,"Massage test 60 min","SOINS[ITEM]",Service,0,350,Active,Service'."\n"
+            .'9900000000002,"Soin visage test","SOINS[ITEM]",Service,0,300,Active,Service'."\n"
+            .'9900000000003,"Shampooing test 250ml","PRODUITS[ITEM]",Pièce,24,280,Active,Article'."\n";
+        $path = tempnam(sys_get_temp_dir(), 'import-mixed-').'.csv';
+        file_put_contents($path, $csv);
+
+        $this->actingAs($this->owner)
+            ->post(route('catalog.import'), [
+                'kind' => 'items',
+                'catalog_file' => new UploadedFile($path, 'catalogue.csv', null, null, true),
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', fn (string $message): bool => str_contains($message, '3 créée(s)')
+                && str_contains($message, "1 article(s) dans l'onglet Articles")
+                && str_contains($message, "2 prestation(s) dans l'onglet Services"));
+
+        $services = Item::where('tenant_id', $this->tenant->id)->where('type', 'service')->count();
+        $this->assertGreaterThanOrEqual(2, $services);
+
+        $this->get(route('catalog', ['panel' => 'articles']))
+            ->assertOk()
+            ->assertSee('data-services-pointer', false)
+            ->assertSee("dans l'onglet Services", false);
+    }
 }

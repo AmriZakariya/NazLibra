@@ -137,7 +137,7 @@
                             <label class="cash-register-choice is-out"><input class="sr-only" type="radio" name="type" value="cash_out"><span>Sortie<small>Retrait ou dépense</small></span></label>
                             <label class="cash-register-choice"><input class="sr-only" type="radio" name="type" value="correction"><span>Correction<small>Écart contrôlé</small></span></label>
                         </div>
-                        <input name="amount" required type="number" step="0.01" min="0.01" class="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Montant DH">
+                        <input name="amount" required type="number" step="0.01" min="0.01" class="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Montant ({{ $shopMoney->symbol() }})">
                         <input name="reference" class="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Référence optionnelle">
                         <textarea name="note" required class="min-h-24 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Motif obligatoire"></textarea>
                         <button class="w-full rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white">Enregistrer mouvement</button>

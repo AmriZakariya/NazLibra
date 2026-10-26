@@ -4,6 +4,8 @@
  * on Windows devices via Web Serial API.
  */
 
+import { formatReceiptMoney } from './money.js';
+
 const ESC = 0x1B;
 const GS = 0x1D;
 
@@ -77,7 +79,7 @@ const Hardware = {
         const { storeName, serialNumber, ticketNumber, date, items, subtotal, discount, coupon, total, paid, change, paymentMethod, note, createdBy, updatedBy } = data;
         const width = 32;
         const separator = '-'.repeat(width);
-        const money = (value) => `${Number(value || 0).toFixed(2)} DH`;
+        const money = formatReceiptMoney;
         const clean = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
         const fit = (value, length) => clean(value).slice(0, length).padEnd(length);
         const line = (label, value) => {

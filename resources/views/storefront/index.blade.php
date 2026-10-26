@@ -1,5 +1,6 @@
 @php
-    $money = fn ($value): string => number_format((float) $value, 2, ',', ' ').' DH';
+    $shopMoney = \App\Support\Money::for($tenant);
+    $money = fn ($value): string => $shopMoney->format($value);
     $theme = data_get($tenant->settings, 'theme', []);
     $primary = $theme['primary'] ?? '#3157D5';
     $accent = $theme['accent'] ?? '#0F9F8A';
@@ -172,11 +173,11 @@
                                         <div class="grid grid-cols-2 gap-2">
                                             <label class="block">
                                                 <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">{{ __('storefront.min_price') }}</span>
-                                                <div class="relative"><input name="min_price" type="number" step="0.01" min="0" value="{{ $minPrice !== null ? number_format($minPrice, 2, '.', '') : '' }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15" placeholder="0"><span class="pointer-events-none absolute right-3 top-3 text-xs font-bold text-slate-400">DH</span></div>
+                                                <div class="relative"><input name="min_price" type="number" step="0.01" min="0" value="{{ $minPrice !== null ? number_format($minPrice, 2, '.', '') : '' }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15" placeholder="0"><span class="pointer-events-none absolute right-3 top-3 text-xs font-bold text-slate-400">{{ $shopMoney->symbol() }}</span></div>
                                             </label>
                                             <label class="block">
                                                 <span class="mb-1 block text-[11px] font-black uppercase tracking-wide text-slate-500">{{ __('storefront.max_price') }}</span>
-                                                <div class="relative"><input name="max_price" type="number" step="0.01" min="0" value="{{ $maxPrice !== null ? number_format($maxPrice, 2, '.', '') : '' }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15" placeholder="999"><span class="pointer-events-none absolute right-3 top-3 text-xs font-bold text-slate-400">DH</span></div>
+                                                <div class="relative"><input name="max_price" type="number" step="0.01" min="0" value="{{ $maxPrice !== null ? number_format($maxPrice, 2, '.', '') : '' }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15" placeholder="999"><span class="pointer-events-none absolute right-3 top-3 text-xs font-bold text-slate-400">{{ $shopMoney->symbol() }}</span></div>
                                             </label>
                                         </div>
 
@@ -452,7 +453,7 @@
                 <div class="border-y border-slate-200 bg-slate-50 p-5">
                     <div class="flex items-center justify-between text-sm text-slate-500">
                         <span>{{ __('storefront.subtotal') }}</span>
-                        <strong class="text-2xl text-slate-950" data-cart-total>0,00 DH</strong>
+                        <strong class="text-2xl text-slate-950" data-cart-total>{{ $money(0) }}</strong>
                     </div>
                     <p class="mt-2 text-xs leading-5 text-slate-500">{{ __('storefront.stock_not_reserved') }}</p>
                 </div>
@@ -498,7 +499,7 @@
 
     <button type="button" data-mobile-cart-jump class="fixed bottom-3 left-3 right-3 z-40 flex items-center justify-between rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white shadow-2xl shadow-slate-900/25 lg:hidden">
         <span class="inline-flex items-center gap-2">{{ __('storefront.cart') }} <span class="grid min-w-6 place-items-center rounded-full bg-white px-2 py-0.5 text-xs text-slate-950" data-cart-count>0</span></span>
-        <span data-mobile-cart-total>0,00 DH</span>
+        <span data-mobile-cart-total>{{ $money(0) }}</span>
     </button>
 
     <div class="fixed bottom-20 left-4 right-4 z-50 hidden rounded-2xl bg-slate-950 px-4 py-3 text-sm font-bold text-white shadow-xl sm:left-auto sm:w-[360px] lg:bottom-4" data-store-toast></div>
@@ -508,7 +509,7 @@
             const key = @json($cartKey);
             const profileKey = @json($profileKey);
             const i18n = @json($storefrontMessages);
-            const money = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'MAD' });
+            const currency = @json($shopMoney->toJs());
             const linesNode = document.querySelector('[data-cart-lines]');
             const inputsNode = document.querySelector('[data-cart-inputs]');
             const totalNode = document.querySelector('[data-cart-total]');
@@ -535,7 +536,12 @@
                 .replaceAll('"', '&quot;')
                 .replaceAll("'", '&#039;');
 
-            const formatMoney = (value) => money.format(value).replace('MAD', 'DH');
+            // Same layout as the server's App\Support\Money: "1 250,00 €".
+            const formatMoney = (value) => {
+                const [whole, cents] = Number(value || 0).toFixed(currency.decimals).split('.');
+                const number = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (cents ? `,${cents}` : '');
+                return currency.placement === 'Left' ? `${currency.symbol} ${number}` : `${number} ${currency.symbol}`;
+            };
 
             const normalizePhone = (value) => {
                 const digits = String(value || '').replace(/\D+/g, '');

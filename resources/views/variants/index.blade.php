@@ -1,4 +1,5 @@
 @php
+    $shopMoney = \App\Support\Money::for($tenant);
     $tr = $tr ?? fn (string $text): string => \App\Support\Locale::t($text, $locale ?? null);
     $method = $request->method();
     $activeFilters = collect($filters)->filter(fn ($v) => $v !== '' && $v !== null && $v !== 'all');
@@ -259,8 +260,8 @@
                                 </div>
                             </td>
                             <td class="px-5 py-4">
-                                <p class="text-sm font-semibold text-slate-800 dark:text-slate-200">{{ number_format($variant->sale_price, 2, ',', ' ') }} DH</p>
-                                <p class="text-xs text-slate-400">Achat: {{ number_format($variant->purchase_price, 2, ',', ' ') }} DH</p>
+                                <p class="text-sm font-semibold text-slate-800 dark:text-slate-200">{{ $shopMoney->format($variant->sale_price) }}</p>
+                                <p class="text-xs text-slate-400">Achat: {{ $shopMoney->format($variant->purchase_price) }}</p>
                                 @if ($variant->margin_percent > 0)
                                     <p class="text-xs text-emerald-600">Marge: {{ $variant->margin_percent }}%</p>
                                 @endif

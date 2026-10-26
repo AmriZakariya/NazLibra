@@ -34,7 +34,8 @@
     $layoutCurrentStore = $layoutStores->firstWhere('key', (string) data_get($tenant->settings, 'current_store'))
         ?? $layoutStores->firstWhere('is_default', true)
         ?? $layoutStores->first();
-    $layoutMoney = fn ($amount): string => number_format((float) $amount, 2, ',', ' ').' DH';
+    $shopMoney = \App\Support\Money::for($tenant);
+    $layoutMoney = fn ($amount): string => $shopMoney->format($amount);
     $virtualDevicesEnabled = (bool) data_get($tenant->settings, 'features.virtual_devices', false);
     $showCashDrawerNavbar = (bool) data_get($tenant->settings, 'pos.show_cash_drawer_navbar', true) && ($enabledModules['cash_register'] ?? true);
     $layoutCashRegisterSession = $showCashDrawerNavbar
@@ -107,6 +108,8 @@
         </script>
         <script>
             window.libraireProLocale = @json($locale);
+            // The shop's currency for resources/js/money.js, as App\Support\Money formats it.
+            window.appCurrency = @json($shopMoney->toJs());
             window.libraireProTranslations = @json($locale === 'ar' ? \App\Support\Locale::arabic() : []);
         </script>
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -726,6 +729,14 @@
                                         <span class="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">{{ $tr('Heure locale') }}: {{ $accountCurrentTime }}</span>
                                     </span>
                                 <span class="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand">{{ $accountTimezoneOffset }}</span>
+                            </a>
+                            <a href="{{ route('module', ['module' => 'settings', 'section' => 'company']) }}#currency" class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10" data-account-currency>
+                                <span class="min-w-0">
+                                    <span class="block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr('Devise') }}</span>
+                                    <strong class="mt-0.5 block truncate text-slate-900 dark:text-white">{{ $shopMoney->name() }}</strong>
+                                    <span class="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">{{ $tr('Exemple') }} : {{ $shopMoney->format(1250) }}</span>
+                                </span>
+                                <span class="shrink-0 rounded-full bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand">{{ $shopMoney->code }} · {{ $shopMoney->symbol() }}</span>
                             </a>
                             <a href="{{ route('module', ['module' => 'settings', 'section' => 'store']) }}" class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
                                 <span class="min-w-0">

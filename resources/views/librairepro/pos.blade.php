@@ -1,5 +1,6 @@
 @php
-    $money = fn ($amount) => number_format((float) $amount, 2, ',', ' ').' DH';
+    $shopMoney = \App\Support\Money::for($tenant);
+    $money = fn ($amount): string => $shopMoney->format($amount);
     $tr = fn ($text) => \App\Support\Locale::t($text);
     $businessMode = \App\Support\BusinessMode::current($tenant);
     $productTypes = ['all' => 'Tous', 'book' => 'Livres', 'supply' => 'Papeterie', 'service' => 'Services'];
@@ -548,7 +549,7 @@
                                 </label>
                                 <div class="grid grid-cols-[86px_minmax(0,1fr)] gap-2">
                                     <select class="pos-discount-type-draft h-11 rounded-lg border border-slate-200 bg-white px-2 text-sm font-bold text-slate-700 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
-                                        <option value="fixed" @selected($resumeDiscountType === 'fixed')>DH</option>
+                                        <option value="fixed" @selected($resumeDiscountType === 'fixed')>{{ $shopMoney->symbol() }}</option>
                                         <option value="percentage" @selected(in_array($resumeDiscountType, ['percentage', 'percent'], true))>%</option>
                                     </select>
                                     <input value="{{ $resumeDiscountValue }}" min="0" step="0.01" type="number" class="pos-discount-draft h-11 w-full rounded-lg border border-slate-200 px-3 text-base font-semibold dark:border-white/10 dark:bg-slate-900" placeholder="0">
@@ -556,7 +557,7 @@
                                     <input name="discount_value" value="{{ $resumeDiscountValue }}" type="hidden" class="pos-discount-value">
                                     <input name="discount_amount" value="0" type="hidden" class="pos-discount-amount">
                                 </div>
-                                <span class="pos-discount-helper mt-2 block text-xs font-semibold text-slate-500">{{ $tr('Fixe en DH') }}</span>
+                                <span class="pos-discount-helper mt-2 block text-xs font-semibold text-slate-500">{{ $tr('Montant fixe') }} ({{ $shopMoney->symbol() }})</span>
                                 <span class="pos-discount-rule-helper mt-1 block text-xs font-semibold text-slate-500"></span>
                                 <div class="mt-3 grid grid-cols-[1fr_1.35fr] gap-2">
                                     <button class="pos-discount-reset rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold dark:border-white/10" type="button">{{ $tr('Réinitialiser') }}</button>
@@ -600,13 +601,13 @@
 
                 <section class="pos-payment-footer rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-white/10 dark:bg-slate-950">
                     <div class="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-                        <div class="flex justify-between text-slate-500"><span>{{ $tr('Sous-total') }}</span><span class="pos-subtotal">0,00 DH</span></div>
-                        <div class="flex justify-between text-slate-500"><span>TVA</span><span class="pos-tax">0,00 DH</span></div>
-                        <div class="flex justify-between text-slate-500"><span>{{ $tr('Coupon') }}</span><span class="pos-coupon-label">0,00 DH</span></div>
-                        <div class="flex justify-between text-slate-500"><span>{{ $tr('Remise') }}</span><span class="pos-discount-label">0,00 DH</span></div>
-                        <div class="flex justify-between text-slate-500"><span>{{ $tr('Monnaie') }}</span><span class="pos-change">0,00 DH</span></div>
-                        <div class="col-span-2 flex justify-between text-base font-semibold"><span>{{ $tr('Total') }}</span><span class="pos-total">0,00 DH</span></div>
-                        <div class="col-span-2 flex justify-between text-xs font-semibold"><span>{{ $tr('Reste à payer') }}</span><span class="pos-remaining text-rose-600">0,00 DH</span></div>
+                        <div class="flex justify-between text-slate-500"><span>{{ $tr('Sous-total') }}</span><span class="pos-subtotal">{{ $money(0) }}</span></div>
+                        <div class="flex justify-between text-slate-500"><span>TVA</span><span class="pos-tax">{{ $money(0) }}</span></div>
+                        <div class="flex justify-between text-slate-500"><span>{{ $tr('Coupon') }}</span><span class="pos-coupon-label">{{ $money(0) }}</span></div>
+                        <div class="flex justify-between text-slate-500"><span>{{ $tr('Remise') }}</span><span class="pos-discount-label">{{ $money(0) }}</span></div>
+                        <div class="flex justify-between text-slate-500"><span>{{ $tr('Monnaie') }}</span><span class="pos-change">{{ $money(0) }}</span></div>
+                        <div class="col-span-2 flex justify-between text-base font-semibold"><span>{{ $tr('Total') }}</span><span class="pos-total">{{ $money(0) }}</span></div>
+                        <div class="col-span-2 flex justify-between text-xs font-semibold"><span>{{ $tr('Reste à payer') }}</span><span class="pos-remaining text-rose-600">{{ $money(0) }}</span></div>
                     </div>
 
                     <div class="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">

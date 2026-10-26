@@ -284,7 +284,7 @@
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Type de remise</span>
     <select name="discount_type" class="{{ $select }}">
-        @foreach (['Percentage' => 'Pourcentage (%)', 'Fixed' => 'Montant fixe (DH)'] as $value => $label)
+        @foreach (['Percentage' => 'Pourcentage (%)', 'Fixed' => 'Montant fixe ('.$shopMoney->symbol().')'] as $value => $label)
             <option value="{{ $value }}" @selected(old('discount_type', $item?->discount_type ?? 'Percentage') === $value)>{{ $label }}</option>
         @endforeach
     </select>

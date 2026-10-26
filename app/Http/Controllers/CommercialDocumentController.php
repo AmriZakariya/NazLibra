@@ -7,6 +7,7 @@ use App\Models\Invoice;
 use App\Services\Documents\DocumentBranding;
 use App\Services\Documents\EstimateService;
 use App\Services\Documents\InvoiceService;
+use App\Support\Money;
 use App\Support\TenantContext;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
@@ -57,9 +58,9 @@ class CommercialDocumentController extends Controller
             })
             ->editColumn('issue_date', fn (Invoice $invoice): string => $invoice->issue_date?->format('d/m/Y') ?? '—')
             ->editColumn('due_date', fn (Invoice $invoice): string => $invoice->due_date?->format('d/m/Y') ?? '—')
-            ->editColumn('total', fn (Invoice $invoice): string => $this->money($invoice->total))
-            ->editColumn('amount_paid', fn (Invoice $invoice): string => '<span class="text-emerald-600 dark:text-emerald-300">'.$this->money($invoice->amount_paid).'</span>')
-            ->editColumn('balance_due', fn (Invoice $invoice): string => $this->money($invoice->balance_due))
+            ->editColumn('total', fn (Invoice $invoice): string => $this->money($invoice->total, $invoice->currency))
+            ->editColumn('amount_paid', fn (Invoice $invoice): string => '<span class="text-emerald-600 dark:text-emerald-300">'.$this->money($invoice->amount_paid, $invoice->currency).'</span>')
+            ->editColumn('balance_due', fn (Invoice $invoice): string => $this->money($invoice->balance_due, $invoice->currency))
             ->addColumn('status_badge', fn (Invoice $invoice): string => $this->invoiceStatusBadge($invoice, $statusLabels[$invoice->status] ?? $invoice->status))
             ->addColumn('creator_name', fn (Invoice $invoice): string => e($invoice->creator?->name ?? '—'))
             ->addColumn('action', fn (Invoice $invoice): string => $this->invoiceActionMenu($invoice))
@@ -364,9 +365,10 @@ class CommercialDocumentController extends Controller
         abort_unless($estimate->tenant_id === $tenant->id, 404);
     }
 
-    private function money(mixed $amount): string
+    /** In the document's own currency — the one it was issued in. */
+    private function money(mixed $amount, ?string $currency = null): string
     {
-        return number_format((float) $amount, 2, ',', ' ').' DH';
+        return Money::for(TenantContext::require(request()))->withCode($currency)->format($amount);
     }
 
     private function invoiceStatusBadge(Invoice $invoice, string $label): string
