@@ -19,6 +19,20 @@
     @keyframes livepulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
     @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
     .step-now { font-weight: 700; }
+    .acc-sum { font-size: 14px; line-height: 1.6; margin: 8px 0 12px; }
+    .acc-never { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
+    .acc-bad { color: var(--err); font-weight: 650; }
+    .acc-scroll { overflow-x: auto; margin: 0 -20px; padding: 0 20px; }
+    .acc-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .acc-tbl th { text-align: start; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 8px 10px 8px 0; border-bottom: 1px solid var(--sand); }
+    .acc-tbl td { padding: 9px 10px 9px 0; border-bottom: 1px solid color-mix(in srgb, var(--sand) 55%, transparent); vertical-align: top; }
+    .acc-tbl tr.is-bad td { color: var(--err); }
+    .acc-tbl .nowrap { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .acc-tbl .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .acc-id { color: var(--muted); font-size: 11.5px; margin-inline-start: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .acc-ch { display: inline-flex; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+    .acc-app { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
+    .acc-web { background: var(--ok-bg); color: var(--ok); }
     .fail-banner { background: var(--err-bg); color: var(--err); border: 1px solid color-mix(in srgb, var(--err) 30%, transparent); border-radius: 12px; padding: 12px 14px; font-size: 14px; font-weight: 600; margin-bottom: 16px; }
     .detail { padding: 34px 0 0; max-width: 860px; margin: 0 auto; }
     .back { color: var(--muted); font-size: 13.5px; font-weight: 600; }
@@ -125,6 +139,53 @@
                             @endif
                             @if ($subscription->install->provisioned_at)
                                 <div class="kv"><span class="k">Mis en ligne</span><span class="v">{{ $subscription->install->provisioned_at->format('d/m/Y H:i') }}</span></div>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Every time the verification code was entered, right or
+                         wrong: proof the client reached their space, and from
+                         what. --}}
+                    <div class="card" id="connexions">
+                        <h2>Connexions à l'espace</h2>
+                        <div class="body">
+                            @if ($access && $access['last'])
+                                <p class="acc-sum">
+                                    <strong>{{ $access['count'] }}</strong> accès avec le bon code,
+                                    depuis <strong>{{ $access['devices'] }}</strong> {{ $access['devices'] > 1 ? 'appareils' : 'appareil' }}
+                                    · dernier {{ $access['last']->created_at->locale('fr')->diffForHumans() }}
+                                    @if ($access['failed'] > 0)
+                                        · <span class="acc-bad">{{ $access['failed'] }} code{{ $access['failed'] > 1 ? 's' : '' }} erroné{{ $access['failed'] > 1 ? 's' : '' }} sur 30 jours</span>
+                                    @endif
+                                </p>
+                            @else
+                                <p class="acc-sum"><span class="acc-never">Jamais connecté</span>
+                                    — le code d'accès n'a encore été saisi ni dans l'application ni sur le web.
+                                    @if (($access['failed'] ?? 0) > 0)
+                                        <span class="acc-bad">{{ $access['failed'] }} tentative{{ $access['failed'] > 1 ? 's' : '' }} avec un mauvais code.</span>
+                                    @endif
+                                </p>
+                            @endif
+
+                            @if ($accessEvents->isNotEmpty())
+                                <div class="acc-scroll">
+                                    <table class="acc-tbl">
+                                        <thead><tr><th>Date</th><th>Canal</th><th>Appareil</th><th>Adresse IP</th><th>Résultat</th></tr></thead>
+                                        <tbody>
+                                            @foreach ($accessEvents as $e)
+                                                <tr class="{{ $e->outcome === 'ok' ? '' : 'is-bad' }}" data-outcome="{{ $e->outcome }}">
+                                                    <td class="nowrap">{{ $e->created_at->format('d/m/Y H:i') }}</td>
+                                                    <td><span class="acc-ch acc-{{ $e->channel }}">{{ $e->channel === 'web' ? 'Web' : 'App' }}</span></td>
+                                                    <td>{{ $e->device_label ?? '—' }}
+                                                        @if ($e->device_id)<span class="acc-id" title="Identifiant de l'appareil">#{{ substr($e->device_id, 0, 6) }}</span>@endif
+                                                    </td>
+                                                    <td class="nowrap mono">{{ $e->ip ?? '—' }}</td>
+                                                    <td class="nowrap">{{ ['ok' => 'Code valide', 'invalid' => 'Code erroné', 'blocked' => 'Espace suspendu', 'unknown' => 'Inconnu'][$e->outcome] ?? $e->outcome }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
                             @endif
                         </div>
                     </div>

@@ -61,6 +61,17 @@
     .accode-btn.copied { border-color: var(--ok); color: var(--ok); }
     .origins strong { color: var(--ink); font-variant-numeric: tabular-nums; }
     .pager { margin-top: 18px; }
+    /* Connexions: has the client reached their space (access journal). */
+    .acc { font-size: 12.5px; line-height: 1.45; min-width: 150px; }
+    .acc-when { display: flex; align-items: center; gap: 7px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+    .acc-ch { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; }
+    .acc-ch svg { width: 12px; height: 12px; }
+    .acc-app { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
+    .acc-web { background: var(--ok-bg); color: var(--ok); }
+    .acc-dev { color: var(--ink); margin-top: 3px; }
+    .acc-n { color: var(--muted); }
+    .acc-never { display: inline-block; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
+    .acc-fail { margin-top: 4px; color: var(--err); font-weight: 650; }
     .pager a, .pager span { display: inline-block; }
 </style>
 
@@ -118,6 +129,7 @@
                         <th>Provenance</th>
                         <th>Statut</th>
                         <th>Provisioning</th>
+                        <th>Connexions</th>
                         <th>Reçue</th>
                         <th></th>
                     </tr>
@@ -164,13 +176,20 @@
                                     <span class="muted">—</span>
                                 @endif
                             </td>
+                            <td>
+                                @if ($sub->install?->status === \App\Models\TenantInstall::STATUS_LIVE)
+                                    @include('castlit.admin.partials.access', ['summary' => $access[$sub->install->id] ?? null])
+                                @else
+                                    <span class="muted">—</span>
+                                @endif
+                            </td>
                             <td class="muted">{{ $sub->created_at->format('d/m/Y H:i') }}</td>
                             <td style="text-align:right">
                                 <a href="{{ route('castlit.admin.show', $sub) }}" class="row-link">Détails →</a>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="empty">Aucune demande dans cette catégorie.</td></tr>
+                        <tr><td colspan="8" class="empty">Aucune demande dans cette catégorie.</td></tr>
                     @endforelse
                 </tbody>
             </table>

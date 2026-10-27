@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Castlit;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ProvisionTenantJob;
+use App\Models\ClientAccessEvent;
 use App\Models\Subscription;
 use App\Models\TenantInstall;
 use App\Notifications\SubscriptionRejectedNotification;
@@ -40,8 +41,11 @@ class SubscriptionAdminController extends Controller
             ->map->count()
             ->sortDesc();
 
+        $subscriptions = $query->paginate(20)->withQueryString();
+
         return view('castlit.admin.index', [
-            'subscriptions' => $query->paginate(20)->withQueryString(),
+            'subscriptions' => $subscriptions,
+            'access'        => $this->accessSummaries($subscriptions->getCollection()->pluck('install.id')->filter()->all()),
             'status'        => $status,
             'origins'       => $origins,
             'counts'        => [
@@ -55,8 +59,74 @@ class SubscriptionAdminController extends Controller
     public function show(Subscription $subscription): View
     {
         $subscription->load('install', 'reviewer');
+        $installId = $subscription->install?->id;
 
-        return view('castlit.admin.show', compact('subscription'));
+        return view('castlit.admin.show', [
+            'subscription' => $subscription,
+            'access'       => $installId ? ($this->accessSummaries([$installId])[$installId] ?? null) : null,
+            'accessEvents' => $installId
+                ? ClientAccessEvent::where('tenant_install_id', $installId)->latest('id')->limit(100)->get()
+                : collect(),
+        ]);
+    }
+
+    /**
+     * For each install: how many times the right code was entered, from how
+     * many devices, the last such entry, and the wrong codes of the last 30
+     * days. Keyed by install id; an install never reached is absent.
+     *
+     * @param  list<int>  $installIds
+     * @return array<int, array{count: int, devices: int, last: ClientAccessEvent|null, failed: int}>
+     */
+    private function accessSummaries(array $installIds): array
+    {
+        if ($installIds === []) {
+            return [];
+        }
+
+        $ok = ClientAccessEvent::query()
+            ->whereIn('tenant_install_id', $installIds)
+            ->where('outcome', ClientAccessEvent::OUTCOME_OK)
+            ->selectRaw('tenant_install_id, COUNT(*) AS n, MAX(id) AS last_id')
+            ->groupBy('tenant_install_id')
+            ->get()
+            ->keyBy('tenant_install_id');
+
+        // Distinct devices, counted here: string concatenation is spelled
+        // differently on SQLite and MySQL. A device without an id (an older
+        // app) counts by its label.
+        $devices = ClientAccessEvent::query()
+            ->whereIn('tenant_install_id', $installIds)
+            ->where('outcome', ClientAccessEvent::OUTCOME_OK)
+            ->distinct()
+            ->get(['tenant_install_id', 'device_id', 'channel', 'device_label'])
+            ->groupBy('tenant_install_id')
+            ->map(fn ($rows) => $rows->map(fn ($e) => $e->device_id ?: $e->channel.':'.$e->device_label)->unique()->count());
+
+        $last = ClientAccessEvent::whereIn('id', $ok->pluck('last_id'))->get()->keyBy('tenant_install_id');
+
+        $failed = ClientAccessEvent::query()
+            ->whereIn('tenant_install_id', $installIds)
+            ->where('outcome', ClientAccessEvent::OUTCOME_INVALID)
+            ->where('created_at', '>=', now()->subDays(30))
+            ->selectRaw('tenant_install_id, COUNT(*) AS n')
+            ->groupBy('tenant_install_id')
+            ->pluck('n', 'tenant_install_id');
+
+        $out = [];
+        foreach ($installIds as $id) {
+            if (! isset($ok[$id]) && ! isset($failed[$id])) {
+                continue;
+            }
+            $out[$id] = [
+                'count'   => (int) ($ok[$id]->n ?? 0),
+                'devices' => (int) ($devices[$id] ?? 0),
+                'last'    => $last[$id] ?? null,
+                'failed'  => (int) ($failed[$id] ?? 0),
+            ];
+        }
+
+        return $out;
     }
 
     /** Manual client creation form (for WhatsApp / Google Form leads). */

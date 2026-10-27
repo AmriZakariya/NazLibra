@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Models\Subscription;
+use App\Models\ClientAccessEvent;
 use App\Models\TenantInstall;
 use App\Support\BusinessMode;
 use Illuminate\Http\JsonResponse;
@@ -50,6 +51,14 @@ class PublicController extends Controller
         $data = $request->validate([
             'subdomain' => ['required', 'string', 'max:63'],
             'code'      => ['required', 'string', 'max:32'],
+            // What the journal records; optional, older apps send none.
+            'channel'           => ['nullable', 'string', 'max:8'],
+            'platform'          => ['nullable', 'string', 'max:20'],
+            'os'                => ['nullable', 'string', 'max:80'],
+            'app_version'       => ['nullable', 'string', 'max:20'],
+            'device_id'         => ['nullable', 'string', 'max:64'],
+            'client_ip'         => ['nullable', 'string', 'max:45'],
+            'client_user_agent' => ['nullable', 'string', 'max:500'],
         ]);
 
         // The install registry exists only on the master.
@@ -66,17 +75,28 @@ class PublicController extends Controller
 
         $install = TenantInstall::where('subdomain', $subdomain)->first();
 
+        // Every check is journaled, right or wrong, for the platform admin
+        // (castlit-admin): who reached their space, from what, and whether
+        // someone is guessing codes.
         if (! $install || ! $install->isLive()) {
+            ClientAccessEvent::record($request, $install, $subdomain, ClientAccessEvent::OUTCOME_UNKNOWN);
+
             return response()->json(['ok' => false, 'message' => 'Client introuvable.'], 404);
         }
         if ($install->isBlocked()) {
+            ClientAccessEvent::record($request, $install, $subdomain, ClientAccessEvent::OUTCOME_BLOCKED);
+
             return response()->json([
                 'ok' => false, 'message' => 'Cet espace est suspendu. Contactez le support.',
             ], 403);
         }
         if (empty($install->access_code) || ! hash_equals($install->access_code, $code)) {
+            ClientAccessEvent::record($request, $install, $subdomain, ClientAccessEvent::OUTCOME_INVALID);
+
             return response()->json(['ok' => false, 'message' => 'Code de vérification invalide.'], 422);
         }
+
+        ClientAccessEvent::record($request, $install, $subdomain, ClientAccessEvent::OUTCOME_OK);
 
         return response()->json([
             'ok'        => true,
