@@ -1,15 +1,21 @@
 /* The phone fields (resources/js/phone-input.js), fitted to the forms they sit
-   in: full width like the field they replace, the app's colours, dark mode.
-   `html:root` outranks the library's own `:root`, whichever loads last. */
+   in: full width like the field they replace, the page's colours, dark mode.
+   `html:root` outranks the library's own `:root`, whichever loads last.
+
+   The list takes the page's own tokens when it has them — castlitpos.com
+   defines --surface/--ink/--sand and switches them for a dark system theme —
+   and the app's colours otherwise. Without this the list stayed white on the
+   dark signup page, its names inheriting the page's near-white text. */
 
 html:root {
-    --iti-border-color: #e2e8f0;
-    --iti-hover-color: rgba(15, 23, 42, 0.05);
-    --iti-country-selector-bg: #fff;
-    --iti-icon-color: #64748b;
+    --iti-border-color: var(--sand, #e2e8f0);
+    --iti-hover-color: color-mix(in srgb, var(--ink, #0f172a) 7%, transparent);
+    --iti-country-selector-bg: var(--surface, #fff);
+    --iti-icon-color: var(--muted, #64748b);
     --iti-spacer-horizontal: 12px;
 }
 
+/* The back office switches a `dark` class rather than following the system. */
 html.dark:root {
     --iti-border-color: rgba(255, 255, 255, 0.1);
     --iti-hover-color: rgba(255, 255, 255, 0.06);
@@ -32,23 +38,41 @@ html.dark:root {
 }
 
 .iti__dropdown-content {
+    border: 1px solid var(--iti-border-color);
     border-radius: 12px;
     box-shadow: 0 18px 40px -12px rgba(15, 23, 42, 0.28);
     overflow: hidden;
-    color: #0f172a;
+    color: var(--ink, #0f172a);
 }
 
 html.dark .iti__dropdown-content {
     color: #e2e8f0;
 }
 
-.iti__search-input {
+/* The forms style every `input` of theirs (".fld input { padding: 12px 13px;
+   border; background }"), the picker's search box included: its text then
+   started under the magnifier. Spelled out here, one notch more specific. */
+.iti input.iti__search-input {
+    width: 100%;
+    margin: 0;
+    padding: 12px calc(var(--iti-spacer-horizontal) * 2 + var(--iti-globe-icon-size));
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    outline: none;
     background: transparent;
     color: inherit;
+    font: inherit;
+    font-size: 15px;
+}
+
+.iti input.iti__search-input::placeholder {
+    color: var(--iti-icon-color);
 }
 
 .iti__dial-code {
     font-variant-numeric: tabular-nums;
+    color: var(--iti-icon-color);
 }
 
 input.phone-invalid {
@@ -59,7 +83,7 @@ input.phone-invalid {
     margin: 6px 0 0;
     font-size: 12px;
     line-height: 1.4;
-    color: #b45309;
+    color: var(--warn, #b45309);
 }
 
 html.dark .phone-warning {

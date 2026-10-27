@@ -260,6 +260,9 @@
     @media (max-width: 560px) {
         .adv, .sectors, .feats { grid-template-columns: 1fr; }
         .app-inner { padding: 34px 22px; }
+        /* One field per row on a phone: half a width left the phone number
+           a few digits wide once the flag and "+212" took their share. */
+        .grid2 { grid-template-columns: 1fr; gap: 0; }
     }
 </style>
 
