@@ -22,7 +22,7 @@
     $ogLocaleAlt = array_values(array_diff($ogLocaleMap, [$ogLocale]));
 
     $metaTitle = trim($__env->yieldContent('title', __('castlit.meta_title')));
-    $metaDescription = trim($__env->yieldContent('meta_description', __('castlit.meta_description')));
+    $metaDescription = trim($__env->yieldContent('meta_description', __('castlit.meta_description', ['months' => (int) config('castlit.trial_months', 3)])));
     $metaRobots = trim($__env->yieldContent('robots', 'index, follow, max-image-preview:large'));
     $ogImage = \Illuminate\Support\Facades\Route::has('castlit.og') ? route('castlit.og') : route('app.icon', 512);
 
@@ -231,7 +231,12 @@
         .wordmark .wm-accent { color: var(--brand); }
         .nav .spacer { margin-left: auto; }
         .nav-links { display: flex; align-items: center; gap: 8px; }
+        .nav-link { padding: 8px 12px; border-radius: 10px; font-size: 14px; font-weight: 650; color: var(--muted); transition: color .15s, background .15s; }
+        .nav-link:hover { color: var(--ink); }
+        .nav-link.is-current { color: var(--brand); background: color-mix(in srgb, var(--brand) 9%, transparent); }
+        @media (max-width: 1080px) { .nav-links a.nav-hide-md { display: none; } }
         @media (max-width: 860px) { .nav-links a.nav-hide-sm { display: none; } }
+        @media (max-width: 420px) { .nav-inner { gap: 8px; } .wordmark { display: none; } }
         .lang-switch { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px;
                        border: 1px solid var(--sand); background: color-mix(in srgb, var(--surface) 60%, transparent); }
         .lang-opt { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 26px; padding: 0 8px;
@@ -299,10 +304,12 @@
             </a>
             <div class="spacer"></div>
             <div class="nav-links">
-                <a href="{{ route('castlit.landing') }}#fonctionnalites" class="btn btn-ghost nav-hide-sm" style="padding:9px 16px">{{ __('castlit.nav_features') }}</a>
-                <a href="{{ route('castlit.landing') }}#secteurs" class="btn btn-ghost nav-hide-sm" style="padding:9px 16px">{{ __('castlit.nav_sectors') }}</a>
+                <a href="{{ route('castlit.landing') }}#fonctionnalites" class="nav-link nav-hide-sm" data-nav-section="fonctionnalites">{{ __('castlit.nav_features') }}</a>
+                <a href="{{ route('castlit.landing') }}#restauration" class="nav-link nav-hide-sm" data-nav-section="restauration">{{ __('castlit.nav_restaurant') }}</a>
+                <a href="{{ route('castlit.landing') }}#secteurs" class="nav-link nav-hide-sm" data-nav-section="secteurs">{{ __('castlit.nav_sectors') }}</a>
+                <a href="{{ route('castlit.landing') }}#faq" class="nav-link nav-hide-md" data-nav-section="faq">{{ __('castlit.nav_faq') }}</a>
                 @if ($demoUrl)
-                    <a href="{{ $demoUrl }}" target="_blank" rel="noopener" class="btn btn-ghost nav-hide-sm" style="padding:9px 16px">{{ __('castlit.nav_demo') }}</a>
+                    <a href="{{ $demoUrl }}" target="_blank" rel="noopener" class="nav-link nav-hide-md">{{ __('castlit.nav_demo') }}</a>
                 @endif
                 <div class="lang-switch" role="group" aria-label="Language">
                     @foreach (['fr', 'ar', 'en'] as $code)
@@ -357,7 +364,10 @@
                     <div class="footer-head">{{ __('castlit.footer_product') }}</div>
                     <ul>
                         <li><a href="{{ route('castlit.landing') }}#fonctionnalites">{{ __('castlit.nav_features') }}</a></li>
+                        <li><a href="{{ route('castlit.landing') }}#restauration">{{ __('castlit.nav_restaurant') }}</a></li>
                         <li><a href="{{ route('castlit.landing') }}#secteurs">{{ __('castlit.nav_sectors') }}</a></li>
+                        <li><a href="{{ route('castlit.guide') }}">{{ __('castlit.nav_guide') }}</a></li>
+                        <li><a href="{{ route('castlit.landing') }}#faq">{{ __('castlit.nav_faq') }}</a></li>
                         @if ($demoUrl)
                             <li><a href="{{ $demoUrl }}" target="_blank" rel="noopener">{{ __('castlit.nav_demo') }}</a></li>
                         @endif
