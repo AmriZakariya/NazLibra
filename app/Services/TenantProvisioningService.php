@@ -241,6 +241,10 @@ class TenantProvisioningService
                 ['Litre', 'Vendu au volume'], ['Pack', 'Lot composé'],
                 ['Service', 'Prestation non physique'],
             ],
+            'barber' => [
+                ['Pièce', 'Produit vendu'], ['Prestation', 'Coupe, barbe, soin'],
+                ['Forfait', 'Abonnement ou carte de coupes'],
+            ],
             'beauty' => [
                 ['Pièce', 'Produit vendu'], ['Séance', 'Prestation unitaire'],
                 ['Forfait', 'Ensemble de séances'], ['Service', 'Prestation non physique'],
@@ -273,6 +277,7 @@ class TenantProvisioningService
             'grocery'    => ['Alimentation', 'Boissons', 'Produits laitiers', 'Hygiène', 'Entretien'],
             'bakery'     => ['Pains', 'Viennoiseries', 'Pâtisseries', 'Gâteaux sur commande', 'Boissons'],
             'beauty'     => ['Coiffure', 'Soins visage', 'Soins corps', 'Onglerie', 'Produits'],
+            'barber'     => ['Coupes', 'Barbe', 'Soins', 'Enfants', 'Produits'],
             'cosmetics'  => ['Parfums', 'Maquillage', 'Soins', 'Coffrets', 'Accessoires'],
             'electronics' => ['Téléphones', 'Tablettes & ordinateurs', 'Accessoires', 'Audio', 'Réparations'],
             default      => ['Général'],

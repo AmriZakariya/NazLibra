@@ -165,6 +165,12 @@ class SaleController extends Controller
             'items.*.quantity'         => ['required', 'integer', 'min:1'],
             'items.*.unit_price'       => ['nullable', 'numeric', 'min:0'],
             'items.*.note'             => ['nullable', 'string', 'max:500'],
+            // Who did the line (the barber on a haircut); null on a shop
+            // that does not track it.
+            'items.*.staff_user_id'    => ['nullable', 'integer'],
+            // A tip for one person, on top of the total and not part of it.
+            'tip'                      => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            'tip_user_id'              => ['nullable', 'integer'],
             'payments'                => ['required', 'array'],
             'payments.cash'           => ['nullable', 'numeric', 'min:0'],
             'payments.card'           => ['nullable', 'numeric', 'min:0'],
@@ -241,6 +247,13 @@ class SaleController extends Controller
             ? Contact::where('tenant_id', $tenant->id)->find($contactId)
             : null;
 
+        // Staff are this shop's own users; an id from elsewhere (or a user
+        // since removed) is dropped rather than refusing an offline sale.
+        $staffIds = $tenant->users()->pluck('users.id')->map(fn ($id) => (int) $id)->all();
+        $staffOf = fn ($id) => in_array((int) $id, $staffIds, true) ? (int) $id : null;
+
+        $tip = round(max(0, (float) ($data['tip'] ?? 0)), 2);
+
         $payments = [
             'cash'     => max(0, (float) ($data['payments']['cash'] ?? 0)),
             'card'     => max(0, (float) ($data['payments']['card'] ?? 0)),
@@ -271,6 +284,7 @@ class SaleController extends Controller
                     'unit_price'  => $unitPrice,
                     'total_price' => $lineTotal,
                     'note'        => $line['note'] ?? null,
+                    'staff_user_id' => $staffOf($line['staff_user_id'] ?? null),
                     'avg_cost'    => 0.0,
                     'line_cogs'   => 0.0,
                     'tax_rate'    => 0.0,
@@ -338,6 +352,7 @@ class SaleController extends Controller
                 'unit_price'  => $unitPrice,
                 'total_price' => $lineTotal,
                 'note'        => $line['note'] ?? null,
+                'staff_user_id' => $staffOf($line['staff_user_id'] ?? null),
                 'avg_cost'    => $avgCost,
                 'line_cogs'   => $lineCogs,
                 'tax_rate'    => max(0.0, min(100.0, (float) ($item->tax?->rate ?? 0))),
@@ -402,11 +417,20 @@ class SaleController extends Controller
         $taxTotal = round(min($taxTotal, $total), 2);
         $paid  = round(array_sum($payments), 2);
 
-        if ($paid + 0.001 < $total) {
+        // The tip goes to the person named, else to whoever did every line,
+        // else to the cashier. It is paid on top of the total.
+        $lineStaff = collect($saleLines)->pluck('staff_user_id')->filter()->unique()->values();
+        $tipUserId = $tip > 0
+            ? ($staffOf($data['tip_user_id'] ?? null) ?? ($lineStaff->count() === 1 ? $lineStaff->first() : $action->actor->id))
+            : null;
+
+        if ($paid + 0.001 < $total + $tip) {
+            $due = round($total + $tip, 2);
+
             return response()->json([
                 'ok'      => false,
                 'error'   => 'underpayment',
-                'message' => "Le montant payé ({$paid}) est inférieur au total ({$total}).",
+                'message' => "Le montant payé ({$paid}) est inférieur au total ({$due}).",
             ], 422);
         }
 
@@ -485,6 +509,7 @@ class SaleController extends Controller
             $subtotal, $discount, $loyaltyDiscount, $total, $paid, $data,
             $discountFactor, $taxTotal, $totalCogs, $allowOversell, $action, $soldAt,
             $pointsToRedeem, $loyaltyCfg, $loyaltyEnabled, $sourceOnlineOrder,
+            $tip, $tipUserId,
             &$saleNumber
         ): Sale {
             // Decrement advance balance atomically before the rest.
@@ -514,7 +539,9 @@ class SaleController extends Controller
                 ->keys()
                 ->join('+') ?: 'cash';
 
-            $changeAmount   = max(0, round($paid - $total, 2));
+            // The tip is not change: it stays in the drawer until the shop
+            // hands it to the barber (the Équipe report says how much).
+            $changeAmount   = max(0, round($paid - $total - $tip, 2));
             $cashChange     = min($payments['cash'], $changeAmount);
             $cashDrawerIn   = max(0, round($payments['cash'] - $cashChange, 2));
 
@@ -541,6 +568,8 @@ class SaleController extends Controller
                 'loyalty_points_earned'   => $pointsEarned,
                 'loyalty_points_redeemed' => $pointsToRedeem,
                 'sold_at'         => $soldAt,
+                'tip_amount'      => $tip,
+                'tip_user_id'     => $tipUserId,
                 'idempotency_key'        => $data['idempotency_key'],
                 'source_online_order_id' => $sourceOnlineOrder?->id,
                 'metadata'               => [
@@ -554,6 +583,7 @@ class SaleController extends Controller
                         'cash_drawer_in' => $cashDrawerIn,
                         'paid_amount'   => $paid,
                         'expected_total' => $total,
+                        'tip'           => $tip,
                     ],
                     'cogs' => [
                         'total'    => round($totalCogs, 4),
@@ -600,6 +630,7 @@ class SaleController extends Controller
                     'total_price' => $line['total_price'],
                     'unit_cost'  => $line['avg_cost'],
                     'total_cost' => $line['line_cogs'],
+                    'staff_user_id' => $line['staff_user_id'] ?? null,
                 ]);
 
                 // Snapshotted name and price, and any linked stock consumed.
@@ -822,7 +853,7 @@ class SaleController extends Controller
 
         $sales = Sale::query()
             ->where('tenant_id', $tenant->id)
-            ->with(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name'])
+            ->with(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost,staff_user_id', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name'])
             ->when($since, fn ($q) => $q->where('sold_at', '>', $since))
             ->when($request->query('contact_id'), fn ($q, $contactId) => $q->where('contact_id', $contactId))
             ->when($request->query('payment_method'), fn ($q, $method) => $q->where('payment_method', 'like', "%{$method}%"))
@@ -977,7 +1008,7 @@ class SaleController extends Controller
      */
     private function saleResponse(Sale $sale, array $requestedLines, int $tenantId, int $locationId, bool $alreadyExisted = false): JsonResponse
     {
-        $sale->load(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name']);
+        $sale->load(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost,staff_user_id', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name']);
 
         // Post-sale stock snapshot so the client updates local stock immediately.
         $itemIds    = collect($requestedLines)->pluck('item_id')->filter()->unique()->all();

@@ -3749,6 +3749,7 @@
                 'sales-gst' => 'TPS ventes',
                 'purchase-gst' => 'TPS achats',
                 'seller-points' => 'Points vendeur',
+                'team' => 'Équipe : commissions et pourboires',
             ];
             $summary = $reportContext['summary'];
             $reportRows = match ($reportSection) {
@@ -3760,6 +3761,7 @@
                 'sales-payments', 'sales-payments-list' => $reportContext['payments'],
                 'item-sales' => $reportContext['topItems'],
                 'sales-summary', 'sales-tax', 'gstr-1', 'sales-gst' => $reportContext['categorySales'],
+                'team' => $reportContext['team'],
                 default => $reportContext['sales'],
             };
         @endphp
@@ -3821,11 +3823,13 @@
                 </article>
             @else
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <div class="border-b border-slate-200 p-4 dark:border-white/10"><h3 class="font-semibold">{{ $reportTabs[$reportSection] ?? 'Données rapport' }}</h3></div>
+                    <div class="border-b border-slate-200 p-4 dark:border-white/10"><h3 class="font-semibold">{{ $reportTabs[$reportSection] ?? 'Données rapport' }}</h3>@if ($reportSection === 'team')<p class="mt-1 text-sm text-slate-500">Une prestation sans barbier choisi revient à la personne qui a encaissé. La commission se calcule sur ce que le client a payé, remises déduites, au taux réglé pour chaque utilisateur. Les pourboires ne comptent pas dans le chiffre d'affaires.</p>@endif</div>
                     <div class="overflow-x-auto">
                         <table id="report-data" class="w-full min-w-[980px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
-                                @if (in_array($reportSection, ['stock'], true))
+                                @if ($reportSection === 'team')
+                                    <tr><th class="px-3 py-3">Membre</th><th class="px-3 py-3 text-right">Prestations</th><th class="px-3 py-3 text-right">CA prestations</th><th class="px-3 py-3 text-right">CA produits</th><th class="px-3 py-3 text-right">Commission</th><th class="px-3 py-3 text-right">Pourboires</th><th class="px-3 py-3 text-right">À verser</th></tr>
+                                @elseif (in_array($reportSection, ['stock'], true))
                                     <tr><th class="px-3 py-3">Article</th><th class="px-3 py-3">Catégorie</th><th class="px-3 py-3">Marque</th><th class="px-3 py-3 text-right">Stock</th><th class="px-3 py-3 text-right">Coût</th><th class="px-3 py-3 text-right">Valeur</th></tr>
                                 @elseif (in_array($reportSection, ['item-sales', 'sales-summary', 'sales-tax', 'gstr-1', 'sales-gst'], true))
                                     <tr><th class="px-3 py-3">Nom</th><th class="px-3 py-3 text-right">Quantité</th><th class="px-3 py-3 text-right">Chiffre d'affaires</th><th class="px-3 py-3 text-right">Coût</th><th class="px-3 py-3 text-right">Marge</th></tr>
@@ -3841,7 +3845,9 @@
                             </thead>
                             <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                                 @forelse ($reportRows as $row)
-                                    @if (in_array($reportSection, ['stock'], true))
+                                    @if ($reportSection === 'team')
+                                        <tr data-team-row="{{ $row['user_id'] ?? 0 }}"><td class="px-3 py-3 font-semibold">{{ $row['name'] }}</td><td class="px-3 py-3 text-right">{{ $row['services'] }}</td><td class="px-3 py-3 text-right">{{ $money($row['service_revenue']) }}</td><td class="px-3 py-3 text-right">{{ $money($row['product_revenue']) }}</td><td class="px-3 py-3 text-right">{{ $money($row['commission']) }}<span class="block text-xs text-slate-500">{{ rtrim(rtrim(number_format($row['commission_rate'], 2, ',', ' '), '0'), ',') }} %</span></td><td class="px-3 py-3 text-right">{{ $money($row['tips']) }}</td><td class="px-3 py-3 text-right font-semibold">{{ $money($row['commission'] + $row['tips']) }}</td></tr>
+                                    @elseif (in_array($reportSection, ['stock'], true))
                                         <tr><td class="px-3 py-3 font-semibold">{{ $row->title }}</td><td class="px-3 py-3">{{ $row->category?->name ?? '—' }}</td><td class="px-3 py-3">{{ $row->brand?->name ?? '—' }}</td><td class="px-3 py-3 text-right">{{ number_format($row->stock_quantity, 0, ',', ' ') }}</td><td class="px-3 py-3 text-right">{{ $money($row->purchase_price) }}</td><td class="px-3 py-3 text-right font-semibold">{{ $money($row->stock_quantity * $row->purchase_price) }}</td></tr>
                                     @elseif (in_array($reportSection, ['item-sales', 'sales-summary', 'sales-tax', 'gstr-1', 'sales-gst'], true))
                                         <tr><td class="px-3 py-3 font-semibold">{{ $row['name'] }}</td><td class="px-3 py-3 text-right">{{ number_format($row['quantity'], 0, ',', ' ') }}</td><td class="px-3 py-3 text-right">{{ $money($row['revenue']) }}</td><td class="px-3 py-3 text-right">{{ $money($row['cost'] ?? 0) }}</td><td class="px-3 py-3 text-right font-semibold">{{ $money(($row['revenue'] ?? 0) - ($row['cost'] ?? 0)) }}</td></tr>
@@ -4243,6 +4249,7 @@
                             <input type="hidden" name="editable_price" value="0">
                             <input type="hidden" name="allow_sale_edit" value="0">
                             <input type="hidden" name="allow_oversell" value="0">
+                            <input type="hidden" name="ask_staff" value="0">
                             <input type="hidden" name="confirm_cart_line_removal" value="0">
                             <input type="hidden" name="show_out_of_stock" value="0">
                             <input type="hidden" name="show_cash_drawer_navbar" value="0">
@@ -4280,6 +4287,15 @@
                                         <span>
                                             <span class="block text-sm font-semibold">Autoriser la vente hors stock</span>
                                             <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Permet d’encaisser une quantité supérieure au stock disponible. Le stock peut devenir négatif et devra être régularisé ensuite.</span>
+                                        </span>
+                                    </span>
+                                </label>
+                                <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                    <span class="flex items-start gap-3">
+                                        <input name="ask_staff" value="1" type="checkbox" @checked(\App\Support\StaffReport::asksStaff($tenant)) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                        <span>
+                                            <span class="block text-sm font-semibold">Demander qui a fait la prestation</span>
+                                            <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Sur chaque ligne du ticket, la caisse propose le barbier ou l’employé, et le pourboire lui revient. Sert au rapport Équipe (commissions et pourboires). Masqué quand la boutique n’a qu’un utilisateur.</span>
                                         </span>
                                     </span>
                                 </label>
@@ -5434,6 +5450,7 @@
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nom complet *</span><input name="name" required value="{{ $user->name }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email *</span><input name="email" required type="email" value="{{ $user->email }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" type="tel" value="{{ $user->phone }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Commission (%)</span><input name="commission_rate" type="number" step="0.01" min="0" max="100" inputmode="decimal" value="{{ $user->commission_rate !== null ? rtrim(rtrim((string) $user->commission_rate, '0'), '.') : '' }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Ex : 40"><small class="block text-xs text-slate-500">Sur ce que le client paie pour ses prestations et ventes. Vide si aucune.</small></label>
                                                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nouveau mot de passe</span><input name="password" type="password" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Laisser vide si inchangé"></label>
                                                                 @if ($canManageUserPins)
                                                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">PIN caisse</span><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="4 chiffres"></label>
@@ -5594,6 +5611,7 @@
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nom complet *</span><input name="name" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Ex: Amina El Fassi"></label>
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email *</span><input name="email" required type="email" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="nom@librairie.ma"></label>
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" type="tel" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212 ..."></label>
+                                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Commission (%)</span><input name="commission_rate" type="number" step="0.01" min="0" max="100" inputmode="decimal" value="{{ old('commission_rate') }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Ex : 40"><small class="block text-xs text-slate-500">Sur ce que le client paie pour ses prestations et ventes. Vide si aucune.</small></label>
                                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Mot de passe temporaire *</span><input name="password" required type="password" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Minimum 8 caractères"></label>
                                         @if ($canManageUserPins)
                                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">PIN caisse</span><input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="4 chiffres"></label>

@@ -62,6 +62,12 @@ class ItemTypes
                 'supply' => ['label' => 'Produit de soin', 'hint' => 'Shampoing, crème, vernis…', 'fields' => null],
             ],
         ],
+        'barber' => [
+            'label' => 'Barbier / Coiffure homme',
+            'types' => [
+                'supply' => ['label' => 'Produit', 'hint' => 'Cire, gel, huile à barbe…', 'fields' => null],
+            ],
+        ],
         'cosmetics' => [
             'label' => 'Cosmétique / Parfumerie',
             'types' => [
@@ -155,6 +161,7 @@ class ItemTypes
             'grocery' => 'grocery',
             'bakery' => 'bakery',
             'beauty' => 'beauty',
+            'barber' => 'barber',
             'cosmetics' => 'cosmetics',
             'electronics' => 'electronics',
             'drugstore', 'retail' => 'general',

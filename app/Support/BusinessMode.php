@@ -94,6 +94,20 @@ class BusinessMode
                 'search_placeholder' => 'Rechercher prestation, soin, produit...',
                 'keywords' => ['soins', 'coiffure', 'esthétique', 'spa'],
             ],
+            // Its own activity rather than "beauty": a barber sells chairs'
+            // time by the barber, and the till asks who did each cut.
+            'barber' => [
+                'label' => 'Barbier / coiffure homme',
+                'short_label' => 'Barbier',
+                'subtitle' => 'Coupes, barbe, soins, pourboires et commissions par barbier',
+                'hero_title' => 'Votre salon prêt pour la file d’attente.',
+                'hero_text' => 'Encaissez coupe et barbe en deux gestes, notez qui a fait la coupe, et suivez le chiffre, les commissions et les pourboires de chaque barbier.',
+                'catalog_label' => 'Prestations & produits',
+                'primary_item' => 'Prestation',
+                'type_labels' => ['book' => 'Produit', 'supply' => 'Produit', 'service' => 'Prestation'],
+                'search_placeholder' => 'Rechercher coupe, barbe, produit...',
+                'keywords' => ['coupes', 'barbe', 'barbiers', 'pourboires'],
+            ],
             'cosmetics' => [
                 'label' => 'Cosmétique / parfumerie',
                 'short_label' => 'Parfumerie',
@@ -251,6 +265,12 @@ class BusinessMode
             'spa' => 'beauty',
             'coiffure' => 'beauty',
             'salon' => 'beauty',
+            'barber' => 'barber',
+            'barbier' => 'barber',
+            'barbershop' => 'barber',
+            'barber_shop' => 'barber',
+            'coiffeur' => 'barber',
+            'coiffure_homme' => 'barber',
             'cosmetics' => 'cosmetics',
             'cosmetique' => 'cosmetics',
             'cosmétique' => 'cosmetics',

@@ -584,6 +584,18 @@ class SyncController extends Controller
             'business_activity'         => \App\Support\ItemTypes::activityForTenant($tenant),
             'inventory_costing_method'  => (string) data_get($tenant->settings, 'inventory.costing_method', 'lifo'),
             'branding'                  => $this->branding($tenant),
+            // Who did each line (the barber on a cut). Asked by default where
+            // that is how the shop pays its people; the till only shows the
+            // choice when the shop has more than one of them.
+            'ask_staff'                 => \App\Support\StaffReport::asksStaff($tenant),
+            // Synced rather than fetched: the users list needs a manager's
+            // permission, and the till must name a barber offline.
+            'staff'                     => $tenant->users()
+                ->where('users.is_active', true)
+                ->orderBy('users.name')
+                ->get(['users.id', 'users.name', 'users.avatar_color'])
+                ->map(fn ($u) => ['id' => $u->id, 'name' => $u->name, 'avatar_color' => $u->avatar_color])
+                ->values(),
         ]);
     }
 

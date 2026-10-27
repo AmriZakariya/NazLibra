@@ -3332,6 +3332,7 @@ class LibraireProController extends Controller
             'editable_price' => $request->boolean('editable_price'),
             'allow_sale_edit' => $request->boolean('allow_sale_edit', true),
             'allow_oversell' => $request->boolean('allow_oversell'),
+            'ask_staff' => $request->boolean('ask_staff', \App\Support\StaffReport::asksStaff($tenant)),
             'confirm_cart_line_removal' => $request->boolean('confirm_cart_line_removal', true),
             'show_out_of_stock' => $request->boolean('show_out_of_stock'),
             'show_cash_drawer_navbar' => $request->boolean('show_cash_drawer_navbar'),
@@ -4093,6 +4094,7 @@ class LibraireProController extends Controller
                 ? $request->file('profile_photo')->store('users/profile-photos', 'public')
                 : null,
             'is_active' => $request->boolean('is_active', true),
+            'commission_rate' => $data['commission_rate'] ?? null,
         ]);
 
         $tenant->users()->syncWithoutDetaching([
@@ -4116,6 +4118,7 @@ class LibraireProController extends Controller
             'phone' => $data['phone'] ?? null,
             'avatar_color' => $data['avatar_color'] ?? $user->avatar_color,
             'is_active' => $request->boolean('is_active'),
+            'commission_rate' => $data['commission_rate'] ?? null,
         ];
 
         if (! empty($data['password'])) {
@@ -8023,6 +8026,7 @@ class LibraireProController extends Controller
             'stockItems' => $stockItems,
             'topItems' => $topItems,
             'categorySales' => $categorySales,
+            'team' => \App\Support\StaffReport::rows($sales),
             'clients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
             'summary' => [
                 'gross_revenue' => $grossRevenue,
@@ -10017,6 +10021,7 @@ class LibraireProController extends Controller
             'permissions.*' => ['string', Rule::in($permissionKeys)],
             'store_access' => ['nullable', 'array'],
             'store_access.*' => ['string', 'max:120'],
+            'commission_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
         $data['permissions'] ??= [];

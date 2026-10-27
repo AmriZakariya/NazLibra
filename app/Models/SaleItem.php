@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['sale_id', 'item_id', 'variant_id', 'name', 'quantity', 'unit_price', 'total_price', 'unit_cost', 'total_cost'])]
+#[Fillable(['sale_id', 'item_id', 'variant_id', 'name', 'quantity', 'unit_price', 'total_price', 'unit_cost', 'total_cost', 'staff_user_id'])]
 class SaleItem extends Model
 {
     /**
@@ -36,5 +36,11 @@ class SaleItem extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    /** Who did it: the barber on a haircut, the seller on a product. */
+    public function staff(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'staff_user_id');
     }
 }

@@ -617,6 +617,8 @@ class SetupController extends Controller
             'pharmacy' => ['Médicaments', 'Parapharmacie', 'Hygiène', 'Bébé', 'Compléments', 'Services'],
             'drugstore' => ['Droguerie', 'Quincaillerie', 'Maison', 'Bricolage', 'Nettoyage', 'Services'],
             'retail' => ['Produits', 'Accessoires', 'Services', 'Promotions', 'Nouveautés', 'Divers'],
+            'barber' => ['Coupes', 'Barbe', 'Soins', 'Enfants', 'Produits'],
+            'beauty' => ['Coiffure', 'Soins visage', 'Soins corps', 'Onglerie', 'Produits'],
             default => ['Romans', 'Scolaire', 'Papeterie', 'Fournitures', 'Services', 'Informatique'],
         };
     }
