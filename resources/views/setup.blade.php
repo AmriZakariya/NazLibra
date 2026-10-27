@@ -457,7 +457,7 @@
                                 <label class="setup-label" for="timezone">Fuseau horaire *</label>
                                 <select id="timezone" name="timezone" required class="setup-input">
                                     @foreach ($timezones as $tz => $label)
-                                        <option value="{{ $tz }}" @selected(old('timezone', $data['timezone'] ?? 'Africa/Casablanca') === $tz)>{{ $label }}</option>
+                                        <option value="{{ $tz }}" data-country="{{ (new \DateTimeZone($tz))->getLocation()['country_code'] ?? '' }}" @selected(old('timezone', $data['timezone'] ?? 'Africa/Casablanca') === $tz)>{{ $label }}</option>
                                     @endforeach
                                 </select>
                             </div>
@@ -476,7 +476,7 @@
                             </div>
                             <div>
                                 <label class="setup-label" for="phone">Téléphone</label>
-                                <input id="phone" name="phone" type="tel"
+                                <input id="phone" name="phone" type="tel" data-phone-country-from="#timezone"
                                        value="{{ old('phone', $data['phone'] ?? '') }}"
                                        class="setup-input" placeholder="+212 6xx xxx xxx">
                             </div>
@@ -723,7 +723,7 @@
                                     </div>
                                     <div>
                                         <label class="setup-label">Téléphone</label>
-                                        <input name="locations[{{ $i }}][phone]" type="tel"
+                                        <input name="locations[{{ $i }}][phone]" type="tel" data-phone-country-from="#timezone"
                                                value="{{ $loc['phone'] ?? '' }}"
                                                class="setup-input" placeholder="+212 ...">
                                     </div>
@@ -1251,7 +1251,7 @@ if (addLocBtn) {
             + '<div class="grid gap-3 sm:grid-cols-2">'
             + '<div class="sm:col-span-2"><label class="' + lbl + '">Nom *</label><input name="locations[' + idx + '][name]" type="text" required class="' + cls + '" placeholder="Ex: Magasin Agdal"></div>'
             + '<div><label class="' + lbl + '">Adresse</label><input name="locations[' + idx + '][address]" type="text" class="' + cls + '" placeholder="Rue, Ville"></div>'
-            + '<div><label class="' + lbl + '">Téléphone</label><input name="locations[' + idx + '][phone]" type="tel" class="' + cls + '" placeholder="+212 ..."></div>'
+            + '<div><label class="' + lbl + '">Téléphone</label><input name="locations[' + idx + '][phone]" type="tel" data-phone-country-from="#timezone" class="' + cls + '" placeholder="+212 ..."></div>'
             + '</div>';
         list.appendChild(item);
         item.querySelector('input').focus();

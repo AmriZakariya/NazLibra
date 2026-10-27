@@ -217,7 +217,9 @@ class AuthTest extends TestCase
 
         $this->assertSame('Amina Atlas', $user->name);
         $this->assertSame('amina.atlas@example.test', $user->email);
-        $this->assertSame('+212 600 111 222', $user->phone);
+        // Stored without spaces, handed out the way the country writes it.
+        $this->assertSame('+212600111222', $user->getRawOriginal('phone'));
+        $this->assertSame('+212 6 00 11 12 22', $user->phone);
         $this->assertSame('#0D9488', $user->avatar_color);
         $this->assertNotNull($user->profile_photo_path);
         Storage::disk('public')->assertExists($user->profile_photo_path);

@@ -1,0 +1,67 @@
+/* The phone fields (resources/js/phone-input.js), fitted to the forms they sit
+   in: full width like the field they replace, the app's colours, dark mode.
+   `html:root` outranks the library's own `:root`, whichever loads last. */
+
+html:root {
+    --iti-border-color: #e2e8f0;
+    --iti-hover-color: rgba(15, 23, 42, 0.05);
+    --iti-country-selector-bg: #fff;
+    --iti-icon-color: #64748b;
+    --iti-spacer-horizontal: 12px;
+}
+
+html.dark:root {
+    --iti-border-color: rgba(255, 255, 255, 0.1);
+    --iti-hover-color: rgba(255, 255, 255, 0.06);
+    --iti-country-selector-bg: #0f172a;
+    --iti-icon-color: #94a3b8;
+}
+
+.iti.phone-field {
+    display: block;
+    width: 100%;
+}
+
+.iti.phone-field input[type='tel'] {
+    width: 100%;
+}
+
+.iti__selected-dial-code {
+    font-variant-numeric: tabular-nums;
+    color: inherit;
+}
+
+.iti__dropdown-content {
+    border-radius: 12px;
+    box-shadow: 0 18px 40px -12px rgba(15, 23, 42, 0.28);
+    overflow: hidden;
+    color: #0f172a;
+}
+
+html.dark .iti__dropdown-content {
+    color: #e2e8f0;
+}
+
+.iti__search-input {
+    background: transparent;
+    color: inherit;
+}
+
+.iti__dial-code {
+    font-variant-numeric: tabular-nums;
+}
+
+input.phone-invalid {
+    border-color: #f59e0b !important;
+}
+
+.phone-warning {
+    margin: 6px 0 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #b45309;
+}
+
+html.dark .phone-warning {
+    color: #fbbf24;
+}

@@ -110,7 +110,7 @@ class ContactSectionTest extends TestCase
         $response
             ->assertOk()
             ->assertJsonFragment([
-                'label' => 'Fournisseur Achat Rapide · +212600111222',
+                'label' => 'Fournisseur Achat Rapide · +212 6 00 11 12 22',
             ]);
 
         $this->assertDatabaseHas('contacts', [

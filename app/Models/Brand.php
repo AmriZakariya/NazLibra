@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\PhoneNumber;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,6 +12,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Brand extends Model
 {
     use SoftDeletes;
+
+    protected function casts(): array
+    {
+        return [
+            'phone' => PhoneNumber::class,
+        ];
+    }
 
     public function items(): HasMany
     {

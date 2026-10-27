@@ -309,7 +309,7 @@ class OnlineOrderTest extends TestCase
         $order = OnlineOrder::latest('id')->firstOrFail();
 
         $this->assertSame($client->id, $order->contact_id);
-        $this->assertSame('+212600000003', $order->customer_phone);
+        $this->assertSame('+212600000003', $order->getRawOriginal('customer_phone'));
         $this->assertSame(1, Contact::where('tenant_id', $tenant->id)->where('phone', '+212600000003')->count());
         $this->assertSame('Client boutique mis à jour', $client->fresh()->name);
     }

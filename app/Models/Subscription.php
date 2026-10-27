@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\PhoneNumber;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -29,6 +30,7 @@ class Subscription extends Model
 
     protected $casts = [
         'meta'        => 'array',
+        'phone'       => PhoneNumber::class,
         'reviewed_at' => 'datetime',
     ];
 

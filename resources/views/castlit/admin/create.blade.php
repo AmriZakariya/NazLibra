@@ -2,6 +2,11 @@
 
 @section('title', 'Nouveau client — Administration Castl-it-POS')
 
+@push('head')
+    {{-- Le champ téléphone : drapeau + indicatif, suit le pays choisi. --}}
+    @vite('resources/js/phone.js')
+@endpush
+
 @section('content')
 <style>
     .create { padding: 34px 0 0; max-width: 720px; margin: 0 auto; }
@@ -96,7 +101,7 @@
                         </div>
                         <div class="fld">
                             <label for="phone">Téléphone</label>
-                            <input id="phone" name="phone" maxlength="40" value="{{ old('phone') }}" placeholder="06 00 00 00 00">
+                            <input id="phone" name="phone" type="tel" data-phone-country-from="#country" maxlength="40" value="{{ old('phone') }}" placeholder="06 00 00 00 00">
                             @error('phone')<span class="field-error">{{ $message }}</span>@enderror
                         </div>
                     </div>

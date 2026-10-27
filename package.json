@@ -17,6 +17,7 @@
     "dependencies": {
         "datatables.net": "^2.3.8",
         "datatables.net-dt": "^2.3.8",
+        "intl-tel-input": "29.5.4",
         "jquery": "^4.0.0"
     }
 }

@@ -307,7 +307,8 @@ class StoreSettingsTest extends TestCase
         // edit form carries the same strings as input values, so an unscoped
         // assertion passes on a card that shows nothing at all.
         $facts = [
-            'Téléphone' => '\+212 522 00 00 00',
+            // Stored +212522000000, read the Moroccan way (App\Support\Phone).
+            'Téléphone' => '\+212 5 22 00 00 00',
             'Responsable' => 'Amina El Fassi',
             'Adresse' => '12 rue des Lilas, Casablanca',
         ];

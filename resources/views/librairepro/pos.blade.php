@@ -565,7 +565,7 @@
                                     </summary>
                                     <div class="mt-3 grid gap-2 sm:grid-cols-2">
                                         <input form="pos-checkout-form" name="client_name" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" placeholder="Nouveau client">
-                                        <input form="pos-checkout-form" name="client_phone" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" placeholder="Téléphone">
+                                        <input form="pos-checkout-form" name="client_phone" type="tel" class="h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100" placeholder="Téléphone">
                                     </div>
                                 </details>
                             </div>

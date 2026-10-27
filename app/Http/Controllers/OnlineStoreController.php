@@ -11,6 +11,7 @@ use App\Models\Tenant;
 use App\Services\Inventory\InventoryService;
 use App\Support\AppModules;
 use App\Support\Locale;
+use App\Support\Phone;
 use App\Support\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -137,7 +138,9 @@ class OnlineStoreController extends Controller
             'items.*.item_id' => ['required', 'integer'],
             'items.*.quantity' => ['required', 'integer', 'min:1', 'max:999'],
         ]);
-        $data['customer_phone'] = $this->normalizeMoroccanPhone($data['customer_phone']);
+        // The phone field sends +<country><number>; a bare "06…" (no script)
+        // is read in the shop's country, not always Maroc.
+        $data['customer_phone'] = Phone::internationalize($data['customer_phone'], Phone::defaultCountry($tenant));
 
         $stores = $this->activeStoreCatalog($tenant);
         $pickupStore = $this->resolvePickupStore($tenant, $stores, (string) ($data['pickup_store'] ?? ''));
@@ -346,29 +349,6 @@ class OnlineStoreController extends Controller
             ->max() ?? 0;
 
         return 'PRE'.str_pad((string) ($max + 1), 5, '0', STR_PAD_LEFT);
-    }
-
-    private function normalizeMoroccanPhone(string $phone): string
-    {
-        $digits = preg_replace('/\\D+/', '', $phone) ?: '';
-
-        if (str_starts_with($digits, '00212')) {
-            $digits = substr($digits, 2);
-        }
-
-        if (str_starts_with($digits, '212')) {
-            return '+'.$digits;
-        }
-
-        if (str_starts_with($digits, '0') && strlen($digits) === 10) {
-            return '+212'.substr($digits, 1);
-        }
-
-        if (strlen($digits) === 9 && in_array($digits[0] ?? '', ['5', '6', '7'], true)) {
-            return '+212'.$digits;
-        }
-
-        return '+'.$digits;
     }
 
     private function activeStoreCatalog(Tenant $tenant): \Illuminate\Support\Collection

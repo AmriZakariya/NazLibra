@@ -34,6 +34,11 @@
 </script>
 @endpush
 
+@push('head')
+    {{-- Le champ téléphone : drapeau + indicatif, suit le pays choisi. --}}
+    @vite('resources/js/phone.js')
+@endpush
+
 @section('content')
 <style>
     :root { --brand-deep: #1E2A6B; }
@@ -545,7 +550,7 @@
                         </div>
                         <div class="fld">
                             <label for="phone">{{ __('castlit.f_phone') }}</label>
-                            <input id="phone" name="phone" maxlength="40" value="{{ old('phone') }}" placeholder="06 00 00 00 00">
+                            <input id="phone" name="phone" type="tel" data-phone-country-from="#country" maxlength="40" value="{{ old('phone') }}" placeholder="06 00 00 00 00">
                             @error('phone')<span class="field-error">{{ $message }}</span>@enderror
                         </div>
                     </div>

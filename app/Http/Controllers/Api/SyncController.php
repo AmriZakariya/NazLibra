@@ -526,6 +526,7 @@ class SyncController extends Controller
                     new OA\Property(property: 'currency', type: 'string', example: 'MAD'),
                     new OA\Property(property: 'locale', type: 'string', example: 'fr'),
                     new OA\Property(property: 'tenant_name', type: 'string'),
+                    new OA\Property(property: 'phone_country', type: 'string', example: 'MA', description: 'ISO country a local phone number is read in'),
                     new OA\Property(property: 'location_name', type: 'string', nullable: true),
                     new OA\Property(property: 'allow_oversell', type: 'boolean'),
                     new OA\Property(property: 'confirm_cart_line_removal', type: 'boolean'),
@@ -560,6 +561,8 @@ class SyncController extends Controller
             'locale'                  => $tenant->locale   ?? 'fr',
             'tenant_name'             => $tenant->name,
             'tenant_phone'            => $tenant->phone,
+            // The country a phone field opens on (App\Support\Phone).
+            'phone_country'           => \App\Support\Phone::defaultCountry($tenant),
             'tenant_address'          => $tenant->address,
             'location_name'           => $location?->name,
             'allow_oversell'          => (bool) data_get($tenant->settings, 'pos.allow_oversell', false),

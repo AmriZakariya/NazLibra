@@ -1939,7 +1939,7 @@
                             <option value="brand">Marque</option>
                         </select>
                         <div class="grid gap-3 sm:grid-cols-2">
-                            <input name="phone" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Téléphone">
+                            <input name="phone" type="tel" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Téléphone">
                             <input name="email" type="email" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Email">
                         </div>
                         <textarea name="description" rows="3" class="rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Description"></textarea>
@@ -2168,7 +2168,7 @@
                                             @method('PUT')
                                             <input name="name" required value="{{ $brand->name }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                                             <select name="type" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="publisher" @selected($brand->type === 'publisher')>Éditeur</option><option value="brand" @selected($brand->type === 'brand')>Marque</option></select>
-                                            <input name="phone" value="{{ $brand->phone }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Téléphone">
+                                            <input name="phone" type="tel" value="{{ $brand->phone }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Téléphone">
                                             <input name="email" type="email" value="{{ $brand->email }}" class="h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Email">
                                             <textarea name="description" rows="2" class="rounded-lg border border-slate-200 px-3 py-2 text-sm lg:col-span-2 dark:border-white/10 dark:bg-slate-900" placeholder="Description">{{ $brand->description }}</textarea>
                                             <div class="flex justify-end gap-2 lg:col-span-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer</button></div>

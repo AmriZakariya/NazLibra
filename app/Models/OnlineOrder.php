@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\PhoneNumber;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,6 +41,7 @@ class OnlineOrder extends Model
     protected function casts(): array
     {
         return [
+            'customer_phone' => PhoneNumber::class,
             'ordered_at' => 'datetime',
             'expected_at' => 'date',
             'converted_at' => 'datetime',

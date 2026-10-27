@@ -3,8 +3,10 @@ import 'datatables.net-dt/css/dataTables.dataTables.css';
 import './hardware.js';
 import { currencySymbol, formatMoney } from './money.js';
 import './zip-images.js';
+import { startPhoneInputs } from './phone-input.js';
 
 window.DataTable = DataTable;
+startPhoneInputs();
 
 // In the shop's currency (window.appCurrency), the way the server writes it.
 const money = { format: formatMoney };

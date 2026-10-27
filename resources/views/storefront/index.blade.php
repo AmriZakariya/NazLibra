@@ -28,13 +28,13 @@
     ];
 @endphp
 <!DOCTYPE html>
-<html lang="{{ $locale }}" dir="{{ $dir }}">
+<html lang="{{ $locale }}" dir="{{ $dir }}" data-phone-country="{{ \App\Support\Phone::defaultCountry($tenant) }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ __('storefront.online_store') }} · {{ $tenant->name }}</title>
-    @vite(['resources/css/app.css'])
+    @vite(['resources/css/app.css', 'resources/js/phone.js'])
     <style>
         :root {
             --brand-primary: {{ $primary }};
@@ -543,15 +543,6 @@
                 return currency.placement === 'Left' ? `${currency.symbol} ${number}` : `${number} ${currency.symbol}`;
             };
 
-            const normalizePhone = (value) => {
-                const digits = String(value || '').replace(/\D+/g, '');
-                if (digits.startsWith('00212')) return `+${digits.slice(2)}`;
-                if (digits.startsWith('212')) return `+${digits}`;
-                if (digits.startsWith('0') && digits.length === 10) return `+212${digits.slice(1)}`;
-                if (digits.length === 9 && ['5', '6', '7'].includes(digits[0])) return `+212${digits}`;
-                return value;
-            };
-
             const toast = (message) => {
                 if (!toastNode) return;
                 window.clearTimeout(toastTimer);
@@ -728,26 +719,7 @@
                 saveProfileInput.checked = true;
             }
 
-            const phoneInput = document.querySelector('input[name="customer_phone"]');
-            const normalizePhoneInput = () => {
-                if (phoneInput) {
-                    phoneInput.value = normalizePhone(phoneInput.value);
-                }
-            };
-            phoneInput?.addEventListener('blur', normalizePhoneInput);
-            phoneInput?.addEventListener('change', normalizePhoneInput);
-            phoneInput?.addEventListener('focusout', normalizePhoneInput);
-            phoneInput?.addEventListener('input', () => {
-                window.clearTimeout(phoneInput._normalizeTimer);
-                phoneInput._normalizeTimer = window.setTimeout(() => {
-                    if (String(phoneInput.value || '').replace(/\D+/g, '').length >= 9) {
-                        normalizePhoneInput();
-                    }
-                }, 400);
-            });
-
             form?.addEventListener('submit', () => {
-                normalizePhoneInput();
                 if (saveProfileInput?.checked) {
                     const profile = {};
                     form.querySelectorAll('[data-profile-field]').forEach((field) => {

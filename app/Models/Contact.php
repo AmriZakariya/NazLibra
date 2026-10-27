@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Casts\PhoneNumber;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -52,6 +53,7 @@ class Contact extends Model
     {
         return [
             'tags' => 'array',
+            'phone' => PhoneNumber::class,
             'membership_expires_at' => 'date',
             'credit_limit' => 'decimal:2',
             'opening_balance' => 'decimal:2',
