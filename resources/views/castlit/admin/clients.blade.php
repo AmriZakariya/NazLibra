@@ -5,6 +5,7 @@
 @section('content')
 <style>
     .admin { padding: 40px 0 0; }
+    .admin .wrap { max-width: 1440px; }
     .admin-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
     .admin-head h1 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
     .admin-head p { color: var(--muted); font-size: 14px; }

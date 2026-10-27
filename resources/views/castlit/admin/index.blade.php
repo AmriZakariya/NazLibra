@@ -5,6 +5,13 @@
 @section('content')
 <style>
     .admin { padding: 40px 0 0; }
+    /* Wider than the marketing pages: eight columns did not fit in 1140px
+       and the last ones were cut off with no way to scroll to them. */
+    .admin .wrap { max-width: 1440px; }
+    .tbl-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tbl { min-width: 980px; }
+    .stack { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+    .nowrap { white-space: nowrap; }
     .admin-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
     .admin-head h1 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
     .admin-head p { color: var(--muted); font-size: 14px; }
@@ -18,7 +25,7 @@
     .tbl { width: 100%; border-collapse: collapse; }
     .tbl th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em;
               color: var(--muted); padding: 13px 16px; border-bottom: 1px solid var(--sand); }
-    .tbl td { padding: 14px 16px; border-bottom: 1px solid color-mix(in srgb, var(--sand) 55%, transparent); font-size: 14px; vertical-align: middle; }
+    .tbl td { padding: 14px 14px; border-bottom: 1px solid color-mix(in srgb, var(--sand) 55%, transparent); font-size: 14px; vertical-align: middle; }
     .tbl tr:last-child td { border-bottom: none; }
     .tbl tr:hover td { background: color-mix(in srgb, var(--brand) 4%, transparent); }
     .biz { font-weight: 700; }
@@ -121,6 +128,7 @@
         @endif
 
         <div class="card">
+          <div class="tbl-scroll">
             <table class="tbl">
                 <thead>
                     <tr>
@@ -128,7 +136,6 @@
                         <th>Contact</th>
                         <th>Provenance</th>
                         <th>Statut</th>
-                        <th>Provisioning</th>
                         <th>Connexions</th>
                         <th>Reçue</th>
                         <th></th>
@@ -168,13 +175,15 @@
                                     @endif
                                 </div>
                             </td>
-                            <td><span class="pill pill-{{ $sub->status }}">{{ $tabs[$sub->status] ?? $sub->status }}</span></td>
+                            {{-- Demande et espace dans une colonne : deux colonnes de
+                                 badges coûtaient la place des dernières colonnes. --}}
                             <td>
-                                @if ($sub->install)
-                                    <span class="pill pill-{{ $sub->install->status }}">{{ ucfirst($sub->install->status) }}</span>
-                                @else
-                                    <span class="muted">—</span>
-                                @endif
+                                <div class="stack">
+                                    <span class="pill pill-{{ $sub->status }}">{{ $tabs[$sub->status] ?? $sub->status }}</span>
+                                    @if ($sub->install)
+                                        <span class="pill pill-{{ $sub->install->status }}" title="Provisioning">{{ ucfirst($sub->install->status) }}</span>
+                                    @endif
+                                </div>
                             </td>
                             <td>
                                 @if ($sub->install?->status === \App\Models\TenantInstall::STATUS_LIVE)
@@ -183,16 +192,17 @@
                                     <span class="muted">—</span>
                                 @endif
                             </td>
-                            <td class="muted">{{ $sub->created_at->format('d/m/Y H:i') }}</td>
+                            <td class="muted nowrap">{{ $sub->created_at->format('d/m/Y') }}<br>{{ $sub->created_at->format('H:i') }}</td>
                             <td style="text-align:right">
-                                <a href="{{ route('castlit.admin.show', $sub) }}" class="row-link">Détails →</a>
+                                <a href="{{ route('castlit.admin.show', $sub) }}" class="row-link nowrap">Détails →</a>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="empty">Aucune demande dans cette catégorie.</td></tr>
+                        <tr><td colspan="7" class="empty">Aucune demande dans cette catégorie.</td></tr>
                     @endforelse
                 </tbody>
             </table>
+          </div>
         </div>
 
         <div class="pager">{{ $subscriptions->links() }}</div>
