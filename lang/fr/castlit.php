@@ -166,7 +166,7 @@ return [
         ['t' => 'Android',            'd' => 'Tablettes et téléphones, plein écran.'],
         ['t' => 'Windows & navigateur', 'd' => 'Sur PC, Mac ou tout navigateur récent.'],
         ['t' => 'Terminaux PAX',      'd' => 'Imprimante ticket intégrée.'],
-        ['t' => 'Imprimante ticket',  'd' => 'ESC/POS en réseau, USB ou Bluetooth.'],
+        ['t' => 'Imprimante ticket',  'd' => 'ESC/POS en réseau (Wi-Fi ou câble).'],
         ['t' => 'Douchette & caméra', 'd' => 'Scan code-barres et ISBN.'],
         ['t' => 'Afficheur client',   'd' => 'Second écran face au client.'],
     ],

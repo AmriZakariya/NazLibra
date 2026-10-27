@@ -165,7 +165,7 @@ return [
         ['t' => 'Android',             'd' => 'Tablets and phones, full screen.'],
         ['t' => 'Windows & browser',   'd' => 'On PC, Mac or any recent browser.'],
         ['t' => 'PAX terminals',       'd' => 'Built-in receipt printer.'],
-        ['t' => 'Receipt printer',     'd' => 'ESC/POS over network, USB or Bluetooth.'],
+        ['t' => 'Receipt printer',     'd' => 'ESC/POS over the network (Wi-Fi or cable).'],
         ['t' => 'Scanner & camera',    'd' => 'Barcode and ISBN scanning.'],
         ['t' => 'Customer display',    'd' => 'A second screen facing the customer.'],
     ],
