@@ -221,7 +221,8 @@ class UserAccessTest extends TestCase
         $this->get(route('module', ['module' => 'settings', 'section' => 'company']))
             ->assertOk()
             ->assertSee('Profil société / magasin principal')
-            ->assertSee('Préfixes de numérotation');
+            // Gone: 18 prefix fields that were saved and read by nothing.
+            ->assertDontSee('Préfixes de numérotation');
 
         $this->post(route('settings.company.update'), [
             'store_code' => 'ATLAS-CASA',
@@ -266,24 +267,7 @@ class UserAccessTest extends TestCase
             't_and_c_status_pos' => '1',
             'invoice_terms' => 'Articles non repris après 48h.',
             'toggle_header_footer' => '1',
-            'category_init' => 'CAT',
-            'item_init' => 'IT',
-            'supplier_init' => 'SUP',
-            'purchase_init' => 'PUR',
-            'purchase_return_init' => 'PR',
-            'customer_init' => 'CUS',
-            'sales_init' => 'SAL',
-            'sales_return_init' => 'SR',
-            'expense_init' => 'EXP',
-            'accounts_init' => 'ACC',
-            'quotation_init' => 'QUO',
-            'money_transfer_init' => 'MT',
-            'sales_payment_init' => 'SP',
-            'sales_return_payment_init' => 'SRP',
-            'purchase_payment_init' => 'PP',
-            'purchase_return_payment_init' => 'PRP',
-            'expense_payment_init' => 'EP',
-            'cust_advance_init' => 'ADV',
+            'category_init' => 'CAT', // ignored now: no prefix setting exists
         ])->assertRedirect(route('module', ['module' => 'settings', 'section' => 'company']));
 
         $tenant = Tenant::firstOrFail()->fresh();
@@ -292,7 +276,7 @@ class UserAccessTest extends TestCase
         $this->assertSame('ICE-999', $tenant->ice);
         $this->assertSame('ATLAS-CASA', $tenant->settings['company_profile']['store_code']);
         $this->assertTrue($tenant->settings['company_profile']['show_signature']);
-        $this->assertSame('CAT', $tenant->settings['company_profile']['category_init']);
+        $this->assertArrayNotHasKey('category_init', $tenant->settings['company_profile'], 'a removed setting is not stored');
         $this->assertSame(2, $tenant->settings['number_format']['decimals']);
     }
 }

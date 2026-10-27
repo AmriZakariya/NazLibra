@@ -123,4 +123,19 @@ class OpenTicketNameTest extends TestCase
         $this->assertSame('Table 9 bis', $listed['name']);
         $this->assertNotNull($listed['opened_at']);
     }
+
+    public function test_the_app_renames_a_ticket_without_resending_it(): void
+    {
+        $tenant = Tenant::firstOrFail();
+        $user = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+        $api = $this->withToken($user->createToken('t')->plainTextToken)->withHeader('X-Tenant-Slug', $tenant->slug);
+        $ticket = $this->hold(['ticket_name' => 'Table 4']);
+
+        $api->patchJson("/api/v1/pos/tickets/{$ticket->id}/name", ['name' => '  Table 4 — terrasse '])
+            ->assertOk()->assertJson(['ok' => true, 'name' => 'Table 4 — terrasse']);
+        $this->assertSame('Table 4 — terrasse', $ticket->fresh()->name);
+
+        $api->patchJson("/api/v1/pos/tickets/{$ticket->id}/name", ['name' => ''])->assertOk();
+        $this->assertNull($ticket->fresh()->name, 'an empty name gives the ticket back its number');
+    }
 }

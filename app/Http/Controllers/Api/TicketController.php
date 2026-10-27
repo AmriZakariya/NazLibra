@@ -228,4 +228,24 @@ class TicketController extends Controller
 
         return response()->json(['ok' => true]);
     }
+
+    /**
+     * Renames a parked ticket ("Table 4" → "Table 4 – terrasse") without
+     * re-sending its cart: the till used to wait for the next park, so the
+     * web showed the old name meanwhile.
+     */
+    public function rename(Request $request, PosTicket $ticket): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant = $request->attributes->get('api_tenant');
+
+        if ($ticket->tenant_id !== $tenant->id) {
+            return response()->json(['ok' => false, 'message' => 'Ticket introuvable.'], 404);
+        }
+
+        $data = $request->validate(['name' => ['nullable', 'string', 'max:80']]);
+        $ticket->update(['name' => trim((string) ($data['name'] ?? '')) ?: null]);
+
+        return response()->json(['ok' => true, 'name' => $ticket->name]);
+    }
 }

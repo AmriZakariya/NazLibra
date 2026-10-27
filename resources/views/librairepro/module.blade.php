@@ -5063,18 +5063,10 @@
                             </div>
                         </section>
 
-                        <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                            <h3 class="text-sm font-semibold">Préfixes de numérotation</h3>
-                            <div class="mt-4 grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
-                                @foreach ([
-                                    'category_init' => 'Catégories', 'item_init' => 'Articles', 'supplier_init' => 'Fournisseurs', 'purchase_init' => 'Achats', 'purchase_return_init' => 'Retour achat', 'customer_init' => 'Clients',
-                                    'sales_init' => 'Ventes', 'sales_return_init' => 'Retour vente', 'expense_init' => 'Dépenses', 'accounts_init' => 'Comptes', 'quotation_init' => 'Devis', 'money_transfer_init' => 'Transfert argent',
-                                    'sales_payment_init' => 'Paiement vente', 'sales_return_payment_init' => 'Paiement retour vente', 'purchase_payment_init' => 'Paiement achat', 'purchase_return_payment_init' => 'Paiement retour achat', 'expense_payment_init' => 'Paiement dépense', 'cust_advance_init' => 'Avance client',
-                                ] as $field => $label)
-                                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">{{ $label }}</span><input name="{{ $field }}" value="{{ old($field, $companyProfile[$field]) }}" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm uppercase dark:border-white/10 dark:bg-slate-900"></label>
-                                @endforeach
-                            </div>
-                        </section>
+                        {{-- No "Préfixes de numérotation" section: those 18 fields were
+                             saved and read by nothing. Document numbers come from
+                             DocumentNumberGenerator (BL, FAC, DEV, ATT…), the same for
+                             every shop, so a number never changes meaning midway. --}}
 
                         <div class="flex justify-end">
                             <button class="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white">Enregistrer la société</button>

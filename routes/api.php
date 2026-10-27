@@ -136,6 +136,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('tickets',            [TicketController::class, 'index']);
             Route::post('tickets',           [TicketController::class, 'store'])->middleware('api.action:sales.create');
             Route::delete('tickets/{ticket}', [TicketController::class, 'destroy'])->middleware('api.action:sales.create');
+            Route::patch('tickets/{ticket}/name', [TicketController::class, 'rename'])->middleware('api.action:sales.create');
         });
 
         // ── Kitchen display (KDS) ─────────────────────────────────────────────
