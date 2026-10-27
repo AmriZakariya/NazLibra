@@ -9,6 +9,21 @@
     $resumeDiscountRuleId = (int) old('discount_rule_id', 0);
     $resumeCouponCode = old('coupon_code', $resumeTicket?->coupon_code ?? '');
     $resumeNote = old('note', $resumeTicket?->note ?? '');
+    $resumeTicketName = old('ticket_name', $resumeTicket?->name ?? '');
+    // "25 min" / "1 h 10" since the ticket was first opened.
+    $openFor = function (?\Illuminate\Support\Carbon $at): string {
+        if (! $at) {
+            return '';
+        }
+        $minutes = max(0, (int) floor($at->diffInMinutes(now(), true)));
+
+        return $minutes < 60 ? $minutes.' min' : intdiv($minutes, 60).' h '.str_pad((string) ($minutes % 60), 2, '0', STR_PAD_LEFT);
+    };
+    $openTone = function (?\Illuminate\Support\Carbon $at): string {
+        $minutes = $at ? $at->diffInMinutes(now(), true) : 0;
+
+        return $minutes >= 60 ? 'is-late' : ($minutes >= 30 ? 'is-waiting' : '');
+    };
 @endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" title="Caisse">
@@ -298,8 +313,12 @@
                             <div class="pos-held-card rounded-lg border border-amber-200 bg-white p-3 dark:border-amber-500/20 dark:bg-slate-950/60">
                                 <div class="flex items-start justify-between gap-2">
                                     <div class="min-w-0">
-                                        <p class="font-semibold">{{ $ticket->number }}</p>
-                                        <p class="mt-0.5 truncate text-xs text-slate-500">{{ $ticket->contact?->name ?? $tr('Client comptoir') }} · {{ $ticket->held_at?->format('H:i') }}</p>
+                                        {{-- The name is what a waiter looks for: up to two lines, never cut by the buttons. --}}
+                                        <p class="pos-held-name font-semibold leading-snug" title="{{ $ticket->displayName() }}">{{ $ticket->displayName() }}</p>
+                                        <p class="mt-0.5 truncate text-xs text-slate-500">
+                                            @if (filled($ticket->name)){{ $ticket->number }} · @endif{{ $ticket->contact?->name ?? $tr('Client comptoir') }}
+                                        </p>
+                                        <p class="pos-held-age {{ $openTone($ticket->openedAt()) }} mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" data-opened-at="{{ $ticket->openedAt()?->toIso8601String() }}" title="{{ $tr('Ouvert le') }} {{ $ticket->openedAt()?->format('d/m/Y H:i') }}">⏱ <span data-age-label>{{ $openFor($ticket->openedAt()) }}</span></p>
                                     </div>
                                     <strong class="shrink-0 text-sm">{{ $money($ticket->total_amount) }}</strong>
                                 </div>
@@ -318,8 +337,8 @@
                                     <div class="flex items-start justify-between gap-4">
                                         <div>
                                             <p class="text-sm font-semibold text-amber-700">{{ $tr('Ticket en attente') }}</p>
-                                            <h3 class="mt-1 text-xl font-semibold">{{ $ticket->number }} · {{ $money($ticket->total_amount) }}</h3>
-                                            <p class="mt-1 text-sm text-slate-500">{{ $ticket->contact?->name ?? $tr('Client comptoir') }} · {{ $ticket->held_at?->format('d/m/Y H:i') }}</p>
+                                            <h3 class="mt-1 text-xl font-semibold">{{ $ticket->displayName() }} · {{ $money($ticket->total_amount) }}</h3>
+                                            <p class="mt-1 text-sm text-slate-500">@if (filled($ticket->name)){{ $ticket->number }} · @endif{{ $ticket->contact?->name ?? $tr('Client comptoir') }} · {{ $tr('ouvert depuis') }} {{ $openFor($ticket->openedAt()) }}</p>
                                         </div>
                                         <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
                                     </div>
@@ -350,6 +369,24 @@
                         @endforeach
                     </div>
                 </details>
+                <script>
+                    // Keeps "open for" current without reloading the till.
+                    (() => {
+                        const label = (minutes) => minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+                        // The server's clock, not the till's: a PC set ten minutes
+                        // wrong would show every table ten minutes off.
+                        const offset = Date.parse(@json(now()->toIso8601String())) - Date.now();
+                        const tick = () => document.querySelectorAll('[data-opened-at]').forEach((node) => {
+                            const at = Date.parse(node.dataset.openedAt);
+                            if (Number.isNaN(at)) return;
+                            const minutes = Math.max(0, Math.floor((Date.now() + offset - at) / 60000));
+                            node.querySelector('[data-age-label]').textContent = label(minutes);
+                            node.classList.toggle('is-waiting', minutes >= 30 && minutes < 60);
+                            node.classList.toggle('is-late', minutes >= 60);
+                        });
+                        setInterval(tick, 60000);
+                    })();
+                </script>
             @endif
 
             <article class="pos-catalog-panel rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -623,6 +660,11 @@
                         <button class="pos-exact-split rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold dark:border-white/10" type="button">50/50</button>
                     </div>
 
+                    {{-- Optional: "Table 4", "Mme Alami". Empty parks it as before, under its number. --}}
+                    <label class="mt-2 block">
+                        <span class="sr-only">{{ $tr('Nom du ticket') }}</span>
+                        <input name="ticket_name" value="{{ $resumeTicketName }}" maxlength="80" autocomplete="off" data-ticket-name class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950" placeholder="{{ $tr('Nom du ticket (facultatif) — ex : Table 4') }}">
+                    </label>
                     <div class="mt-2 grid grid-cols-[1fr_1.5fr] gap-2">
                         <button class="pos-hold-submit rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50" type="submit" formaction="{{ route('pos.tickets.store') }}" @disabled($sourceInvoice || $sourceOnlineOrder)>
                             {{ $tr('Mettre en attente') }}

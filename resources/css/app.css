@@ -7675,3 +7675,25 @@
         font-size: 0.8rem;
     }
 }
+
+/* ── Open tickets (web POS) ─────────────────────────────────────────────────
+   The name is what a waiter looks for, so it gets two lines; the time open
+   turns amber after 30 min and red after an hour. */
+.pos-held-name {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    word-break: break-word;
+}
+
+.pos-held-age {
+    background: var(--surface-muted);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.pos-held-age.is-waiting { background: #fffbeb; color: #b45309; }
+.pos-held-age.is-late { background: #fff1f2; color: #be123c; }
+.dark .pos-held-age.is-waiting { background: rgb(120 53 15 / 34%); color: #fbbf24; }
+.dark .pos-held-age.is-late { background: rgb(190 18 60 / 26%); color: #fda4af; }

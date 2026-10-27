@@ -56,7 +56,7 @@ class TicketController extends Controller
             ->get([
                 'id', 'contact_id', 'user_id', 'number', 'status',
                 'cart', 'subtotal_amount', 'discount_amount', 'total_amount',
-                'note', 'held_at', 'updated_at',
+                'note', 'held_at', 'updated_at', 'name', 'opened_at', 'created_at',
             ]);
 
         return response()->json(['ok' => true, 'tickets' => $tickets]);
@@ -127,6 +127,10 @@ class TicketController extends Controller
             'discount_amount' => ['nullable', 'numeric', 'min:0'],
             'total_amount'    => ['nullable', 'numeric', 'min:0'],
             'note'            => ['nullable', 'string', 'max:500'],
+            // What the shop calls it ("Table 4"); and when the device first
+            // opened it, which a re-park must not move.
+            'name'            => ['nullable', 'string', 'max:80'],
+            'opened_at'       => ['nullable', 'date'],
         ]);
 
         /** @var Tenant $tenant */
@@ -148,6 +152,8 @@ class TicketController extends Controller
                 'discount_amount' => $data['discount_amount'] ?? 0,
                 'total_amount'    => $data['total_amount'] ?? 0,
                 'note'            => $data['note'] ?? $ticket->note,
+                'name'            => array_key_exists('name', $data) ? (trim((string) $data['name']) ?: null) : $ticket->name,
+                'opened_at'       => $ticket->opened_at ?? $ticket->created_at,
                 'held_at'         => now(),
                 'user_id'         => $action->actor->id,
                 'virtual_device_id' => $action->virtualDevice?->id,
@@ -176,6 +182,8 @@ class TicketController extends Controller
                 'discount_amount' => $data['discount_amount'] ?? 0,
                 'total_amount'    => $data['total_amount'] ?? 0,
                 'note'            => $data['note'] ?? null,
+                'name'            => trim((string) ($data['name'] ?? '')) ?: null,
+                'opened_at'       => isset($data['opened_at']) ? \Illuminate\Support\Carbon::parse($data['opened_at']) : now(),
                 'held_at'         => now(),
             ]);
         }

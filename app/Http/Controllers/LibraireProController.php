@@ -5058,6 +5058,7 @@ class LibraireProController extends Controller
             'discount_value' => ['nullable', 'numeric', 'min:0'],
             'coupon_code' => ['nullable', 'string', 'max:80'],
             'note' => ['nullable', 'string', 'max:500'],
+            'ticket_name' => ['nullable', 'string', 'max:80'],
             'ticket_id' => ['nullable', 'integer', Rule::exists('pos_tickets', 'id')->where('tenant_id', $tenant->id)->where('status', 'held')],
         ]);
 
@@ -5102,12 +5103,15 @@ class LibraireProController extends Controller
                     'tax_amount' => $totals['tax'],
                     'total_amount' => $totals['total'],
                     'note' => $data['note'] ?? null,
+                    'name' => trim((string) ($data['ticket_name'] ?? '')) ?: null,
                     'held_at' => now(),
                 ];
 
                 if (! empty($data['ticket_id'])) {
                     $ticket = PosTicket::where('tenant_id', $tenant->id)->where('status', 'held')->whereKey($data['ticket_id'])->firstOrFail();
-                    $ticket->update($payload);
+                    // Parked again: still the same ticket, opened when it
+                    // was first opened.
+                    $ticket->update($payload + ['opened_at' => $ticket->opened_at ?? $ticket->created_at]);
 
                     return $ticket;
                 }
@@ -5115,13 +5119,14 @@ class LibraireProController extends Controller
                 return PosTicket::create($payload + [
                     'number' => $this->nextTicketNumber($tenant),
                     'status' => 'held',
+                    'opened_at' => now(),
                 ]);
             });
         } catch (\RuntimeException $exception) {
             return back()->withErrors(['cart' => $exception->getMessage()])->withInput();
         }
 
-        $message = 'Ticket '.$ticket->number.' mis en attente.';
+        $message = 'Ticket '.$ticket->displayName().' mis en attente.';
 
         if ($request->expectsJson()) {
             return response()->json([
