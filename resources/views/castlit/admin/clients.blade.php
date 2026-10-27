@@ -6,6 +6,14 @@
 <style>
     .admin { padding: 40px 0 0; }
     .admin .wrap { max-width: 1440px; }
+    .upkeep-alert { background: var(--warn-bg); color: var(--warn); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+                    border-radius: 12px; padding: 12px 16px; margin-bottom: 16px; font-size: 14px; line-height: 1.6; }
+    .upkeep-alert code { display: block; margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--surface);
+                         color: var(--ink); font-size: 12.5px; overflow-x: auto; white-space: nowrap; }
+    .upkeep { font-size: 12.5px; line-height: 1.5; min-width: 150px; }
+    .upkeep .good { color: var(--ok); font-weight: 650; }
+    .upkeep .bad { color: var(--err); font-weight: 650; }
+    .upkeep .dl { color: var(--brand); font-weight: 650; }
     .admin-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
     .admin-head h1 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
     .admin-head p { color: var(--muted); font-size: 14px; }
@@ -110,6 +118,18 @@
             <span>Total : <b>{{ $installs->total() }}</b></span>
         </div>
 
+        {{-- The master's cron drives every space's scheduler and the nightly
+             backups. Without it nothing is saved and no invoice turns overdue,
+             silently — so say so here, with the line to add. --}}
+        @if (! $upkeepRanAt || $upkeepRanAt->lt(now()->subMinutes(40)))
+            <div class="upkeep-alert" data-upkeep="stale">
+                <strong>Le cron du master ne tourne pas{{ $upkeepRanAt ? ' depuis '.$upkeepRanAt->locale('fr')->diffForHumans() : '' }}.</strong>
+                Sans lui, aucun espace n'est sauvegardé et les factures ne passent pas « en retard ».
+                Ajoutez cette tâche dans cPanel → Tâches Cron (toutes les minutes) :
+                <code>{{ $cronLine }}</code>
+            </div>
+        @endif
+
         @if (($behind ?? 0) > 0)
             <div class="deploy-alert">
                 <div>
@@ -134,6 +154,7 @@
                         <th>Facturation</th>
                         <th>État</th>
                         <th>Version déployée</th>
+                        <th>Entretien</th>
                         <th>Créé le</th>
                         <th style="text-align:right">Actions</th>
                     </tr>
@@ -204,6 +225,28 @@
                                         <small>{{ $masterSha ? 'À jour' : 'Déployé' }}</small></span>
                                 @endif
                             </td>
+                            <td class="upkeep">
+                                @if ($install->isLive())
+                                    @if ($install->last_backup_error)
+                                        <div class="bad" title="{{ $install->last_backup_error }}">Sauvegarde en échec</div>
+                                    @elseif ($install->last_backup_at)
+                                        <div class="{{ $install->last_backup_at->lt(now()->subHours(36)) ? 'bad' : 'good' }}">
+                                            Sauvegarde {{ $install->last_backup_at->locale('fr')->diffForHumans() }}
+                                            · {{ number_format(($install->last_backup_bytes ?? 0) / 1024, 0, ',', ' ') }} Ko
+                                        </div>
+                                        <a class="dl" href="{{ route('castlit.admin.clients.backup', $install, false) }}">Télécharger</a>
+                                    @else
+                                        <div class="bad">Jamais sauvegardé</div>
+                                    @endif
+                                    @if ($install->schedule_error)
+                                        <div class="bad" title="{{ $install->schedule_error }}">Planificateur en échec</div>
+                                    @elseif ($install->schedule_ran_at)
+                                        <div class="muted">Tâches {{ $install->schedule_ran_at->locale('fr')->diffForHumans() }}</div>
+                                    @endif
+                                @else
+                                    <span class="muted">—</span>
+                                @endif
+                            </td>
                             <td class="muted">{{ $install->created_at?->format('d/m/Y') ?? '—' }}</td>
                             <td>
                                 <div class="actions">
@@ -265,7 +308,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="empty">Aucun espace client provisionné pour le moment.</td></tr>
+                        <tr><td colspan="7" class="empty">Aucun espace client provisionné pour le moment.</td></tr>
                     @endforelse
                 </tbody>
             </table>

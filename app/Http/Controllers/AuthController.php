@@ -83,7 +83,7 @@ class AuthController extends Controller
                 }
             }
             if ($password === '') {
-                $password = (string) ($admin['password'] ?? 'admin');
+                $password = (string) ($admin['password'] ?? '');
             }
             if ($email !== '' && $password !== '') {
                 return ['email' => $email, 'password' => $password];

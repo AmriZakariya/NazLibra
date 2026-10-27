@@ -71,6 +71,7 @@ if (config('castlit.is_master')) {
             // poisoned /clients/action with a 404 from stray GET reloads; a fresh
             // path has no cached entry. The GET redirect keeps it from ever
             // returning a 404 (so it can't be re-poisoned) and is cacheable.
+            Route::get('/clients/{install}/sauvegarde', [ClientAdminController::class, 'backupDownload'])->whereNumber('install')->name('clients.backup');
             Route::post('/clients/op', [ClientAdminController::class, 'action'])->name('clients.action');
             Route::redirect('/clients/op', '/castlit-admin/clients');
             Route::get('/{subscription}', [SubscriptionAdminController::class, 'show'])->name('show');

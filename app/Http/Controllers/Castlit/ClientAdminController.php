@@ -2,16 +2,20 @@
 
 namespace App\Http\Controllers\Castlit;
 
-use App\Support\LogTail;
-use App\Support\MasterVersion;
+use App\Console\Commands\BackupClientsCommand;
+use App\Console\Commands\RunClientSchedulesCommand;
 use App\Http\Controllers\Controller;
 use App\Jobs\ManageClientJob;
 use App\Models\TenantInstall;
+use App\Support\LogTail;
+use App\Support\MasterVersion;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Platform-admin manager for provisioned client installs: see the deployed
@@ -70,6 +74,17 @@ class ClientAdminController extends Controller
         return LogTail::latestFile($root.'/storage/logs');
     }
 
+    /** The newest nightly copy of a space's database, for the platform admin. */
+    public function backupDownload(TenantInstall $install): BinaryFileResponse|RedirectResponse
+    {
+        $file = BackupClientsCommand::latest($install->subdomain);
+        if ($file === null) {
+            return back()->with('error', 'Aucune sauvegarde pour '.$install->domain.'.');
+        }
+
+        return response()->download($file, basename($file), ['Content-Type' => 'application/gzip']);
+    }
+
     /** List every install with its live/enabled state and version vs master. */
     public function index(): View
     {
@@ -86,6 +101,10 @@ class ClientAdminController extends Controller
 
         return view('castlit.admin.clients', [
             'installs'  => $installs,
+            // When the master last ran the spaces' schedulers; null means its
+            // cron has never run, so no space is backed up or swept either.
+            'upkeepRanAt' => ($ran = Cache::get(RunClientSchedulesCommand::HEARTBEAT)) ? Carbon::parse($ran) : null,
+            'cronLine'    => '* * * * * cd '.base_path().' && '.(config('castlit.provision.php_bin') ?: 'php').' artisan schedule:run >> /dev/null 2>&1',
             'masterSha' => $masterSha,
             'commits'   => $commits,
             // How many of the listed commits are newer than the deployed one

@@ -19,6 +19,9 @@
     @keyframes livepulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
     @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
     .step-now { font-weight: 700; }
+    .secret { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; letter-spacing: .5px; }
+    .mini-btn { border: 1px solid var(--sand); background: var(--surface); color: var(--muted); border-radius: 7px; font-size: 12px; font-weight: 650; padding: 2px 8px; cursor: pointer; margin-inline-start: 4px; }
+    .mini-btn:hover { border-color: var(--brand); color: var(--brand); }
     .acc-sum { font-size: 14px; line-height: 1.6; margin: 8px 0 12px; }
     .acc-never { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
     .acc-bad { color: var(--err); font-weight: 650; }
@@ -136,6 +139,18 @@
                             @endif
                             @if ($subscription->install->commit_sha)
                                 <div class="kv"><span class="k">Commit</span><span class="v">{{ $subscription->install->commit_sha }}</span></div>
+                            @endif
+                            {{-- The space's support login: random per space since
+                                 2026-10-27, so it is shown here rather than known. --}}
+                            @if ($subscription->install->support_email && $subscription->install->support_password)
+                                <div class="kv"><span class="k">Accès support</span>
+                                    <span class="v" data-support>
+                                        {{ $subscription->install->support_email }}<br>
+                                        <code class="secret" data-secret="{{ $subscription->install->support_password }}">••••••••••••</code>
+                                        <button type="button" class="mini-btn" onclick="const c=this.previousElementSibling; c.textContent = c.textContent.startsWith('•') ? c.dataset.secret : '••••••••••••'">Afficher</button>
+                                        <button type="button" class="mini-btn" onclick="navigator.clipboard?.writeText(this.parentElement.querySelector('[data-secret]').dataset.secret); this.textContent='Copié ✓'">Copier</button>
+                                    </span>
+                                </div>
                             @endif
                             @if ($subscription->install->provisioned_at)
                                 <div class="kv"><span class="k">Mis en ligne</span><span class="v">{{ $subscription->install->provisioned_at->format('d/m/Y H:i') }}</span></div>

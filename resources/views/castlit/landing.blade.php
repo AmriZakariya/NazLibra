@@ -363,9 +363,11 @@
         $suffix = '.'.config('castlit.main_domain');
         $sub = \Illuminate\Support\Str::endsWith($host, $suffix) ? substr($host, 0, -strlen($suffix)) : 'demo';
         $da = config('castlit.provision.default_admin', []);
+        // The demo's own login, public on purpose; never the support login of
+        // a real shop (those are random per space).
         $demoCreds = [
-            'email'    => str_replace('{sub}', $sub ?: 'demo', $da['email_pattern'] ?? 'admin@{sub}.com'),
-            'password' => $da['password'] ?? 'admin',
+            'email'    => config('castlit.demo.email') ?: str_replace('{sub}', $sub ?: 'demo', $da['email_pattern'] ?? 'admin@{sub}.com'),
+            'password' => (string) config('castlit.demo.password', 'admin'),
         ];
     }
     $shot = function (string $file, string $alt, bool $eager = false) use ($img, $shotSize) {

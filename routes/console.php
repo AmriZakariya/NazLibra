@@ -18,3 +18,11 @@ Schedule::command('telescope:prune --hours=336')->daily();
 // after midnight in the latest timezone we serve, so a shop opening in the
 // morning already sees the right list.
 Schedule::command('invoices:mark-overdue')->dailyAt('01:15');
+
+// ─── Master only: the upkeep of every client space ────────────────────────────
+// One cron line on castlitpos.com (`* * * * * php artisan schedule:run`) drives
+// these; the client spaces have no cron of their own.
+if (config('castlit.is_master')) {
+    Schedule::command('castlit:run-client-schedules')->everyFifteenMinutes()->withoutOverlapping(30);
+    Schedule::command('castlit:backup-clients')->dailyAt('02:30')->withoutOverlapping(120);
+}

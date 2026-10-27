@@ -64,12 +64,12 @@ return [
         // the demo links entirely.
         'url'      => env('CASTLIT_DEMO_URL', 'https://demo.'.env('CASTLIT_MAIN_DOMAIN', 'castlitpos.com')),
         // Show the "compte de démonstration" box on this install's login page.
-        // Set CASTLIT_DEMO_LOGIN=true ONLY on the demo install; the credentials are
-        // then derived from the deterministic admin (admin@<sub>.com / admin) unless
-        // overridden below. Leave email/password blank to use the derived values.
+        // Set CASTLIT_DEMO_LOGIN=true ONLY on the demo install. The email is
+        // derived (admin@<sub>.com) unless set; the password is the demo's own,
+        // public on purpose — no other space shares it.
         'enabled'  => (bool) env('CASTLIT_DEMO_LOGIN', false),
         'email'    => env('CASTLIT_DEMO_EMAIL'),
-        'password' => env('CASTLIT_DEMO_PASSWORD'),
+        'password' => env('CASTLIT_DEMO_PASSWORD', 'admin'),
     ],
 
     // Google Search Console verification token (paste into .env once claimed).
@@ -95,6 +95,13 @@ return [
     // ── Provisioning (cPanel/LWS host) ──────────────────────────────────────
     // These describe the shell environment the ProvisionTenantJob runs in.
     // Only meaningful on the master install.
+    // Nightly copies of every client space's database (castlit:backup-clients).
+    // Outside the web folder on purpose: next to htdocs, not in it.
+    'backups' => [
+        'path'      => env('CASTLIT_BACKUP_PATH', dirname(base_path()).'/castlit-backups'),
+        'keep_days' => (int) env('CASTLIT_BACKUP_KEEP_DAYS', 14),
+    ],
+
     'provision' => [
         // The shell script that performs the actual provisioning.
         'script' => base_path('deploy/provision.sh'),
@@ -105,13 +112,15 @@ return [
         // A deterministic super-admin created inside every new client install,
         // in addition to the subscription owner — a known login for support.
         // {sub} is replaced by the client subdomain (e.g. admin@smar.com).
-        // ⚠️ The default password is weak on purpose (early phase); change the
-        // pattern/password here, or disable, before real customers go live.
+        // Its password is random per space (stored encrypted on the master,
+        // shown in castlit-admin) unless CASTLIT_DEFAULT_ADMIN_PASSWORD forces
+        // one — which only the public demo should do: a shared "admin" let
+        // anyone who knew a shop's address try to sign in to it.
         'default_admin' => [
             'enabled'       => (bool) env('CASTLIT_DEFAULT_ADMIN', true),
             'name'          => env('CASTLIT_DEFAULT_ADMIN_NAME', 'Administrateur'),
             'email_pattern' => env('CASTLIT_DEFAULT_ADMIN_EMAIL', 'admin@{sub}.com'),
-            'password'      => env('CASTLIT_DEFAULT_ADMIN_PASSWORD', 'admin'),
+            'password'      => env('CASTLIT_DEFAULT_ADMIN_PASSWORD'),
         ],
 
         // Terminals (virtual devices) created for every new client so they can

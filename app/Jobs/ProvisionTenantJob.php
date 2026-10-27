@@ -106,6 +106,10 @@ class ProvisionTenantJob implements ShouldQueue
             'db_name'        => $result['db'] ?? $install->db_name,
             'db_user'        => $result['db_user'] ?? $install->db_user,
             'docroot'        => $result['docroot'] ?? $install->docroot,
+            // The space's support login, random per space; kept encrypted for
+            // the platform admin (castlit-admin), never mailed to the client.
+            'support_email'    => ($result['admin_email'] ?? '') ?: $install->support_email,
+            'support_password' => ($result['admin_password'] ?? '') ?: $install->support_password,
             'commit_sha'     => $result['commit'] ?? null,
             'owner_email'    => $result['owner_email'] ?: $subscription->email,
             'provisioned_at' => now(),

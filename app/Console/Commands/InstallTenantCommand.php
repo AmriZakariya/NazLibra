@@ -116,7 +116,8 @@ class InstallTenantCommand extends Command
         return [
             'name'     => (string) ($cfg['name'] ?? 'Administrateur'),
             'email'    => $email,
-            'password' => (string) ($cfg['password'] ?? 'admin'),
+            // Random per space unless the install forces one (the demo).
+            'password' => (string) (($cfg['password'] ?? '') !== '' ? $cfg['password'] : Str::password(20, symbols: false)),
         ];
     }
 
