@@ -53,6 +53,11 @@ Route::prefix('v1')->group(function (): void {
     // ── Public ──────────────────────────────────────────────────────────────
     Route::post('auth/login', [AuthController::class, 'login']);
     Route::get('public/info', [PublicController::class, 'info']);
+    // The signup's country when the device itself cannot tell (no SIM).
+    Route::get('public/country', fn (\Illuminate\Http\Request $request) => response()->json([
+        'ok' => true,
+        'country' => \App\Support\GeoCountry::guess($request),
+    ]))->middleware('throttle:30,1');
     Route::post('public/client-access', [PublicController::class, 'clientAccess'])
         ->middleware('throttle:20,1');
     Route::post('public/subscribe', [PublicController::class, 'subscribe'])

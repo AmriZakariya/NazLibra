@@ -414,6 +414,8 @@
                     <a href="{{ route('castlit.privacy') }}">{{ __('castlit.footer_privacy') }}</a>
                     <a href="{{ route('castlit.terms') }}">{{ __('castlit.footer_terms') }}</a>
                     <a href="mailto:{{ $brand['email'] }}">{{ __('castlit.footer_contact') }}</a>
+                    {{-- Required by the licence (CC BY 4.0) of the IP → country table. --}}
+                    <a href="https://db-ip.com" rel="noopener">IP Geolocation by DB-IP</a>
                 </nav>
             </div>
         </div>

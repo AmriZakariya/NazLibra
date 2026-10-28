@@ -36,6 +36,9 @@ class MarketingController extends Controller
         $this->resolveLocale($request);
 
         return view('castlit.landing', [
+            // Pre-selects "Pays" (and the currency that follows it).
+            'detectCountry' => true,
+            'detectedCountry' => \App\Support\GeoCountry::guess($request),
             'activities'  => $this->activityOptions(),
             'currencies'  => ['MAD', 'EUR', 'USD', 'XOF', 'DZD', 'TND'],
             'mainDomain'  => config('castlit.main_domain'),

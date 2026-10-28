@@ -95,6 +95,15 @@ return [
     // ── Provisioning (cPanel/LWS host) ──────────────────────────────────────
     // These describe the shell environment the ProvisionTenantJob runs in.
     // Only meaningful on the master install.
+    // IP → country for the signup's "Pays" (App\Support\GeoCountry). A local
+    // copy of DB-IP's free "IP to Country Lite" (CC BY 4.0, credited in the
+    // footer), refreshed monthly by castlit:update-geoip: no API key, and no
+    // visitor address sent to anyone.
+    'geoip' => [
+        'path' => env('CASTLIT_GEOIP_PATH', storage_path('app/geoip/country.mmdb')),
+        'url'  => 'https://download.db-ip.com/free/dbip-country-lite-%s.mmdb.gz',
+    ],
+
     // Nightly copies of every client space's database (castlit:backup-clients).
     // Outside the web folder on purpose: next to htdocs, not in it.
     'backups' => [

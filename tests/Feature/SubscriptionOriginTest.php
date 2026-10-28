@@ -90,7 +90,9 @@ class SubscriptionOriginTest extends TestCase
 
     public function test_the_form_offers_the_country_with_morocco_selected(): void
     {
-        $page = $this->get('/')->assertOk()->getContent();
+        // When nothing says where the visitor is (a local address, a language
+        // with no region): Maroc. SignupCountryTest covers the detection.
+        $page = $this->get('/', ['Accept-Language' => 'fr'])->assertOk()->getContent();
         $select = Str::before(Str::after($page, 'name="country"'), '</select>');
 
         $this->assertMatchesRegularExpression('/value="MA"\s+selected/', $select);

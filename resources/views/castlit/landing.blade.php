@@ -652,7 +652,7 @@
                             <label for="currency">{{ __('castlit.f_currency') }} <span class="req">*</span></label>
                             <select id="currency" name="currency" required>
                                 @foreach ($currencies as $c)
-                                    <option value="{{ $c }}" @selected(old('currency', 'MAD') === $c)>{{ $c }}</option>
+                                    <option value="{{ $c }}" @selected(old('currency', in_array($detectedCurrency = \App\Support\Countries::currencyMap()[$detectedCountry ?? ''] ?? 'MAD', $currencies, true) ? $detectedCurrency : 'MAD') === $c)>{{ $c }}</option>
                                 @endforeach
                             </select>
                             @error('currency')<span class="field-error">{{ $message }}</span>@enderror
