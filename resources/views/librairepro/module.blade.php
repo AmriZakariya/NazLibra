@@ -5051,7 +5051,7 @@
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Langue</span><select name="language_id" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="fr" @selected(old('language_id', $companyProfile['language_id']) === 'fr')>Français</option><option value="ar" @selected(old('language_id', $companyProfile['language_id']) === 'ar')>العربية</option><option value="en" @selected(old('language_id', $companyProfile['language_id']) === 'en')>English</option></select></label>
                                 @php
                                     $currencyValue = strtoupper((string) old('currency', $companyProfile['currency']));
-                                    $currencyOptions = \App\Support\Money::NAMES;
+                                    $currencyOptions = \App\Support\Countries::currencyOptions();
                                     if ($currencyValue !== '' && ! isset($currencyOptions[$currencyValue])) {
                                         $currencyOptions[$currencyValue] = $currencyValue;
                                     }

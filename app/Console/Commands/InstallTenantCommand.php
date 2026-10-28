@@ -24,7 +24,7 @@ use Illuminate\Support\Str;
 class InstallTenantCommand extends Command
 {
     protected $signature = 'castlit:install-tenant
-        {--payload= : Base64-encoded JSON with business_name, activity, currency, contact_name, email, phone}
+        {--payload= : Base64-encoded JSON with business_name, activity, currency, country, city, timezone, contact_name, email, phone}
         {--password= : Optional explicit owner password; generated when omitted}
         {--subdomain= : Client subdomain, used to build the deterministic admin email (admin@{sub}.com)}';
 
@@ -60,6 +60,9 @@ class InstallTenantCommand extends Command
                     'name'          => $data['business_name'],
                     'activity'      => $data['activity'] ?? null,
                     'currency'      => $data['currency'] ?? 'MAD',
+                    'country'       => $data['country'] ?? null,
+                    'city'          => $data['city'] ?? null,
+                    'timezone'      => $data['timezone'] ?? null,
                     'phone'         => $data['phone'] ?? null,
                     'email'         => $data['email'],
                     'language'      => $data['language'] ?? 'fr',

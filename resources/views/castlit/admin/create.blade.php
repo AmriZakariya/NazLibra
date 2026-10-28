@@ -74,8 +74,8 @@
                         <div class="fld">
                             <label for="currency">Devise <span class="req">*</span></label>
                             <select id="currency" name="currency" required>
-                                @foreach ($currencies as $c)
-                                    <option value="{{ $c }}" @selected(old('currency', 'MAD') === $c)>{{ $c }}</option>
+                                @foreach ($currencies as $c => $currencyName)
+                                    <option value="{{ $c }}" @selected(old('currency', 'MAD') === $c)>{{ $c }} — {{ $currencyName }}</option>
                                 @endforeach
                             </select>
                             @error('currency')<span class="field-error">{{ $message }}</span>@enderror

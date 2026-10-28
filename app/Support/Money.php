@@ -76,7 +76,9 @@ final class Money
         return self::$memo[$key] ??= new self(
             self::normalizeCode($tenant->currency),
             data_get($tenant->settings, 'number_format.currency_placement') === 'Left' ? 'Left' : 'Right',
-            max(0, min(4, (int) data_get($tenant->settings, 'number_format.decimals', 2))),
+            // The shop's own setting, else the currency's: 3 for TND, 0 for XOF.
+            max(0, min(4, (int) (data_get($tenant->settings, 'number_format.decimals')
+                ?? Countries::currencyDigits(self::normalizeCode($tenant->currency))))),
         );
     }
 
@@ -104,7 +106,7 @@ final class Money
 
     public function name(): string
     {
-        return self::NAMES[$this->code] ?? $this->code;
+        return self::NAMES[$this->code] ?? Countries::currencyName($this->code);
     }
 
     public function symbol(): string

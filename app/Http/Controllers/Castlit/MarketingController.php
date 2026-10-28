@@ -40,7 +40,7 @@ class MarketingController extends Controller
             'detectCountry' => true,
             'detectedCountry' => \App\Support\GeoCountry::guess($request),
             'activities'  => $this->activityOptions(),
-            'currencies'  => ['MAD', 'EUR', 'USD', 'XOF', 'DZD', 'TND'],
+            'currencies'  => \App\Support\Countries::currencyOptions(app()->getLocale()),
             'mainDomain'  => config('castlit.main_domain'),
         ]);
     }

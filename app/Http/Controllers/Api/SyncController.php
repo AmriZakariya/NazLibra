@@ -563,6 +563,9 @@ class SyncController extends Controller
             'tenant_phone'            => $tenant->phone,
             // The country a phone field opens on (App\Support\Phone).
             'phone_country'           => \App\Support\Phone::defaultCountry($tenant),
+            // How many decimals amounts carry: the shop's setting, else its
+            // currency's own (TND 3, XOF 0). The till used 2 for everyone.
+            'currency_decimals'       => \App\Support\Money::for($tenant)->decimals,
             'tenant_address'          => $tenant->address,
             'location_name'           => $location?->name,
             'allow_oversell'          => (bool) data_get($tenant->settings, 'pos.allow_oversell', false),

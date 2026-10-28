@@ -29,7 +29,7 @@ class SubscriptionController extends Controller
         $validated = $request->validate([
             'business_name'     => ['required', 'string', 'max:120'],
             'activity'          => ['nullable', 'string', Rule::in(array_keys(BusinessMode::all()))],
-            'currency'          => ['required', 'string', 'size:3'],
+            'currency'          => ['required', 'string', Rule::in(\App\Support\Countries::currencyCodes())],
             'contact_name'      => ['required', 'string', 'max:120'],
             'email'             => ['required', 'email', 'max:190'],
             'phone'             => ['nullable', 'string', 'max:40'],
@@ -69,6 +69,9 @@ class SubscriptionController extends Controller
             'city'              => filled($validated['city'] ?? null) ? trim($validated['city']) : null,
             'status'            => Subscription::STATUS_PENDING,
             'meta'              => [
+                // The browser's zone: a shop in Montréal is not on Toronto
+                // time just because that is Canada's main zone.
+                'timezone'   => \App\Support\Countries::timezone($validated['country'], (string) $request->input('timezone')),
                 'ip'         => $request->ip(),
                 'user_agent' => Str::limit((string) $request->userAgent(), 250, ''),
             ],

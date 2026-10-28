@@ -73,16 +73,40 @@ class CountriesTest extends TestCase
         $this->assertSame([], array_intersect_key($groups['frequent'], $groups['others']));
     }
 
-    public function test_a_currency_is_suggested_only_where_the_form_offers_it(): void
+    public function test_every_country_suggests_its_own_currency_and_the_forms_offer_it(): void
     {
         $this->assertSame('MAD', Countries::currency('MA'));
         $this->assertSame('EUR', Countries::currency('DE'));
         $this->assertSame('XOF', Countries::currency('SN'));
-        $this->assertNull(Countries::currency('CA'));
+        // A shop in Toronto or Riyadh used to be left in dirhams.
+        $this->assertSame('CAD', Countries::currency('CA'));
+        $this->assertSame('SAR', Countries::currency('SA'));
 
-        foreach (Countries::currencyMap() as $currency) {
-            $this->assertContains($currency, Countries::OFFERED_CURRENCIES);
+        foreach (Countries::currencyMap() as $country => $currency) {
+            $this->assertContains($currency, Countries::currencyCodes(), $country);
         }
+        $this->assertSame(Countries::FREQUENT_CURRENCIES, array_slice(Countries::currencyCodes(), 0, count(Countries::FREQUENT_CURRENCIES)));
+    }
+
+    public function test_each_currency_has_its_name_and_its_own_decimals(): void
+    {
+        $this->assertSame('Dinar tunisien', Countries::currencyName('TND'));
+        $this->assertSame('Saudi Riyal', Countries::currencyName('SAR', 'en'));
+        $this->assertSame(3, Countries::currencyDigits('TND'));
+        $this->assertSame(0, Countries::currencyDigits('XOF'));
+        $this->assertSame(2, Countries::currencyDigits('MAD'));
+        $this->assertSame(2, Countries::currencyDigits('???'), 'unknown: the usual two');
+    }
+
+    public function test_a_new_shop_runs_on_its_own_clock(): void
+    {
+        $this->assertSame('Europe/Paris', Countries::timezone('FR'));
+        $this->assertSame('America/Toronto', Countries::timezone('CA'), 'the country\'s main zone');
+        $this->assertSame('America/Vancouver', Countries::timezone('CA', 'America/Vancouver'),
+            'its own zone when it lies in that country');
+        $this->assertSame('America/Toronto', Countries::timezone('CA', 'Europe/Paris'), 'a zone abroad says nothing');
+        $this->assertSame('America/Toronto', Countries::timezone('CA', 'Not/AZone'));
+        $this->assertSame('Africa/El_Aaiun', Countries::timezone('MA', 'Africa/El_Aaiun'), 'Laâyoune signs up under Maroc');
     }
 
     public function test_regenerating_changes_nothing(): void

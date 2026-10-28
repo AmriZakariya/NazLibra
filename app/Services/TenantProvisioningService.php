@@ -12,6 +12,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\VirtualDevice;
 use App\Support\BusinessMode;
+use App\Support\Countries;
 use App\Support\ItemTypes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -41,7 +42,10 @@ class TenantProvisioningService
                 $store['business_mode'] ?? $store['activity'] ?? null
             );
             $store['currency'] = $store['currency'] ?? 'MAD';
-            $store['timezone'] = $store['timezone'] ?? 'Africa/Casablanca';
+            $store['country'] = strtoupper((string) ($store['country'] ?? '')) ?: Countries::DEFAULT;
+            // The browser's zone when it is in that country, else the
+            // country's own: every shop used to run on Casablanca time.
+            $store['timezone'] = Countries::timezone($store['country'], $store['timezone'] ?? null);
             $store['language'] = $store['language'] ?? 'fr';
 
             [$tenant, $slug, $storeNames] = $this->buildTenant($store);
@@ -155,16 +159,19 @@ class TenantProvisioningService
                 'company_profile' => [
                     'store_code' => strtoupper(substr($slug, 0, 8)), 'store_name' => $store['name'],
                     'business_mode' => $store['business_mode'], 'email' => $store['email'] ?? null,
-                    'phone' => $store['phone'] ?? null, 'country' => 'Maroc',
+                    'phone' => $store['phone'] ?? null,
+                    'country' => Countries::name($store['country']), 'country_code' => $store['country'],
+                    'city' => $store['city'] ?? null,
                     'timezone' => $store['timezone'], 'date_format' => 'dd/mm/yyyy', 'time_format' => '24',
                     'currency' => $store['currency'], 'currency_placement' => 'Right',
-                    'decimals' => 2, 'qty_decimals' => 2, 'language_id' => $store['language'],
+                    'decimals' => Countries::currencyDigits($store['currency']), 'qty_decimals' => 2, 'language_id' => $store['language'],
                 ],
                 'catalog' => [
                     'label' => $businessMode['catalog_label'], 'primary_item' => $businessMode['primary_item'],
                     'search_placeholder' => $businessMode['search_placeholder'], 'type_labels' => $businessMode['type_labels'],
                 ],
-                'number_format' => ['currency_placement' => 'Right', 'decimals' => 2, 'qty_decimals' => 2, 'round_off' => false],
+                // The currency's own decimals: 2,500 DT in Tunis, 1 500 FCFA in Dakar.
+                'number_format' => ['currency_placement' => 'Right', 'decimals' => Countries::currencyDigits($store['currency']), 'qty_decimals' => 2, 'round_off' => false],
                 'payment_types' => [
                     ['key' => 'cash', 'name' => 'Espèces', 'code' => 'cash', 'description' => 'Paiement comptoir', 'is_active' => true],
                     ['key' => 'card', 'name' => 'Carte', 'code' => 'card', 'description' => 'Paiement TPE', 'is_active' => true],

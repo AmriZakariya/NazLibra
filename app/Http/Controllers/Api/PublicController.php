@@ -129,7 +129,7 @@ class PublicController extends Controller
         $validated = $request->validate([
             'business_name'     => ['required', 'string', 'max:120'],
             'activity'          => ['nullable', 'string', Rule::in(array_keys(BusinessMode::all()))],
-            'currency'          => ['required', 'string', 'size:3'],
+            'currency'          => ['required', 'string', Rule::in(\App\Support\Countries::currencyCodes())],
             'contact_name'      => ['required', 'string', 'max:120'],
             'email'             => ['required', 'email', 'max:190'],
             'phone'             => ['nullable', 'string', 'max:40'],

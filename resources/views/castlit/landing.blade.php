@@ -630,6 +630,9 @@
                 <form method="POST" action="{{ route('castlit.subscribe') }}" novalidate>
                     @csrf
                     <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+                    {{-- The visitor's timezone, for the shop's clock (Montréal is not Toronto). --}}
+                    <input type="hidden" name="timezone" value="">
+                    <script>try { document.currentScript.previousElementSibling.value = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}</script>
 
                     <div class="fld">
                         <label for="business_name">{{ __('castlit.f_business') }} <span class="req">*</span></label>
@@ -651,8 +654,9 @@
                         <div class="fld">
                             <label for="currency">{{ __('castlit.f_currency') }} <span class="req">*</span></label>
                             <select id="currency" name="currency" required>
-                                @foreach ($currencies as $c)
-                                    <option value="{{ $c }}" @selected(old('currency', in_array($detectedCurrency = \App\Support\Countries::currencyMap()[$detectedCountry ?? ''] ?? 'MAD', $currencies, true) ? $detectedCurrency : 'MAD') === $c)>{{ $c }}</option>
+                                @php $currencyPreset = old('currency', \App\Support\Countries::currencyMap()[$detectedCountry ?? ''] ?? 'MAD'); @endphp
+                                @foreach ($currencies as $c => $currencyName)
+                                    <option value="{{ $c }}" @selected($currencyPreset === $c)>{{ $c }} — {{ $currencyName }}</option>
                                 @endforeach
                             </select>
                             @error('currency')<span class="field-error">{{ $message }}</span>@enderror

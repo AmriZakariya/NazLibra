@@ -33,8 +33,25 @@ final class Countries
      */
     public const FREQUENT = ['MA', 'FR', 'BE', 'ES', 'DZ', 'TN', 'SN', 'CI', 'CA'];
 
-    /** The currencies the signup forms offer; suggestions are limited to these. */
-    public const OFFERED_CURRENCIES = ['MAD', 'EUR', 'USD', 'XOF', 'DZD', 'TND'];
+    /** Shown first in a currency select, in this order; every other one follows by code. */
+    public const FREQUENT_CURRENCIES = ['MAD', 'EUR', 'USD', 'XOF', 'XAF', 'DZD', 'TND', 'GBP', 'CHF', 'CAD', 'SAR', 'AED', 'EGP', 'MRU'];
+
+    /**
+     * Where a country has several timezones, the one most of its shops are
+     * in. A shop whose browser said otherwise (inside that country) keeps its
+     * own; a single-zone country needs nothing here.
+     */
+    public const MAIN_TIMEZONE = [
+        'US' => 'America/New_York', 'CA' => 'America/Toronto', 'BR' => 'America/Sao_Paulo',
+        'MX' => 'America/Mexico_City', 'AR' => 'America/Argentina/Buenos_Aires', 'CL' => 'America/Santiago',
+        'EC' => 'America/Guayaquil', 'RU' => 'Europe/Moscow', 'AU' => 'Australia/Sydney',
+        'NZ' => 'Pacific/Auckland', 'ES' => 'Europe/Madrid', 'PT' => 'Europe/Lisbon',
+        'DE' => 'Europe/Berlin', 'CD' => 'Africa/Kinshasa', 'ID' => 'Asia/Jakarta', 'KZ' => 'Asia/Almaty',
+        'CN' => 'Asia/Shanghai', 'MY' => 'Asia/Kuala_Lumpur', 'UA' => 'Europe/Kyiv', 'MN' => 'Asia/Ulaanbaatar',
+        'GL' => 'America/Nuuk', 'PF' => 'Pacific/Tahiti', 'KI' => 'Pacific/Tarawa', 'FM' => 'Pacific/Pohnpei',
+        'UZ' => 'Asia/Tashkent', 'CY' => 'Asia/Nicosia', 'PS' => 'Asia/Gaza', 'MH' => 'Pacific/Majuro',
+        'UM' => 'Pacific/Midway', 'EH' => 'Africa/Casablanca',
+    ];
 
     /** @var array{codes: list<string>, names: array<string, array<string, string>>, currency: array<string, string>}|null */
     private static ?array $data = null;
@@ -133,6 +150,67 @@ final class Countries
     public static function currency(string $code): ?string
     {
         return self::data()['currency'][strtoupper($code)] ?? null;
+    }
+
+    /** @return list<string> every currency a shop can trade in, frequent first */
+    public static function currencyCodes(): array
+    {
+        return array_values(array_unique(array_merge(self::FREQUENT_CURRENCIES, array_keys(self::data()['currencies']))));
+    }
+
+    /** @return array<string, string> code => "Dirham marocain", frequent first */
+    public static function currencyOptions(string $locale = 'fr'): array
+    {
+        $options = [];
+        foreach (self::currencyCodes() as $code) {
+            $options[$code] = self::currencyName($code, $locale);
+        }
+
+        return $options;
+    }
+
+    public static function currencyName(string $code, string $locale = 'fr'): string
+    {
+        $names = self::data()['currencies'][strtoupper($code)]['names'] ?? [];
+
+        return $names[$locale] ?? $names['fr'] ?? strtoupper($code);
+    }
+
+    /** The currency's own decimals: 3 for TND (millimes), 0 for XOF, 2 when unknown. */
+    public static function currencyDigits(?string $code): int
+    {
+        return self::data()['currencies'][strtoupper((string) $code)]['digits'] ?? 2;
+    }
+
+    /**
+     * The timezone a new shop in [$country] runs on: [$hint] (its browser's)
+     * when it lies in that country, else the country's main zone.
+     */
+    public static function timezone(?string $country, ?string $hint = null): string
+    {
+        $country = strtoupper((string) $country);
+        if ($hint) {
+            try {
+                $zone = new \DateTimeZone($hint);
+                $located = strtoupper((string) ($zone->getLocation()['country_code'] ?? ''));
+                if ($located === $country || ($located === 'EH' && $country === 'MA')) {
+                    return $zone->getName();
+                }
+            } catch (\Throwable) {
+                // Not a zone name: fall back to the country's.
+            }
+        }
+        if (isset(self::MAIN_TIMEZONE[$country])) {
+            return self::MAIN_TIMEZONE[$country];
+        }
+        if (strlen($country) === 2) {
+            $zones = \DateTimeZone::listIdentifiers(\DateTimeZone::PER_COUNTRY, $country);
+            if ($zones) {
+                return $zones[0];
+            }
+        }
+
+        return 'Africa/Casablanca';
     }
 
     /** @return array<string, string> code => suggested currency, for the forms' script */

@@ -75,24 +75,40 @@ class GenerateCountriesCommand extends Command
             }
         }
 
-        // The currency a shop there most likely trades in — kept only when the
-        // signup form offers it, since a suggestion the form cannot select is
-        // no suggestion at all.
+        // The currency each country trades in. Every one of them is offered:
+        // a shop in Riyadh or Toronto used to be left in dirhams because its
+        // currency was not on a list of six.
         $currency = [];
         foreach ($codes as $code) {
             $formatter = new \NumberFormatter('en_'.$code, \NumberFormatter::CURRENCY);
             $iso = (string) $formatter->getTextAttribute(\NumberFormatter::CURRENCY_CODE);
-            if (in_array($iso, Countries::OFFERED_CURRENCIES, true)) {
+            if (preg_match('/^[A-Z]{3}$/', $iso) && $iso !== 'XXX') {
                 $currency[$code] = $iso;
             }
         }
 
-        $this->writePhp($codes, $names, $currency);
+        // Each currency's names and its minor unit (TND 3, XOF 0, MAD 2).
+        $currencies = [];
+        $isos = array_values(array_unique(array_merge(Countries::FREQUENT_CURRENCIES, array_values($currency))));
+        sort($isos);
+        foreach ($isos as $iso) {
+            $digits = (new \NumberFormatter('en@currency='.$iso, \NumberFormatter::CURRENCY))
+                ->getAttribute(\NumberFormatter::FRACTION_DIGITS);
+            $currencies[$iso] = ['digits' => (int) $digits, 'names' => []];
+            foreach (self::APP_LOCALES as $locale) {
+                $bundle = \ResourceBundle::create($locale, 'ICUDATA-curr');
+                $entry = $bundle?->get('Currencies')?->get($iso);
+                $name = $entry ? (string) $entry->get(1) : '';
+                $currencies[$iso]['names'][$locale] = $name !== '' ? mb_strtoupper(mb_substr($name, 0, 1)).mb_substr($name, 1) : $iso;
+            }
+        }
+
+        $this->writePhp($codes, $names, $currency, $currencies);
         $this->info('Wrote '.Countries::dataPath().' — '.count($codes).' countries.');
 
         $dart = (string) ($this->option('dart') ?: base_path('../naz_pos/lib/core/geo/countries.dart'));
         if (is_dir(dirname($dart))) {
-            $this->writeDart($dart, $codes, $names, $currency);
+            $this->writeDart($dart, $codes, $names, $currency, $currencies);
             $this->info("Wrote {$dart}.");
         } else {
             $this->warn("Flutter list not written: {$dart} is not in a checkout here. Pass --dart=<path>.");
@@ -105,13 +121,18 @@ class GenerateCountriesCommand extends Command
      * @param  list<string>  $codes
      * @param  array<string, array<string, string>>  $names
      * @param  array<string, string>  $currency
+     * @param  array<string, array{digits: int, names: array<string, string>}>  $currencies
      */
-    private function writePhp(array $codes, array $names, array $currency): void
+    private function writePhp(array $codes, array $names, array $currency, array $currencies): void
     {
         $data = [
             'codes' => $codes,
             'names' => array_intersect_key($names, array_flip(self::SITE_LOCALES)),
             'currency' => $currency,
+            'currencies' => array_map(fn (array $c) => [
+                'digits' => $c['digits'],
+                'names' => array_intersect_key($c['names'], array_flip(self::SITE_LOCALES)),
+            ], $currencies),
         ];
 
         $php = "<?php\n\n"
@@ -126,8 +147,9 @@ class GenerateCountriesCommand extends Command
      * @param  list<string>  $codes
      * @param  array<string, array<string, string>>  $names
      * @param  array<string, string>  $currency
+     * @param  array<string, array{digits: int, names: array<string, string>}>  $currencies
      */
-    private function writeDart(string $path, array $codes, array $names, array $currency): void
+    private function writeDart(string $path, array $codes, array $names, array $currency, array $currencies): void
     {
         $q = fn (string $s): string => "'".str_replace(['\\', "'", '$'], ['\\\\', "\\'", '\\$'], $s)."'";
 
@@ -156,10 +178,38 @@ class GenerateCountriesCommand extends Command
         }
         $out .= "};\n\n";
 
-        $out .= "/// The currency a shop there most likely trades in, where the form offers it.\n"
+        $out .= "/// The currency each country trades in.\n"
             ."const _currencyByCountry = <String, String>{\n";
         foreach ($currency as $code => $iso) {
             $out .= "  {$q($code)}: {$q($iso)},\n";
+        }
+        $out .= "};\n\n";
+
+        $out .= "/// Shown first in a currency picker, in this order.\n"
+            ."const frequentCurrencies = <String>[".implode(', ', array_map($q, Countries::FREQUENT_CURRENCIES))."];\n\n";
+
+        $out .= "/// Every currency a shop can trade in.\n"
+            ."const currencyCodes = <String>[\n";
+        foreach (array_chunk(array_keys($currencies), 12) as $row) {
+            $out .= '  '.implode(', ', array_map($q, $row)).",\n";
+        }
+        $out .= "];\n\n";
+
+        $out .= "/// Minor unit: TND 3 (millimes), XOF 0 (no centimes), MAD 2.\n"
+            ."const _currencyDigits = <String, int>{\n";
+        foreach ($currencies as $iso => $c) {
+            $out .= "  {$q($iso)}: {$c['digits']},\n";
+        }
+        $out .= "};\n\n";
+
+        $out .= "/// Currency names by language.\n"
+            ."const _currencyNames = <String, Map<String, String>>{\n";
+        foreach (self::APP_LOCALES as $locale) {
+            $out .= "  {$q($locale)}: {\n";
+            foreach ($currencies as $iso => $c) {
+                $out .= "    {$q($iso)}: {$q($c['names'][$locale])},\n";
+            }
+            $out .= "  },\n";
         }
         $out .= "};\n\n";
 
@@ -167,9 +217,22 @@ class GenerateCountriesCommand extends Command
 String countryName(String code, String languageCode) =>
     (_countryNames[languageCode] ?? _countryNames['fr']!)[code] ?? code;
 
-/// Null when the form offers no currency for that country: the user's choice
-/// is then left as it is, rather than replaced with a guess.
+/// Null only for a territory with no currency of its own (Antarctica): the
+/// user's choice is then left as it is.
 String? currencyForCountry(String code) => _currencyByCountry[code];
+
+/// The currency's decimals: 3 for TND, 0 for XOF, 2 when unknown.
+int currencyDigits(String code) => _currencyDigits[code.toUpperCase()] ?? 2;
+
+String currencyName(String code, String languageCode) =>
+    (_currencyNames[languageCode] ?? _currencyNames['fr']!)[code.toUpperCase()] ??
+    code;
+
+/// The frequent currencies first, then every other one by code.
+List<String> orderedCurrencyCodes() => [
+      ...frequentCurrencies,
+      ...currencyCodes.where((c) => !frequentCurrencies.contains(c)),
+    ];
 
 /// Emoji flag from the two letters, so the list reads at a glance.
 String countryFlag(String code) => code.length != 2

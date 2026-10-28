@@ -445,12 +445,9 @@
                             <div>
                                 <label class="setup-label" for="currency">Devise *</label>
                                 <select id="currency" name="currency" required class="setup-input">
-                                    <option value="MAD" @selected(old('currency', $data['currency'] ?? 'MAD') === 'MAD')>MAD — Dirham marocain</option>
-                                    <option value="EUR" @selected(old('currency', $data['currency'] ?? '') === 'EUR')>EUR — Euro</option>
-                                    <option value="USD" @selected(old('currency', $data['currency'] ?? '') === 'USD')>USD — Dollar</option>
-                                    <option value="TND" @selected(old('currency', $data['currency'] ?? '') === 'TND')>TND — Dinar tunisien</option>
-                                    <option value="DZD" @selected(old('currency', $data['currency'] ?? '') === 'DZD')>DZD — Dinar algérien</option>
-                                    <option value="AED" @selected(old('currency', $data['currency'] ?? '') === 'AED')>AED — Dirham EAU</option>
+                                    @foreach (\App\Support\Countries::currencyOptions() as $code => $name)
+                                        <option value="{{ $code }}" @selected(old('currency', $data['currency'] ?? 'MAD') === $code)>{{ $code }} — {{ $name }}</option>
+                                    @endforeach
                                 </select>
                             </div>
                             <div>
