@@ -110,6 +110,16 @@ class BarberShopTest extends TestCase
         $this->assertSame($this->barber->id, $sale['items'][0]['staff_user_id']);
     }
 
+    public function test_a_services_only_sale_answers_stock_after_as_an_object(): void
+    {
+        // An empty collection encodes as []; the till read it as a map and
+        // re-sent the haircut forever.
+        $body = $this->sell([['item_id' => $this->cut->id, 'quantity' => 1]], 60)
+            ->assertCreated()->getContent();
+
+        $this->assertStringContainsString('"stock_after":{}', $body);
+    }
+
     public function test_a_tip_must_be_paid_too(): void
     {
         $this->sell([['item_id' => $this->cut->id, 'quantity' => 1]], 60, ['tip' => 10])

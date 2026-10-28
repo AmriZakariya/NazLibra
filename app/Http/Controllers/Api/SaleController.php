@@ -1077,7 +1077,10 @@ class SaleController extends Controller
             'ok'              => true,
             'already_existed' => $alreadyExisted,
             'sale'            => SaleResource::make($sale),
-            'stock_after'     => $stockAfter,
+            // An object even when empty: a sale of services only (a haircut)
+            // moves no stock, and an empty collection encodes as [] — which
+            // the till could not read, so it re-sent the sale forever.
+            'stock_after'     => $stockAfter->isEmpty() ? new \stdClass : $stockAfter,
         ], $alreadyExisted ? 200 : 201);
     }
 }
