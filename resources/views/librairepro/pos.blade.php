@@ -27,7 +27,7 @@
 @endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" title="Caisse">
-    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? $sourceCart ?? [])' data-discount-rules='@json($posDiscountRules)' data-pos-search-url="{{ route('pos.search') }}" data-coupon-preview-url="{{ route('pos.coupons.preview') }}" data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}" data-show-out-of-stock="{{ $showOutOfStock ? '1' : '0' }}">
+    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? $sourceCart ?? [])' data-staff='@json($posStaff->pluck('name', 'id'))' data-discount-rules='@json($posDiscountRules)' data-pos-search-url="{{ route('pos.search') }}" data-coupon-preview-url="{{ route('pos.coupons.preview') }}" data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}" data-show-out-of-stock="{{ $showOutOfStock ? '1' : '0' }}">
         <div class="min-w-0 space-y-5">
             @if ($lastSale)
                 @php
@@ -480,6 +480,7 @@
                 <input name="ticket_id" type="hidden" value="{{ $resumeTicket?->id }}">
                 <input name="source_invoice_id" type="hidden" value="{{ $sourceInvoice?->id }}">
                 <input name="source_online_order_id" type="hidden" value="{{ $sourceOnlineOrder?->id }}">
+                <input name="appointment_id" type="hidden" value="{{ $sourceAppointment?->id }}">
                 <input class="pos-receipt-data" type="hidden" value="{{ json_encode(['storeName' => $tenant?->name, 'ticketNumber' => $nextSaleNumber]) }}">
 
                 <section class="pos-checkout-panel grid min-h-0 grid-rows-[auto_minmax(0,1fr)] rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -550,7 +551,7 @@
                                     <select form="pos-checkout-form" name="contact_id" class="pos-client mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
                                         <option value="" data-advance="0">{{ $tr('Client comptoir') }}</option>
                                         @foreach ($clients as $client)
-                                            <option value="{{ $client->id }}" data-advance="{{ $client->advance_balance }}" @selected(($resumeTicket?->contact_id ?? $sourceContactId ?? null) === $client->id)>{{ $client->name }} · avance {{ $money($client->advance_balance) }}</option>
+                                            <option value="{{ $client->id }}" data-advance="{{ $client->advance_balance }}" data-notes="{{ $client->notes }}" @selected(($resumeTicket?->contact_id ?? $sourceContactId ?? null) === $client->id)>{{ $client->name }} · avance {{ $money($client->advance_balance) }}</option>
                                         @endforeach
                                     </select>
                                 </label>
@@ -654,6 +655,21 @@
                         <label class="pos-money-field block rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10"><span class="text-[11px] font-bold uppercase text-slate-500">{{ $tr('Avance') }}</span><input name="advance_amount" min="0" step="0.01" type="number" class="pos-payment h-8 w-full border-0 px-0 text-base font-bold" placeholder="0"></label>
                     </div>
 
+                    @if ($posTips)
+                        {{-- Paid on top of the total, never revenue, never change. --}}
+                        <div class="mt-2 grid {{ $posStaff->count() > 1 ? 'grid-cols-[1fr_1.3fr]' : 'grid-cols-1' }} gap-1.5">
+                            <label class="pos-money-field block rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10"><span class="text-[11px] font-bold uppercase text-slate-500">{{ $tr('Pourboire') }}</span><input name="tip" class="pos-tip mt-0.5 w-full bg-transparent text-base font-semibold outline-none" type="number" min="0" step="0.01" placeholder="0" inputmode="decimal"></label>
+                            @if ($posStaff->count() > 1)
+                                <label class="block rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10"><span class="text-[11px] font-bold uppercase text-slate-500">{{ $tr('Pour') }}</span>
+                                    <select name="tip_user_id" class="mt-0.5 w-full bg-transparent text-sm font-semibold outline-none dark:bg-slate-950">
+                                        <option value="">{{ $tr('Le barbier du ticket') }}</option>
+                                        @foreach ($posStaff as $member)<option value="{{ $member->id }}">{{ $member->name }}</option>@endforeach
+                                    </select>
+                                </label>
+                            @endif
+                        </div>
+                    @endif
+
                     <div class="mt-2 grid grid-cols-3 gap-1.5">
                         <button class="pos-fill-cash rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold dark:border-white/10" type="button">{{ $tr('Espèces') }}</button>
                         <button class="pos-fill-card rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold dark:border-white/10" type="button">{{ $tr('Carte') }}</button>
@@ -707,6 +723,15 @@
                 @unless ($priceEditable)
                     <p class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-white/5">Le prix est verrouillé par les paramètres de caisse. Activez “Prix modifiable” dans Paramètres pour autoriser les changements au comptoir.</p>
                 @endunless
+                @if ($posAskStaff && $posStaff->count() > 1)
+                    <label class="block">
+                        <span class="text-xs font-semibold uppercase text-slate-500">Barbier / employé</span>
+                        <select class="pos-dialog-staff mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                            <option value="">— Moi ({{ auth()->user()?->name }}) —</option>
+                            @foreach ($posStaff as $member)<option value="{{ $member->id }}">{{ $member->name }}</option>@endforeach
+                        </select>
+                    </label>
+                @endif
                 <label class="block">
                     <span class="text-xs font-semibold uppercase text-slate-500">Note ligne</span>
                     <textarea class="pos-dialog-note mt-1 min-h-20 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" maxlength="160" placeholder="Ex: remise manuelle, édition spéciale..."></textarea>

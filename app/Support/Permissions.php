@@ -63,6 +63,10 @@ class Permissions
                 'cash_register.close' => 'Clôturer la caisse',
                 'cash_register.movements' => 'Entrées / sorties d’espèces',
             ]],
+            'appointments' => ['label' => 'Rendez-vous', 'permissions' => [
+                'appointments.view' => 'Voir l’agenda',
+                'appointments.manage' => 'Prendre, déplacer et annuler un rendez-vous',
+            ]],
             'online_orders' => ['label' => 'Précommandes', 'permissions' => [
                 'online_orders.view' => 'Voir les précommandes',
                 'online_orders.create' => 'Créer une précommande',
@@ -247,6 +251,13 @@ class Permissions
             'cash-register.open' => 'cash_register.open',
             'cash-register.close' => 'cash_register.close',
             'cash-register.movements.store' => 'cash_register.movements',
+            // Tips leave the drawer like any cash-out.
+            'tips.payouts.store' => 'cash_register.movements',
+
+            'appointments' => 'appointments.view',
+            'appointments.store' => 'appointments.manage',
+            'appointments.update' => 'appointments.manage',
+            'appointments.status' => 'appointments.manage',
 
             'online-orders.store' => 'online_orders.create',
             'online-orders.status.update' => 'online_orders.edit',

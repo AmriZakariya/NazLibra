@@ -2337,6 +2337,11 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     const dialogQuantity = itemDialog?.querySelector('.pos-dialog-quantity');
     const dialogPrice = itemDialog?.querySelector('.pos-dialog-price');
     const dialogNote = itemDialog?.querySelector('.pos-dialog-note');
+    // Who did the line (barber shops): absent when the shop does not ask.
+    const dialogStaff = itemDialog?.querySelector('.pos-dialog-staff');
+    const tipInput = screen.querySelector('.pos-tip');
+    const staffNames = JSON.parse(screen.dataset.staff || '{}');
+    let lastStaffId = '';
     const stockDialog = screen.querySelector('.pos-stock-dialog');
     const stockDialogTitle = stockDialog?.querySelector('.pos-stock-dialog-title');
     const stockDialogMeta = stockDialog?.querySelector('.pos-stock-dialog-meta');
@@ -2594,6 +2599,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         const discountType = rulePreview.valid ? rulePreview.type : manualPreview.type;
         const total = Math.max(0, subtotal - couponAmount - discount);
         const paid = paymentInputs.reduce((sum, input) => sum + Number(input.value || 0), 0);
+        // A tip is paid on top of the total and is not part of it: it is in
+        // what the customer hands over, never in the change given back.
+        const tip = Math.max(0, Number(tipInput?.value || 0));
+        const due = total + tip;
         return {
             subtotal,
             couponAmount,
@@ -2604,10 +2613,12 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             discountCapped: rulePreview.valid ? rulePreview.capped : manualPreview.capped,
             discountRule: rulePreview,
             total,
+            tip,
+            due,
             paid,
             tax: total * 0.2 / 1.2,
-            remaining: Math.max(0, total - paid),
-            change: Math.max(0, paid - total),
+            remaining: Math.max(0, due - paid),
+            change: Math.max(0, paid - due),
         };
     };
 
@@ -2918,7 +2929,9 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         if (clientInfo) {
             clientInfo.innerHTML = isCounter
                 ? '<span class="font-semibold">' + translate('Client comptoir') + '</span><span class="mt-0.5 block">' + translate('Ticket rapide sans compte client.') + '</span>'
-                : `<span class="font-semibold">${escapeHtml(label)}</span><span class="mt-0.5 block">${translate('Avance disponible')}: ${escapeHtml(money.format(advance))}${quickPhone ? ` · ${escapeHtml(quickPhone)}` : ''}</span>`;
+                : `<span class="font-semibold">${escapeHtml(label)}</span><span class="mt-0.5 block">${translate('Avance disponible')}: ${escapeHtml(money.format(advance))}${quickPhone ? ` · ${escapeHtml(quickPhone)}` : ''}</span>`
+                    // What the barber should know before the customer sits down.
+                    + (selectedOption?.dataset.notes ? `<span class="pos-client-notes mt-1.5 block rounded-md bg-amber-50 px-2 py-1 font-semibold text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">${escapeHtml(selectedOption.dataset.notes)}</span>` : '');
         }
     };
 
@@ -2981,6 +2994,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                     <div class="min-w-0">
                         <p class="pos-cart-title">${item.name}</p>
                         <p class="pos-cart-meta">${item.barcode || translate('Sans code')} · ${money.format(item.price)} · stock ${stockLabel(item)}${item.note ? ` · ${item.note}` : ''}</p>
+                        ${dialogStaff && item.staffUserId && staffNames[item.staffUserId] ? `<p class="pos-cart-staff mt-1 text-xs font-semibold text-brand">✂ ${staffNames[item.staffUserId]}</p>` : ''}
                     </div>
                     <div class="flex items-center gap-1">
                         <button class="pos-cart-edit grid size-8 place-items-center rounded-md bg-slate-100 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-200" data-index="${index}" type="button" title="${translate('Modifier')}">✎</button>
@@ -3006,7 +3020,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             cartCount.textContent = String(cart.length);
         }
         if (cartJson) {
-            cartJson.value = JSON.stringify(cart.map(({ id, quantity, price, originalPrice, note }) => ({ id, quantity, price, original_price: originalPrice, note })));
+            cartJson.value = JSON.stringify(cart.map(({ id, quantity, price, originalPrice, note, staffUserId }) => ({ id, quantity, price, original_price: originalPrice, note, staff_user_id: staffUserId || null })));
         }
         screen.dataset.cartDirty = cart.length > 0 ? '1' : '0';
 
@@ -3053,7 +3067,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         screen.querySelector('.pos-change').textContent = money.format(total.change);
         syncNoteSummary();
         if (submit) {
-            const blocked = cart.length === 0 || total.paid + 0.001 < total.total;
+            const blocked = cart.length === 0 || total.paid + 0.001 < total.due;
             submit.disabled = false;
             submit.classList.toggle('is-blocked', blocked);
             submit.setAttribute('aria-disabled', blocked ? 'true' : 'false');
@@ -3163,6 +3177,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             dialogPrice.disabled = !priceEditable;
         }
         if (dialogNote) dialogNote.value = item.note || '';
+        if (dialogStaff) dialogStaff.value = String(item.staffUserId || lastStaffId || '');
         itemDialog.showModal();
         window.setTimeout(() => dialogQuantity?.focus(), 40);
     };
@@ -3191,6 +3206,9 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         const originalPrice = Number(itemDialog.dataset.productOriginalPrice || 0);
         const price = priceEditable ? Math.max(0, Number(dialogPrice.value || 0)) : originalPrice;
         const note = dialogNote?.value?.trim() || '';
+        // Remembered for the next line: a cut and a beard are the same barber.
+        const staffUserId = dialogStaff ? (dialogStaff.value || '') : '';
+        if (dialogStaff) lastStaffId = staffUserId;
 
         if (mode === 'edit') {
             const item = cart[Number(itemDialog.dataset.index)];
@@ -3198,6 +3216,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             item.quantity = quantity;
             item.price = price;
             item.note = note;
+            item.staffUserId = staffUserId;
         } else {
             cart.push({
                 id: Number(itemDialog.dataset.productId || 0),
@@ -3209,6 +3228,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 price,
                 quantity,
                 note,
+                staffUserId,
             });
         }
 
@@ -3547,6 +3567,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         paymentInputs.forEach((input) => {
             input.value = '';
         });
+        if (tipInput) tipInput.value = '';
         if (noteInput) noteInput.value = '';
         syncNoteDraftFromApplied();
         if (clientSelect) clientSelect.value = '';
@@ -3724,7 +3745,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     screen.querySelector('.pos-fill-cash')?.addEventListener('click', () => {
         scheduleFullscreenRestore(60);
         const total = totals();
-        screen.querySelector('input[name="cash_amount"]').value = total.total.toFixed(2);
+        screen.querySelector('input[name="cash_amount"]').value = total.due.toFixed(2);
         screen.querySelector('input[name="card_amount"]').value = '';
         screen.querySelector('input[name="transfer_amount"]').value = '';
         renderCart();
@@ -3733,18 +3754,20 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     screen.querySelector('.pos-fill-card')?.addEventListener('click', () => {
         scheduleFullscreenRestore(60);
         const total = totals();
-        screen.querySelector('input[name="card_amount"]').value = total.total.toFixed(2);
+        screen.querySelector('input[name="card_amount"]').value = total.due.toFixed(2);
         screen.querySelector('input[name="cash_amount"]').value = '';
         screen.querySelector('input[name="transfer_amount"]').value = '';
         renderCart();
     });
 
+    tipInput?.addEventListener('input', () => renderCart());
+
     screen.querySelector('.pos-exact-split')?.addEventListener('click', () => {
         scheduleFullscreenRestore(60);
         const total = totals();
-        const firstHalf = Math.floor(total.total * 100 / 2) / 100;
+        const firstHalf = Math.floor(total.due * 100 / 2) / 100;
         screen.querySelector('input[name="cash_amount"]').value = firstHalf.toFixed(2);
-        screen.querySelector('input[name="card_amount"]').value = (total.total - firstHalf).toFixed(2);
+        screen.querySelector('input[name="card_amount"]').value = (total.due - firstHalf).toFixed(2);
         screen.querySelector('input[name="transfer_amount"]').value = '';
         renderCart();
     });
@@ -3858,6 +3881,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                         discount: total.discount,
                         coupon: total.couponAmount,
                         total: total.total,
+                        tip: total.tip,
                         paid: total.paid,
                         change: total.change,
                         paymentMethod: paymentInputs.map((input) => input.name.replace('_amount', '').replace('cash', 'Espèces').replace('card', 'Carte').replace('transfer', 'Virement').replace('advance', 'Avance')).join(', ') || 'Espèces',
@@ -3940,6 +3964,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                     added.price = Number(line.price || line.unit_price || product.dataset.price || added.price);
                     added.originalPrice = Number(line.original_price || product.dataset.price || added.originalPrice);
                     added.note = line.note || '';
+                    if (line.staff_user_id) added.staffUserId = String(line.staff_user_id);
                 }
             }
         });

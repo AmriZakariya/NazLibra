@@ -3333,6 +3333,7 @@ class LibraireProController extends Controller
             'allow_sale_edit' => $request->boolean('allow_sale_edit', true),
             'allow_oversell' => $request->boolean('allow_oversell'),
             'ask_staff' => $request->boolean('ask_staff', \App\Support\StaffReport::asksStaff($tenant)),
+            'tips_enabled' => $request->boolean('tips_enabled', \App\Support\StaffReport::tipsEnabled($tenant)),
             'confirm_cart_line_removal' => $request->boolean('confirm_cart_line_removal', true),
             'show_out_of_stock' => $request->boolean('show_out_of_stock'),
             'show_cash_drawer_navbar' => $request->boolean('show_cash_drawer_navbar'),
@@ -4261,6 +4262,20 @@ class LibraireProController extends Controller
         $sourceOnlineOrder = null;
         $sourceCart = collect();
         $sourceContactId = null;
+        $sourceAppointment = null;
+        if ($request->filled('appointment') && AppModules::enabled($tenant, 'appointments')) {
+            // "Encaisser" on the agenda: the service, its barber and the
+            // customer, ready to pay.
+            $sourceAppointment = \App\Models\Appointment::where('tenant_id', $tenant->id)
+                ->whereNull('sale_id')->find((int) $request->query('appointment'));
+            if ($sourceAppointment?->item_id) {
+                $sourceCart = collect([[
+                    'item_id' => $sourceAppointment->item_id, 'quantity' => 1,
+                    'staff_user_id' => $sourceAppointment->staff_user_id,
+                ]]);
+            }
+            $sourceContactId = $sourceAppointment?->contact_id;
+        }
         if ($request->filled('ticket')) {
             $resumeTicket = PosTicket::where('tenant_id', $tenant->id)
                 ->where('status', 'held')
@@ -4388,6 +4403,10 @@ class LibraireProController extends Controller
             'sourceOnlineOrder' => $sourceOnlineOrder,
             'sourceCart' => $sourceCart,
             'sourceContactId' => $sourceContactId,
+            'sourceAppointment' => $sourceAppointment,
+            'posAskStaff' => \App\Support\StaffReport::asksStaff($tenant),
+            'posTips' => \App\Support\StaffReport::tipsEnabled($tenant),
+            'posStaff' => $tenant->users()->where('users.is_active', true)->orderBy('users.name')->get(['users.id', 'users.name']),
             'nextSaleNumber' => $this->peekSaleNumber($tenant),
             'nextTicketNumber' => $this->nextTicketNumber($tenant),
             'categories' => Category::where('tenant_id', $tenant->id)->orderBy('name')->get(),
@@ -4626,6 +4645,10 @@ class LibraireProController extends Controller
             'ticket_id' => ['nullable', 'integer', Rule::exists('pos_tickets', 'id')->where('tenant_id', $tenant->id)->where('status', 'held')],
             'source_invoice_id' => ['nullable', 'integer', Rule::exists('invoices', 'id')->where('tenant_id', $tenant->id)],
             'source_online_order_id' => ['nullable', 'integer', Rule::exists('online_orders', 'id')->where('tenant_id', $tenant->id)],
+            // Same rules as the app's till (Api\SaleController).
+            'tip' => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            'tip_user_id' => ['nullable', 'integer'],
+            'appointment_id' => ['nullable', 'integer'],
         ]);
 
         if (! empty($data['source_invoice_id']) && ! empty($data['source_online_order_id'])) {
@@ -4667,6 +4690,7 @@ class LibraireProController extends Controller
                 'quantity' => max(1, (int) ($line['quantity'] ?? 1)),
                 'unit_price' => $price,
                 'note' => mb_substr(trim((string) ($line['note'] ?? '')), 0, 160),
+                'staff_user_id' => (int) ($line['staff_user_id'] ?? 0) ?: null,
             ];
         })->filter(fn ($line) => $line['item_id'] > 0)
             ->values();
@@ -4782,6 +4806,7 @@ class LibraireProController extends Controller
                         'catalog_price' => $catalogPrice,
                         'total_price' => $lineTotal,
                         'note' => $line['note'],
+                        'staff_user_id' => $line['staff_user_id'] ?? null,
                         'price_overridden' => abs($unitPrice - $catalogPrice) > 0.001,
                         'average_cost' => $averageCost,
                         'cogs' => round($averageCost * $line['quantity'], 4),
@@ -4799,7 +4824,21 @@ class LibraireProController extends Controller
                 $discount = min($subtotal, round($couponDetail['amount'] + $ruleDetail['amount'] + $manualDiscountDetail['amount'], 2));
                 $total = max(0, round($subtotal - $discount, 2));
                 $paid = round(array_sum($payments), 2);
-                if ($paid + 0.001 < $total) {
+
+                // Who did each line, and the tip on top: see Api\SaleController.
+                $staffIds = $tenant->users()->pluck('users.id')->map(fn ($id) => (int) $id)->all();
+                $staffOf = fn ($id) => in_array((int) $id, $staffIds, true) ? (int) $id : null;
+                foreach ($saleLines as $i => $line) {
+                    $saleLines[$i]['staff_user_id'] = $staffOf($line['staff_user_id'] ?? null);
+                }
+                $tip = round(max(0, (float) ($data['tip'] ?? 0)), 2);
+                $lineStaff = collect($saleLines)->pluck('staff_user_id')->filter()->unique()->values();
+                $tipUserId = $tip > 0
+                    ? ($staffOf($data['tip_user_id'] ?? null) ?? ($lineStaff->count() === 1 ? $lineStaff->first() : auth()->id()))
+                    : null;
+                [$tipMethod, $tipCash] = \App\Http\Controllers\Api\SaleController::tipSplit($payments, $total, $tip);
+
+                if ($paid + 0.001 < $total + $tip) {
                     throw new \RuntimeException('Le montant payé est inférieur au total.');
                 }
 
@@ -4818,10 +4857,13 @@ class LibraireProController extends Controller
                 $saleNumber = $this->nextSaleNumber($tenant);
                 $saleReference = ! empty($data['ticket_id']) ? PosTicket::whereKey($data['ticket_id'])->value('number') : null;
                 $soldAt = now();
-                $changeAmount = max(0, round($paid - $total, 2));
+                $changeAmount = max(0, round($paid - $total - $tip, 2));
                 $cashChange = min($payments['cash'], $changeAmount);
                 $cashDrawerIn = max(0, round($payments['cash'] - $cashChange, 2));
                 $sale = Sale::create([
+                    'tip_amount' => $tip,
+                    'tip_user_id' => $tipUserId,
+                    'tip_method' => $tipMethod,
                     'tenant_id' => $tenant->id,
                     'location_id' => $saleLocationId,
                     'contact_id' => $contact?->id,
@@ -4854,6 +4896,8 @@ class LibraireProController extends Controller
                             'cash_drawer_in' => $cashDrawerIn,
                             'paid_amount' => $paid,
                             'expected_total' => $total,
+                            'tip' => $tip,
+                            'tip_cash' => $tipCash,
                         ],
                         'line_adjustments' => collect($saleLines)->map(fn (array $line) => [
                             'item_id' => $line['item']->id,
@@ -4894,6 +4938,7 @@ class LibraireProController extends Controller
                         'total_price' => $line['total_price'],
                         'unit_cost'  => $line['average_cost'],
                         'total_cost' => $line['cogs'],
+                        'staff_user_id' => $line['staff_user_id'] ?? null,
                     ]);
 
                     $modifierService->attach(
@@ -4926,6 +4971,13 @@ class LibraireProController extends Controller
                             $line['item']->update(['status' => 'out_of_stock']);
                         }
                     }
+                }
+
+                if (! empty($data['appointment_id'])) {
+                    \App\Models\Appointment::where('tenant_id', $tenant->id)
+                        ->whereKey($data['appointment_id'])
+                        ->whereNull('sale_id')
+                        ->update(['status' => 'done', 'sale_id' => $sale->id, 'updated_at' => now()]);
                 }
 
                 $remainingPaymentToAllocate = $total;
@@ -8026,7 +8078,7 @@ class LibraireProController extends Controller
             'stockItems' => $stockItems,
             'topItems' => $topItems,
             'categorySales' => $categorySales,
-            'team' => \App\Support\StaffReport::rows($sales),
+            'team' => \App\Support\StaffReport::rows($sales, \App\Support\StaffReport::tipsOwed($tenant->id)),
             'clients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
             'summary' => [
                 'gross_revenue' => $grossRevenue,
@@ -9479,7 +9531,7 @@ class LibraireProController extends Controller
             'price_level_type' => ['required', 'in:increase,decrease'],
             'price_level' => ['nullable', 'numeric', 'min:0'],
             'tags' => ['nullable', 'string', 'max:300'],
-            'note' => ['nullable', 'string', 'max:700'],
+            'note' => ['nullable', 'string', 'max:1000'],
             'attachment' => ['nullable', 'file', 'max:4096'],
             'copy_address' => ['nullable', 'boolean'],
         ]);
@@ -9534,6 +9586,8 @@ class LibraireProController extends Controller
             'outstanding_balance' => round((float) ($data['outstanding_balance'] ?? $contact?->outstanding_balance ?? 0), 2),
             'fine_balance' => round((float) ($data['fine_balance'] ?? $contact?->fine_balance ?? 0), 2),
             'membership_expires_at' => $data['membership_expires_at'] ?? null,
+            // The form always had a "Note interne" field; nothing kept it.
+            'notes' => filled($data['note'] ?? null) ? trim((string) $data['note']) : null,
         ];
 
         return $payload;

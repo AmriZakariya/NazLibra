@@ -188,6 +188,7 @@
                     ['label' => 'Paiements des ventes', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'payments'])],
                     ['label' => 'Liste des retours de vente', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'returns'])],
                 ]],
+                ['key' => 'appointments', 'label' => 'Rendez-vous', 'icon' => '✂', 'href' => route('appointments')],
                 ['key' => 'online_orders', 'label' => 'Précommandes', 'icon' => '◷', 'href' => route('module', 'online-orders'), 'children' => [
                     ['label' => 'Nouvelle précommande', 'icon' => '+', 'href' => route('module', ['module' => 'online-orders', 'section' => 'add'])],
                     ['label' => 'Liste des précommandes', 'icon' => '≡', 'href' => route('module', ['module' => 'online-orders', 'section' => 'list'])],
@@ -332,6 +333,7 @@
                 'dashboard' => 'dashboard tableau board home accueil الرئيسية لوحة القيادة kpi analytics stats statistiques اليوم today',
                 'catalog' => 'catalog catalogue articles items produits books livres خدمات services isbn barcode code barre categories catégories marques publishers éditeurs variants variantes labels etiquettes étiquettes import excel inventory مخزون منتجات كتب خدمات تصنيفات',
                 'sales' => 'sales ventes pos caisse checkout payment paiement ticket receipt reçu facture refund retour encaissement barcode scanner مبيعات صندوق تذكرة دفع',
+                'appointments' => 'rendez-vous rdv agenda appointment booking réservation barbier coiffeur موعد مواعيد',
                 'online_orders' => 'online order online orders preorder pre-order precommande précommande precommandes précommandes commande web commandes web whatsapp reservation réservation reserve client status statut pending confirmed ready fulfilled طلب مسبق طلبات مسبقة اونلاين واتساب',
                 'invoices' => 'invoice invoices facture factures facturation billing devis estimate proforma pro-forma due échéance pdf print طباعة فاتورة فواتير عرض سعر تقدير',
                 'deliveries' => 'delivery deliveries livraison livraisons bl dispatch shipping expédition توصيل شحن',

@@ -399,6 +399,11 @@ Route::post('/parametres/roles', [LibraireProController::class, 'storeRole'])->n
 Route::put('/parametres/roles/{role}', [LibraireProController::class, 'updateRole'])->name('settings.roles.update');
 Route::delete('/parametres/roles/{role}', [LibraireProController::class, 'destroyRole'])->name('settings.roles.destroy');
 Route::get('/modules/{module}', [LibraireProController::class, 'module'])->name('module');
+Route::get('/rendez-vous', [\App\Http\Controllers\AppointmentWebController::class, 'index'])->name('appointments');
+Route::post('/rendez-vous', [\App\Http\Controllers\AppointmentWebController::class, 'store'])->name('appointments.store');
+Route::put('/rendez-vous/{appointment}', [\App\Http\Controllers\AppointmentWebController::class, 'update'])->name('appointments.update');
+Route::patch('/rendez-vous/{appointment}/statut', [\App\Http\Controllers\AppointmentWebController::class, 'status'])->name('appointments.status');
+Route::post('/pourboires/{user}/versements', [\App\Http\Controllers\AppointmentWebController::class, 'payTips'])->name('tips.payouts.store');
 
 // Virtual devices: selection & heartbeat (no device.selected middleware)
 Route::get('/appareil/selectionner', [VirtualDeviceController::class, 'selectDevice'])->name('device.select');

@@ -171,6 +171,8 @@ class SaleController extends Controller
             // A tip for one person, on top of the total and not part of it.
             'tip'                      => ['nullable', 'numeric', 'min:0', 'max:100000'],
             'tip_user_id'              => ['nullable', 'integer'],
+            // The booking this ticket pays for: marked done with the sale.
+            'appointment_id'           => ['nullable', 'integer'],
             'payments'                => ['required', 'array'],
             'payments.cash'           => ['nullable', 'numeric', 'min:0'],
             'payments.card'           => ['nullable', 'numeric', 'min:0'],
@@ -424,6 +426,8 @@ class SaleController extends Controller
             ? ($staffOf($data['tip_user_id'] ?? null) ?? ($lineStaff->count() === 1 ? $lineStaff->first() : $action->actor->id))
             : null;
 
+        [$tipMethod, $tipCash] = self::tipSplit($payments, $total, $tip);
+
         if ($paid + 0.001 < $total + $tip) {
             $due = round($total + $tip, 2);
 
@@ -509,7 +513,7 @@ class SaleController extends Controller
             $subtotal, $discount, $loyaltyDiscount, $total, $paid, $data,
             $discountFactor, $taxTotal, $totalCogs, $allowOversell, $action, $soldAt,
             $pointsToRedeem, $loyaltyCfg, $loyaltyEnabled, $sourceOnlineOrder,
-            $tip, $tipUserId,
+            $tip, $tipUserId, $tipMethod, $tipCash,
             &$saleNumber
         ): Sale {
             // Decrement advance balance atomically before the rest.
@@ -570,6 +574,7 @@ class SaleController extends Controller
                 'sold_at'         => $soldAt,
                 'tip_amount'      => $tip,
                 'tip_user_id'     => $tipUserId,
+                'tip_method'      => $tipMethod,
                 'idempotency_key'        => $data['idempotency_key'],
                 'source_online_order_id' => $sourceOnlineOrder?->id,
                 'metadata'               => [
@@ -584,6 +589,9 @@ class SaleController extends Controller
                         'paid_amount'   => $paid,
                         'expected_total' => $total,
                         'tip'           => $tip,
+                        // The part of cash_drawer_in that is a barber's, not
+                        // the shop's: the drawer count has to know.
+                        'tip_cash'      => $tipCash,
                     ],
                     'cogs' => [
                         'total'    => round($totalCogs, 4),
@@ -702,6 +710,13 @@ class SaleController extends Controller
                         $line['item']->update(['status' => ItemStatus::OutOfStock->value]);
                     }
                 }
+            }
+
+            if (! empty($data['appointment_id'])) {
+                \App\Models\Appointment::where('tenant_id', $tenant->id)
+                    ->whereKey($data['appointment_id'])
+                    ->whereNull('sale_id')
+                    ->update(['status' => 'done', 'sale_id' => $sale->id, 'updated_at' => now()]);
             }
 
             // Update sale.cogs with actual LIFO-computed total (from all sale items' total_cost).
@@ -1000,6 +1015,43 @@ class SaleController extends Controller
                 $action->virtualDevice?->name,
             );
         }
+    }
+
+    /**
+     * How a tip was paid, and how much of it is cash in the drawer.
+     *
+     * The payments cover the total first, in the order the till sends them.
+     * What a card or a transfer paid beyond that is the tip — a card gives no
+     * change — and cash covers the rest of it. A card tip reaches the bank,
+     * not the drawer, but is owed to the barber all the same.
+     *
+     * @param  array<string, float>  $payments
+     * @return array{0: string|null, 1: float}
+     */
+    public static function tipSplit(array $payments, float $total, float $tip): array
+    {
+        if ($tip <= 0) {
+            return [null, 0.0];
+        }
+
+        $remaining = $total;
+        $beyond = [];
+        foreach ($payments as $method => $amount) {
+            $allocated = min((float) $amount, max(0.0, $remaining));
+            $remaining -= $allocated;
+            if ($method !== 'cash' && $amount - $allocated > 0.001) {
+                $beyond[$method] = (float) $amount - $allocated;
+            }
+        }
+
+        $nonCash = min($tip, array_sum($beyond));
+        $cash = round($tip - $nonCash, 2);
+        $methods = array_keys($beyond);
+        if ($cash > 0.001) {
+            $methods[] = 'cash';
+        }
+
+        return [count($methods) === 1 ? $methods[0] : 'mixed', $cash];
     }
 
     /**

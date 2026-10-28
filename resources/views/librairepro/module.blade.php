@@ -3440,7 +3440,7 @@
                     <div class="grid gap-4 lg:grid-cols-3">
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Tags</span><input name="tags" value="{{ old('tags', collect($editContact?->tags)->implode(', ')) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="VIP, école, relance..."></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Pièce jointe</span><input name="attachment" type="file" class="block h-11 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900"></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note interne</span><input name="note" value="{{ old('note', $editContact?->note) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Note rapide"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note interne</span><textarea name="note" rows="2" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Ex : dégradé 2 mm, allergique au parfum">{{ old('note', $editContact?->notes) }}</textarea><small class="block text-xs text-slate-500">Affichée à la caisse quand ce client est choisi.</small></label>
                     </div>
                 </form>
                 <aside class="space-y-4">
@@ -3823,12 +3823,12 @@
                 </article>
             @else
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <div class="border-b border-slate-200 p-4 dark:border-white/10"><h3 class="font-semibold">{{ $reportTabs[$reportSection] ?? 'Données rapport' }}</h3>@if ($reportSection === 'team')<p class="mt-1 text-sm text-slate-500">Une prestation sans barbier choisi revient à la personne qui a encaissé. La commission se calcule sur ce que le client a payé, remises déduites, au taux réglé pour chaque utilisateur. Les pourboires ne comptent pas dans le chiffre d'affaires.</p>@endif</div>
+                    <div class="border-b border-slate-200 p-4 dark:border-white/10"><h3 class="font-semibold">{{ $reportTabs[$reportSection] ?? 'Données rapport' }}</h3>@if ($reportSection === 'team')<p class="mt-1 text-sm text-slate-500">Une prestation sans barbier choisi revient à la personne qui a encaissé. La commission se calcule sur ce que le client a payé, remises déduites, au taux réglé pour chaque utilisateur. Les pourboires ne comptent pas dans le chiffre d'affaires ; « Pourboires dus » cumule tout ce qui n'a pas encore été versé, quelle que soit la période. Un versement en espèces sort du tiroir ouvert.</p>@if ($errors->has('amount'))<p class="mt-2 text-sm text-rose-600">{{ $errors->first('amount') }}</p>@endif @endif</div>
                     <div class="overflow-x-auto">
                         <table id="report-data" class="w-full min-w-[980px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
                                 @if ($reportSection === 'team')
-                                    <tr><th class="px-3 py-3">Membre</th><th class="px-3 py-3 text-right">Prestations</th><th class="px-3 py-3 text-right">CA prestations</th><th class="px-3 py-3 text-right">CA produits</th><th class="px-3 py-3 text-right">Commission</th><th class="px-3 py-3 text-right">Pourboires</th><th class="px-3 py-3 text-right">À verser</th></tr>
+                                    <tr><th class="px-3 py-3">Membre</th><th class="px-3 py-3 text-right">Prestations</th><th class="px-3 py-3 text-right">CA prestations</th><th class="px-3 py-3 text-right">CA produits</th><th class="px-3 py-3 text-right">Commission</th><th class="px-3 py-3 text-right">Pourboires (période)</th><th class="px-3 py-3 text-right">Pourboires dus</th><th class="px-3 py-3 text-right">Action</th></tr>
                                 @elseif (in_array($reportSection, ['stock'], true))
                                     <tr><th class="px-3 py-3">Article</th><th class="px-3 py-3">Catégorie</th><th class="px-3 py-3">Marque</th><th class="px-3 py-3 text-right">Stock</th><th class="px-3 py-3 text-right">Coût</th><th class="px-3 py-3 text-right">Valeur</th></tr>
                                 @elseif (in_array($reportSection, ['item-sales', 'sales-summary', 'sales-tax', 'gstr-1', 'sales-gst'], true))
@@ -3846,7 +3846,7 @@
                             <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                                 @forelse ($reportRows as $row)
                                     @if ($reportSection === 'team')
-                                        <tr data-team-row="{{ $row['user_id'] ?? 0 }}"><td class="px-3 py-3 font-semibold">{{ $row['name'] }}</td><td class="px-3 py-3 text-right">{{ $row['services'] }}</td><td class="px-3 py-3 text-right">{{ $money($row['service_revenue']) }}</td><td class="px-3 py-3 text-right">{{ $money($row['product_revenue']) }}</td><td class="px-3 py-3 text-right">{{ $money($row['commission']) }}<span class="block text-xs text-slate-500">{{ rtrim(rtrim(number_format($row['commission_rate'], 2, ',', ' '), '0'), ',') }} %</span></td><td class="px-3 py-3 text-right">{{ $money($row['tips']) }}</td><td class="px-3 py-3 text-right font-semibold">{{ $money($row['commission'] + $row['tips']) }}</td></tr>
+                                        <tr data-team-row="{{ $row['user_id'] ?? 0 }}"><td class="px-3 py-3 font-semibold">{{ $row['name'] }}</td><td class="px-3 py-3 text-right">{{ $row['services'] }}</td><td class="px-3 py-3 text-right">{{ $money($row['service_revenue']) }}</td><td class="px-3 py-3 text-right">{{ $money($row['product_revenue']) }}</td><td class="px-3 py-3 text-right">{{ $money($row['commission']) }}<span class="block text-xs text-slate-500">{{ rtrim(rtrim(number_format($row['commission_rate'], 2, ',', ' '), '0'), ',') }} %</span></td><td class="px-3 py-3 text-right">{{ $money($row['tips']) }}</td><td class="px-3 py-3 text-right font-semibold {{ $row['tips_owed'] > 0 ? 'text-amber-600' : '' }}">{{ $money($row['tips_owed']) }}</td><td class="px-3 py-3 text-right">@if ($row['user_id'] && $row['tips_owed'] > 0)<form method="POST" action="{{ route('tips.payouts.store', $row['user_id']) }}" class="inline-flex items-center gap-1" data-tip-payout="{{ $row['user_id'] }}">@csrf<input name="amount" type="number" step="0.01" min="0.01" max="{{ $row['tips_owed'] }}" value="{{ number_format($row['tips_owed'], 2, '.', '') }}" class="h-9 w-24 rounded-lg border border-slate-200 px-2 text-right text-sm dark:border-white/10 dark:bg-slate-900"><select name="method" class="h-9 rounded-lg border border-slate-200 px-1 text-xs dark:border-white/10 dark:bg-slate-900"><option value="cash">Espèces</option><option value="transfer">Virement</option></select><button class="h-9 rounded-lg bg-brand px-3 text-xs font-semibold text-white">Verser</button></form>@else — @endif</td></tr>
                                     @elseif (in_array($reportSection, ['stock'], true))
                                         <tr><td class="px-3 py-3 font-semibold">{{ $row->title }}</td><td class="px-3 py-3">{{ $row->category?->name ?? '—' }}</td><td class="px-3 py-3">{{ $row->brand?->name ?? '—' }}</td><td class="px-3 py-3 text-right">{{ number_format($row->stock_quantity, 0, ',', ' ') }}</td><td class="px-3 py-3 text-right">{{ $money($row->purchase_price) }}</td><td class="px-3 py-3 text-right font-semibold">{{ $money($row->stock_quantity * $row->purchase_price) }}</td></tr>
                                     @elseif (in_array($reportSection, ['item-sales', 'sales-summary', 'sales-tax', 'gstr-1', 'sales-gst'], true))
@@ -4250,6 +4250,7 @@
                             <input type="hidden" name="allow_sale_edit" value="0">
                             <input type="hidden" name="allow_oversell" value="0">
                             <input type="hidden" name="ask_staff" value="0">
+                            <input type="hidden" name="tips_enabled" value="0">
                             <input type="hidden" name="confirm_cart_line_removal" value="0">
                             <input type="hidden" name="show_out_of_stock" value="0">
                             <input type="hidden" name="show_cash_drawer_navbar" value="0">
@@ -4296,6 +4297,15 @@
                                         <span>
                                             <span class="block text-sm font-semibold">Demander qui a fait la prestation</span>
                                             <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Sur chaque ligne du ticket, la caisse propose le barbier ou l’employé, et le pourboire lui revient. Sert au rapport Équipe (commissions et pourboires). Masqué quand la boutique n’a qu’un utilisateur.</span>
+                                        </span>
+                                    </span>
+                                </label>
+                                <label class="settings-rule-card rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+                                    <span class="flex items-start gap-3">
+                                        <input name="tips_enabled" value="1" type="checkbox" @checked(\App\Support\StaffReport::tipsEnabled($tenant)) class="mt-1 size-4 rounded border-slate-300 accent-[var(--brand-primary)]">
+                                        <span>
+                                            <span class="block text-sm font-semibold">Accepter les pourboires</span>
+                                            <span class="mt-1 block text-sm text-slate-500 dark:text-slate-400">Un champ « Pourboire » à l’encaissement. Payé en plus du total, il n’entre ni dans le chiffre d’affaires ni dans la monnaie rendue, et reste dû à l’employé jusqu’à ce qu’il lui soit versé (rapport Équipe).</span>
                                         </span>
                                     </span>
                                 </label>

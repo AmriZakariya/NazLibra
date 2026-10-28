@@ -26,6 +26,8 @@ class AppModules
             'accounts' => ['label' => 'Comptes', 'description' => 'Comptes banque/caisse, dépôts, transferts et transactions.', 'default' => true],
             'cash_register' => ['label' => 'Tiroir caisse', 'description' => 'Ouverture, mouvements espèces, solde attendu et clôture.', 'default' => true],
             'stock' => ['label' => 'Stock', 'description' => 'Inventaire, mouvements, ajustements, transferts et valorisation.', 'default' => true],
+            // On by default where shops work by appointment.
+            'appointments' => ['label' => 'Rendez-vous', 'description' => 'Agenda par barbier ou employé, statuts, rappel WhatsApp et encaissement du rendez-vous.', 'default' => false, 'default_for' => ['barber', 'beauty']],
             'kds' => ['label' => 'Cuisine (KDS)', 'description' => 'Écran de préparation, envoi en cuisine, bons par poste et suivi des plats.', 'default' => false],
             'local_sync' => ['label' => 'Synchronisation locale', 'description' => 'Partage des tickets entre les appareils du magasin par le réseau local, sans internet.', 'default' => false],
             'loans' => ['label' => 'Emprunts', 'description' => 'Prêts, retours, pénalités, réservations et cartes membre.', 'default' => false],
@@ -54,8 +56,13 @@ class AppModules
         $missing = collect(array_keys($modules))->diff($order);
         $order = self::normalizeOrder($order->merge($missing)->values()->all());
 
-        $states = collect($modules)->mapWithKeys(function (array $module, string $key) use ($enabled): array {
-            return [$key => (bool) ($module['locked'] ?? false) || (bool) $enabled->get($key, $module['default'] ?? true)];
+        $mode = isset($modules['appointments']) ? BusinessMode::current($tenant)['key'] : null;
+        $states = collect($modules)->mapWithKeys(function (array $module, string $key) use ($enabled, $mode): array {
+            $default = isset($module['default_for'])
+                ? in_array($mode, $module['default_for'], true)
+                : ($module['default'] ?? true);
+
+            return [$key => (bool) ($module['locked'] ?? false) || (bool) $enabled->get($key, $default)];
         })->all();
 
         return [

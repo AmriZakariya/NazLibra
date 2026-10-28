@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany as HasManyRelation;
 #[Fillable([
     'tenant_id',
     'kind',
+    'notes',
     'code',
     'store_id',
     'name',

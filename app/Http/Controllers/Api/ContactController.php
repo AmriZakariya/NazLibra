@@ -72,12 +72,13 @@ class ContactController extends Controller
                 ->orWhere('email', 'like', "%{$q}%"));
         }
 
-        $contacts = $query->limit(30)->get(['id', 'name', 'phone', 'email', 'advance_balance', 'credit_limit', 'outstanding_balance'])
+        $contacts = $query->limit(30)->get(['id', 'name', 'phone', 'email', 'notes', 'advance_balance', 'credit_limit', 'outstanding_balance'])
             ->map(fn ($c) => [
                 'id'               => $c->id,
                 'name'             => $c->name,
                 'phone'            => $c->phone,
                 'email'            => $c->email,
+                'notes'            => $c->notes,
                 'advance_balance'  => (float) $c->advance_balance,
                 'credit_limit'     => (float) $c->credit_limit,
                 'credit_balance'   => max(0, (float) $c->credit_limit - (float) $c->outstanding_balance),
@@ -170,6 +171,7 @@ class ContactController extends Controller
             'phone'   => ['nullable', 'string', 'max:30'],
             'email'   => ['nullable', 'email', 'max:150'],
             'address' => ['nullable', 'string', 'max:300'],
+            'notes'   => ['nullable', 'string', 'max:1000'],
             'kind'    => ['nullable', 'in:' . implode(',', array_column(ContactKind::cases(), 'value'))],
         ]);
 
@@ -183,6 +185,7 @@ class ContactController extends Controller
             'phone'     => $data['phone'] ?? null,
             'email'     => $data['email'] ?? null,
             'address'   => $data['address'] ?? null,
+            'notes'     => $data['notes'] ?? null,
         ]);
 
         return response()->json(['ok' => true, 'contact' => $contact], 201);
@@ -203,6 +206,7 @@ class ContactController extends Controller
             'phone'   => ['nullable', 'string', 'max:30'],
             'email'   => ['nullable', 'email', 'max:150'],
             'address' => ['nullable', 'string', 'max:300'],
+            'notes'   => ['nullable', 'string', 'max:1000'],
             'kind'    => ['sometimes', 'in:' . implode(',', array_column(ContactKind::cases(), 'value'))],
             'status'  => ['sometimes', 'in:active,archived'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],

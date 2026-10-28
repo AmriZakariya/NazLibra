@@ -7,7 +7,18 @@
         'cash_out' => 'Sortie',
         'correction' => 'Correction',
         'closing' => 'Clôture',
+        'tip_payout' => 'Pourboires versés',
     ];
+    // Cash tips taken in this session, less those handed over: in the
+    // drawer, but the barbers' money, not the shop's.
+    $sessionTipsCash = 0.0;
+    if ($openSession) {
+        $sessionMovements = \App\Models\CashRegisterMovement::where('cash_register_session_id', $openSession->id);
+        $sessionTipsCash = (float) \App\Models\Sale::whereIn('id', (clone $sessionMovements)->where('type', 'sale_cash')->whereNotNull('sale_id')->pluck('sale_id'))
+            ->where('tip_amount', '>', 0)->get(['id', 'metadata'])
+            ->sum(fn ($sale) => (float) data_get($sale->metadata, 'cash_register.tip_cash', 0))
+            - (float) (clone $sessionMovements)->where('type', 'tip_payout')->sum('amount');
+    }
     $movementTones = [
         'opening' => 'info',
         'sale_cash' => 'success',
@@ -15,6 +26,7 @@
         'cash_out' => 'danger',
         'correction' => 'warning',
         'closing' => 'primary',
+        'tip_payout' => 'danger',
     ];
     $cashDrawerNavbarVisible = (bool) data_get($tenant->settings, 'pos.show_cash_drawer_navbar', true);
     $cashRegisterPosSettings = [
@@ -63,6 +75,9 @@
                 <span>Solde attendu tiroir</span>
                 <strong>{{ $money($openSession?->expected_cash_amount ?? 0) }}</strong>
                 <p>{{ $openSession ? 'Session '.$openSession->number.' ouverte depuis '.$openSession->opened_at?->format('H:i') : 'Aucun tiroir ouvert actuellement.' }}</p>
+                @if ($sessionTipsCash > 0.009)
+                    <p class="font-semibold text-amber-700 dark:text-amber-300" data-drawer-tips>Dont pourboires à verser : {{ $money($sessionTipsCash) }}</p>
+                @endif
             </article>
             <article class="cash-register-metric">
                 <span><em class="bg-emerald-500"></em>Entrées espèces</span>

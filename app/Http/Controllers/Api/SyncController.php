@@ -408,7 +408,7 @@ class SyncController extends Controller
             ->when($kind, fn ($q) => $q->where('kind', $kind));
 
         $page = $this->syncPage($request, $paginated, 'contacts:'.($kind ?? 'all'), $tenant->id, self::DEFAULT_CONTACT_PER_PAGE, self::MAX_CONTACT_PER_PAGE, [
-                'id', 'kind', 'code', 'status', 'name', 'email', 'phone', 'address',
+                'id', 'kind', 'code', 'status', 'name', 'email', 'phone', 'address', 'notes',
                 'advance_balance', 'outstanding_balance', 'credit_limit', 'loyalty_points',
                 'updated_at', 'created_at', 'deleted_at',
             ]);
@@ -588,6 +588,8 @@ class SyncController extends Controller
             // that is how the shop pays its people; the till only shows the
             // choice when the shop has more than one of them.
             'ask_staff'                 => \App\Support\StaffReport::asksStaff($tenant),
+            // A switch of its own: a café takes tips without naming anyone.
+            'tips_enabled'              => \App\Support\StaffReport::tipsEnabled($tenant),
             // Synced rather than fetched: the users list needs a manager's
             // permission, and the till must name a barber offline.
             'staff'                     => $tenant->users()

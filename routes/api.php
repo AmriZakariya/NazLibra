@@ -139,6 +139,16 @@ Route::prefix('v1')->group(function (): void {
             Route::patch('tickets/{ticket}/name', [TicketController::class, 'rename'])->middleware('api.action:sales.create');
         });
 
+        // ── Appointments (barbers, salons) ─────────────────────────────────────
+        Route::get('appointments', [\App\Http\Controllers\Api\AppointmentController::class, 'index'])->middleware('api.action:appointments.view');
+        Route::post('appointments', [\App\Http\Controllers\Api\AppointmentController::class, 'store'])->middleware('api.action:appointments.manage');
+        Route::patch('appointments/{appointment}', [\App\Http\Controllers\Api\AppointmentController::class, 'update'])->middleware('api.action:appointments.manage');
+        Route::patch('appointments/{appointment}/status', [\App\Http\Controllers\Api\AppointmentController::class, 'status'])->middleware('api.action:appointments.manage');
+
+        // ── Tips owed to the team ─────────────────────────────────────────────
+        Route::get('tips', [\App\Http\Controllers\Api\TipController::class, 'index']);
+        Route::post('tips/payouts', [\App\Http\Controllers\Api\TipController::class, 'payout'])->middleware('api.action:cash_register.movements');
+
         // ── Kitchen display (KDS) ─────────────────────────────────────────────
         // A mirror for reporting only: the kitchen itself runs on the shop LAN
         // and must keep working with no internet, so nothing here is on the
