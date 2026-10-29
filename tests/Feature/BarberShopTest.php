@@ -166,6 +166,8 @@ class BarberShopTest extends TestCase
         $json = $this->withToken($this->token())->getJson('/api/v1/sync/settings')->assertOk()->json();
 
         $this->assertTrue($json['ask_staff']);
+        // The activity the shop chose, not the raw column (which said "retail").
+        $this->assertSame('barber', $json['business_mode']);
         $this->assertContains('Barbier Test', array_column($json['staff'], 'name'));
     }
 

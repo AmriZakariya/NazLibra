@@ -583,7 +583,10 @@ class SyncController extends Controller
             // whole set, so a module added later reaches the app with no
             // further work.
             'modules'                   => \App\Support\AppModules::settings($tenant)['enabled'],
-            'business_mode'             => $tenant->business_mode ?? 'retail',
+            // The activity the shop chose (settings › company profile), as
+            // the web reads it. The raw column is often empty, so every till
+            // used to say "retail" — a barber included.
+            'business_mode'             => \App\Support\BusinessMode::current($tenant)['key'],
             'business_activity'         => \App\Support\ItemTypes::activityForTenant($tenant),
             'inventory_costing_method'  => (string) data_get($tenant->settings, 'inventory.costing_method', 'lifo'),
             'branding'                  => $this->branding($tenant),
