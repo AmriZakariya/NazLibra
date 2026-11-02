@@ -18,11 +18,11 @@ class TenantInstall extends Model
         'last_action', 'provision_log', 'update_log', 'updated_log_at',
         'commit_sha', 'owner_email',
         'provisioned_at', 'updated_version_at', 'trial_ends_at', 'paid_at',
-        'support_email', 'support_password', 'last_backup_at', 'last_backup_bytes',
+        'support_email', 'support_password', 'owner_password', 'last_backup_at', 'last_backup_bytes',
         'last_backup_error', 'schedule_ran_at', 'schedule_error',
     ];
 
-    protected $hidden = ['support_password'];
+    protected $hidden = ['support_password', 'owner_password'];
 
     protected $casts = [
         'is_enabled'         => 'boolean',
@@ -32,6 +32,7 @@ class TenantInstall extends Model
         'trial_ends_at'      => 'datetime',
         'paid_at'            => 'datetime',
         'support_password'   => 'encrypted',
+        'owner_password'     => 'encrypted',
         'last_backup_at'     => 'datetime',
         'schedule_ran_at'    => 'datetime',
     ];

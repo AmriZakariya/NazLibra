@@ -5,11 +5,24 @@ Votre boutique « {!! $businessName !!} » est prête sur Castl-it-POS.
 VOS ACCÈS
   Nom du client        : {!! $clientName !!}
   Code de vérification : {!! $code !!}
+
+COMPTE PRINCIPAL (le vôtre, pour vendre et gérer la boutique)
   Identifiant          : {!! $login !!}
 @if ($password)
-  Mot de passe         : {!! $password !!} (provisoire, changez-le à la première connexion)
+  Mot de passe         : {!! $password !!}
+                         {!! $isResend ? "(mot de passe initial — si vous l'avez changé, gardez le vôtre)" : '(à changer après la première connexion)' !!}
 @else
-  Mot de passe         : celui choisi à l'inscription (oublié ? « Mot de passe oublié »)
+  Mot de passe         : défini à la création de votre espace (oublié ? « Mot de passe oublié »)
+@endif
+@if ($adminLogin)
+
+COMPTE ADMINISTRATEUR (tous les droits : à garder de côté)
+  Identifiant          : {!! $adminLogin !!}
+@if ($adminPassword)
+  Mot de passe         : {!! $adminPassword !!}
+@else
+  Mot de passe         : défini à la création de votre espace (oublié ? « Mot de passe oublié »)
+@endif
 @endif
 
 SUR ORDINATEUR
@@ -22,7 +35,7 @@ SUR TÉLÉPHONE OU TERMINAL DE CAISSE
 @endif
   2. Touchez « J'ai déjà un compte ».
   3. Saisissez le nom du client {!! $clientName !!} et le code {!! $code !!}, puis « Vérifier ».
-  4. Connectez-vous avec votre identifiant et votre mot de passe.
+  4. Connectez-vous avec l'un des comptes ci-dessus.
 
 Gardez cet email : le nom du client et le code servent à chaque nouvel appareil.
 

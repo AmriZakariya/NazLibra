@@ -114,9 +114,63 @@ class WelcomeEmailTest extends TestCase
         $this->assertStringContainsString('Tmp-Pass-42', $html);
         $this->assertStringContainsString('Tmp-Pass-42', $text);
 
+        // A space from before passwords were kept: no password to give.
         [$html, $text] = $this->render($install);
         $this->assertStringContainsString('Mot de passe oublié', $html);
         $this->assertStringContainsString('Mot de passe oublié', $text);
+    }
+
+    public function test_it_never_claims_a_password_was_chosen_at_signup(): void
+    {
+        // The signup asks for no password: the old wording sent clients
+        // looking for one they never typed.
+        foreach ([$this->render($this->install()), $this->render($this->install(['subdomain' => 'x2', 'domain' => 'x2.castlitpos.com']), 'P')] as [$html, $text]) {
+            $this->assertStringNotContainsString('choisi à l', $html);
+            $this->assertStringNotContainsString('choisi à l', $text);
+        }
+    }
+
+    public function test_both_the_owner_and_the_admin_account_go_out_with_their_passwords(): void
+    {
+        $install = $this->install([
+            'support_email' => 'admin@spatest.com',
+            'support_password' => 'Adm1n-Secret-77',
+        ]);
+
+        [$html, $text] = $this->render($install, 'Own3r-Pass-12');
+
+        foreach ([$html, $text] as $body) {
+            $this->assertStringContainsStringIgnoringCase('Compte principal', $body);
+            $this->assertStringContainsString('owner@example.com', $body);
+            $this->assertStringContainsString('Own3r-Pass-12', $body);
+            $this->assertStringContainsStringIgnoringCase('Compte administrateur', $body);
+            $this->assertStringContainsString('admin@spatest.com', $body);
+            $this->assertStringContainsString('Adm1n-Secret-77', $body);
+        }
+    }
+
+    public function test_a_resend_carries_the_passwords_kept_at_provisioning(): void
+    {
+        Notification::fake();
+        $install = $this->install([
+            'owner_password' => 'Own3r-Pass-12',
+            'support_email' => 'admin@spatest.com',
+            'support_password' => 'Adm1n-Secret-77',
+        ]);
+        $this->assertNotSame('Own3r-Pass-12', \Illuminate\Support\Facades\DB::table('tenant_installs')->value('owner_password'), 'kept encrypted');
+
+        $this->actingAs(User::factory()->create(['is_platform_admin' => true]))
+            ->post('/castlit-admin/'.$install->subscription_id.'/renvoyer-acces')
+            ->assertSessionHas('success');
+
+        Notification::assertSentOnDemand(
+            TenantProvisionedNotification::class,
+            fn (TenantProvisionedNotification $n): bool => $n->details()['password'] === 'Own3r-Pass-12'
+                && $n->details()['adminPassword'] === 'Adm1n-Secret-77'
+                && $n->details()['isResend'] === true,
+        );
+        [$html] = $this->render($install->fresh());
+        $this->assertStringContainsString('si vous l’avez changé', $html);
     }
 
     public function test_the_text_version_is_not_html_escaped(): void

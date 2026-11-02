@@ -277,8 +277,8 @@ class SubscriptionAdminController extends Controller
         }
 
         try {
-            // The one-time password isn't stored — the email points the client to
-            // "mot de passe oublié" to set a new one.
+            // The passwords kept at provisioning go out again; a space created
+            // before they were kept points the owner to « Mot de passe oublié ».
             Notification::route('mail', $subscription->email)
                 ->notify(new TenantProvisionedNotification($install, $subscription, null));
         } catch (\Throwable $e) {

@@ -13,10 +13,11 @@ use Illuminate\Notifications\Notification;
  * the admin's "Renvoyer les accès". Delivered on-demand to the subscription
  * email.
  *
- * It carries everything the client needs on either side: the address and
- * login for the web, and the client name + verification code the mobile app
- * asks for before it shows a login screen at all. Without the code the email
- * only got a client halfway — they could open the site but not the app.
+ * It carries everything the client needs on either side: the address, the
+ * owner's and the administrator's logins with their passwords, and the
+ * client name + verification code the mobile app asks for before it shows a
+ * login screen at all. Without the code the email only got a client
+ * halfway — they could open the site but not the app.
  */
 class TenantProvisionedNotification extends Notification
 {
@@ -43,7 +44,7 @@ class TenantProvisionedNotification extends Notification
             );
     }
 
-    /** @return array<string, string|null> */
+    /** @return array<string, string|bool|null> */
     public function details(): array
     {
         return [
@@ -57,7 +58,13 @@ class TenantProvisionedNotification extends Notification
             // resend never goes out with a blank where the code should be.
             'code'         => $this->install->ensureAccessCode(),
             'login'        => $this->install->owner_email,
-            'password'     => $this->password,
+            // Given at provisioning, else the one kept since.
+            'password'     => $this->password ?: $this->install->owner_password,
+            // The space's administrator account, for the owner to keep.
+            'adminLogin'   => $this->install->support_email,
+            'adminPassword' => $this->install->support_password,
+            // A resend: the owner may have changed it since.
+            'isResend'     => $this->password === null,
             'playStore'    => (string) config('castlit.brand.play_store'),
             'appStore'     => (string) config('castlit.brand.app_store'),
             'support'      => (string) config('castlit.brand.email'),

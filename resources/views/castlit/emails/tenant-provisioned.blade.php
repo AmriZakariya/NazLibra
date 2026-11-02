@@ -73,18 +73,34 @@
                 </td>
             </tr>
             <tr><td colspan="2" style="padding:16px 20px 0;"><div class="rule" style="border-top:1px solid #DCE3FA;"></div></td></tr>
-            <tr><td colspan="2" style="padding:14px 20px 18px; font-size:14px; line-height:1.7;">
+            @php
+                $passwordNote = $isResend
+                    ? 'mot de passe initial — si vous l’avez changé, gardez le vôtre.'
+                    : 'à changer après la première connexion.';
+                $accounts = array_values(array_filter([
+                    ['title' => 'Compte principal', 'hint' => 'Le vôtre, pour vendre et gérer la boutique.', 'login' => $login, 'password' => $password],
+                    $adminLogin ? ['title' => 'Compte administrateur', 'hint' => 'Tous les droits : à garder de côté, pour vous dépanner.', 'login' => $adminLogin, 'password' => $adminPassword] : null,
+                ]));
+            @endphp
+            @foreach ($accounts as $account)
+            <tr><td colspan="2" style="padding:14px 20px {{ $loop->last ? '18px' : '0' }}; font-size:14px; line-height:1.7;" data-account="{{ $loop->index }}">
+                <p class="ink" style="margin:0; font-size:13px; font-weight:800; color:#0E1330;">{{ $account['title'] }}</p>
+                <p class="muted" style="margin:0 0 4px; font-size:12.5px; color:#5C6270;">{{ $account['hint'] }}</p>
                 <span class="muted" style="color:#5C6270;">Identifiant&nbsp;:</span>
-                <strong class="ink" style="color:#0E1330;">{{ $login }}</strong><br>
+                <strong class="ink" style="color:#0E1330;">{{ $account['login'] }}</strong><br>
                 <span class="muted" style="color:#5C6270;">Mot de passe&nbsp;:</span>
-                @if ($password)
-                    <strong class="ink" style="font-family:ui-monospace,Menlo,Consolas,monospace; color:#0E1330;">{{ $password }}</strong>
-                    <span class="muted" style="color:#5C6270;"> — provisoire, changez-le à la première connexion.</span>
+                @if ($account['password'])
+                    <strong class="ink" style="font-family:ui-monospace,Menlo,Consolas,monospace; color:#0E1330;">{{ $account['password'] }}</strong><br>
+                    <span class="muted" style="font-size:12.5px; color:#5C6270;">{{ $passwordNote }}</span>
                 @else
-                    <span class="ink" style="color:#0E1330;">celui choisi à l'inscription</span>
-                    <span class="muted" style="color:#5C6270;"> (oublié&nbsp;? utilisez « Mot de passe oublié »).</span>
+                    <span class="ink" style="color:#0E1330;">défini à la création de votre espace</span>
+                    <span class="muted" style="color:#5C6270;"> (oublié&nbsp;? utilisez « Mot de passe oublié » sur l’écran de connexion).</span>
                 @endif
             </td></tr>
+            @if (! $loop->last)
+            <tr><td colspan="2" style="padding:14px 20px 0;"><div class="rule" style="border-top:1px dashed #DCE3FA;"></div></td></tr>
+            @endif
+            @endforeach
         </table>
         </td></tr>
 
@@ -92,7 +108,7 @@
         <tr><td class="pad" style="padding:26px 36px 0;">
             <h2 class="ink" style="margin:0 0 6px; font-size:16px; font-weight:800; color:#0E1330;">Sur ordinateur</h2>
             <p class="muted" style="margin:0 0 16px; font-size:14px; line-height:1.6; color:#5C6270;">
-                Ouvrez votre espace et connectez-vous avec l'identifiant et le mot de passe ci-dessus.
+                Ouvrez votre espace et connectez-vous avec l'un des comptes ci-dessus.
             </p>
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                 <td style="border-radius:10px; background:#3157D5;">
