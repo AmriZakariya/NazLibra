@@ -142,6 +142,15 @@
                             @endif
                             {{-- The space's support login: random per space since
                                  2026-10-27, so it is shown here rather than known. --}}
+                            @if ($subscription->install->owner_password)
+                                <div class="kv"><span class="k">Mot de passe propriétaire</span>
+                                    <span class="v">
+                                        <code class="secret" data-secret="{{ $subscription->install->owner_password }}">••••••••••••</code>
+                                        <button type="button" class="mini-btn" onclick="const c=this.previousElementSibling; c.textContent = c.textContent.startsWith('•') ? c.dataset.secret : '••••••••••••'">Afficher</button>
+                                        <small style="display:block; color:var(--muted)">Initial — le client a pu le changer.</small>
+                                    </span>
+                                </div>
+                            @endif
                             @if ($subscription->install->support_email && $subscription->install->support_password)
                                 <div class="kv"><span class="k">Accès support</span>
                                     <span class="v" data-support>
@@ -266,6 +275,13 @@
                                 @csrf
                                 <button class="btn btn-ghost btn-block" type="submit"
                                         onclick="return confirm('Renvoyer l’email d’accès à {{ $subscription->email }} ?')">✉ Renvoyer les accès</button>
+                            </form>
+                            {{-- A space created before the owner's password was kept, or an
+                                 owner who lost it: a new one, set in the space and mailed. --}}
+                            <form method="POST" action="{{ route('castlit.admin.owner-password', $subscription) }}" style="margin-top:10px">
+                                @csrf
+                                <button class="btn btn-ghost btn-block" type="submit" data-owner-password
+                                        onclick="return confirm('Créer un nouveau mot de passe pour {{ $subscription->install->owner_email ?: $subscription->email }} et l’envoyer par email ? L’ancien ne marchera plus.')">🔑 Nouveau mot de passe propriétaire</button>
                             </form>
                         @elseif ($subscription->install && $subscription->install->status === \App\Models\TenantInstall::STATUS_QUEUED)
                             <p style="font-size:14px; font-weight:600; margin-bottom:4px"><span class="live-dot"></span>En file d'attente…</p>

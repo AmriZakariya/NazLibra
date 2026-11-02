@@ -89,6 +89,7 @@ if (config('castlit.is_master')) {
             Route::post('/{subscription}/rejeter', [SubscriptionAdminController::class, 'reject'])->name('reject');
             Route::post('/{subscription}/relancer', [SubscriptionAdminController::class, 'retry'])->name('retry');
             Route::post('/{subscription}/renvoyer-acces', [SubscriptionAdminController::class, 'resendAccess'])->name('resend');
+            Route::post('/{subscription}/mot-de-passe-proprietaire', [SubscriptionAdminController::class, 'resetOwnerPassword'])->name('owner-password');
         });
 }
 

@@ -288,6 +288,45 @@ class SubscriptionAdminController extends Controller
         return back()->with('success', "Accès renvoyés à {$subscription->email}.");
     }
 
+    /**
+     * A new password for the owner: set in the client space (the same command
+     * that sets the admin login's), kept encrypted, and mailed with the other
+     * accesses. For spaces created before the owner's password was kept, and
+     * for an owner who lost it.
+     */
+    public function resetOwnerPassword(Subscription $subscription): RedirectResponse
+    {
+        $install = $subscription->install;
+        if (! $install || $install->status !== TenantInstall::STATUS_LIVE) {
+            return back()->with('error', 'Aucun espace en ligne.');
+        }
+        $email = $install->owner_email ?: $subscription->email;
+        if (! \App\Support\ClientArtisan::reachable($install)) {
+            return back()->with('error', 'Dossier de l’espace introuvable sur l’hébergement.');
+        }
+
+        $password = \Illuminate\Support\Str::password(12, symbols: false);
+        $process = \App\Support\ClientArtisan::process($install, ['castlit:support-password', $email], ['CASTLIT_SUPPORT_PASSWORD' => $password], 120);
+        $process->run();
+        $lines = preg_split('/\r?\n/', trim($process->getOutput())) ?: [];
+        $result = json_decode((string) end($lines), true);
+        if (! $process->isSuccessful() || ($result['status'] ?? '') !== 'success') {
+            return back()->with('error', ($result['status'] ?? '') === 'absent'
+                ? "Aucun compte {$email} dans l’espace."
+                : 'Échec : '.\App\Support\ClientArtisan::failure($process));
+        }
+
+        $install->forceFill(['owner_password' => $password, 'owner_email' => $email])->save();
+        try {
+            Notification::route('mail', $subscription->email)
+                ->notify(new TenantProvisionedNotification($install, $subscription, $password));
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Mot de passe changé, mais l’email n’est pas parti : '.$e->getMessage());
+        }
+
+        return back()->with('success', "Nouveau mot de passe envoyé à {$subscription->email}.");
+    }
+
     /** Create the install row for an approved subscription and queue provisioning. */
     private function createInstallAndDispatch(Subscription $subscription): TenantInstall
     {
