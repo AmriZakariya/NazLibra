@@ -8106,6 +8106,10 @@ class LibraireProController extends Controller
             'topItems' => $topItems,
             'categorySales' => $categorySales,
             'team' => \App\Support\StaffReport::rows($sales, \App\Support\StaffReport::tipsOwed($tenant->id)),
+            // The kitchen's preparation times, for a shop with a kitchen screen.
+            'kitchen' => AppModules::enabled($tenant, 'kds')
+                ? \App\Support\KitchenReport::compute($tenant->id, \Illuminate\Support\Carbon::parse($from)->startOfDay(), \Illuminate\Support\Carbon::parse($to)->endOfDay())
+                : null,
             'clients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
             'summary' => [
                 'gross_revenue' => $grossRevenue,

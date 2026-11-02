@@ -3758,6 +3758,9 @@
                 'seller-points' => 'Points vendeur',
                 'team' => 'Équipe : commissions et pourboires',
             ];
+            if ($reportContext['kitchen'] !== null) {
+                $reportTabs['kitchen'] = 'Cuisine : temps de préparation';
+            }
             $summary = $reportContext['summary'];
             $reportRows = match ($reportSection) {
                 'purchases', 'purchase-payments', 'supplier-items', 'purchase-tax', 'gstr-2', 'purchase-gst' => $reportContext['purchases'],
@@ -3769,6 +3772,7 @@
                 'item-sales' => $reportContext['topItems'],
                 'sales-summary', 'sales-tax', 'gstr-1', 'sales-gst' => $reportContext['categorySales'],
                 'team' => $reportContext['team'],
+                'kitchen' => $reportContext['kitchen']['dishes'] ?? [],
                 default => $reportContext['sales'],
             };
         @endphp
@@ -3830,11 +3834,13 @@
                 </article>
             @else
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <div class="border-b border-slate-200 p-4 dark:border-white/10"><h3 class="font-semibold">{{ $reportTabs[$reportSection] ?? 'Données rapport' }}</h3>@if ($reportSection === 'team')<p class="mt-1 text-sm text-slate-500">Une prestation sans barbier choisi revient à la personne qui a encaissé. La commission se calcule sur ce que le client a payé, remises déduites, au taux réglé pour chaque utilisateur. Les pourboires ne comptent pas dans le chiffre d'affaires ; « Pourboires dus » cumule tout ce qui n'a pas encore été versé, quelle que soit la période. Un versement en espèces sort du tiroir ouvert.</p>@if ($errors->has('amount'))<p class="mt-2 text-sm text-rose-600">{{ $errors->first('amount') }}</p>@endif @endif</div>
+                    <div class="border-b border-slate-200 p-4 dark:border-white/10"><h3 class="font-semibold">{{ $reportTabs[$reportSection] ?? 'Données rapport' }}</h3>@if ($reportSection === 'kitchen')<p class="mt-1 text-sm text-slate-500" data-kitchen-report>Du moment où le plat part en cuisine à celui où il est marqué prêt. Un plat jamais marqué prêt compte dans « Envoyés » mais pas dans la moyenne. {{ $reportContext['kitchen']['cancelled'] ?? 0 }} annulé(s) sur la période, dont {{ $reportContext['kitchen']['cancelled_after_start'] ?? 0 }} après le début de la préparation.</p>@endif @if ($reportSection === 'team')<p class="mt-1 text-sm text-slate-500">Une prestation sans barbier choisi revient à la personne qui a encaissé. La commission se calcule sur ce que le client a payé, remises déduites, au taux réglé pour chaque utilisateur. Les pourboires ne comptent pas dans le chiffre d'affaires ; « Pourboires dus » cumule tout ce qui n'a pas encore été versé, quelle que soit la période. Un versement en espèces sort du tiroir ouvert.</p>@if ($errors->has('amount'))<p class="mt-2 text-sm text-rose-600">{{ $errors->first('amount') }}</p>@endif @endif</div>
                     <div class="overflow-x-auto">
                         <table id="report-data" class="w-full min-w-[980px] text-left text-sm">
                             <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
-                                @if ($reportSection === 'team')
+                                @if ($reportSection === 'kitchen')
+                                    <tr><th class="px-3 py-3">Plat</th><th class="px-3 py-3 text-right">Envoyés</th><th class="px-3 py-3 text-right">Chronométrés</th><th class="px-3 py-3 text-right">Temps moyen</th></tr>
+                                @elseif ($reportSection === 'team')
                                     <tr><th class="px-3 py-3">Membre</th><th class="px-3 py-3 text-right">Prestations</th><th class="px-3 py-3 text-right">CA prestations</th><th class="px-3 py-3 text-right">CA produits</th><th class="px-3 py-3 text-right">Commission</th><th class="px-3 py-3 text-right">Pourboires (période)</th><th class="px-3 py-3 text-right">Pourboires dus</th><th class="px-3 py-3 text-right">Action</th></tr>
                                 @elseif (in_array($reportSection, ['stock'], true))
                                     <tr><th class="px-3 py-3">Article</th><th class="px-3 py-3">Catégorie</th><th class="px-3 py-3">Marque</th><th class="px-3 py-3 text-right">Stock</th><th class="px-3 py-3 text-right">Coût</th><th class="px-3 py-3 text-right">Valeur</th></tr>
@@ -3852,7 +3858,9 @@
                             </thead>
                             <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                                 @forelse ($reportRows as $row)
-                                    @if ($reportSection === 'team')
+                                    @if ($reportSection === 'kitchen')
+                                        <tr data-kitchen-row><td class="px-3 py-3 font-semibold">{{ $row['dish'] }}</td><td class="px-3 py-3 text-right">{{ $row['count'] }}</td><td class="px-3 py-3 text-right">{{ $row['timed'] }}</td><td class="px-3 py-3 text-right font-semibold tabular-nums">{{ \App\Support\KitchenReport::duration($row['average_seconds']) }}</td></tr>
+                                    @elseif ($reportSection === 'team')
                                         <tr data-team-row="{{ $row['user_id'] ?? 0 }}"><td class="px-3 py-3 font-semibold">{{ $row['name'] }}</td><td class="px-3 py-3 text-right">{{ $row['services'] }}</td><td class="px-3 py-3 text-right">{{ $money($row['service_revenue']) }}</td><td class="px-3 py-3 text-right">{{ $money($row['product_revenue']) }}</td><td class="px-3 py-3 text-right">{{ $money($row['commission']) }}<span class="block text-xs text-slate-500">{{ rtrim(rtrim(number_format($row['commission_rate'], 2, ',', ' '), '0'), ',') }} %</span></td><td class="px-3 py-3 text-right">{{ $money($row['tips']) }}</td><td class="px-3 py-3 text-right font-semibold {{ $row['tips_owed'] > 0 ? 'text-amber-600' : '' }}">{{ $money($row['tips_owed']) }}</td><td class="px-3 py-3 text-right">@if ($row['user_id'] && $row['tips_owed'] > 0)<form method="POST" action="{{ route('tips.payouts.store', $row['user_id']) }}" class="inline-flex items-center gap-1" data-tip-payout="{{ $row['user_id'] }}">@csrf<input name="amount" type="number" step="0.01" min="0.01" max="{{ $row['tips_owed'] }}" value="{{ number_format($row['tips_owed'], 2, '.', '') }}" class="h-9 w-24 rounded-lg border border-slate-200 px-2 text-right text-sm dark:border-white/10 dark:bg-slate-900"><select name="method" class="h-9 rounded-lg border border-slate-200 px-1 text-xs dark:border-white/10 dark:bg-slate-900"><option value="cash">Espèces</option><option value="transfer">Virement</option></select><button class="h-9 rounded-lg bg-brand px-3 text-xs font-semibold text-white">Verser</button></form>@else — @endif</td></tr>
                                     @elseif (in_array($reportSection, ['stock'], true))
                                         <tr><td class="px-3 py-3 font-semibold">{{ $row->title }}</td><td class="px-3 py-3">{{ $row->category?->name ?? '—' }}</td><td class="px-3 py-3">{{ $row->brand?->name ?? '—' }}</td><td class="px-3 py-3 text-right">{{ number_format($row->stock_quantity, 0, ',', ' ') }}</td><td class="px-3 py-3 text-right">{{ $money($row->purchase_price) }}</td><td class="px-3 py-3 text-right font-semibold">{{ $money($row->stock_quantity * $row->purchase_price) }}</td></tr>

@@ -74,68 +74,15 @@ class KdsApiController extends Controller
             ? \Illuminate\Support\Carbon::parse($data['to'])->endOfDay()
             : now()->endOfDay();
 
-        $lines = KdsLine::query()
-            ->where('tenant_id', $tenant->id)
-            ->whereBetween('fired_at', [$from, $to])
-            ->get(['name', 'item_id', 'quantity', 'status', 'fired_at',
-                'status_at', 'cancel_was_started']);
-
-        $byDish = [];
-        $cancelled = 0;
-        $cancelledAfterStart = 0;
-
-        foreach ($lines as $line) {
-            if ($line->status === 'cancelled') {
-                $cancelled++;
-                if ($line->cancel_was_started) {
-                    $cancelledAfterStart++;
-                }
-
-                continue;
-            }
-
-            $key = $line->name;
-            $byDish[$key] ??= ['dish' => $key, 'count' => 0, 'seconds' => 0, 'timed' => 0];
-            $byDish[$key]['count']++;
-
-            // Only a dish that actually reached the kitchen's hands has a
-            // duration. status_at is null until someone touched it.
-            if ($line->status_at === null || $line->fired_at === null) {
-                continue;
-            }
-            if (! in_array($line->status, ['ready', 'served'], true)) {
-                continue;
-            }
-
-            $seconds = $line->fired_at->diffInSeconds($line->status_at, false);
-            // A negative duration means the device clocks disagreed; counting
-            // it would drag the average below what any kitchen can do.
-            if ($seconds < 0) {
-                continue;
-            }
-
-            $byDish[$key]['seconds'] += $seconds;
-            $byDish[$key]['timed']++;
-        }
-
-        $dishes = array_values(array_map(function (array $row): array {
-            $row['average_seconds'] = $row['timed'] > 0
-                ? (int) round($row['seconds'] / $row['timed'])
-                : null;
-            unset($row['seconds']);
-
-            return $row;
-        }, $byDish));
-
-        usort($dishes, fn ($a, $b) => $b['count'] <=> $a['count']);
+        $report = \App\Support\KitchenReport::compute($tenant->id, $from, $to);
 
         return response()->json([
             'ok' => true,
             'from' => $from->toIso8601String(),
             'to' => $to->toIso8601String(),
-            'dishes' => $dishes,
-            'cancelled' => $cancelled,
-            'cancelled_after_start' => $cancelledAfterStart,
+            'dishes' => $report['dishes'],
+            'cancelled' => $report['cancelled'],
+            'cancelled_after_start' => $report['cancelled_after_start'],
         ]);
     }
 }
