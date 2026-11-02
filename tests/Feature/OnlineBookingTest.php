@@ -141,6 +141,37 @@ class OnlineBookingTest extends TestCase
         $this->assertSame('2026-11-02 09:30', $request->starts_at->setTimezone(self::TZ)->format('Y-m-d H:i'));
     }
 
+    public function test_a_long_service_gets_only_the_slots_it_fits_in(): void
+    {
+        $this->open();
+        $this->cut->update(['duration_minutes' => 60]);
+
+        // 09:00–11:00, 30-minute grid: an hour fits at 09:00, 09:30 and 10:00.
+        $this->assertSame(['09:00', '09:30', '10:00'], OnlineBooking::slots($this->tenant, '2026-11-02', null, null, 60));
+        $this->getJson(route('booking.slots', ['date' => '2026-11-02', 'item' => $this->cut->id]))
+            ->assertExactJson(['slots' => ['09:00', '09:30', '10:00']]);
+        $this->ask(['time' => '10:30'])->assertSessionHasErrors('time');
+
+        $this->ask(['time' => '09:30'])->assertRedirect();
+        $this->assertSame(60, Appointment::sole()->duration_minutes, 'booked for as long as the service takes');
+        // The hour holds 09:30–10:30: a half hour still fits before it.
+        $this->assertSame(['09:00', '10:30'], OnlineBooking::slots($this->tenant, '2026-11-02', $this->barber->id, null, 30));
+    }
+
+    public function test_the_agenda_books_a_service_for_its_own_duration(): void
+    {
+        $this->cut->update(['duration_minutes' => 45]);
+        $a = \App\Support\Appointments::save($this->tenant, [
+            'starts_at' => '2026-11-03 10:00', 'item_id' => $this->cut->id, 'customer_name' => 'Karim',
+        ], $this->owner);
+        $this->assertSame(45, $a->duration_minutes);
+
+        $b = \App\Support\Appointments::save($this->tenant, [
+            'starts_at' => '2026-11-03 12:00', 'item_id' => $this->cut->id, 'customer_name' => 'Sami', 'duration_minutes' => 20,
+        ], $this->owner);
+        $this->assertSame(20, $b->duration_minutes, 'a duration typed on the booking wins');
+    }
+
     public function test_a_taken_slot_a_closed_day_or_an_unknown_service_is_refused(): void
     {
         $this->open();

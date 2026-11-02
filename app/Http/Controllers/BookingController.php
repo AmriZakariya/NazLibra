@@ -47,10 +47,15 @@ class BookingController extends Controller
         $data = $request->validate([
             'date' => ['required', 'date_format:Y-m-d'],
             'staff' => ['nullable', 'integer'],
+            'item' => ['nullable', 'integer'],
         ]);
+        $service = isset($data['item']) ? OnlineBooking::services($tenant)->firstWhere('id', (int) $data['item']) : null;
 
         return response()->json([
-            'slots' => OnlineBooking::slots($tenant, $data['date'], isset($data['staff']) ? (int) $data['staff'] : null),
+            'slots' => OnlineBooking::slots(
+                $tenant, $data['date'], isset($data['staff']) ? (int) $data['staff'] : null,
+                null, OnlineBooking::durationOf($tenant, $service),
+            ),
         ]);
     }
 

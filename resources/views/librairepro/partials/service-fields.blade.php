@@ -100,11 +100,14 @@
     </select>
 </label>
 
+{{-- A service is not bought in: no cost to ask for. One already saved is kept. --}}
+<input type="hidden" name="purchase_price" value="{{ $moneyValue('purchase_price', $item?->purchase_price ?? 0) }}">
+
 <label class="block">
-    <span class="text-xs font-semibold uppercase text-slate-500">Coût interne {!! $required !!}</span>
-    <input name="purchase_price" required type="number" step="0.01" min="0" inputmode="decimal"
-           data-price-purchase
-           value="{{ $moneyValue('purchase_price', $item?->purchase_price ?? 0) }}" class="{{ $input }}"
+    <span class="text-xs font-semibold uppercase text-slate-500">Prix de vente HT {!! $required !!}</span>
+    <input name="sale_price" required type="number" step="0.01" min="0" inputmode="decimal"
+           data-price-sale
+           value="{{ $moneyValue('sale_price', $item?->sale_price ?? 0) }}" class="{{ $input }}"
            placeholder="0.00">
 </label>
 
@@ -114,15 +117,15 @@
            data-price-ttc readonly
            value="{{ $moneyValue('price', $item?->price ?? 0) }}" class="{{ $readonlyInput }}"
            placeholder="0.00">
-    <span class="mt-1 block text-xs text-slate-400">Calculé depuis le coût interne + TVA.</span>
+    <span class="mt-1 block text-xs text-slate-400">Calculé depuis le prix de vente + TVA.</span>
 </label>
 
 <label class="block">
-    <span class="text-xs font-semibold uppercase text-slate-500">Prix de vente HT {!! $required !!}</span>
-    <input name="sale_price" required type="number" step="0.01" min="0" inputmode="decimal"
-           data-price-sale
-           value="{{ $moneyValue('sale_price', $item?->sale_price ?? 0) }}" class="{{ $input }}"
-           placeholder="0.00">
+    <span class="text-xs font-semibold uppercase text-slate-500">Durée (min)</span>
+    <input name="duration_minutes" type="number" step="5" min="5" max="600" inputmode="numeric"
+           value="{{ old('duration_minutes', $item?->duration_minutes) }}" class="{{ $input }}"
+           placeholder="30" data-service-duration>
+    <span class="mt-1 block text-xs text-slate-400">Pour l’agenda et la réservation en ligne.</span>
 </label>
 
 <label class="block">
@@ -283,32 +286,33 @@
         }
         if (! form) return;
 
-        var purchaseEl  = form.querySelector('[data-price-purchase]');
         var saleEl      = form.querySelector('[data-price-sale]');
         var ttcEl       = form.querySelector('[data-price-ttc]');
         var taxSel      = form.querySelector('[data-price-tax]');
         var taxTypeSel  = form.querySelector('[data-price-tax-type]');
 
-        if (! purchaseEl || ! ttcEl) return;
+        if (! saleEl || ! ttcEl) return;
 
         function taxRate() {
             var opt = taxSel ? taxSel.options[taxSel.selectedIndex] : null;
             return opt ? (parseFloat(opt.dataset.rate) || 0) : 0;
         }
 
-        function calcTtc(purchase) {
+        // What the customer pays: the sale price, plus the tax when it is
+        // charged on top. It used to be worked out from the internal cost.
+        function calcTtc(sale) {
             var type = taxTypeSel ? taxTypeSel.value : 'Exclusive';
             return type === 'Exclusive'
-                ? purchase * (1 + taxRate() / 100)
-                : purchase;
+                ? sale * (1 + taxRate() / 100)
+                : sale;
         }
 
         function syncTtc() {
-            var purchase = parseFloat(purchaseEl.value) || 0;
-            ttcEl.value  = calcTtc(purchase).toFixed(2);
+            var sale = parseFloat(saleEl.value) || 0;
+            ttcEl.value  = calcTtc(sale).toFixed(2);
         }
 
-        purchaseEl.addEventListener('input', syncTtc);
+        saleEl.addEventListener('input', syncTtc);
         if (taxSel)     taxSel.addEventListener('change', syncTtc);
         if (taxTypeSel) taxTypeSel.addEventListener('change', syncTtc);
 

@@ -114,7 +114,7 @@ class OnlineBooking
             ->where('type', 'service')
             ->whereNotIn('status', ['archived', 'inactive'])
             ->orderBy('title')
-            ->get(['id', 'title', 'sale_price']);
+            ->get(['id', 'title', 'sale_price', 'duration_minutes']);
     }
 
     /** @return list<string>  the days a client may pick, Y-m-d in the shop's day */
@@ -134,13 +134,21 @@ class OnlineBooking
         return $days;
     }
 
+    /** How long [service] takes: its own duration, else the shop's slot length. */
+    public static function durationOf(Tenant $tenant, ?Item $service): int
+    {
+        return $service?->duration_minutes ?: self::settings($tenant)['duration'];
+    }
+
     /**
      * Free start times ("H:i", shop time) on a day, for one barber or for
-     * whoever is free when [staffId] is null.
+     * whoever is free when [staffId] is null. Starts follow the shop's slot
+     * grid; [duration] (the service's) must fit before closing and clear of
+     * other bookings.
      *
      * @return list<string>
      */
-    public static function slots(Tenant $tenant, string $date, ?int $staffId, ?CarbonImmutable $now = null): array
+    public static function slots(Tenant $tenant, string $date, ?int $staffId, ?CarbonImmutable $now = null, ?int $duration = null): array
     {
         $settings = self::settings($tenant);
         $tz = Appointments::timezone($tenant);
@@ -151,6 +159,7 @@ class OnlineBooking
         $day = CarbonImmutable::parse($date, $tz)->startOfDay();
         [$open, $close] = $settings['hours'][$day->isoWeekday()];
         $step = $settings['duration'];
+        $length = $duration ?: $step;
 
         $staff = self::staff($tenant)->pluck('id')->map(fn ($id) => (int) $id);
         if ($staffId !== null) {
@@ -167,11 +176,11 @@ class OnlineBooking
         $slots = [];
         $start = CarbonImmutable::parse($date.' '.$open, $tz);
         $end = CarbonImmutable::parse($date.' '.$close, $tz);
-        for ($t = $start; $t->addMinutes($step)->lessThanOrEqualTo($end); $t = $t->addMinutes($step)) {
+        for ($t = $start; $t->addMinutes($length)->lessThanOrEqualTo($end); $t = $t->addMinutes($step)) {
             if ($t->lessThanOrEqualTo($now)) {
                 continue;
             }
-            if (self::firstFree($staff, $busy, $t, $t->addMinutes($step)) !== null) {
+            if (self::firstFree($staff, $busy, $t, $t->addMinutes($length)) !== null) {
                 $slots[] = $t->format('H:i');
             }
         }
@@ -187,14 +196,14 @@ class OnlineBooking
      */
     public static function request(Tenant $tenant, array $data, ?CarbonImmutable $now = null): Appointment
     {
-        $settings = self::settings($tenant);
         $tz = Appointments::timezone($tenant);
         $service = self::services($tenant)->firstWhere('id', (int) $data['item_id']);
         if (! $service) {
             throw ValidationException::withMessages(['item_id' => __('booking.error_service')]);
         }
         $staffId = $data['staff_user_id'] ? (int) $data['staff_user_id'] : null;
-        if (! in_array($data['time'], self::slots($tenant, $data['date'], $staffId, $now), true)) {
+        $duration = self::durationOf($tenant, $service);
+        if (! in_array($data['time'], self::slots($tenant, $data['date'], $staffId, $now, $duration), true)) {
             throw ValidationException::withMessages(['time' => __('booking.error_slot_taken')]);
         }
 
@@ -205,7 +214,7 @@ class OnlineBooking
             self::staff($tenant)->pluck('id')->map(fn ($id) => (int) $id),
             self::busy($tenant, $start->startOfDay()),
             $start,
-            $start->addMinutes($settings['duration']),
+            $start->addMinutes($duration),
         );
 
         return Appointment::create([
@@ -217,7 +226,7 @@ class OnlineBooking
             'customer_phone' => $data['customer_phone'],
             'note' => $data['note'] ?? null,
             'starts_at' => $start->utc(),
-            'duration_minutes' => $settings['duration'],
+            'duration_minutes' => $duration,
             'status' => 'requested',
         ]);
     }

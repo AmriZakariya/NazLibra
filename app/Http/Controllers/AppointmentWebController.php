@@ -44,7 +44,7 @@ class AppointmentWebController extends Controller
             'appointments' => $appointments,
             'staff' => $staff,
             'services' => Item::where('tenant_id', $tenant->id)->where('type', 'service')
-                ->whereNotIn('status', ['archived', 'inactive'])->orderBy('title')->get(['id', 'title', 'sale_price']),
+                ->whereNotIn('status', ['archived', 'inactive'])->orderBy('title')->get(['id', 'title', 'sale_price', 'duration_minutes']),
             'customers' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')
                 ->orderBy('name')->limit(500)->get(['id', 'name', 'phone']),
             'whatsapp' => fn (Appointment $a) => Appointments::whatsappUrl($a, $tenant),

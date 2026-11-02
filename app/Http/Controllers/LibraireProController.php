@@ -10668,6 +10668,7 @@ class LibraireProController extends Controller
             'purchase_price' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
             'sale_price' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
             'reseller_sale_price' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
+            'duration_minutes' => ['nullable', 'integer', 'min:5', 'max:600'],
             'warehouse' => ['nullable', 'string', 'max:255'],
             'opening_stock' => ['nullable', 'integer', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
@@ -10710,6 +10711,8 @@ class LibraireProController extends Controller
         }
         $data['item_code'] = $submittedCode ?? $this->nextItemCode($tenant->id, $item?->id);
         $data['item_group'] = $data['item_group'] ?? 'Single';
+        // Only a service is timed; goods carry no duration.
+        $data['duration_minutes'] = ($data['type'] ?? $item?->type) === 'service' ? ($data['duration_minutes'] ?? null) : null;
         $data['seller_points'] = $data['seller_points'] ?? 0;
         $data['discount_type'] = $data['discount_type'] ?? 'Percentage';
         $data['discount'] = $data['discount'] ?? 0;

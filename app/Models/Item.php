@@ -52,6 +52,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'profit_margin',
     'purchase_price',
     'sale_price',
+    'duration_minutes',
     'reseller_sale_price',
     'mrp',
     'warehouse',
@@ -84,6 +85,7 @@ class Item extends Model
             'price' => 'decimal:2',
             'purchase_price' => 'decimal:2',
             'sale_price' => 'decimal:2',
+            'duration_minutes' => 'integer',
             'reseller_sale_price' => 'decimal:2',
             'mrp' => 'decimal:2',
         ];

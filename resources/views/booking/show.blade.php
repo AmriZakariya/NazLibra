@@ -132,7 +132,7 @@
                     @foreach ($services as $service)
                         <label class="choice">
                             <input type="radio" name="item_id" value="{{ $service->id }}" data-label="{{ $service->title }}" @checked((string) old('item_id', $services->count() === 1 ? $service->id : '') === (string) $service->id) required>
-                            <span><b>{{ $service->title }}</b><small>{{ __('booking.minutes', ['count' => $duration]) }}</small></span>
+                            <span><b>{{ $service->title }}</b><small>{{ __('booking.minutes', ['count' => $service->duration_minutes ?: $duration]) }}</small></span>
                             <span class="price">{{ $shopMoney->format($service->sale_price) }}</span>
                         </label>
                     @endforeach
@@ -239,6 +239,7 @@
             const url = new URL(@json(route('booking.slots')), location.href);
             url.searchParams.set('date', day.value);
             if (staffValue()) url.searchParams.set('staff', staffValue());
+            if (picked('item_id')) url.searchParams.set('item', picked('item_id').value);
             const res = await fetch(url, { headers: { Accept: 'application/json' } });
             if (!res.ok) throw new Error(res.status);
             const { slots: times } = await res.json();
@@ -260,7 +261,8 @@
 
     form.addEventListener('change', (e) => {
         if (e.target.name === 'time') wanted = e.target.value;
-        if (e.target.name === 'date' || e.target.name === 'staff_user_id') loadSlots();
+        // A longer service fits in fewer slots: the times depend on it too.
+        if (['date', 'staff_user_id', 'item_id'].includes(e.target.name)) loadSlots();
         else refreshSummary();
     });
     form.addEventListener('input', refreshSummary);

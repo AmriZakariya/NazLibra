@@ -82,6 +82,10 @@ class Appointments
             if ($item && empty($data['service_name'])) {
                 $appointment->service_name = $item->title;
             }
+            // The service's own length, unless the booking says otherwise.
+            if ($item?->duration_minutes && empty($data['duration_minutes'])) {
+                $appointment->duration_minutes = $item->duration_minutes;
+            }
         }
 
         foreach (['customer_name', 'customer_phone', 'service_name', 'note', 'duration_minutes', 'location_id'] as $field) {
