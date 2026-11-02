@@ -824,3 +824,7 @@
     })();
 </script>
 @endpush
+
+@push('scripts')
+    @include('castlit.partials.support-widget')
+@endpush

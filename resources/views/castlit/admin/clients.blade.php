@@ -95,6 +95,11 @@
                     </button>
                 </form>
                 <a href="{{ route('castlit.admin.index') }}" class="btn btn-ghost" style="padding:11px 18px; white-space:nowrap">← Abonnements</a>
+                <a href="{{ route('castlit.admin.support') }}" class="btn btn-ghost" style="padding:11px 18px; white-space:nowrap" data-support-link>
+                    Support
+                    @php $supportUnread = \App\Support\SupportChat::unreadConversations(); @endphp
+                    @if ($supportUnread > 0)<span style="margin-left:6px; min-width:22px; height:22px; padding:0 6px; border-radius:999px; background:var(--err); color:#fff; font-size:12px; font-weight:800; display:inline-grid; place-items:center">{{ $supportUnread }}</span>@endif
+                </a>
             </div>
         </div>
 

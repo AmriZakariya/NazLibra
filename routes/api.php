@@ -63,11 +63,26 @@ Route::prefix('v1')->group(function (): void {
     Route::post('public/subscribe', [PublicController::class, 'subscribe'])
         ->middleware('throttle:5,1');
 
+    // ── "Contacter le support": the master holds every conversation ────────
+    if (config('castlit.is_master')) {
+        Route::prefix('support/conversations')->controller(\App\Http\Controllers\Api\SupportController::class)->group(function (): void {
+            Route::post('/', 'start')->middleware('throttle:6,1');
+            Route::get('{id}', 'show')->middleware('throttle:60,1');
+            Route::post('{id}/identify', 'identify')->middleware('throttle:10,1');
+            Route::post('{id}/messages', 'post')->middleware('throttle:20,1');
+            Route::post('{id}/read', 'read')->middleware('throttle:60,1');
+            Route::get('{id}/messages/{message}/attachment', 'attachment')
+                ->whereNumber('message')->middleware('throttle:120,1')->name('api.support.attachment');
+        });
+    }
+
     // ── Protected (Sanctum token required) ──────────────────────────────────
     Route::middleware(['auth:sanctum', \App\Http\Middleware\ResolveApiContext::class])->group(function (): void {
 
         // Auth
         Route::post('auth/logout', [AuthController::class, 'logout']);
+        // Who is asking support, signed for the master to trust.
+        Route::get('support/identity', [\App\Http\Controllers\Api\SupportIdentityController::class, 'show']);
         Route::get('auth/me',      [AuthController::class, 'me']);
 
         // Locations

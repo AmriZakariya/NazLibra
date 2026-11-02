@@ -73,6 +73,13 @@ if (config('castlit.is_master')) {
             // returning a 404 (so it can't be re-poisoned) and is cacheable.
             Route::get('/clients/{install}/sauvegarde', [ClientAdminController::class, 'backupDownload'])->whereNumber('install')->name('clients.backup');
             Route::post('/clients/op', [ClientAdminController::class, 'action'])->name('clients.action');
+            // Support conversations — must precede the /{subscription} route.
+            Route::get('/support', [\App\Http\Controllers\Castlit\SupportAdminController::class, 'index'])->name('support');
+            Route::post('/support/{conversation}/repondre', [\App\Http\Controllers\Castlit\SupportAdminController::class, 'reply'])->whereNumber('conversation')->name('support.reply');
+            Route::post('/support/{conversation}/lu', [\App\Http\Controllers\Castlit\SupportAdminController::class, 'read'])->whereNumber('conversation')->name('support.read');
+            Route::post('/support/{conversation}/statut', [\App\Http\Controllers\Castlit\SupportAdminController::class, 'status'])->whereNumber('conversation')->name('support.status');
+            Route::get('/support/{conversation}/nouveaux', [\App\Http\Controllers\Castlit\SupportAdminController::class, 'poll'])->whereNumber('conversation')->name('support.poll');
+            Route::get('/support/{conversation}/fichiers/{message}', [\App\Http\Controllers\Castlit\SupportAdminController::class, 'attachment'])->whereNumber('conversation')->whereNumber('message')->name('support.attachment');
             Route::redirect('/clients/op', '/castlit-admin/clients');
             Route::get('/{subscription}', [SubscriptionAdminController::class, 'show'])->name('show');
             Route::post('/{subscription}/approuver', [SubscriptionAdminController::class, 'approve'])->name('approve');

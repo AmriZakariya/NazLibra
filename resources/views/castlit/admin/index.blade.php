@@ -90,6 +90,11 @@
                 <p>Validez ou refusez les inscriptions. L'approbation lance la création automatique de l'espace client.</p>
             </div>
             <div style="margin-left:auto; display:flex; gap:10px; flex-wrap:wrap">
+                <a href="{{ route('castlit.admin.support') }}" class="btn btn-ghost" style="padding:11px 18px; white-space:nowrap" data-support-link>
+                    Support
+                    @php $supportUnread = \App\Support\SupportChat::unreadConversations(); @endphp
+                    @if ($supportUnread > 0)<span style="margin-left:6px; min-width:22px; height:22px; padding:0 6px; border-radius:999px; background:var(--err); color:#fff; font-size:12px; font-weight:800; display:inline-grid; place-items:center">{{ $supportUnread }}</span>@endif
+                </a>
                 <a href="{{ route('castlit.admin.clients') }}" class="btn btn-ghost" style="padding:11px 18px; white-space:nowrap">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>
                     Clients
