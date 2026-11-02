@@ -863,5 +863,16 @@
                 </div>
             </main>
         </div>
+
+        {{-- "Contacter le support": the chat with the Castl-it-POS team, held on
+             castlitpos.com. Not on the till itself, where a floating button would
+             sit on the cashier's buttons; nor on the master, which IS the team. --}}
+        @if (! config('castlit.is_master') && auth()->check() && ! request()->routeIs('pos', 'pos.*'))
+            @include('castlit.partials.support-widget', [
+                'supportApi' => 'https://'.config('castlit.main_domain').'/api/v1/support/conversations',
+                'supportIdentity' => \App\Support\SupportChat::signIdentity($tenant->name, auth()->user()->name, auth()->user()->email),
+                'supportUser' => auth()->user()->name,
+            ])
+        @endif
     </body>
 </html>

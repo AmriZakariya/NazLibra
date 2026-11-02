@@ -1,10 +1,19 @@
 {{--
-    "Contacter le support" for visitors of castlitpos.com: a bubble in the
-    corner that opens a chat with the team. The conversation id and secret
-    live in this browser (localStorage), so a visitor coming back finds the
-    thread where they left it.
+    "Contacter le support": a bubble in the corner that opens a chat with the
+    team, held on castlitpos.com. The conversation id and secret live in this
+    browser (localStorage), so a visitor coming back finds the thread where
+    they left it.
+
+    On the landing page a visitor leaves a name and a phone. In a client's
+    back office, $supportIdentity (signed by that space's server) says who is
+    writing, and there is no form at all.
 --}}
 @php
+    $supportApi = $supportApi ?? url('/api/v1/support/conversations');
+    $supportIdentity = $supportIdentity ?? null;
+    $supportUser = $supportUser ?? null;
+    $supportSide = $supportSide ?? 'end';
+
     $supportText = [
         'title' => __('castlit.support_title'),
         'intro' => __('castlit.support_intro'),
@@ -20,46 +29,53 @@
     ];
 @endphp
 <style>
+    /* Its own tokens: the landing page and the back office name their colours differently. */
+    .sw-root { --sw-brand: var(--brand, var(--brand-primary, #3157D5)); --sw-brand-strong: var(--brand-strong, var(--sw-brand));
+               --sw-surface: var(--surface, #fff); --sw-line: var(--sand, var(--border-soft, #e2e8f0)); --sw-ink: var(--ink, var(--text-main, #0f172a));
+               --sw-muted: var(--muted, var(--text-muted, #64748b)); --sw-err: var(--err, #dc2626);
+               --sw-shadow: var(--shadow-lg, 0 24px 60px rgba(15,23,42,.18)); color: var(--sw-ink); font-family: inherit; }
+    .sw-root.start .sw-bubble, .sw-root.start .sw-panel { inset-inline-end: auto; inset-inline-start: 20px; }
     .sw-bubble { position: fixed; inset-inline-end: 20px; bottom: 20px; z-index: 60; width: 60px; height: 60px; border-radius: 50%; border: 0;
-                 background: var(--brand); color: #fff; box-shadow: var(--shadow-lg); cursor: pointer; display: grid; place-items: center; }
-    .sw-bubble:hover { background: var(--brand-strong); }
-    .sw-bubble:focus-visible, .sw-panel button:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 40%, transparent); outline-offset: 2px; }
-    .sw-dot { position: absolute; top: 2px; inset-inline-end: 2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--err);
-              color: #fff; font-size: 11px; font-weight: 800; display: none; place-items: center; border: 2px solid var(--surface); }
+                 background: var(--sw-brand); color: #fff; box-shadow: var(--sw-shadow); cursor: pointer; display: grid; place-items: center; }
+    .sw-bubble:hover { background: var(--sw-brand-strong); }
+    .sw-bubble:focus-visible, .sw-panel button:focus-visible { outline: 3px solid color-mix(in srgb, var(--sw-brand) 40%, transparent); outline-offset: 2px; }
+    .sw-dot { position: absolute; top: 2px; inset-inline-end: 2px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--sw-err);
+              color: #fff; font-size: 11px; font-weight: 800; display: none; place-items: center; border: 2px solid var(--sw-surface); }
     .sw-dot.on { display: grid; }
     .sw-panel { position: fixed; inset-inline-end: 20px; bottom: 92px; z-index: 61; width: min(380px, calc(100vw - 32px)); height: min(560px, calc(100dvh - 120px));
-                background: var(--surface); color: var(--ink); border: 1px solid var(--sand); border-radius: 18px; box-shadow: var(--shadow-lg);
+                background: var(--sw-surface); color: var(--sw-ink); border: 1px solid var(--sw-line); border-radius: 18px; box-shadow: var(--sw-shadow);
                 display: none; flex-direction: column; overflow: hidden; }
     .sw-panel.on { display: flex; }
     .sw-panel [hidden] { display: none !important; }
     @media (max-width: 480px) { .sw-panel { inset: auto 16px 88px 16px; width: auto; } }
-    .sw-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: var(--brand); color: #fff; }
+    .sw-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: var(--sw-brand); color: #fff; }
     .sw-head b { flex: 1; font-size: 15px; }
     .sw-head button { border: 0; background: transparent; color: #fff; cursor: pointer; font-size: 22px; line-height: 1; width: 32px; height: 32px; border-radius: 8px; }
-    .sw-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--sand) 20%, transparent); }
-    .sw-intro { font-size: 14px; color: var(--muted); }
+    .sw-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--sw-line) 20%, transparent); }
+    .sw-intro { font-size: 14px; color: var(--sw-muted); }
     .sw-form { display: grid; gap: 10px; padding: 14px; }
     .sw-form label { display: grid; gap: 4px; font-size: 13px; font-weight: 650; }
-    .sw-form input { padding: 10px 12px; border: 1px solid var(--sand); border-radius: 10px; font: inherit; font-size: 14px; background: var(--surface); color: var(--ink); }
-    .sw-go { padding: 11px 14px; border: 0; border-radius: 10px; background: var(--brand); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
-    .sw-err { color: var(--err); font-size: 13px; min-height: 1em; }
+    .sw-form input { padding: 10px 12px; border: 1px solid var(--sw-line); border-radius: 10px; font: inherit; font-size: 14px; background: var(--sw-surface); color: var(--sw-ink); }
+    .sw-go { padding: 11px 14px; border: 0; border-radius: 10px; background: var(--sw-brand); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+    .sw-err { color: var(--sw-err); font-size: 13px; min-height: 1em; }
     .sw-msg { max-width: 82%; padding: 8px 11px; border-radius: 14px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
-    .sw-msg.client { align-self: flex-end; background: var(--brand); color: #fff; border-end-end-radius: 4px; }
-    .sw-msg.support { align-self: flex-start; background: var(--surface); border: 1px solid var(--sand); border-end-start-radius: 4px; }
+    .sw-msg.client { align-self: flex-end; background: var(--sw-brand); color: #fff; border-end-end-radius: 4px; }
+    .sw-msg.support { align-self: flex-start; background: var(--sw-surface); border: 1px solid var(--sw-line); border-end-start-radius: 4px; }
     .sw-msg .at { font-size: 10.5px; opacity: .7; margin-top: 3px; text-align: end; }
     .sw-msg img { display: block; max-width: 100%; max-height: 220px; border-radius: 10px; margin-top: 4px; }
     .sw-msg audio { display: block; width: 220px; max-width: 100%; margin-top: 4px; }
     .sw-msg a { color: inherit; font-weight: 650; }
-    .sw-compose { display: flex; gap: 6px; align-items: flex-end; padding: 10px; border-top: 1px solid var(--sand); }
-    .sw-compose textarea { flex: 1; resize: none; min-height: 40px; max-height: 120px; padding: 9px 11px; border: 1px solid var(--sand); border-radius: 12px;
-                           font: inherit; font-size: 14px; background: var(--surface); color: var(--ink); }
-    .sw-icon { width: 40px; height: 40px; flex: none; border-radius: 12px; border: 1px solid var(--sand); background: var(--surface); color: var(--ink);
+    .sw-compose { display: flex; gap: 6px; align-items: flex-end; padding: 10px; border-top: 1px solid var(--sw-line); }
+    .sw-compose textarea { flex: 1; resize: none; min-height: 40px; max-height: 120px; padding: 9px 11px; border: 1px solid var(--sw-line); border-radius: 12px;
+                           font: inherit; font-size: 14px; background: var(--sw-surface); color: var(--sw-ink); }
+    .sw-icon { width: 40px; height: 40px; flex: none; border-radius: 12px; border: 1px solid var(--sw-line); background: var(--sw-surface); color: var(--sw-ink);
                cursor: pointer; display: grid; place-items: center; }
-    .sw-icon.send { background: var(--brand); border-color: var(--brand); color: #fff; }
-    .sw-icon.rec { background: var(--err); border-color: var(--err); color: #fff; }
-    .sw-status { font-size: 12px; color: var(--muted); padding: 0 12px 6px; min-height: 0; }
+    .sw-icon.send { background: var(--sw-brand); border-color: var(--sw-brand); color: #fff; }
+    .sw-icon.rec { background: var(--sw-err); border-color: var(--sw-err); color: #fff; }
+    .sw-status { font-size: 12px; color: var(--sw-muted); padding: 0 12px 6px; min-height: 0; }
 </style>
 
+<div class="sw-root {{ $supportSide }}">
 <button type="button" class="sw-bubble" id="sw-bubble" aria-label="{{ __('castlit.support_open') }}" aria-expanded="false" aria-controls="sw-panel" data-support-bubble>
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
     <span class="sw-dot" id="sw-dot"></span>
@@ -95,12 +111,16 @@
         </button>
     </form>
 </section>
+</div>
 
 <script>
 (() => {
-    const api = @json(url('/api/v1/support/conversations'));
+    const api = @json($supportApi);
+    const identity = @json($supportIdentity);
+    const userName = @json($supportUser);
     const text = @json($supportText);
-    const key = 'castlit-support';
+    // One thread per space and per person on a shared computer.
+    const key = 'castlit-support' + (identity ? ':' + identity.subdomain + ':' + (userName || '') : '');
     const $ = (id) => document.getElementById(id);
     const panel = $('sw-panel'), bubble = $('sw-bubble'), dot = $('sw-dot');
     const startForm = $('sw-start'), body = $('sw-body'), compose = $('sw-compose'), input = $('sw-text'), file = $('sw-file'), status = $('sw-status');
@@ -157,9 +177,25 @@
         bubble.setAttribute('aria-expanded', String(open));
         if (open) {
             dot.classList.remove('on');
-            if (session) { showChat(); refresh(); input.focus(); } else { startForm.name.focus(); }
+            if (session || identity) { showChat(); if (session) refresh(); input.focus(); } else { startForm.name.focus(); }
         }
         schedule();
+    }
+
+    /** A logged-in shop: its first message opens the conversation. */
+    async function ensureSession() {
+        if (session) return true;
+        if (!identity) return false;
+        try {
+            const res = await fetch(api, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: userName || identity.subdomain, channel: 'web', platform: 'web', locale: document.documentElement.lang, identity }) });
+            if (!res.ok) return false;
+            const data = await res.json();
+            session = { id: data.conversation_id, token: data.token };
+            try { localStorage.setItem(key, JSON.stringify(session)); } catch {}
+            schedule();
+            return true;
+        } catch { return false; }
     }
     bubble.onclick = () => toggle();
     $('sw-close').onclick = () => toggle(false);
@@ -185,6 +221,7 @@
 
     async function send(form) {
         status.textContent = '';
+        if (!(await ensureSession())) { status.textContent = text.error; return false; }
         try {
             const res = await fetch(`${api}/${session.id}/messages`, { method: 'POST', headers: headers(), body: form });
             const data = await res.json().catch(() => ({}));
