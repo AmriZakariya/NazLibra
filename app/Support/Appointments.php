@@ -159,6 +159,35 @@ class Appointments
             ->get();
     }
 
+    /**
+     * How many bookings each day of [date]'s week (Monday first) holds,
+     * cancelled ones aside: the dots on the app's week strip.
+     *
+     * @return array<string, int>  Y-m-d => count
+     */
+    public static function weekCounts(Tenant $tenant, string $date): array
+    {
+        $tz = self::timezone($tenant);
+        $monday = CarbonImmutable::parse($date, $tz)->startOfWeek(CarbonImmutable::MONDAY);
+        $counts = [];
+        for ($i = 0; $i < 7; $i++) {
+            $counts[$monday->addDays($i)->toDateString()] = 0;
+        }
+        Appointment::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('status', '!=', 'cancelled')
+            ->whereBetween('starts_at', [$monday->utc(), $monday->addDays(7)->utc()])
+            ->pluck('starts_at')
+            ->each(function ($start) use (&$counts, $tz): void {
+                $day = $start->setTimezone($tz)->toDateString();
+                if (isset($counts[$day])) {
+                    $counts[$day]++;
+                }
+            });
+
+        return $counts;
+    }
+
     /** @return array<string, mixed> */
     public static function toApi(Appointment $a, Tenant $tenant): array
     {

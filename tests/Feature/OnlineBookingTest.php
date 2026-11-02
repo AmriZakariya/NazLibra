@@ -196,6 +196,10 @@ class OnlineBookingTest extends TestCase
         $this->withToken($token)->patchJson("/api/v1/appointments/{$second->id}/status", ['status' => 'cancelled'])->assertOk();
 
         $this->withToken($token)->getJson('/api/v1/appointments/requests')->assertJsonCount(0, 'appointments');
+        // The week strip's dots: the confirmed one counts, the declined one not.
+        $this->withToken($token)->getJson('/api/v1/appointments?date=2026-11-04')
+            ->assertJsonPath('week.2026-11-02', 1)
+            ->assertJsonPath('week.2026-11-08', 0);
         // Declined, the slot is free again for the next client.
         $this->assertContains('10:00', OnlineBooking::slots($this->tenant, '2026-11-02', null));
     }

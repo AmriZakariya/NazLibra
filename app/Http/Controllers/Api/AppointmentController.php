@@ -32,6 +32,7 @@ class AppointmentController extends Controller
         return response()->json([
             'ok' => true,
             'date' => $date,
+            'week' => Appointments::weekCounts($tenant, $date),
             'appointments' => Appointments::forDay($tenant, $date)
                 ->map(fn (Appointment $a) => Appointments::toApi($a, $tenant))
                 ->values(),
