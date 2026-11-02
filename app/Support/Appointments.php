@@ -178,14 +178,16 @@ class Appointments
             'note' => $a->note,
             'sale_id' => $a->sale_id,
             'reminder_url' => self::whatsappUrl($a, $tenant),
+            'confirmation_url' => self::whatsappUrl($a, $tenant, confirmation: true),
         ];
     }
 
     /**
-     * A wa.me link with the reminder written: one tap on the phone, the
-     * barber's own WhatsApp, nothing to pay or configure.
+     * A wa.me link with the reminder (or the confirmation of an online
+     * request) written: one tap on the phone, the barber's own WhatsApp,
+     * nothing to pay or configure.
      */
-    public static function whatsappUrl(Appointment $a, Tenant $tenant): ?string
+    public static function whatsappUrl(Appointment $a, Tenant $tenant, bool $confirmation = false): ?string
     {
         $raw = $a->getRawOriginal('customer_phone') ?: $a->contact?->getRawOriginal('phone');
         $phone = Phone::internationalize((string) $raw, Phone::defaultCountry($tenant));
@@ -196,7 +198,9 @@ class Appointments
 
         $when = $a->starts_at->setTimezone(self::timezone($tenant));
         $message = sprintf(
-            'Bonjour %s, nous vous rappelons votre rendez-vous chez %s le %s à %s%s. À bientôt !',
+            $confirmation
+                ? 'Bonjour %s, votre rendez-vous chez %s le %s à %s%s est confirmé. À bientôt !'
+                : 'Bonjour %s, nous vous rappelons votre rendez-vous chez %s le %s à %s%s. À bientôt !',
             $a->customer_name ?? $a->contact?->name ?? '',
             $tenant->name,
             $when->format('d/m'),

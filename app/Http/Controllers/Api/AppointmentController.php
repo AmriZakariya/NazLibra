@@ -8,6 +8,7 @@ use App\Models\Tenant;
 use App\Support\ApiActionContext;
 use App\Support\AppModules;
 use App\Support\Appointments;
+use App\Support\OnlineBooking;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -32,6 +33,27 @@ class AppointmentController extends Controller
             'ok' => true,
             'date' => $date,
             'appointments' => Appointments::forDay($tenant, $date)
+                ->map(fn (Appointment $a) => Appointments::toApi($a, $tenant))
+                ->values(),
+        ]);
+    }
+
+    /**
+     * GET /api/v1/appointments/requests — what clients asked for on the
+     * public page and nobody has answered, whatever the day; and the link
+     * to share (null while the page is off).
+     */
+    public function requests(Request $request): JsonResponse
+    {
+        $tenant = $this->tenant($request);
+        if ($off = $this->moduleOff($tenant)) {
+            return $off;
+        }
+
+        return response()->json([
+            'ok' => true,
+            'booking_url' => OnlineBooking::enabled($tenant) ? OnlineBooking::url() : null,
+            'appointments' => OnlineBooking::pending($tenant)
                 ->map(fn (Appointment $a) => Appointments::toApi($a, $tenant))
                 ->values(),
         ]);

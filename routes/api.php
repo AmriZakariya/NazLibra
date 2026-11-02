@@ -146,6 +146,7 @@ Route::prefix('v1')->group(function (): void {
 
         // ── Appointments (barbers, salons) ─────────────────────────────────────
         Route::get('appointments', [\App\Http\Controllers\Api\AppointmentController::class, 'index'])->middleware('api.action:appointments.view');
+        Route::get('appointments/requests', [\App\Http\Controllers\Api\AppointmentController::class, 'requests'])->middleware('api.action:appointments.view');
         Route::post('appointments', [\App\Http\Controllers\Api\AppointmentController::class, 'store'])->middleware('api.action:appointments.manage');
         Route::patch('appointments/{appointment}', [\App\Http\Controllers\Api\AppointmentController::class, 'update'])->middleware('api.action:appointments.manage');
         Route::patch('appointments/{appointment}/status', [\App\Http\Controllers\Api\AppointmentController::class, 'status'])->middleware('api.action:appointments.manage');

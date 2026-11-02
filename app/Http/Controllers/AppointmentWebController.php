@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Support\AppModules;
 use App\Support\Appointments;
+use App\Support\OnlineBooking;
 use App\Support\TenantContext;
 use App\Support\TipPayouts;
 use Carbon\CarbonImmutable;
@@ -47,7 +48,35 @@ class AppointmentWebController extends Controller
             'customers' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')
                 ->orderBy('name')->limit(500)->get(['id', 'name', 'phone']),
             'whatsapp' => fn (Appointment $a) => Appointments::whatsappUrl($a, $tenant),
+            'confirmation' => fn (Appointment $a) => Appointments::whatsappUrl($a, $tenant, confirmation: true),
+            'requests' => OnlineBooking::pending($tenant),
+            'booking' => OnlineBooking::settings($tenant),
+            'team' => $tenant->users()->where('users.is_active', true)->orderBy('users.name')->get(['users.id', 'users.name']),
         ]);
+    }
+
+    /** The public page's switch, opening hours, slot length and barbers. */
+    public function saveBooking(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless(AppModules::enabled($tenant, 'appointments'), 404);
+        $data = $request->validate([
+            'enabled' => ['nullable', 'boolean'],
+            'duration' => ['required', 'integer', 'min:5', 'max:240'],
+            'hours' => ['nullable', 'array'],
+            'hours.*.open' => ['nullable', 'date_format:H:i'],
+            'hours.*.close' => ['nullable', 'date_format:H:i'],
+            'hours.*.closed' => ['nullable', 'boolean'],
+            'staff_ids' => ['nullable', 'array'],
+            'staff_ids.*' => ['integer'],
+        ]);
+        $data['enabled'] = $request->boolean('enabled');
+        // No box ticked is "nobody", not "everybody": only an untouched form
+        // (no field at all) keeps the whole team.
+        $data['staff_ids'] = $request->has('staff_ids_sent') ? ($data['staff_ids'] ?? []) : null;
+        OnlineBooking::save($tenant, $data);
+
+        return back()->with('status', 'Réservation en ligne enregistrée.');
     }
 
     public function store(Request $request): RedirectResponse
@@ -80,9 +109,17 @@ class AppointmentWebController extends Controller
         $tenant = $this->tenant();
         abort_unless($appointment->tenant_id === $tenant->id, 404);
         $data = $request->validate(['status' => ['required', Rule::in(Appointment::STATUSES)]]);
-        Appointments::save($tenant, ['status' => $data['status']], $request->user(), $appointment);
+        $wasRequested = $appointment->status === 'requested';
+        $appointment = Appointments::save($tenant, ['status' => $data['status']], $request->user(), $appointment);
 
-        return back()->with('status', 'Statut mis à jour.');
+        // A confirmed online request: the client is waiting to hear back.
+        if ($wasRequested && $data['status'] === 'booked') {
+            return back()
+                ->with('status', 'Demande confirmée.')
+                ->with('confirmation_url', Appointments::whatsappUrl($appointment, $tenant, confirmation: true));
+        }
+
+        return back()->with('status', $wasRequested && $data['status'] === 'cancelled' ? 'Demande refusée.' : 'Statut mis à jour.');
     }
 
     public function payTips(Request $request, User $user): RedirectResponse

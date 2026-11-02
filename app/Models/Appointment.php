@@ -21,7 +21,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class Appointment extends Model
 {
-    public const STATUSES = ['booked', 'arrived', 'done', 'no_show', 'cancelled'];
+    /** "requested" came from the public page and waits for the shop. */
+    public const STATUSES = ['requested', 'booked', 'arrived', 'done', 'no_show', 'cancelled'];
 
     /** Still holding the chair: the others free the slot. */
     public const ACTIVE = ['booked', 'arrived'];

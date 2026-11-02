@@ -132,6 +132,11 @@ Route::post('/reinitialiser-pin', [AuthController::class, 'updatePin'])->name('p
 Route::get('/boutique', [OnlineStoreController::class, 'index'])->name('storefront.index');
 Route::post('/boutique/commandes', [OnlineStoreController::class, 'storeOrder'])->name('storefront.orders.store');
 
+// The public booking page: anyone may ask, the shop confirms.
+Route::get('/reserver', [\App\Http\Controllers\BookingController::class, 'show'])->name('booking.show');
+Route::get('/reserver/creneaux', [\App\Http\Controllers\BookingController::class, 'slots'])->name('booking.slots');
+Route::post('/reserver', [\App\Http\Controllers\BookingController::class, 'store'])->name('booking.store');
+
 Route::middleware(['access.verified', 'auth', 'tenant.access', 'session.unlocked', 'device.selected'])->group(function (): void {
 Route::post('/langue/{locale}', [LibraireProController::class, 'switchLocale'])->name('locale.switch');
 Route::get('/', [LibraireProController::class, 'dashboard'])->name('dashboard');
@@ -402,6 +407,7 @@ Route::get('/modules/{module}', [LibraireProController::class, 'module'])->name(
 Route::get('/rendez-vous', [\App\Http\Controllers\AppointmentWebController::class, 'index'])->name('appointments');
 Route::post('/rendez-vous', [\App\Http\Controllers\AppointmentWebController::class, 'store'])->name('appointments.store');
 Route::put('/rendez-vous/{appointment}', [\App\Http\Controllers\AppointmentWebController::class, 'update'])->name('appointments.update');
+Route::post('/rendez-vous/reservation-en-ligne', [\App\Http\Controllers\AppointmentWebController::class, 'saveBooking'])->name('appointments.booking');
 Route::patch('/rendez-vous/{appointment}/statut', [\App\Http\Controllers\AppointmentWebController::class, 'status'])->name('appointments.status');
 Route::post('/pourboires/{user}/versements', [\App\Http\Controllers\AppointmentWebController::class, 'payTips'])->name('tips.payouts.store');
 

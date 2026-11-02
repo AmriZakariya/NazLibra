@@ -258,6 +258,7 @@ class Permissions
             'appointments.store' => 'appointments.manage',
             'appointments.update' => 'appointments.manage',
             'appointments.status' => 'appointments.manage',
+            'appointments.booking' => 'appointments.manage',
 
             'online-orders.store' => 'online_orders.create',
             'online-orders.status.update' => 'online_orders.edit',
