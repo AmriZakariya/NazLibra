@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Models\User;
-use App\Models\VirtualDevice;
 use App\Support\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -107,19 +106,10 @@ class AuthController extends Controller
             return response()->json(['ok' => false, 'message' => 'Accès tenant refusé.'], 403);
         }
 
-        // Ensure or create a VirtualDevice for this mobile device.
-        $device     = null;
-        $deviceUuid = $data['device_uuid'] ?? null;
-        if ($deviceUuid) {
-            $device = VirtualDevice::firstOrCreate(
-                ['tenant_id' => $tenant->id, 'code' => $deviceUuid],
-                [
-                    'name'      => $data['device_name'],
-                    'type'      => 'mobile',
-                    'is_active' => true,
-                ]
-            );
-        }
+        // No terminal is created here any more. Logging in used to add one per
+        // installation ("NazPOS Mobile · E97ED1"), so every reinstall or
+        // "clear data" grew the shop's list; nothing read it. A phone takes
+        // one of the shop's own mobile terminals in the picker instead.
 
         // Revoke any previous token for this device_name to avoid token accumulation.
         $user->tokens()->where('name', $data['device_name'])->delete();
@@ -153,7 +143,7 @@ class AuthController extends Controller
                 'timezone' => $tenant->timezone ?? 'Africa/Casablanca',
             ],
             'location'   => $location ? ['id' => $location->id, 'name' => $location->name] : null,
-            'device_id'  => $device?->id,
+            'device_id'  => null,
             'abilities'  => $abilities,
         ]);
     }

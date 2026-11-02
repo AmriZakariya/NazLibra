@@ -82,6 +82,13 @@ class VirtualDeviceApiController extends Controller
         $device = VirtualDevice::where('tenant_id', $tenant->id)
             ->findOrFail($data['virtual_device_id']);
 
+        // The app greys these out already; the server says it too, so an
+        // older build cannot sit a phone on the shop's web till.
+        if ($device->isWebOnly()) {
+            return response()->json(['ok' => false, 'error' => 'invalid_virtual_device',
+                'message' => 'Ce terminal est réservé à la caisse web. Choisissez un terminal mobile.'], 422);
+        }
+
         if ($device->location_id !== null
             && (int) $device->location_id !== (int) $request->attributes->get('api_location_id')) {
             return response()->json(['ok' => false, 'error' => 'invalid_virtual_device',

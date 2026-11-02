@@ -588,6 +588,9 @@ class SyncController extends Controller
             // used to say "retail" — a barber included.
             'business_mode'             => \App\Support\BusinessMode::current($tenant)['key'],
             'business_activity'         => \App\Support\ItemTypes::activityForTenant($tenant),
+            // The item form's types, in the web's words and order — the app
+            // kept its own list, knew five activities and offered no service.
+            'item_types'                => \App\Support\ItemTypes::forApp($tenant),
             'inventory_costing_method'  => (string) data_get($tenant->settings, 'inventory.costing_method', 'lifo'),
             'branding'                  => $this->branding($tenant),
             // Who did each line (the barber on a cut). Asked by default where

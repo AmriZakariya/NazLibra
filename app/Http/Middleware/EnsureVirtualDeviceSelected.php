@@ -36,13 +36,16 @@ class EnsureVirtualDeviceSelected
             return $next($request);
         }
 
-        if (! VirtualDevice::where('tenant_id', $tenant->id)->where('is_active', true)->exists()) {
+        if (! VirtualDevice::where('tenant_id', $tenant->id)->where('is_active', true)->forWeb()->exists()) {
             return $next($request);
         }
 
+        // Only the user's seats on WEB terminals: the same person may be on
+        // the phone app at the same time, on a mobile terminal of their own.
         $base = VirtualDeviceSession::where('tenant_id', $tenant->id)
             ->where('user_id', $user->id)
             ->whereNull('disconnected_at') // lenient: don't evict an idle owner mid-work
+            ->whereHas('virtualDevice', fn ($q) => $q->forWeb())
             ->with('virtualDevice');
 
         $sessionId = $request->session()->get('virtual_device_session_id');

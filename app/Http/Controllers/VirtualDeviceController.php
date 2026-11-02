@@ -216,6 +216,11 @@ class VirtualDeviceController extends Controller
                 'virtual_device_id' => 'Cet appareil est désactivé.',
             ]);
         }
+        if ($device->isMobile()) {
+            throw ValidationException::withMessages([
+                'virtual_device_id' => 'Ce terminal est réservé à l’application mobile. Choisissez un terminal web.',
+            ]);
+        }
 
         return DB::transaction(function () use ($tenant, $user, $device, $request) {
             $existingSession = $this->currentDeviceSession($tenant, $user);
@@ -335,6 +340,8 @@ class VirtualDeviceController extends Controller
         $base = VirtualDeviceSession::where('tenant_id', $tenant->id)
             ->where('user_id', $user->id)
             ->whereNull('disconnected_at') // lenient: the owner keeps their seat across idle
+            // Web terminals only: a phone seat is the app's, not this browser's.
+            ->whereHas('virtualDevice', fn ($q) => $q->forWeb())
             ->with('virtualDevice');
 
         $sessionId = session('virtual_device_session_id');

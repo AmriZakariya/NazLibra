@@ -195,6 +195,35 @@ class ItemTypes
         return $derived;
     }
 
+    /** Activities that mostly sell time, not goods: the item form opens on a service. */
+    public const SERVICE_LED = ['beauty', 'barber'];
+
+    /**
+     * What the app's item form offers, in order: the activity's physical
+     * types and the service. Service first (and the default) where shops
+     * mostly sell services; the app offered no service at all before.
+     *
+     * @return list<array{value: string, label: string, hint: string}>
+     */
+    public static function forApp(mixed $tenant): array
+    {
+        $activity = self::activityForTenant($tenant);
+        $mode = BusinessMode::current($tenant);
+        $service = [
+            'value' => 'service',
+            'label' => (string) ($mode['type_labels']['service'] ?? 'Service'),
+            'hint' => 'Sans stock : coupe, soin, réparation, livraison…',
+        ];
+        $physical = [];
+        foreach (self::physicalTypes($activity) as $value => $type) {
+            $physical[] = ['value' => (string) $value, 'label' => $type['label'], 'hint' => (string) ($type['hint'] ?? '')];
+        }
+
+        return in_array($activity, self::SERVICE_LED, true)
+            ? [$service, ...$physical]
+            : [...$physical, $service];
+    }
+
     /** Default activity key when tenant setting is absent. */
     public static function defaultActivity(): string
     {

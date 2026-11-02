@@ -701,9 +701,6 @@
                                 $accountTimezoneOffset = \App\Support\TenantClock::offset($accountTenant);
                                 $accountCurrentTime = \App\Support\TenantClock::currentTimeLabel($accountTenant);
                                 $accountBusinessMode = \App\Support\BusinessMode::current($accountTenant);
-                                $accountActivityKey = \App\Support\ItemTypes::activityForTenant($accountTenant);
-                                $accountActivityOptions = \App\Support\ItemTypes::activityOptions();
-                                $accountActivityLabel = $accountActivityOptions[$accountActivityKey]['label'] ?? \Illuminate\Support\Str::headline($accountActivityKey);
                                 $accountTenantUser = $accountTenant?->users()->whereKey($accountUser?->id)->first();
                                 $accountRoleKey = (string) ($accountTenantUser?->pivot?->role ?? '');
                                 $accountRoleName = \App\Models\Role::where('tenant_id', $accountTenant?->id)->where('key', $accountRoleKey)->value('name') ?: ucfirst($accountRoleKey ?: 'Aucun rôle');
@@ -744,8 +741,8 @@
                             <a href="{{ route('module', ['module' => 'settings', 'section' => 'store']) }}" class="mt-2 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm transition hover:border-brand/40 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10">
                                 <span class="min-w-0">
                                     <span class="block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr("Type d'activité") }}</span>
-                                    <strong class="mt-0.5 block truncate text-slate-900 dark:text-white">{{ $accountActivityLabel }}</strong>
-                                    <span class="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">{{ $accountBusinessMode['label'] ?? $tr('Mode commerce') }}</span>
+                                    <strong class="mt-0.5 block truncate text-slate-900 dark:text-white">{{ $accountBusinessMode['label'] ?? $tr('Mode commerce') }}</strong>
+                                    <span class="mt-0.5 block text-xs font-semibold text-slate-500 dark:text-slate-400">{{ $tr('Articles') }} : {{ collect(\App\Support\ItemTypes::forApp($accountTenant))->pluck('label')->join(', ') }}</span>
                                 </span>
                                 <span class="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-500/20">{{ $accountBusinessMode['short_label'] ?? 'POS' }}</span>
                             </a>

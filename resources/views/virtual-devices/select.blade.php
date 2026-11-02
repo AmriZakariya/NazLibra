@@ -1,7 +1,7 @@
 @php
     $locale = \App\Support\Locale::current($tenant);
     $tr = fn (string $text): string => \App\Support\Locale::t($text, $locale);
-    $availableCount = $devices->where('is_in_use', false)->count();
+    $availableCount = $devices->where('is_in_use', false)->reject(fn ($d) => $d->type === 'mobile')->count();
     $hasCurrent = $currentSession && $currentSession->virtualDevice?->is_active;
     $preferredDeviceId = isset($preferredDeviceId) ? (int) $preferredDeviceId : null;
     $devicePersistenceKey = 'librairepro.virtual_device.' . $tenant->id . '.' . (auth()->id() ?? 'guest');
@@ -130,7 +130,9 @@
                 @forelse ($devices as $device)
                     @php
                         $isCurrent = $currentSession && $currentSession->virtual_device_id === $device->id;
-                        $isDisabled = $device->is_in_use && ! $isCurrent;
+                        // A mobile terminal belongs to the phone app.
+                        $isMobileOnly = $device->type === 'mobile';
+                        $isDisabled = $isMobileOnly || ($device->is_in_use && ! $isCurrent);
                         $isRemembered = ! $isCurrent && $preferredDeviceId === $device->id;
                         $isSelected = $isCurrent || ($isRemembered && ! $isDisabled);
                         $session = $device->active_session ?? null;
@@ -166,6 +168,8 @@
                             <span class="device-badge badge-current">{{ $tr('Connecté') }}</span>
                         @elseif ($isRemembered && ! $isDisabled)
                             <span class="device-badge badge-remembered">{{ $tr('Dernier appareil') }}</span>
+                        @elseif ($isMobileOnly)
+                            <span class="device-badge badge-disabled">{{ $tr('Application mobile') }}</span>
                         @elseif ($device->is_in_use)
                             <span class="device-badge badge-in-use">{{ $tr('Occupé') }}</span>
                         @endif

@@ -43,6 +43,27 @@ class VirtualDevice extends Model
             ->latest('last_seen_at');
     }
 
+    /**
+     * A terminal is for the phone app ("mobile") or for a browser (anything
+     * else: computer, tablet…). Each side only takes its own: the web once
+     * fell back on the owner's phone session and said "Terminal Mobile 2".
+     */
+    public function isMobile(): bool
+    {
+        return $this->type === 'mobile';
+    }
+
+    /** A browser's terminal ("computer"): the phone app may not sit on it. */
+    public function isWebOnly(): bool
+    {
+        return $this->type === 'computer';
+    }
+
+    public function scopeForWeb($query)
+    {
+        return $query->where(fn ($q) => $q->whereNull('type')->orWhere('type', '!=', 'mobile'));
+    }
+
     public function isConnected(): bool
     {
         return $this->activeSession()->exists();

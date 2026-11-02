@@ -86,22 +86,17 @@ class MultiDeviceLoginTest extends TestCase
         $this->assertSame(1, $this->tokenCount('NazPOS Mobile · AAAAAA'));
     }
 
-    public function test_each_device_gets_its_own_terminal(): void
+    public function test_logging_in_adds_no_terminal_to_the_shop(): void
     {
+        $before = \App\Models\VirtualDevice::where('tenant_id', $this->tenant->id)->count();
+
         $this->login('NazPOS Mobile · AAAAAA', 'uuid-a');
         $this->login('NazPOS Mobile · BBBBBB', 'uuid-b');
 
-        // The terminal is keyed by device_uuid and named from device_name, so
-        // the terminals list identifies which tablet is which.
-        $this->assertDatabaseHas('virtual_devices', [
-            'tenant_id' => $this->tenant->id,
-            'code' => 'uuid-a',
-            'name' => 'NazPOS Mobile · AAAAAA',
-        ]);
-        $this->assertDatabaseHas('virtual_devices', [
-            'code' => 'uuid-b',
-            'name' => 'NazPOS Mobile · BBBBBB',
-        ]);
+        // Each login used to add a terminal named after the phone, so the
+        // shop's list grew with every reinstall. Which tablet holds which
+        // terminal is on its claim (device_label), not in extra terminals.
+        $this->assertSame($before, \App\Models\VirtualDevice::where('tenant_id', $this->tenant->id)->count());
     }
 
     private function tokenCount(string $deviceName): int
