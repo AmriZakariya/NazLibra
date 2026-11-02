@@ -579,6 +579,7 @@ class SaleController extends Controller
                 'source_online_order_id' => $sourceOnlineOrder?->id,
                 'metadata'               => [
                     'source'       => 'mobile_api',
+                    'channel'      => 'mobile',
                     'payments'     => $payments,
                     'paid_amount'  => $paid,
                     'change_amount' => $changeAmount,

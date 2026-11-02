@@ -99,6 +99,31 @@ class LibraireProController extends Controller
             ->header('Expires', '0');
     }
 
+    /**
+     * Where a web sale was rung up: the web terminal this browser holds, and
+     * who. The app's sales always said which terminal; the web's said
+     * nothing, so a ticket could not be traced back to its till.
+     *
+     * @return array{virtual_device_id: ?int, terminal_name_snapshot: ?string, actor_name_snapshot: ?string}
+     */
+    private function webSaleOrigin(): array
+    {
+        $sessionId = session('virtual_device_session_id');
+        $device = $sessionId
+            ? \App\Models\VirtualDeviceSession::whereKey($sessionId)
+                ->whereNull('disconnected_at')
+                ->whereHas('virtualDevice', fn ($q) => $q->forWeb())
+                ->with('virtualDevice')
+                ->first()?->virtualDevice
+            : null;
+
+        return [
+            'virtual_device_id' => $device?->id,
+            'terminal_name_snapshot' => $device?->name,
+            'actor_name_snapshot' => auth()->user()?->name,
+        ];
+    }
+
     private function actorMetadata(string $prefix): array
     {
         $user = auth()->user();
@@ -4861,6 +4886,7 @@ class LibraireProController extends Controller
                 $cashChange = min($payments['cash'], $changeAmount);
                 $cashDrawerIn = max(0, round($payments['cash'] - $cashChange, 2));
                 $sale = Sale::create([
+                    ...$this->webSaleOrigin(),
                     'tip_amount' => $tip,
                     'tip_user_id' => $tipUserId,
                     'tip_method' => $tipMethod,
@@ -5398,6 +5424,7 @@ class LibraireProController extends Controller
                 $saleNumber = $this->nextSaleNumber($tenant);
                 $soldAt = ! empty($data['sold_at']) ? Carbon::parse($data['sold_at']) : now();
                 $sale = Sale::create([
+                    ...$this->webSaleOrigin(),
                     'tenant_id' => $tenant->id,
                     'location_id' => $saleLocationId,
                     'contact_id' => $contact?->id,
@@ -9002,7 +9029,7 @@ class LibraireProController extends Controller
         $direction = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
         $builder = Sale::query()
-            ->with(['contact', 'items', 'payments', 'deliveryOrders', 'returns', 'user', 'invoice.user', 'sourceInvoice.creator', 'sourceOnlineOrder'])
+            ->with(['contact', 'items', 'payments', 'deliveryOrders', 'returns', 'user', 'invoice.user', 'sourceInvoice.creator', 'sourceOnlineOrder', 'virtualDevice:id,name'])
             ->where('tenant_id', $tenant->id)
             ->when($detailSale > 0, fn (Builder $builder) => $builder->whereKey($detailSale))
             ->when($detailInvoice > 0, fn (Builder $builder) => $builder->where(function (Builder $builder) use ($detailInvoice): void {

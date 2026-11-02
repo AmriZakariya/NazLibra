@@ -1032,7 +1032,14 @@
                                                         </div>
                                                     </div>
 
-                                                    <div class="grid gap-3 md:grid-cols-2">
+                                                    @php $saleOrigin = $sale->origin(); @endphp
+                                                    <div class="grid gap-3 md:grid-cols-3">
+                                                        {{-- Where the ticket was rung up: the phone app or the web till, and on which terminal. --}}
+                                                        <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]" data-sale-origin="{{ $saleOrigin['channel'] }}">
+                                                            <span class="text-xs font-semibold uppercase text-slate-500">Origine</span>
+                                                            <strong class="mt-1 block">{{ $saleOrigin['channel'] === 'mobile' ? '📱 Application mobile' : '🌐 Caisse web' }}</strong>
+                                                            <span class="mt-1 block text-xs text-slate-500">{{ $saleOrigin['terminal'] ?? 'Terminal non renseigné' }}</span>
+                                                        </div>
                                                         <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
                                                             <span class="text-xs font-semibold uppercase text-slate-500">Créé par</span>
                                                             <strong class="mt-1 block">{{ $saleCreatedBy }}</strong>

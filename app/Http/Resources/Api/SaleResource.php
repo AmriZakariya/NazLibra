@@ -25,6 +25,8 @@ class SaleResource extends JsonResource
             ] : null,
             'contact' => $this->whenLoaded('contact'),
             'items' => $this->whenLoaded('items'),
+            // Where the ticket was rung up, for the till's sale detail.
+            'origin' => $this->resource->origin(),
             'payments' => $this->whenLoaded('payments'),
             'deleted_at' => $this->deleted_at,
         ];

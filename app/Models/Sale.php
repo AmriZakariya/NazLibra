@@ -41,6 +41,34 @@ class Sale extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Where the ticket was rung up: the phone app or the web till, and on
+     * which terminal. Older sales carry no channel; the app's are the ones
+     * that came through its API.
+     *
+     * @return array{channel: 'mobile'|'web', terminal: ?string}
+     */
+    public function origin(): array
+    {
+        $channel = data_get($this->metadata, 'channel')
+            ?? (data_get($this->metadata, 'source') === 'mobile_api' ? 'mobile' : 'web');
+
+        return [
+            'channel' => $channel === 'mobile' ? 'mobile' : 'web',
+            'terminal' => $this->terminal_name_snapshot
+                ?: ($this->relationLoaded('virtualDevice') ? $this->virtualDevice?->name : $this->virtualDevice()->value('name')),
+        ];
+    }
+
+    /** "Application mobile · Terminal Mobile 2" — how the web shows it. */
+    public function originLabel(): string
+    {
+        $origin = $this->origin();
+        $where = $origin['channel'] === 'mobile' ? 'Application mobile' : 'Caisse web';
+
+        return $origin['terminal'] ? $where.' · '.$origin['terminal'] : $where;
+    }
+
     public function virtualDevice(): BelongsTo
     {
         return $this->belongsTo(VirtualDevice::class);
