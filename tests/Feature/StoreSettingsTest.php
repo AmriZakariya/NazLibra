@@ -613,9 +613,10 @@ class StoreSettingsTest extends TestCase
 
         // The bar closed a tag opened in another panel, so it escaped the card
         // and covered the summary beside it. Balance is what keeps it in.
-        $form = \Illuminate\Support\Str::between(
-            $content,
-            'data-transfer-form',
+        // Up to this form's own end: between() would run to the page's LAST
+        // </form>, taking in whatever other forms follow it.
+        $form = \Illuminate\Support\Str::before(
+            \Illuminate\Support\Str::after($content, 'data-transfer-form'),
             '</form>',
         );
         $this->assertSame(
