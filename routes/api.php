@@ -74,6 +74,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('{id}/messages/{message}/attachment', 'attachment')
                 ->whereNumber('message')->middleware('throttle:120,1')->name('api.support.attachment');
         });
+        // « Envoyer les journaux au support »: before or after login.
+        Route::post('support/logs', [\App\Http\Controllers\Api\DeviceReportController::class, 'store'])
+            ->middleware('throttle:5,10');
     }
 
     // ── Protected (Sanctum token required) ──────────────────────────────────

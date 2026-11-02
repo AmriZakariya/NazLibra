@@ -84,6 +84,7 @@
             </div>
             <div style="margin-left:auto; display:flex; gap:10px; flex-wrap:wrap">
                 <a href="{{ route('castlit.admin.index') }}" class="btn btn-ghost" style="padding:11px 18px">← Abonnements</a>
+                <a href="{{ route('castlit.admin.logs') }}" class="btn btn-ghost" style="padding:11px 18px">Journaux</a>
                 <a href="{{ route('castlit.admin.clients') }}" class="btn btn-ghost" style="padding:11px 18px">Clients</a>
             </div>
         </div>
@@ -199,6 +200,7 @@
     const pendingLabel = document.getElementById('pending-label');
     const recordBtn = document.getElementById('record');
     const pollUrl = @json(route('castlit.admin.support.poll', $selected));
+    const logsUrl = @json(route('castlit.admin.logs.show', ['report' => '__REF__']));
     const csrf = form.querySelector('input[name=_token]').value;
     let lastId = 0;
     let readUpTo = 0;
@@ -215,7 +217,12 @@
         const bubble = el('div', { className: `msg ${m.sender}` });
         bubble.dataset.message = m.id;
         bubble.append(el('div', { className: 'by', textContent: m.sender === 'support' ? (m.author_name || 'Support') : @json($selected->user_name ?: $selected->name) }));
-        if (m.body) bubble.append(document.createTextNode(m.body));
+        if (m.body) {
+            // "📋 Journal envoyé (LOG-7F3K)": a link to the report.
+            m.body.split(/(LOG-[0-9A-Z]{4})/).forEach((part) => bubble.append(/^LOG-[0-9A-Z]{4}$/.test(part)
+                ? el('a', { href: logsUrl.replace('__REF__', part), textContent: part, style: 'color:inherit;font-weight:800' })
+                : document.createTextNode(part)));
+        }
         const a = m.attachment;
         if (a?.kind === 'image') {
             const img = el('img', { src: a.url, alt: a.name || 'Photo', loading: 'lazy' });

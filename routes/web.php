@@ -80,6 +80,9 @@ if (config('castlit.is_master')) {
             Route::post('/support/{conversation}/statut', [\App\Http\Controllers\Castlit\SupportAdminController::class, 'status'])->whereNumber('conversation')->name('support.status');
             Route::get('/support/{conversation}/nouveaux', [\App\Http\Controllers\Castlit\SupportAdminController::class, 'poll'])->whereNumber('conversation')->name('support.poll');
             Route::get('/support/{conversation}/fichiers/{message}', [\App\Http\Controllers\Castlit\SupportAdminController::class, 'attachment'])->whereNumber('conversation')->whereNumber('message')->name('support.attachment');
+            Route::get('/journaux', [\App\Http\Controllers\Castlit\DeviceReportAdminController::class, 'index'])->name('logs');
+            Route::get('/journaux/{report:reference}', [\App\Http\Controllers\Castlit\DeviceReportAdminController::class, 'show'])->name('logs.show');
+            Route::get('/journaux/{report:reference}/telecharger', [\App\Http\Controllers\Castlit\DeviceReportAdminController::class, 'download'])->name('logs.download');
             Route::redirect('/clients/op', '/castlit-admin/clients');
             Route::get('/{subscription}', [SubscriptionAdminController::class, 'show'])->name('show');
             Route::post('/{subscription}/approuver', [SubscriptionAdminController::class, 'approve'])->name('approve');
