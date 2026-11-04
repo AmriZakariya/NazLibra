@@ -158,7 +158,7 @@ class PublicController extends Controller
             ], 422);
         }
 
-        Subscription::create([
+        $subscription = Subscription::create([
             'business_name'     => $validated['business_name'],
             'activity'          => $validated['activity'] ?? null,
             'currency'          => $validated['currency'],
@@ -182,6 +182,7 @@ class PublicController extends Controller
                 'user_agent' => Str::limit((string) $request->userAgent(), 250, ''),
             ],
         ]);
+        \App\Support\SubscriptionAlerts::newSubscription($subscription);
 
         return response()->json([
             'ok'        => true,

@@ -99,6 +99,12 @@ return [
     // copy of DB-IP's free "IP to Country Lite" (CC BY 4.0, credited in the
     // footer), refreshed monthly by castlit:update-geoip: no API key, and no
     // visitor address sent to anyone.
+    // Who hears about a new signup (comma-separated). Set on the master's
+    // .env, never here: CASTLIT_SIGNUP_NOTIFY=you@example.com,other@example.com
+    'notify' => [
+        'signups' => env('CASTLIT_SIGNUP_NOTIFY', ''),
+    ],
+
     'geoip' => [
         'path' => env('CASTLIT_GEOIP_PATH', storage_path('app/geoip/country.mmdb')),
         'url'  => 'https://download.db-ip.com/free/dbip-country-lite-%s.mmdb.gz',
