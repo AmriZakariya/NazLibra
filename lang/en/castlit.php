@@ -311,4 +311,13 @@ return [
     'support_phone_required' => 'Leave a number so we can call you back.',
     'support_error' => 'Could not send. Check your connection and try again.',
     'support_close' => 'Close',
+
+    // ── Signup form checks, in the page ──
+    'f_v_required' => 'This field is required.',
+    'f_v_email' => 'Enter a valid email address.',
+    'f_v_address' => '2 to 30 characters: lowercase letters and digits.',
+    'f_v_taken' => 'This address is already taken. Try a variant.',
+    'f_v_reserved' => 'This address is reserved. Pick another one.',
+    'f_v_free' => 'Available ✓',
+    'f_v_checking' => 'Checking…',
 ];

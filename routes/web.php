@@ -42,6 +42,8 @@ if (config('castlit.is_master')) {
     Route::post('/inscription', [SubscriptionController::class, 'store'])
         ->middleware('throttle:10,1')->name('castlit.subscribe');
     Route::get('/inscription/merci', [MarketingController::class, 'success'])->name('castlit.subscribe.success');
+    Route::get('/inscription/disponible', [SubscriptionController::class, 'availability'])
+        ->middleware('throttle:60,1')->name('castlit.subscribe.availability');
 
     // Legal pages (privacy policy required by Google Play / App Store).
     Route::get('/privacy', [MarketingController::class, 'privacy'])->name('castlit.privacy');

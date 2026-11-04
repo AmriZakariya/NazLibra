@@ -312,4 +312,13 @@ return [
     'support_phone_required' => 'Laissez un numéro pour que nous puissions vous rappeler.',
     'support_error' => 'Envoi impossible. Vérifiez votre connexion et réessayez.',
     'support_close' => 'Fermer',
+
+    // ── Signup form checks, in the page ──
+    'f_v_required' => 'Ce champ est obligatoire.',
+    'f_v_email' => 'Saisissez une adresse email valide.',
+    'f_v_address' => '2 à 30 caractères : lettres minuscules et chiffres.',
+    'f_v_taken' => 'Cette adresse est déjà prise. Essayez une variante.',
+    'f_v_reserved' => 'Cette adresse est réservée. Choisissez-en une autre.',
+    'f_v_free' => 'Disponible ✓',
+    'f_v_checking' => 'Vérification…',
 ];

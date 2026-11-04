@@ -299,6 +299,10 @@
     .fld .req { color: var(--brand); }
     .fld input, .fld select { font: inherit; font-size: 14.5px; padding: 12px 13px; border-radius: 11px; border: 1.5px solid var(--sand); background: var(--paper); color: var(--ink); width: 100%; transition: border-color .15s, box-shadow .15s; }
     .fld input:focus, .fld select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 14%, transparent); }
+    .fld [aria-invalid="true"] { border-color: var(--err); }
+    .fld [aria-invalid="true"]:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--err) 16%, transparent); }
+    .field-hint { font-size: 12.5px; margin-top: 5px; font-weight: 600; color: var(--muted); }
+    .field-hint.ok { color: var(--ok); }
     .subdomain-row { display: flex; align-items: stretch; border: 1.5px solid var(--sand); border-radius: 11px; overflow: hidden; background: var(--paper); }
     .subdomain-row:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 14%, transparent); }
     .subdomain-row input { border: none; box-shadow: none; background: transparent; text-align: right; }
@@ -627,7 +631,7 @@
                     <div class="flash flash-err">{{ __('castlit.f_errors') }}</div>
                 @endif
 
-                <form method="POST" action="{{ route('castlit.subscribe') }}" novalidate>
+                <form method="POST" action="{{ route('castlit.subscribe') }}" novalidate data-signup-form>
                     @csrf
                     <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
                     {{-- The visitor's timezone, for the shop's clock (Montréal is not Toronto). --}}
@@ -822,6 +826,135 @@
         window.addEventListener('load', handleHash);
         handleHash();
     })();
+</script>
+@endpush
+
+@php
+    $signupChecks = [
+        'required' => __('castlit.f_v_required'),
+        'email' => __('castlit.f_v_email'),
+        'address' => __('castlit.f_v_address'),
+        'taken' => __('castlit.f_v_taken'),
+        'reserved' => __('castlit.f_v_reserved'),
+        'free' => __('castlit.f_v_free'),
+        'checking' => __('castlit.f_v_checking'),
+    ];
+@endphp
+@push('scripts')
+<script>
+// The signup form says what is wrong where it is wrong, before anything is
+// sent: a refused form used to reload the page at the top.
+(() => {
+    const form = document.querySelector('[data-signup-form]');
+    if (!form) return;
+    const t = @json($signupChecks);
+    const availabilityUrl = @json(route('castlit.subscribe.availability'));
+    const address = form.querySelector('#desired_subdomain');
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let addressProblem = null; // 'taken' | 'reserved', from the server
+
+    function slot(input, cls) {
+        const fld = input.closest('.fld');
+        let el = fld.querySelector('.' + cls);
+        if (!el) {
+            el = document.createElement('span');
+            el.className = cls;
+            fld.append(el);
+        }
+        return el;
+    }
+
+    function setError(input, message) {
+        const el = slot(input, 'field-error');
+        el.textContent = message || '';
+        el.hidden = !message;
+        input.setAttribute('aria-invalid', message ? 'true' : 'false');
+        if (message) {
+            el.id ||= input.id + '-error';
+            input.setAttribute('aria-describedby', el.id);
+        }
+    }
+
+    function problem(input) {
+        const value = input.value.trim();
+        if (input.required && !value) return t.required;
+        if (input.type === 'email' && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return t.email;
+        if (input === address && value) {
+            if (!/^[a-z0-9]{2,30}$/.test(value)) return t.address;
+            if (addressProblem) return t[addressProblem];
+        }
+        return '';
+    }
+
+    function goTo(input) {
+        input.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'center' });
+        input.focus({ preventScroll: true });
+    }
+
+    form.addEventListener('submit', (event) => {
+        let first = null;
+        form.querySelectorAll('input[required], select[required]').forEach((input) => {
+            const message = problem(input);
+            setError(input, message);
+            if (message && !first) first = input;
+        });
+        if (first) {
+            event.preventDefault();
+            goTo(first);
+            return;
+        }
+        form.querySelector('button[type=submit], button:not([type])')?.setAttribute('disabled', '');
+    });
+
+    // An error goes away as soon as the field is right.
+    form.addEventListener('input', (event) => {
+        const input = event.target;
+        if (input.getAttribute('aria-invalid') === 'true' && !problem(input)) setError(input, '');
+    });
+
+    // Whether the address is free, while they type.
+    let timer = null;
+    let asked = 0;
+    address?.addEventListener('input', () => {
+        clearTimeout(timer);
+        addressProblem = null;
+        const hint = slot(address, 'field-hint');
+        hint.className = 'field-hint';
+        hint.textContent = '';
+        const value = address.value;
+        if (!/^[a-z0-9]{2,30}$/.test(value)) return;
+        hint.textContent = t.checking;
+        timer = setTimeout(async () => {
+            const mine = ++asked;
+            try {
+                const res = await fetch(availabilityUrl + '?adresse=' + encodeURIComponent(value), { headers: { Accept: 'application/json' } });
+                const data = await res.json();
+                if (mine !== asked || address.value !== value) return;
+                if (data.available) {
+                    hint.className = 'field-hint ok';
+                    hint.textContent = t.free;
+                    setError(address, '');
+                } else {
+                    hint.textContent = '';
+                    addressProblem = data.reason === 'reserved' ? 'reserved' : (data.reason === 'taken' ? 'taken' : null);
+                    setError(address, problem(address));
+                }
+            } catch {
+                hint.textContent = '';
+            }
+        }, 400);
+    });
+
+    // Refused by the server anyway: open on the first field it named.
+    const serverError = form.querySelector('.field-error');
+    if (serverError) {
+        const input = serverError.closest('.fld')?.querySelector('input, select');
+        if (input) {
+            input.setAttribute('aria-invalid', 'true');
+            requestAnimationFrame(() => goTo(input));
+        }
+    }
+})();
 </script>
 @endpush
 
