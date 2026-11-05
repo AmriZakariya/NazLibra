@@ -22,6 +22,10 @@
     .secret { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; letter-spacing: .5px; }
     .mini-btn { border: 1px solid var(--sand); background: var(--surface); color: var(--muted); border-radius: 7px; font-size: 12px; font-weight: 650; padding: 2px 8px; cursor: pointer; margin-inline-start: 4px; }
     .mini-btn:hover { border-color: var(--brand); color: var(--brand); }
+    .card-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .code-big { font-size: 16px; font-weight: 800; letter-spacing: 2px; }
+    .hint { display: block; color: var(--muted); font-size: 12px; font-weight: 500; margin-top: 3px; }
+    .acc-group { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--brand); padding: 14px 0 2px; }
     .acc-sum { font-size: 14px; line-height: 1.6; margin: 8px 0 12px; }
     .acc-never { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
     .acc-bad { color: var(--err); font-weight: 650; }
@@ -140,32 +144,104 @@
                             @if ($subscription->install->commit_sha)
                                 <div class="kv"><span class="k">Commit</span><span class="v">{{ $subscription->install->commit_sha }}</span></div>
                             @endif
-                            {{-- The space's support login: random per space since
-                                 2026-10-27, so it is shown here rather than known. --}}
-                            @if ($subscription->install->owner_password)
-                                <div class="kv"><span class="k">Mot de passe propriétaire</span>
-                                    <span class="v">
-                                        <code class="secret" data-secret="{{ $subscription->install->owner_password }}">••••••••••••</code>
-                                        <button type="button" class="mini-btn" onclick="const c=this.previousElementSibling; c.textContent = c.textContent.startsWith('•') ? c.dataset.secret : '••••••••••••'">Afficher</button>
-                                        <small style="display:block; color:var(--muted)">Initial — le client a pu le changer.</small>
-                                    </span>
-                                </div>
-                            @endif
-                            @if ($subscription->install->support_email && $subscription->install->support_password)
-                                <div class="kv"><span class="k">Accès support</span>
-                                    <span class="v" data-support>
-                                        {{ $subscription->install->support_email }}<br>
-                                        <code class="secret" data-secret="{{ $subscription->install->support_password }}">••••••••••••</code>
-                                        <button type="button" class="mini-btn" onclick="const c=this.previousElementSibling; c.textContent = c.textContent.startsWith('•') ? c.dataset.secret : '••••••••••••'">Afficher</button>
-                                        <button type="button" class="mini-btn" onclick="navigator.clipboard?.writeText(this.parentElement.querySelector('[data-secret]').dataset.secret); this.textContent='Copié ✓'">Copier</button>
-                                    </span>
-                                </div>
-                            @endif
                             @if ($subscription->install->provisioned_at)
                                 <div class="kv"><span class="k">Mis en ligne</span><span class="v">{{ $subscription->install->provisioned_at->format('d/m/Y H:i') }}</span></div>
                             @endif
                         </div>
                     </div>
+
+                    {{-- Everything the client needs to get in, in one place:
+                         what the app's first screen asks, and the two accounts
+                         the platform created. Passwords stay masked until asked
+                         for; the space's other users are hashed there and
+                         cannot be read back. --}}
+                    @php
+                        $ownerLogin = $inst->owner_email ?: $subscription->email;
+                        $sheet = collect([
+                            'Adresse : '.$inst->url(),
+                            'Nom du client : '.$inst->subdomain,
+                            'Code d’accès : '.($inst->access_code ?: '—'),
+                            '',
+                            'Compte principal',
+                            'Identifiant : '.$ownerLogin,
+                            'Mot de passe : '.($inst->owner_password ?: '(non conservé)'),
+                        ])->when($inst->support_email && $inst->support_password, fn ($lines) => $lines->merge([
+                            '',
+                            'Compte administrateur',
+                            'Identifiant : '.$inst->support_email,
+                            'Mot de passe : '.$inst->support_password,
+                        ]))->implode("\n");
+                    @endphp
+                    <div class="card" id="acces" data-access-card>
+                        <h2 class="card-h">Accès du client
+                            <button type="button" class="mini-btn" data-copy="{{ $sheet }}">Tout copier</button>
+                        </h2>
+                        <div class="body">
+                            <div class="kv"><span class="k">Adresse</span><span class="v">
+                                <a href="{{ $inst->url() }}" target="_blank" rel="noopener">{{ $inst->domain }} ↗</a>
+                            </span></div>
+                            <div class="kv"><span class="k">Nom du client</span><span class="v">
+                                <code class="secret" data-client-name>{{ $inst->subdomain }}</code>
+                                <button type="button" class="mini-btn" data-copy="{{ $inst->subdomain }}">Copier</button>
+                            </span></div>
+                            <div class="kv"><span class="k">Code d’accès</span><span class="v">
+                                @if ($inst->access_code)
+                                    <code class="secret code-big" data-access-code>{{ $inst->access_code }}</code>
+                                    <button type="button" class="mini-btn" data-copy="{{ $inst->access_code }}">Copier</button>
+                                @else
+                                    — <small class="hint">créé au prochain envoi des accès</small>
+                                @endif
+                            </span></div>
+
+                            <div class="acc-group">Compte principal (propriétaire)</div>
+                            <div class="kv"><span class="k">Identifiant</span><span class="v" data-owner-login>
+                                {{ $ownerLogin }}
+                                <button type="button" class="mini-btn" data-copy="{{ $ownerLogin }}">Copier</button>
+                            </span></div>
+                            <div class="kv"><span class="k">Mot de passe</span><span class="v">
+                                @if ($inst->owner_password)
+                                    <code class="secret" data-secret="{{ $inst->owner_password }}">••••••••••••</code>
+                                    <button type="button" class="mini-btn" data-reveal>Afficher</button>
+                                    <button type="button" class="mini-btn" data-copy="{{ $inst->owner_password }}">Copier</button>
+                                    <small class="hint">Initial — le client a pu le changer.</small>
+                                @else
+                                    <span class="acc-never" data-owner-missing>Non conservé</span>
+                                    <small class="hint">Espace créé avant que le mot de passe soit gardé : utilisez « Nouveau mot de passe propriétaire ».</small>
+                                @endif
+                            </span></div>
+
+                            @if ($inst->support_email && $inst->support_password)
+                                <div class="acc-group">Compte administrateur</div>
+                                <div class="kv"><span class="k">Identifiant</span><span class="v" data-support>
+                                    {{ $inst->support_email }}
+                                    <button type="button" class="mini-btn" data-copy="{{ $inst->support_email }}">Copier</button>
+                                </span></div>
+                                <div class="kv"><span class="k">Mot de passe</span><span class="v">
+                                    <code class="secret" data-secret="{{ $inst->support_password }}">••••••••••••</code>
+                                    <button type="button" class="mini-btn" data-reveal>Afficher</button>
+                                    <button type="button" class="mini-btn" data-copy="{{ $inst->support_password }}">Copier</button>
+                                </span></div>
+                            @endif
+                        </div>
+                    </div>
+                    <script>
+                        document.getElementById('acces').addEventListener('click', (e) => {
+                            const b = e.target.closest('button');
+                            if (!b) return;
+                            if (b.hasAttribute('data-reveal')) {
+                                const c = b.parentElement.querySelector('[data-secret]');
+                                const hidden = c.textContent.startsWith('•');
+                                c.textContent = hidden ? c.dataset.secret : '••••••••••••';
+                                b.textContent = hidden ? 'Masquer' : 'Afficher';
+                            } else if (b.hasAttribute('data-copy')) {
+                                const label = b.textContent;
+                                navigator.clipboard?.writeText(b.dataset.copy).then(() => {
+                                    b.textContent = 'Copié ✓';
+                                    setTimeout(() => { b.textContent = label; }, 1500);
+                                });
+                            }
+                        });
+                    </script>
 
                     {{-- Every time the verification code was entered, right or
                          wrong: proof the client reached their space, and from
