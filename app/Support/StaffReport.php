@@ -98,7 +98,7 @@ class StaffReport
             $saleTotal = (float) $sale->total_amount;
             // What the shop kept: a refund takes its share back from every
             // line, so no commission is paid on money returned.
-            $returned = in_array($sale->status, ['refunded', 'partially_refunded'], true)
+            $returned = in_array($sale->status, ['refunded', ...\App\Models\Sale::PARTIAL_REFUND_STATUSES], true)
                 ? min($saleTotal, (float) $sale->returns()->sum('total_amount'))
                 : 0.0;
             if ($sale->status === 'refunded') {

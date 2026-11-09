@@ -768,7 +768,7 @@
                         <option value="paid" @selected(request('payment_status') === 'paid')>payé</option>
                         <option value="partial" @selected(request('payment_status') === 'partial')>Partiel</option>
                         <option value="unpaid" @selected(request('payment_status') === 'unpaid')>Impayé</option>
-                        <option value="partially_refunded" @selected(request('payment_status') === 'partially_refunded')>Retour partiel</option>
+                        <option value="partial_refund" @selected(in_array(request('payment_status'), ['partial_refund', 'partially_refunded'], true))>Retour partiel</option>
                         <option value="refunded" @selected(request('payment_status') === 'refunded')>Remboursé</option>
                         <option value="cancelled" @selected(request('payment_status') === 'cancelled')>Annulé</option>
                     </select>
@@ -834,7 +834,7 @@
                                     $due = max(0, (float) $sale->total_amount - (float) $paid);
                                     $paymentStatus = match ($sale->status) {
                                         'refunded' => 'Remboursé',
-                                        'partially_refunded' => 'Retour partiel',
+                                        'partial_refund', 'partially_refunded' => 'Retour partiel',
                                         'cancelled' => 'Annulé',
                                         default => $due <= 0.001 ? 'payé' : ((float) $paid > 0 ? 'Partiel' : 'Impayé'),
                                     };
@@ -1085,6 +1085,47 @@
                                                         </div>
                                                     </section>
 
+                                                    {{-- Every refund of this sale, wherever it was made (web, app):
+                                                         which articles, what became of them, how much went back. --}}
+                                                    @if ($sale->returns->isNotEmpty())
+                                                        @php
+                                                            $stockActionLabels = ['restock' => 'Remis en stock', 'no_restock' => 'Non remis en stock', 'damaged' => 'Endommagé', 'lost' => 'Perdu', 'waste' => 'Rebut', 'mixed' => 'Mixte'];
+                                                            $refundMethodLabels = ['cash' => 'Espèces', 'card' => 'Carte', 'transfer' => 'Virement', 'store_credit' => 'Avoir', 'credit' => 'Avoir', 'account' => 'Compte client'];
+                                                        @endphp
+                                                        <div class="rounded-xl border border-rose-200 bg-white p-4 text-sm shadow-sm dark:border-rose-500/20 dark:bg-slate-900" data-sale-returns>
+                                                            <div class="flex items-center justify-between gap-3">
+                                                                <span class="text-xs font-semibold uppercase text-rose-700 dark:text-rose-300">Retours ({{ $sale->returns->count() }})</span>
+                                                                <strong class="text-rose-600 dark:text-rose-300">− {{ $money($sale->refundedAmount()) }}</strong>
+                                                            </div>
+                                                            <div class="mt-3 space-y-3">
+                                                                @foreach ($sale->returns->sortBy('returned_at') as $saleReturn)
+                                                                    <div class="rounded-lg border border-slate-200 p-3 dark:border-white/10" data-sale-return="{{ $saleReturn->number }}">
+                                                                        <div class="flex flex-wrap items-baseline justify-between gap-2">
+                                                                            <strong>{{ $saleReturn->number ?: 'Retour' }}</strong>
+                                                                            <strong class="text-rose-600 dark:text-rose-300">− {{ $money($saleReturn->total_amount) }}</strong>
+                                                                        </div>
+                                                                        <p class="mt-1 text-xs text-slate-500">
+                                                                            {{ $tzDate($saleReturn->returned_at) }}
+                                                                            · {{ $refundMethodLabels[$saleReturn->refund_method] ?? $saleReturn->refund_method }}
+                                                                            @if ($saleReturn->actor_name_snapshot) · par {{ $saleReturn->actor_name_snapshot }}@endif
+                                                                            @if ($saleReturn->terminal_name_snapshot) · {{ $saleReturn->terminal_name_snapshot }}@endif
+                                                                        </p>
+                                                                        <ul class="mt-2 space-y-1">
+                                                                            @foreach ($saleReturn->lines ?? [] as $returnLine)
+                                                                                <li class="flex justify-between gap-3">
+                                                                                    <span>{{ $returnLine['name'] ?? 'Article' }} × {{ $returnLine['quantity'] ?? 0 }}
+                                                                                        <small class="text-slate-500">· {{ $stockActionLabels[$returnLine['stock_action'] ?? 'restock'] ?? ($returnLine['stock_action'] ?? '') }}@if (! empty($returnLine['reason'])) · {{ $returnLine['reason'] }}@endif</small>
+                                                                                    </span>
+                                                                                    <span>{{ $money($returnLine['total_price'] ?? 0) }}</span>
+                                                                                </li>
+                                                                            @endforeach
+                                                                        </ul>
+                                                                        @if ($saleReturn->reason)<p class="mt-2 text-xs text-slate-500">Motif : {{ $saleReturn->reason }}</p>@endif
+                                                                    </div>
+                                                                @endforeach
+                                                            </div>
+                                                        </div>
+                                                    @endif
                                                     @if (data_get($sale->metadata, 'note'))
                                                         <div class="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-900 shadow-sm dark:border-white/10 dark:bg-slate-900 dark:text-slate-100">
                                                             <span class="text-xs font-semibold uppercase text-slate-600 dark:text-slate-300">Note manuelle</span>
@@ -1108,6 +1149,10 @@
                                                             <div class="flex justify-between gap-3"><dt class="text-slate-500">Payé</dt><dd class="font-semibold text-emerald-600">{{ $money($paid) }}</dd></div>
                                                             <div class="flex justify-between gap-3"><dt class="text-slate-500">Reste</dt><dd class="font-semibold {{ $due > 0.001 ? 'text-rose-600' : 'text-emerald-600' }}">{{ $money($due) }}</dd></div>
                                                             <div class="flex justify-between gap-3"><dt class="text-slate-500">Méthode</dt><dd class="font-semibold">{{ $sale->payment_method }}</dd></div>
+                                                            @if ($sale->returns->isNotEmpty())
+                                                                <div class="flex justify-between gap-3 border-t border-slate-200 pt-3 dark:border-white/10" data-sale-refunded><dt class="text-slate-500">Remboursé</dt><dd class="font-semibold text-rose-600">− {{ $money($sale->refundedAmount()) }}</dd></div>
+                                                                <div class="flex justify-between gap-3 text-base" data-sale-net><dt class="font-semibold">Net</dt><dd class="font-bold">{{ $money($sale->netAmount()) }}</dd></div>
+                                                            @endif
                                                             @php
                                                                 $saleCogs = (float) data_get($sale->metadata, 'cogs.total', 0);
                                                                 $saleMargin = max(0, round((float) $sale->total_amount - $saleCogs, 2));
@@ -1145,7 +1190,7 @@
                                                             @if ($sale->status === 'cancelled')
                                                                 Vente annulée le {{ $tzDate(data_get($sale->metadata, 'cancelled.cancelled_at')) }}.
                                                             @else
-                                                                Vente remboursée le {{ $tzDate(data_get($sale->metadata, 'refund.refunded_at')) }}.
+                                                                Vente remboursée le {{ $tzDate(data_get($sale->metadata, 'refund.refunded_at') ?: $sale->returns->max('returned_at')) }}.
                                                             @endif
                                                         </div>
                                                     @endif

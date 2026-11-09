@@ -474,6 +474,10 @@ class SyncController extends Controller
                 'user:id,name',
                 'virtualDevice:id,name',
                 'location:id,name',
+                // Its refunds travel with it: a refund made on one till, or
+                // on the web, is shown on every other one. A refund updates
+                // the sale's status, so the sale comes back in the delta.
+                'returns:id,sale_id,number,status,refund_method,refund_scope,total_amount,lines,reason,stock_disposition,returned_at,idempotency_key,actor_name_snapshot,terminal_name_snapshot',
             ]);
 
         $page = $this->syncPage($request, $query, 'sales:location-'.$request->attributes->get('api_location_id'), $tenant->id, 100, 200, [

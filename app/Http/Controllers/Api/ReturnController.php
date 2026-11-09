@@ -394,7 +394,7 @@ class ReturnController extends Controller
                 if ($isFullRefund) {
                     $sale->update(['status' => 'refunded']);
                 } else {
-                    $sale->update(['status' => 'partial_refund']);
+                    $sale->update(['status' => Sale::STATUS_PARTIAL_REFUND]);
                 }
 
                 return $saleReturn;

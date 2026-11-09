@@ -5727,9 +5727,10 @@ class LibraireProController extends Controller
         $tenant = $this->tenant();
         abort_unless($sale->tenant_id === $tenant->id, 404);
 
-        $sale->loadMissing(['contact', 'items.item', 'payments', 'invoice', 'user']);
+        $sale->loadMissing(['contact', 'items.item', 'payments', 'invoice', 'user', 'returns']);
         $paid = $this->salePaidAmount($sale);
         $settings = $this->documentSettings($tenant);
+        $methodLabels = ['cash' => 'Espèces', 'card' => 'Carte', 'transfer' => 'Virement', 'credit' => 'Avoir', 'account' => 'Compte client'];
 
         return $this->downloadDocumentPdf($tenant, [
             'type' => 'sale',
@@ -5741,7 +5742,24 @@ class LibraireProController extends Controller
             'partner' => $sale->contact,
             'reference' => data_get($sale->metadata, 'reference_number'),
             'status' => $sale->status,
+            'status_label' => match (true) {
+                $sale->status === 'refunded' => 'Remboursée',
+                in_array($sale->status, Sale::PARTIAL_REFUND_STATUSES, true) => 'Remboursement partiel',
+                $sale->status === 'cancelled' => 'Annulée',
+                max(0, (float) $sale->total_amount - $paid) <= 0.001 => 'Payée',
+                $paid > 0 => 'Paiement partiel',
+                default => 'Non payée',
+            },
             'payment_method' => $sale->payment_method,
+            'returns' => $sale->returns->sortBy('returned_at')->map(fn ($r) => [
+                'number' => $r->number ?: 'Retour',
+                'date' => \App\Support\TenantClock::format($r->returned_at, $tenant),
+                'method' => $methodLabels[$r->refund_method] ?? $r->refund_method,
+                'by' => $r->actor_name_snapshot,
+                'reason' => $r->reason,
+                'amount' => (float) $r->total_amount,
+                'lines' => collect($r->lines ?? [])->map(fn ($l) => ['name' => $l['name'] ?? 'Article', 'quantity' => (int) ($l['quantity'] ?? 0)])->all(),
+            ])->values()->all(),
             'created_by' => data_get($sale->metadata, 'created_by_name') ?: $sale->user?->name,
             'updated_by' => data_get($sale->metadata, 'updated_by_name') ?: data_get($sale->metadata, 'edited_by_name'),
             'updated_at' => data_get($sale->metadata, 'updated_by_at') ?: data_get($sale->metadata, 'edited_at'),
@@ -5759,6 +5777,8 @@ class LibraireProController extends Controller
                 'paid' => $paid,
                 'due' => max(0, (float) $sale->total_amount - $paid),
                 'total' => (float) $sale->total_amount,
+                'refunded' => $sale->refundedAmount(),
+                'net' => $sale->netAmount(),
             ],
             'note' => data_get($sale->metadata, 'note'),
             'template_note' => $settings['sale_note_template'],
@@ -6157,7 +6177,7 @@ class LibraireProController extends Controller
             $metadata = array_merge($metadata, $this->actorMetadata('updated'));
 
             $sale->update([
-                'status' => $isFullRefund ? 'refunded' : 'partially_refunded',
+                'status' => $isFullRefund ? 'refunded' : Sale::STATUS_PARTIAL_REFUND,
                 'metadata' => $metadata,
             ]);
             if ($isFullRefund) {
@@ -9069,13 +9089,13 @@ class LibraireProController extends Controller
             })
             ->when(is_numeric($minTotal), fn (Builder $builder) => $builder->where('total_amount', '>=', (float) $minTotal))
             ->when(is_numeric($maxTotal), fn (Builder $builder) => $builder->where('total_amount', '<=', (float) $maxTotal))
-            ->when(in_array($paymentStatus, ['paid', 'partial', 'unpaid', 'partially_refunded', 'refunded', 'cancelled'], true), function (Builder $builder) use ($paymentStatus): void {
+            ->when(in_array($paymentStatus, ['paid', 'partial', 'unpaid', 'partial_refund', 'partially_refunded', 'refunded', 'cancelled'], true), function (Builder $builder) use ($paymentStatus): void {
                 if ($paymentStatus === 'paid') {
                     $builder->where('status', 'paid');
                 } elseif ($paymentStatus === 'unpaid') {
                     $builder->where('status', 'unpaid');
-                } elseif ($paymentStatus === 'partially_refunded') {
-                    $builder->where('status', 'partially_refunded');
+                } elseif (in_array($paymentStatus, ['partial_refund', 'partially_refunded'], true)) {
+                    $builder->whereIn('status', Sale::PARTIAL_REFUND_STATUSES);
                 } elseif ($paymentStatus === 'refunded') {
                     $builder->where('status', 'refunded');
                 } elseif ($paymentStatus === 'cancelled') {
@@ -9709,7 +9729,7 @@ class LibraireProController extends Controller
             'paid' => 'payée',
             'partial' => 'partielle',
             'unpaid' => 'impayée',
-            'partially_refunded' => 'retour partiel',
+            'partial_refund', 'partially_refunded' => 'retour partiel',
             'refunded' => 'remboursée',
             'cancelled' => 'annulée',
             default => $status,

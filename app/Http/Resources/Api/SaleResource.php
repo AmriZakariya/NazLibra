@@ -28,6 +28,22 @@ class SaleResource extends JsonResource
             // Where the ticket was rung up, for the till's sale detail.
             'origin' => $this->resource->origin(),
             'payments' => $this->whenLoaded('payments'),
+            'returns' => $this->whenLoaded('returns', fn () => $this->returns->map(fn ($r) => [
+                'id' => $r->id,
+                'number' => $r->number,
+                'status' => $r->status,
+                'refund_method' => $r->refund_method,
+                'refund_scope' => $r->refund_scope,
+                'total_amount' => (float) $r->total_amount,
+                'lines' => $r->lines ?? [],
+                'reason' => $r->reason,
+                'stock_disposition' => $r->stock_disposition,
+                'returned_at' => $r->returned_at?->utc()->format('Y-m-d\TH:i:s\Z'),
+                'idempotency_key' => $r->idempotency_key,
+                'by' => $r->actor_name_snapshot,
+                'terminal' => $r->terminal_name_snapshot,
+            ])->values()),
+            'refunded_amount' => $this->whenLoaded('returns', fn () => $this->resource->refundedAmount()),
             'deleted_at' => $this->deleted_at,
         ];
     }

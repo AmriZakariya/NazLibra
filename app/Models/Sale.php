@@ -14,6 +14,30 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Sale extends Model
 {
     use SoftDeletes;
+
+    /**
+     * Part of the sale was given back. One spelling: the web once wrote
+     * 'partially_refunded' while the app wrote 'partial_refund', so a refund
+     * made on one side read as « payé » on the other. Older rows are migrated;
+     * reads still accept both.
+     */
+    public const STATUS_PARTIAL_REFUND = 'partial_refund';
+
+    public const PARTIAL_REFUND_STATUSES = ['partial_refund', 'partially_refunded'];
+
+    /** What has been given back so far, over every return of this sale. */
+    public function refundedAmount(): float
+    {
+        $returns = $this->relationLoaded('returns') ? $this->returns : $this->returns()->get();
+
+        return round((float) $returns->sum('total_amount'), 2);
+    }
+
+    /** What the sale is worth once its returns are taken off. */
+    public function netAmount(): float
+    {
+        return max(0, round((float) $this->total_amount - $this->refundedAmount(), 2));
+    }
     protected function casts(): array
     {
         return [

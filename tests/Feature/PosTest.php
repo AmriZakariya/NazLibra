@@ -980,7 +980,7 @@ class PosTest extends TestCase
         $return = SaleReturn::firstOrFail();
         $sale->refresh();
 
-        $this->assertSame('partially_refunded', $sale->status);
+        $this->assertSame('partial_refund', $sale->status);
         $this->assertSame('partial', $return->refund_scope);
         $this->assertSame('damaged', $return->stock_disposition);
         $this->assertSame($unitPrice, (float) $return->total_amount);

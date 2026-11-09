@@ -239,7 +239,7 @@ class SaleInvoiceController extends Controller
     private function statusForSale(Sale $sale, ?string $dueDate): string
     {
         $saleStatus = $sale->status ?? '';
-        if (in_array($saleStatus, ['refunded', 'partially_refunded'], true)) {
+        if (in_array($saleStatus, ['refunded', ...\App\Models\Sale::PARTIAL_REFUND_STATUSES], true)) {
             return 'cancelled';
         }
         if ($dueDate && now()->toDateString() > $dueDate) {

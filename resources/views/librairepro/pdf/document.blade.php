@@ -155,7 +155,7 @@
             @if (! empty($document['due_date']))
                 <p class="muted">Échéance / prévu: {{ $formatDate($document['due_date']) }}</p>
             @endif
-            <span class="badge">{{ $document['status'] ?: 'document' }}</span>
+            <span class="badge">{{ ($document['status_label'] ?? null) ?: ($document['status'] ?: 'document') }}</span>
         </div>
     </header>
 
@@ -225,6 +225,36 @@
         </tbody>
     </table>
 
+    {{-- A sale's refunds: what went back, when, how. --}}
+    @if (! empty($document['returns']))
+        <table class="returns">
+            <thead>
+                <tr>
+                    <th>Retour</th>
+                    <th>Articles rendus</th>
+                    <th class="right">Remboursé</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($document['returns'] as $return)
+                    <tr>
+                        <td>
+                            <span class="item-name">{{ $return['number'] }}</span>
+                            <br><small class="muted">{{ $return['date'] }} · {{ $return['method'] }}@if ($return['by']) · {{ $return['by'] }}@endif</small>
+                        </td>
+                        <td>
+                            @foreach ($return['lines'] as $returnLine)
+                                {{ $returnLine['name'] }} × {{ $returnLine['quantity'] }}<br>
+                            @endforeach
+                            @if ($return['reason'])<small class="muted">Motif : {{ $return['reason'] }}</small>@endif
+                        </td>
+                        <td class="right"><strong>− {{ $money($return['amount']) }}</strong></td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+
     <section class="totals">
         <div class="totals-row"><span>Sous-total</span><strong>{{ $money($document['totals']['subtotal']) }}</strong></div>
         @if (($document['totals']['discount'] ?? 0) > 0)
@@ -241,6 +271,10 @@
             <div class="totals-row"><span>Qté reçue</span><strong>{{ number_format($document['totals']['received'] ?? 0, 0, ',', ' ') }}</strong></div>
         @endif
         <div class="totals-row grand"><span>Total</span><strong>{{ $money($document['totals']['total']) }}</strong></div>
+        @if (($document['totals']['refunded'] ?? 0) > 0)
+            <div class="totals-row"><span>Remboursé</span><strong>− {{ $money($document['totals']['refunded']) }}</strong></div>
+            <div class="totals-row grand"><span>Net</span><strong>{{ $money($document['totals']['net']) }}</strong></div>
+        @endif
     </section>
 
     <section class="footer-grid">
