@@ -1,5 +1,7 @@
 @php
     $shopMoney = \App\Support\Money::for($tenant);
+    // Stored in UTC; the shop reads its own clock.
+    $tzDate = fn ($date, string $fmt = 'd/m/Y H:i'): string => \App\Support\TenantClock::format($date, $tenant, $fmt);
     $money = fn ($amount): string => $shopMoney->format($amount);
     $tr = fn ($text) => \App\Support\Locale::t($text);
     $businessMode = \App\Support\BusinessMode::current($tenant);
@@ -41,7 +43,7 @@
                     $lastDiscountLabel = data_get($lastManualDiscount, 'type') === 'percentage'
                         ? number_format((float) data_get($lastManualDiscount, 'value', 0), 2, ',', ' ').'%'
                         : $money(data_get($lastManualDiscount, 'value', $lastSale->discount_amount));
-                    $lastSystemNoteDate = $lastSale->sold_at?->format('d/m/Y H:i') ?? '—';
+                    $lastSystemNoteDate = $tzDate($lastSale->sold_at);
                     $lastSystemNote = data_get($lastSale->metadata, 'system_note')
                         ?: 'Note système: vente '.$lastSale->number.' enregistrée le '.$lastSystemNoteDate.' pour '.($lastSale->contact?->name ?? 'Client comptoir').', '.$lastSale->items->count().' ligne(s), total '.$money($lastSale->total_amount).', paiement '.$lastSale->payment_method.'.';
                     $lastManualNote = trim((string) data_get($lastSale->metadata, 'note', ''));
@@ -50,7 +52,7 @@
                         'storeName' => $tenant->name,
                         'serialNumber' => $lastSale->number,
                         'ticketNumber' => $lastSale->number,
-                        'date' => $lastSale->sold_at?->format('d/m/Y H:i') ?? now()->format('d/m/Y H:i'),
+                        'date' => $tzDate($lastSale->sold_at ?? now()),
                         'items' => $lastSale->items->map(fn ($line) => [
                             'name' => $line->name,
                             'quantity' => (float) $line->quantity,
@@ -78,7 +80,7 @@
                                     <span class="min-w-0">
                                         <p class="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{{ $tr('Paiement validé') }}</p>
                                         <h2 class="mt-1 truncate text-2xl font-black tracking-normal">{{ $lastSale->number }} · {{ $money($lastSale->total_amount) }}</h2>
-                                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $lastSale->sold_at->format('d/m/Y H:i') }}</p>
+                                        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $tzDate($lastSale->sold_at) }}</p>
                                     </span>
                                 </div>
                                 <a href="{{ route('pos') }}" data-pos-close-success class="grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-xl font-black text-slate-700 shadow-sm transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">×</a>
@@ -127,7 +129,7 @@
                                 <strong class="block text-base">{{ $tenant->name }}</strong>
                                 <span class="text-xs text-slate-500">{{ $tenant->address }} · {{ $tenant->phone }}</span>
                                 <p class="mt-2 font-semibold">N° série {{ $lastSale->number }}</p>
-                                <p class="text-xs text-slate-500">{{ $lastSale->sold_at->format('d/m/Y H:i') }}</p>
+                                <p class="text-xs text-slate-500">{{ $tzDate($lastSale->sold_at) }}</p>
                             </div>
                             <div class="mt-4 space-y-2">
                                 @foreach ($lastSale->items as $line)

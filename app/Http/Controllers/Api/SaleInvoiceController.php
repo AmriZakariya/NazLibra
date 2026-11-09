@@ -112,7 +112,11 @@ class SaleInvoiceController extends Controller
             'note'     => ['nullable', 'string', 'max:500'],
         ]);
 
-        $invoice = DB::transaction(function () use ($tenant, $sale, $data): SaleInvoice {
+        // Who generated it, as the web back office records it — without this
+        // an invoice made from the app read « créée par Utilisateur inconnu ».
+        $actor = $request->user();
+
+        $invoice = DB::transaction(function () use ($tenant, $sale, $data, $actor): SaleInvoice {
             // withTrashed: if a sale's invoice was soft-deleted, restore it
             // rather than assigning a new number. Fresh query avoids Eloquent cache.
             $invoice = SaleInvoice::withTrashed()
@@ -133,7 +137,25 @@ class SaleInvoiceController extends Controller
                 ]);
             }
 
+            $metadata = $invoice->metadata ?? [];
+            if (! isset($metadata['created_by']) && ! $invoice->user_id) {
+                $metadata += [
+                    'source'          => 'app',
+                    'created_by'      => $actor?->id,
+                    'created_by_name' => $actor?->name,
+                    'created_by_at'   => now()->toIso8601String(),
+                ];
+            } elseif ($invoice->exists) {
+                $metadata = array_merge($metadata, [
+                    'updated_by'      => $actor?->id,
+                    'updated_by_name' => $actor?->name,
+                    'updated_by_at'   => now()->toIso8601String(),
+                ]);
+            }
+
             $invoice->fill([
+                'user_id'          => $invoice->user_id ?: $actor?->id,
+                'metadata'         => $metadata,
                 'contact_id'       => $sale->contact_id,
                 'status'           => $this->statusForSale($sale, $data['due_date'] ?? null),
                 'due_date'         => $data['due_date'] ?? null,

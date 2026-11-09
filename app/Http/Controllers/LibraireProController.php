@@ -9713,7 +9713,7 @@ class LibraireProController extends Controller
         $formattedTotal = $this->money($total);
         $referenceText = $reference ? ' Référence: '.$reference.'.' : '';
 
-        return "Note système: vente {$saleNumber} créée automatiquement depuis {$sourceLabel} le ".$soldAt->format('d/m/Y H:i')." par {$userName}. Client: {$clientName}. {$lineCount} ligne(s), total {$formattedTotal}, paiement {$paymentMethod}, statut {$statusLabel}, magasin {$storeName}.{$referenceText}";
+        return "Note système: vente {$saleNumber} créée automatiquement depuis {$sourceLabel} le ".\App\Support\TenantClock::format($soldAt, $tenant)." par {$userName}. Client: {$clientName}. {$lineCount} ligne(s), total {$formattedTotal}, paiement {$paymentMethod}, statut {$statusLabel}, magasin {$storeName}.{$referenceText}";
     }
 
     /**

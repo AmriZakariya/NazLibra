@@ -552,7 +552,7 @@
                                     <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5" data-row-url="{{ route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $invoice->sale_id, 'invoice' => $invoice->id]) }}">
                                         <td class="px-3 py-3 font-mono text-xs font-semibold">{{ $invoice->number }}</td>
                                         <td class="px-3 py-3 font-semibold">{{ $invoice->sale?->number ?? '—' }}</td>
-                                        <td class="px-3 py-3">{{ $invoice->issued_at?->format('d/m/Y H:i') ?? '—' }}</td>
+                                        <td class="px-3 py-3">{{ $tzDate($invoice->issued_at) }}</td>
                                         <td class="px-3 py-3">{{ $invoice->due_date?->format('d/m/Y') ?? '—' }}</td>
                                         <td class="px-3 py-3">{{ $invoice->contact?->name ?? $invoice->sale?->contact?->name ?? 'Client Grand Public' }}</td>
                                         <td class="px-3 py-3"><x-status-pill :tone="$invoiceStatusTone">{{ $invoiceStatusLabel }}</x-status-pill></td>
@@ -609,7 +609,7 @@
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <div class="overflow-x-auto"><table class="w-full min-w-[960px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N° paiement</th><th class="px-3 py-3">Vente</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Méthode</th><th class="px-3 py-3 text-right">Montant</th><th class="px-3 py-3">Référence</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($salePayments as $payment)<tr><td class="px-3 py-3 font-semibold">{{ $payment->number }}</td><td class="px-3 py-3">{{ $payment->sale?->number }}</td><td class="px-3 py-3">{{ $payment->contact?->name ?? 'Client comptoir' }}</td><td class="px-3 py-3">{{ $payment->paid_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3"><x-status-pill tone="info">{{ $payment->method }}</x-status-pill></td><td class="px-3 py-3 text-right font-semibold">{{ $money($payment->amount) }}</td><td class="px-3 py-3 text-slate-500">{{ $payment->reference ?? '—' }}</td></tr>@empty<tr><td colspan="7" class="px-4 py-12 text-center text-sm text-slate-500">Aucun paiement trouvé.</td></tr>@endforelse</tbody></table></div><div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $salePayments->links() }}</div>
+                    <div class="overflow-x-auto"><table class="w-full min-w-[960px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N° paiement</th><th class="px-3 py-3">Vente</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Méthode</th><th class="px-3 py-3 text-right">Montant</th><th class="px-3 py-3">Référence</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($salePayments as $payment)<tr><td class="px-3 py-3 font-semibold">{{ $payment->number }}</td><td class="px-3 py-3">{{ $payment->sale?->number }}</td><td class="px-3 py-3">{{ $payment->contact?->name ?? 'Client comptoir' }}</td><td class="px-3 py-3">{{ $tzDate($payment->paid_at) }}</td><td class="px-3 py-3"><x-status-pill tone="info">{{ $payment->method }}</x-status-pill></td><td class="px-3 py-3 text-right font-semibold">{{ $money($payment->amount) }}</td><td class="px-3 py-3 text-slate-500">{{ $payment->reference ?? '—' }}</td></tr>@empty<tr><td colspan="7" class="px-4 py-12 text-center text-sm text-slate-500">Aucun paiement trouvé.</td></tr>@endforelse</tbody></table></div><div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $salePayments->links() }}</div>
                 </article>
             </section>
         @elseif ($salesSection === 'returns')
@@ -648,7 +648,7 @@
                                         <td class="px-3 py-3 font-semibold">{{ $return->number }}</td>
                                         <td class="px-3 py-3">{{ $return->sale?->number }}</td>
                                         <td class="px-3 py-3">{{ $return->contact?->name ?? 'Client comptoir' }}</td>
-                                        <td class="px-3 py-3">{{ $return->returned_at?->format('d/m/Y H:i') }}</td>
+                                        <td class="px-3 py-3">{{ $tzDate($return->returned_at) }}</td>
                                         <td class="px-3 py-3">{{ $return->refund_method }}</td>
                                         <td class="px-3 py-3"><x-status-pill :tone="$returnDispositionTone">{{ $returnDispositionLabel }}</x-status-pill></td>
                                         <td class="px-3 py-3"><x-status-pill :tone="$return->refund_scope === 'partial' ? 'warning' : 'info'">{{ $return->refund_scope === 'partial' ? 'Partiel' : 'Total' }}</x-status-pill></td>
@@ -891,10 +891,14 @@
                                     $saleCreatedAt = data_get($sale->metadata, 'created_by_at') ?: $sale->created_at?->toIso8601String();
                                     $saleUpdatedBy = data_get($sale->metadata, 'updated_by_name') ?: data_get($sale->metadata, 'edited_by_name') ?: '—';
                                     $saleUpdatedAt = data_get($sale->metadata, 'updated_by_at') ?: data_get($sale->metadata, 'edited_at');
-                                    $invoiceCreatedBy = $invoice ? (data_get($invoice->metadata, 'created_by_name') ?: $invoice->user?->name ?: 'Utilisateur inconnu') : null;
+                                    // Invoices generated from the app before it recorded its
+                                    // creator: name the sale's cashier, marked as such, rather
+                                    // than « Utilisateur inconnu ».
+                                    $saleCashier = $sale->actor_name_snapshot ?: $sale->user?->name;
+                                    $invoiceCreatedBy = $invoice ? (data_get($invoice->metadata, 'created_by_name') ?: $invoice->user?->name ?: ($saleCashier ? $saleCashier.' (vendeur)' : 'Utilisateur inconnu')) : null;
                                     $sourceInvoiceCreatedBy = $sourceInvoice ? ($sourceInvoice->creator?->name ?? 'Utilisateur inconnu') : null;
                                     $invoiceUpdatedBy = $invoice ? (data_get($invoice->metadata, 'updated_by_name') ?: '—') : null;
-                                    $systemNoteDate = $sale->sold_at?->format('d/m/Y H:i') ?? '—';
+                                    $systemNoteDate = $tzDate($sale->sold_at);
                                     $systemNote = data_get($sale->metadata, 'system_note')
                                         ?: 'Note système: vente '.$sale->number.' enregistrée le '.$systemNoteDate.' pour '.($sale->contact?->name ?? 'Client comptoir').', '.$sale->items->count().' ligne(s), total '.$money($sale->total_amount).', paiement '.$sale->payment_method.'.';
                                     $receiptPaid = (float) data_get($sale->metadata, 'paid_amount', $paid);
@@ -904,7 +908,7 @@
                                         'storeName' => $tenant->name,
                                         'serialNumber' => $sale->number,
                                         'ticketNumber' => $sale->number,
-                                        'date' => $sale->sold_at?->format('d/m/Y H:i') ?? now()->format('d/m/Y H:i'),
+                                        'date' => $tzDate($sale->sold_at ?? now()),
                                         'items' => $sale->items->map(fn ($line) => [
                                             'name' => $line->name,
                                             'quantity' => (float) $line->quantity,
@@ -926,7 +930,7 @@
                                 <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5">
                                     <td class="px-3 py-3"><input type="checkbox" class="rounded border-slate-300" value="{{ $sale->id }}"></td>
                                     <td class="px-3 py-3 whitespace-nowrap text-slate-500">{{ $invoiceNumber ?? '—' }}</td>
-                                    <td class="px-3 py-3 whitespace-nowrap">{{ $sale->sold_at?->format('d/m/Y H:i') }}</td>
+                                    <td class="px-3 py-3 whitespace-nowrap">{{ $tzDate($sale->sold_at) }}</td>
                                     <td class="px-3 py-3 whitespace-nowrap">
                                         @if ($displayDueDate)
                                             <span class="font-medium">{{ \Illuminate\Support\Carbon::parse($displayDueDate)->format('d/m/Y') }}</span>
@@ -1005,7 +1009,7 @@
                                                             <x-status-pill tone="info">{{ $invoiceNumber }}</x-status-pill>
                                                         @endif
                                                     </div>
-                                                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ $sale->contact?->name ?? 'Client Grand Public' }} · {{ $sale->sold_at?->format('d/m/Y H:i') }} · {{ $sale->items->count() }} ligne(s)</p>
+                                                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ $sale->contact?->name ?? 'Client Grand Public' }} · {{ $tzDate($sale->sold_at) }} · {{ $sale->items->count() }} ligne(s)</p>
                                                 </div>
                                                 <button class="dialog-close grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-lg font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button">×</button>
                                             </div>
@@ -1278,7 +1282,7 @@
                                         <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-white/10">
                                             @forelse ($sale->payments as $payment)
                                                 <div class="grid grid-cols-[1fr_110px_120px] gap-3 border-b border-slate-200 px-3 py-2 text-sm last:border-b-0 dark:border-white/10">
-                                                    <span><strong>{{ $payment->number }}</strong><small class="mt-0.5 block text-slate-500">{{ $payment->method }} · {{ $payment->paid_at?->format('d/m/Y H:i') }}</small></span>
+                                                    <span><strong>{{ $payment->number }}</strong><small class="mt-0.5 block text-slate-500">{{ $payment->method }} · {{ $tzDate($payment->paid_at) }}</small></span>
                                                     <span class="text-slate-500">{{ $payment->reference ?? '—' }}</span>
                                                     <strong class="text-right">{{ $money($payment->amount) }}</strong>
                                                 </div>
@@ -1405,7 +1409,7 @@
                                                         <h3 class="text-2xl font-semibold tracking-tight">{{ $sale->number }}</h3>
                                                         <x-status-pill tone="danger">{{ $money($sale->total_amount) }}</x-status-pill>
                                                     </div>
-                                                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ $sale->contact?->name ?? 'Client Grand Public' }} · {{ $sale->sold_at?->format('d/m/Y H:i') }} · {{ $sale->items->count() }} article(s)</p>
+                                                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{{ $sale->contact?->name ?? 'Client Grand Public' }} · {{ $tzDate($sale->sold_at) }} · {{ $sale->items->count() }} article(s)</p>
                                                 </div>
                                                 <button class="dialog-close grid size-10 shrink-0 place-items-center rounded-xl border border-slate-200 bg-white text-lg font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-600 dark:border-white/10 dark:bg-slate-950 dark:text-slate-200" type="button">×</button>
                                             </div>
@@ -1523,7 +1527,7 @@
                                                 <div class="min-w-0">
                                                     <p class="text-sm font-semibold text-brand">Ajouter une livraison</p>
                                                     <h3 class="mt-1 text-xl font-semibold">{{ $sale->number }} · {{ $money($sale->total_amount) }}</h3>
-                                                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $sale->contact?->name ?? 'Client comptoir' }} · {{ $sale->sold_at?->format('d/m/Y H:i') }}</p>
+                                                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ $sale->contact?->name ?? 'Client comptoir' }} · {{ $tzDate($sale->sold_at) }}</p>
                                                 </div>
                                                 <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
                                             </div>
@@ -1887,7 +1891,7 @@
                                     <tr class="transition hover:bg-slate-50/80 dark:hover:bg-white/5" data-row-url="{{ route('module', ['module' => 'sales', 'section' => 'list', 'detail_sale' => $invoice->sale_id, 'invoice' => $invoice->id]) }}">
                                         <td class="px-3 py-3 font-mono text-xs font-semibold">{{ $invoice->number }}</td>
                                         <td class="px-3 py-3 font-semibold">{{ $invoice->sale?->number ?? '—' }}</td>
-                                        <td class="px-3 py-3">{{ $invoice->issued_at?->format('d/m/Y H:i') ?? '—' }}</td>
+                                        <td class="px-3 py-3">{{ $tzDate($invoice->issued_at) }}</td>
                                         <td class="px-3 py-3">{{ $invoice->due_date?->format('d/m/Y') ?? '—' }}</td>
                                         <td class="px-3 py-3">{{ $invoice->contact?->name ?? $invoice->sale?->contact?->name ?? 'Client Grand Public' }}</td>
                                         <td class="px-3 py-3"><x-status-pill :tone="$invoiceStatusTone">{{ $invoiceStatusLabel }}</x-status-pill></td>
@@ -3867,15 +3871,15 @@
                                     @elseif (in_array($reportSection, ['item-sales', 'sales-summary', 'sales-tax', 'gstr-1', 'sales-gst'], true))
                                         <tr><td class="px-3 py-3 font-semibold">{{ $row['name'] }}</td><td class="px-3 py-3 text-right">{{ number_format($row['quantity'], 0, ',', ' ') }}</td><td class="px-3 py-3 text-right">{{ $money($row['revenue']) }}</td><td class="px-3 py-3 text-right">{{ $money($row['cost'] ?? 0) }}</td><td class="px-3 py-3 text-right font-semibold">{{ $money(($row['revenue'] ?? 0) - ($row['cost'] ?? 0)) }}</td></tr>
                                     @elseif (in_array($reportSection, ['sales-payments', 'sales-payments-list'], true))
-                                        <tr><td class="px-3 py-3 font-semibold">{{ $row->number }}</td><td class="px-3 py-3">{{ $row->paid_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3">{{ $row->sale?->number ?? '—' }}</td><td class="px-3 py-3">{{ $row->contact?->name ?? 'Client comptoir' }}</td><td class="px-3 py-3">{{ $row->method }}</td><td class="px-3 py-3 text-right font-semibold">{{ $money($row->amount) }}</td></tr>
+                                        <tr><td class="px-3 py-3 font-semibold">{{ $row->number }}</td><td class="px-3 py-3">{{ $tzDate($row->paid_at) }}</td><td class="px-3 py-3">{{ $row->sale?->number ?? '—' }}</td><td class="px-3 py-3">{{ $row->contact?->name ?? 'Client comptoir' }}</td><td class="px-3 py-3">{{ $row->method }}</td><td class="px-3 py-3 text-right font-semibold">{{ $money($row->amount) }}</td></tr>
                                     @elseif (str_contains($reportSection, 'purchase'))
                                         <tr><td class="px-3 py-3 font-semibold">{{ $row->number }}</td><td class="px-3 py-3">{{ ($row->ordered_at ?? $row->returned_at)?->format('d/m/Y') }}</td><td class="px-3 py-3">{{ $row->supplier?->name ?? '—' }}</td><td class="px-3 py-3"><x-status-pill tone="info">{{ $row->status }}</x-status-pill></td><td class="px-3 py-3 text-right font-semibold">{{ $money($row->total_amount) }}</td></tr>
                                     @elseif (in_array($reportSection, ['expenses'], true))
                                         <tr><td class="px-3 py-3 font-semibold">{{ $row->number }}</td><td class="px-3 py-3">{{ $row->spent_at?->format('d/m/Y') }}</td><td class="px-3 py-3">{{ $row->label }}</td><td class="px-3 py-3">@php $repCat = $expenseCategories->firstWhere('name', $row->category) @endphp@if($repCat && $repCat->color)<span class="inline-block size-2.5 rounded-full align-middle" style="background: {{ $repCat->color }}"></span> @endif{{ $row->category }}</td><td class="px-3 py-3">{{ $row->payment_method }}</td><td class="px-3 py-3 text-right font-semibold">{{ $money($row->amount) }}</td></tr>
                                     @elseif (in_array($reportSection, ['sales-return', 'return-items', 'sales-return-payments'], true))
-                                        <tr><td class="px-3 py-3 font-semibold">{{ $row->number }}</td><td class="px-3 py-3">{{ $row->returned_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3">{{ $row->contact?->name ?? $row->sale?->contact?->name ?? 'Client comptoir' }}</td><td class="px-3 py-3">{{ $row->refund_method }}</td><td class="px-3 py-3"><x-status-pill :tone="$row->restock ? 'success' : 'warning'">{{ $row->restock ? 'Restocké' : 'Sans restock' }}</x-status-pill></td><td class="px-3 py-3 text-right font-semibold">{{ $money($row->total_amount) }}</td></tr>
+                                        <tr><td class="px-3 py-3 font-semibold">{{ $row->number }}</td><td class="px-3 py-3">{{ $tzDate($row->returned_at) }}</td><td class="px-3 py-3">{{ $row->contact?->name ?? $row->sale?->contact?->name ?? 'Client comptoir' }}</td><td class="px-3 py-3">{{ $row->refund_method }}</td><td class="px-3 py-3"><x-status-pill :tone="$row->restock ? 'success' : 'warning'">{{ $row->restock ? 'Restocké' : 'Sans restock' }}</x-status-pill></td><td class="px-3 py-3 text-right font-semibold">{{ $money($row->total_amount) }}</td></tr>
                                     @else
-                                        <tr><td class="px-3 py-3 font-semibold">{{ $row->number }}</td><td class="px-3 py-3">{{ $row->sold_at?->format('d/m/Y H:i') }}</td><td class="px-3 py-3">{{ $row->contact?->name ?? 'Client comptoir' }}</td><td class="px-3 py-3">{{ $row->payment_method }}</td><td class="px-3 py-3"><x-status-pill tone="info">{{ $row->status }}</x-status-pill></td><td class="px-3 py-3 text-right font-semibold">{{ $money($row->total_amount) }}</td></tr>
+                                        <tr><td class="px-3 py-3 font-semibold">{{ $row->number }}</td><td class="px-3 py-3">{{ $tzDate($row->sold_at) }}</td><td class="px-3 py-3">{{ $row->contact?->name ?? 'Client comptoir' }}</td><td class="px-3 py-3">{{ $row->payment_method }}</td><td class="px-3 py-3"><x-status-pill tone="info">{{ $row->status }}</x-status-pill></td><td class="px-3 py-3 text-right font-semibold">{{ $money($row->total_amount) }}</td></tr>
                                     @endif
                                 @empty
                                     <tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucune donnée pour ce rapport.</td></tr>
