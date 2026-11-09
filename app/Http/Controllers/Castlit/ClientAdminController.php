@@ -143,12 +143,11 @@ class ClientAdminController extends Controller
             'do'      => ['required', 'in:update,clear-cache,disable,enable,paid,unpaid,regenerate-code,activity'],
         ]);
 
-        // « Actualiser » the whole column: install 0 means every space. Asked
-        // after the response, so the page does not wait on each space.
+        // « Actualiser » the whole column: install 0 means every space.
         if ($data['do'] === 'activity' && (int) $data['install'] === 0) {
-            dispatch(fn () => \App\Support\ClientActivity::collectAll())->afterResponse();
+            \App\Jobs\CollectClientActivityJob::dispatch();
 
-            return back()->with('success', 'Activité des espaces en cours d’actualisation : rechargez la page dans une minute.');
+            return back()->with('success', 'Activité de tous les espaces demandée : le worker répond sous une minute (actualisez la page).');
         }
 
         $install = TenantInstall::find((int) $data['install']);
@@ -168,12 +167,15 @@ class ClientAdminController extends Controller
         };
     }
 
-    /** Ask one space right now what it last did. */
+    /**
+     * Ask one space what it last did. Through the worker: running the space's
+     * artisan needs proc_open, which the host's web process does not have.
+     */
     public function refreshActivity(TenantInstall $install): RedirectResponse
     {
-        return \App\Support\ClientActivity::collect($install)
-            ? back()->with('success', "Activité de « {$install->domain} » actualisée.")
-            : back()->with('error', "« {$install->domain} » n’a pas répondu : {$install->activity_error}");
+        \App\Jobs\CollectClientActivityJob::dispatch($install->id);
+
+        return back()->with('success', "Activité de « {$install->domain} » demandée : le worker répond sous une minute (actualisez la page).");
     }
 
     /**

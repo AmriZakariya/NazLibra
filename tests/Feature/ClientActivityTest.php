@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\CollectClientActivityJob;
 use App\Models\Subscription;
 use App\Models\TenantInstall;
 use App\Models\User;
@@ -9,6 +10,7 @@ use App\Support\ClientActivity;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Queue;
 use Tests\Concerns\ActsAsMasterInstall;
 use Tests\TestCase;
 
@@ -123,16 +125,28 @@ class ClientActivityTest extends TestCase
         $this->assertSame($sortedPositions, $positions, 'never seen, then the longest quiet, first');
     }
 
-    public function test_one_space_can_be_checked_now_from_the_list(): void
+    public function test_refresh_goes_through_the_worker_since_the_web_process_cannot_run_a_space(): void
     {
         $install = $this->space(json_encode(['status' => 'success', 'at' => null, 'last' => null]));
         $admin = User::factory()->create(['is_platform_admin' => true]);
+        Queue::fake();
 
+        // The host's web PHP has no proc_open: the request itself must not run the space.
         $this->actingAs($admin)
             ->post('/castlit-admin/clients/op', ['install' => $install->id, 'do' => 'activity'])
             ->assertSessionHas('success');
+        $this->actingAs($admin)
+            ->post('/castlit-admin/clients/op', ['install' => 0, 'do' => 'activity'])
+            ->assertSessionHas('success');
 
+        $this->assertNull($install->fresh()->activity_checked_at);
+        Queue::assertPushed(CollectClientActivityJob::class, fn ($job) => $job->installId === $install->id);
+        Queue::assertPushed(CollectClientActivityJob::class, fn ($job) => $job->installId === null);
+
+        // And the worker, which can, does.
+        (new CollectClientActivityJob($install->id))->handle();
         $this->assertNotNull($install->fresh()->activity_checked_at);
+        $this->assertNull($install->fresh()->activity_error);
     }
 
     public function test_the_per_client_buttons_reach_their_action_and_a_stray_get_still_lands_on_the_list(): void
