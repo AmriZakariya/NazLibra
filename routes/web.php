@@ -85,7 +85,11 @@ if (config('castlit.is_master')) {
             Route::get('/journaux', [\App\Http\Controllers\Castlit\DeviceReportAdminController::class, 'index'])->name('logs');
             Route::get('/journaux/{report:reference}', [\App\Http\Controllers\Castlit\DeviceReportAdminController::class, 'show'])->name('logs.show');
             Route::get('/journaux/{report:reference}/telecharger', [\App\Http\Controllers\Castlit\DeviceReportAdminController::class, 'download'])->name('logs.download');
-            Route::redirect('/clients/op', '/castlit-admin/clients');
+            // GET only: Route::redirect() answers EVERY verb, and registered
+            // after the POST above it replaced it — each per-client button
+            // only reloaded the list.
+            Route::get('/clients/op', \Illuminate\Routing\RedirectController::class)
+                ->defaults('destination', '/castlit-admin/clients')->defaults('status', 302);
             Route::get('/{subscription}', [SubscriptionAdminController::class, 'show'])->name('show');
             Route::post('/{subscription}/approuver', [SubscriptionAdminController::class, 'approve'])->name('approve');
             Route::post('/{subscription}/rejeter', [SubscriptionAdminController::class, 'reject'])->name('reject');
