@@ -63,6 +63,33 @@ class SupportController extends Controller
         ], 201);
     }
 
+    /**
+     * POST /api/v1/support/conversations/join — a logged-in device of a shop
+     * (its identity signed by the shop's server) gets the shop's conversation,
+     * so a message from the team reaches whichever device opens next.
+     */
+    public function join(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'identity.subdomain' => ['required', 'string', 'max:63'],
+            'identity.payload' => ['required', 'string', 'max:2000'],
+            'identity.signature' => ['required', 'string', 'max:128'],
+        ]);
+        [$install] = $this->identity($data['identity']);
+        if (! $install) {
+            return response()->json(['ok' => false, 'message' => 'Identité invalide.'], 403);
+        }
+
+        $conversation = SupportChat::shopThread($install);
+
+        return response()->json($conversation ? [
+            'ok' => true,
+            'conversation_id' => $conversation->public_id,
+            'token' => SupportChat::shopKey($conversation),
+            'unread' => $conversation->unreadFor('client'),
+        ] : ['ok' => true, 'conversation_id' => null]);
+    }
+
     /** POST /api/v1/support/conversations/{id}/identify — a visitor who has since logged in. */
     public function identify(Request $request, string $id): JsonResponse
     {

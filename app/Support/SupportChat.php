@@ -67,17 +67,68 @@ class SupportChat
         return [$conversation, $secret];
     }
 
-    /** The conversation for [$publicId] when [$secret] is its own; null otherwise. */
+    /**
+     * The conversation for [$publicId] when [$secret] opens it: the secret of
+     * the device that started it, or the shop key any of the shop's logged-in
+     * devices is given by [join]. Null otherwise.
+     */
     public static function find(string $publicId, ?string $secret): ?SupportConversation
     {
         if (! $secret || ! Str::isUuid($publicId)) {
             return null;
         }
         $conversation = SupportConversation::where('public_id', $publicId)->first();
+        if (! $conversation) {
+            return null;
+        }
 
-        return $conversation && hash_equals($conversation->token_hash, hash('sha256', $secret))
-            ? $conversation
-            : null;
+        $ownSecret = hash_equals($conversation->token_hash, hash('sha256', $secret));
+        $shopKey = $conversation->tenant_install_id !== null
+            && hash_equals(self::shopKey($conversation), $secret);
+
+        return $ownSecret || $shopKey ? $conversation : null;
+    }
+
+    /**
+     * What opens a shop's conversation on every one of its logged-in devices.
+     * Derived, never stored: only [join] hands it out, after the shop's own
+     * server has vouched for the device.
+     */
+    public static function shopKey(SupportConversation $conversation): string
+    {
+        return hash_hmac('sha256', 'support-shop:'.$conversation->public_id.':'.$conversation->tenant_install_id, (string) config('app.key'));
+    }
+
+    /** The shop's conversation: the one most recently written in. */
+    public static function shopThread(TenantInstall $install): ?SupportConversation
+    {
+        return SupportConversation::where('tenant_install_id', $install->id)
+            ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
+     * The team writes to a shop first: into its conversation, or a new one
+     * that its devices will join.
+     */
+    public static function writeToShop(TenantInstall $install, string $body, ?string $author): SupportMessage
+    {
+        $conversation = self::shopThread($install);
+        if (! $conversation) {
+            [$conversation] = self::start([
+                'name' => $install->subscription?->business_name ?: $install->subdomain,
+                'email' => $install->owner_email ?: $install->subscription?->email,
+                'phone' => $install->subscription?->phone,
+                'channel' => 'support',
+            ], $install);
+        }
+
+        $message = self::post($conversation, 'support', $body, null, null, $author);
+        // The team wrote it: nothing of theirs is left unread.
+        self::markRead($conversation, 'support');
+
+        return $message;
     }
 
     public static function post(

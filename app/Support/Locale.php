@@ -54,6 +54,8 @@ class Locale
     public static function arabic(): array
     {
         return [
+            'Contacter le support' => 'التواصل مع الدعم',
+            'Support' => 'الدعم',
             'Tableau de bord' => 'لوحة التحكم',
             'Module' => 'الوحدة',
             'Sous-module' => 'قسم فرعي',

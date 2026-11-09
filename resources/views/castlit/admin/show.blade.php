@@ -25,6 +25,19 @@
     .card-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .code-big { font-size: 16px; font-weight: 800; letter-spacing: 2px; }
     .hint { display: block; color: var(--muted); font-size: 12px; font-weight: 500; margin-top: 3px; }
+    .sup-write { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; }
+    .sup-label { font-size: 13px; font-weight: 700; }
+    .sup-write textarea { font: inherit; font-size: 14px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--sand); background: var(--surface); color: var(--ink); resize: vertical; }
+    .sup-write textarea:focus { outline: none; border-color: var(--brand); }
+    .sup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .sup-err { color: var(--err); font-size: 12px; font-weight: 600; }
+    .sup-unread { font-size: 11px; font-weight: 800; text-transform: none; letter-spacing: 0; color: #fff; background: var(--err); padding: 2px 8px; border-radius: 999px; }
+    .sup-list { margin-top: 14px; border-top: 1px solid var(--sand); }
+    .sup-row { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--sand) 55%, transparent); text-decoration: none; color: var(--ink); }
+    .sup-row:hover .sup-preview { color: var(--brand); }
+    .sup-preview { font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+    .sup-meta { font-size: 12px; color: var(--muted); }
+    .sup-badge { display: inline-block; min-width: 18px; text-align: center; color: #fff; background: var(--err); border-radius: 999px; padding: 0 5px; font-size: 11px; }
     .acc-group { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--brand); padding: 14px 0 2px; }
     .acc-sum { font-size: 14px; line-height: 1.6; margin: 8px 0 12px; }
     .acc-never { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
@@ -242,6 +255,60 @@
                             }
                         });
                     </script>
+
+                    {{-- Reaching the client: in their own chat (back office and app
+                         join the shop's conversation and show a badge), or right
+                         now on WhatsApp / by email. --}}
+                    @php
+                        $waDigits = preg_replace('/\D+/', '', (string) $subscription->phone);
+                        $hello = 'Bonjour '.($subscription->contact_name ?: '').", ici l’équipe Castl-it-POS. ";
+                        $mailTo = $inst->owner_email ?: $subscription->email;
+                    @endphp
+                    <div class="card" id="support" data-support-card>
+                        <h2 class="card-h">Support
+                            @if ($conversations->sum('unread_count') > 0)
+                                <span class="sup-unread">{{ $conversations->sum('unread_count') }} non lu{{ $conversations->sum('unread_count') > 1 ? 's' : '' }}</span>
+                            @endif
+                        </h2>
+                        <div class="body">
+                            <form method="POST" action="{{ route('castlit.admin.support.write', $subscription) }}" class="sup-write">
+                                @csrf
+                                <label for="sup-body" class="sup-label">Écrire à ce client</label>
+                                <textarea id="sup-body" name="body" rows="3" maxlength="4000" required
+                                          placeholder="Ex. : Bonjour, avez-vous pu imprimer vos tickets ?">{{ old('body') }}</textarea>
+                                @error('body')<span class="sup-err">{{ $message }}</span>@enderror
+                                <div class="sup-actions">
+                                    <button class="btn btn-primary" type="submit" style="padding:9px 16px">Envoyer dans son chat</button>
+                                    @if (strlen($waDigits) >= 8)
+                                        <a class="btn btn-ghost" style="padding:9px 14px" target="_blank" rel="noopener" data-support-whatsapp
+                                           href="https://wa.me/{{ $waDigits }}?text={{ rawurlencode($hello) }}">WhatsApp</a>
+                                    @endif
+                                    @if ($mailTo)
+                                        <a class="btn btn-ghost" style="padding:9px 14px" data-support-mail
+                                           href="mailto:{{ $mailTo }}?subject={{ rawurlencode('Castl-it-POS — '.$subscription->business_name) }}">Email</a>
+                                    @endif
+                                </div>
+                                <small class="hint">Il le verra dans « Contacter le support », avec un badge, dès qu’il ouvre son back-office ou l’application.</small>
+                            </form>
+
+                            @if ($conversations->isNotEmpty())
+                                <div class="sup-list">
+                                    @foreach ($conversations as $c)
+                                        <a class="sup-row" href="{{ route('castlit.admin.support', ['c' => $c->id]) }}" data-conversation="{{ $c->id }}">
+                                            <span class="sup-preview">{{ $c->last_message_preview ?: 'Conversation ouverte' }}</span>
+                                            <span class="sup-meta">
+                                                {{ ($c->last_message_at ?? $c->created_at)->locale('fr')->diffForHumans() }}
+                                                @if ($c->unread_count > 0)<b class="sup-badge">{{ $c->unread_count }}</b>@endif
+                                                · Ouvrir →
+                                            </span>
+                                        </a>
+                                    @endforeach
+                                </div>
+                            @else
+                                <p class="hint" style="margin-top:10px">Aucune conversation pour l’instant.</p>
+                            @endif
+                        </div>
+                    </div>
 
                     {{-- Every time the verification code was entered, right or
                          wrong: proof the client reached their space, and from

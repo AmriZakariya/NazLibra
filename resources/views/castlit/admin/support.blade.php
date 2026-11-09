@@ -113,7 +113,7 @@
                             @if ($c->unread_count)<span class="count">{{ $c->unread_count }}</span>@endif
                             <span class="meta">
                                 @if ($c->install)<span class="tag">{{ $c->install->subdomain }}</span>@else<span class="tag guest">Visiteur</span>@endif
-                                <span class="tag">{{ $c->channel === 'app' ? 'Application' : 'Site' }}</span>
+                                <span class="tag">{{ match ($c->channel) { 'app' => 'Application', 'support' => 'Par l’équipe', default => 'Site' } }}</span>
                                 @if ($c->status === 'closed')<span class="tag closed">Fermée</span>@endif
                             </span>
                         </a>
@@ -138,7 +138,7 @@
                                 @if ($selected->install)<a href="https://{{ $selected->install->domain }}" target="_blank" rel="noopener">{{ $selected->install->domain }}</a>@else<span>Visiteur non client</span>@endif
                                 @if ($selected->phone)<span>{{ $selected->phone }}</span>@endif
                                 @if ($selected->email)<a href="mailto:{{ $selected->email }}">{{ $selected->email }}</a>@endif
-                                <span>{{ $selected->channel === 'app' ? 'Application' : 'Site web' }}@if ($selected->platform) · {{ $selected->platform }}@endif @if ($selected->app_version) · v{{ $selected->app_version }}@endif</span>
+                                <span>{{ match ($selected->channel) { 'app' => 'Application', 'support' => 'Ouverte par l’équipe', default => 'Site web' } }}@if ($selected->platform) · {{ $selected->platform }}@endif @if ($selected->app_version) · v{{ $selected->app_version }}@endif</span>
                             </div>
                         </div>
                         <div class="tools">

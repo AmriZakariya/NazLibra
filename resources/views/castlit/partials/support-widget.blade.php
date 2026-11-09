@@ -119,8 +119,8 @@
     const identity = @json($supportIdentity);
     const userName = @json($supportUser);
     const text = @json($supportText);
-    // One thread per space and per person on a shared computer.
-    const key = 'castlit-support' + (identity ? ':' + identity.subdomain + ':' + (userName || '') : '');
+    // One thread per space: every logged-in device of the shop joins it.
+    const key = 'castlit-support' + (identity ? ':' + identity.subdomain : '');
     const $ = (id) => document.getElementById(id);
     const panel = $('sw-panel'), bubble = $('sw-bubble'), dot = $('sw-dot');
     const startForm = $('sw-start'), body = $('sw-body'), compose = $('sw-compose'), input = $('sw-text'), file = $('sw-file'), status = $('sw-status');
@@ -182,10 +182,33 @@
         schedule();
     }
 
+    /**
+     * A logged-in shop joins its conversation — the one the team may have
+     * written in first — rather than keeping one of its own.
+     */
+    async function join() {
+        if (!identity) return false;
+        try {
+            const res = await fetch(`${api}/join`, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ identity }) });
+            if (!res.ok) return false;
+            const data = await res.json();
+            if (!data.conversation_id) return false;
+            if (session?.id !== data.conversation_id) {
+                session = { id: data.conversation_id, token: data.token };
+                lastId = 0;
+                body.replaceChildren();
+                try { localStorage.setItem(key, JSON.stringify(session)); } catch {}
+            }
+            return true;
+        } catch { return false; }
+    }
+
     /** A logged-in shop: its first message opens the conversation. */
     async function ensureSession() {
         if (session) return true;
         if (!identity) return false;
+        if (await join()) return true;
         try {
             const res = await fetch(api, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: userName || identity.subdomain, channel: 'web', platform: 'web', locale: document.documentElement.lang, identity }) });
@@ -281,7 +304,20 @@
         } catch { status.textContent = text.micDenied; }
     };
 
-    // A visitor who already wrote: their badge, even with the panel closed.
-    if (session) { refresh(); schedule(); }
+    // « Contacter le support » buttons elsewhere on the page open this chat.
+    window.CastlitSupport = { open: () => toggle(true) };
+    document.addEventListener('click', (e) => {
+        const trigger = e.target.closest('[data-open-support]');
+        if (!trigger) return;
+        e.preventDefault();
+        toggle(true);
+    });
+
+    // The badge, even with the panel closed: for a shop, whatever the team
+    // wrote in its conversation; for a visitor, replies to theirs.
+    (async () => {
+        if (identity) await join();
+        if (session) { refresh(); schedule(); }
+    })();
 })();
 </script>

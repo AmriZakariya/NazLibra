@@ -67,6 +67,8 @@ Route::prefix('v1')->group(function (): void {
     if (config('castlit.is_master')) {
         Route::prefix('support/conversations')->controller(\App\Http\Controllers\Api\SupportController::class)->group(function (): void {
             Route::post('/', 'start')->middleware('throttle:6,1');
+            // Before {id}: a logged-in shop's devices share its conversation.
+            Route::post('join', 'join')->middleware('throttle:30,1');
             Route::get('{id}', 'show')->middleware('throttle:60,1');
             Route::post('{id}/identify', 'identify')->middleware('throttle:10,1');
             Route::post('{id}/messages', 'post')->middleware('throttle:20,1');

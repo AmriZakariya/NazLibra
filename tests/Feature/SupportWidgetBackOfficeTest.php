@@ -31,6 +31,13 @@ class SupportWidgetBackOfficeTest extends TestCase
         $this->assertSame('spaparis', $identity['subdomain']);
         $this->assertSame(hash_hmac('sha256', $identity['payload'], (string) config('app.key')), $identity['signature']);
         $this->assertSame(Tenant::first()->name, json_decode(base64_decode($identity['payload']), true)['shop']);
+
+        // « Contacter le support » in the top bar and the side menu open the same chat.
+        $this->assertStringContainsString('data-support-topbar', $page);
+        $this->assertStringContainsString('data-support-menu-link', $page);
+        $this->assertStringContainsString("closest('[data-open-support]')", $page);
+        // The shop joins its conversation, where the team may have written first.
+        $this->assertStringContainsString('${api}/join', $page);
     }
 
     public function test_the_till_page_has_no_bubble_over_the_cashiers_buttons(): void

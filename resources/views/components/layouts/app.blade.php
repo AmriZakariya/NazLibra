@@ -419,6 +419,10 @@
             ];
         @endphp
 
+        @php
+            // Where the chat with the Castl-it-POS team exists (see the include below).
+            $supportReachable = ! config('castlit.is_master') && auth()->check() && ! request()->routeIs('pos', 'pos.*');
+        @endphp
         <div class="flex min-h-screen">
             <div class="app-nav-backdrop" data-nav-backdrop aria-hidden="true"></div>
             <div class="app-sidebar-peek-zone" data-sidebar-peek></div>
@@ -480,6 +484,15 @@
                         @endif
                     @endforeach
                 </nav>
+
+                @if ($supportReachable)
+                    <div class="px-3 pb-2">
+                        <button type="button" class="sidebar-link group w-full" title="{{ $tr('Contacter le support') }}" data-open-support data-support-menu-link>
+                            <span class="sidebar-icon" data-initial="S">💬</span>
+                            <span class="sidebar-label truncate">{{ $tr('Contacter le support') }}</span>
+                        </button>
+                    </div>
+                @endif
 
                 @php $deployedSha = \App\Support\AppVersion::shortSha(); @endphp
                 <div class="sidebar-release m-3 mt-0">
@@ -606,6 +619,12 @@
                                         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
                                         {{ $tr('Menu') }}
                                     </button>
+                                    @if ($supportReachable)
+                                        <button class="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="button" data-open-support>
+                                            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                            {{ $tr('Contacter le support') }}
+                                        </button>
+                                    @endif
                                     <button class="app-fullscreen-toggle w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="button" data-fullscreen-toggle>
                                         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
                                         <span class="fullscreen-label">{{ $tr('Plein écran') }}</span>
@@ -650,6 +669,12 @@
 
                         {{-- Individual buttons (large screens) --}}
                         <div class="hidden lg:flex items-center gap-2">
+                            @if ($supportReachable)
+                                <button class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:border-brand/40 hover:bg-slate-50 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" title="{{ $tr('Contacter le support') }}" data-open-support data-support-topbar>
+                                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                    <span>{{ $tr('Support') }}</span>
+                                </button>
+                            @endif
                             <button class="app-sidebar-nav-toggle grid size-11 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:bg-slate-50 hover:text-brand dark:border-white/10 dark:bg-white/5 dark:text-slate-200" type="button" aria-label="{{ $tr('Afficher le menu') }}" title="{{ $tr('Afficher le menu') }}" data-sidebar-nav-toggle>
                                 <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
                             </button>
@@ -867,7 +892,7 @@
         {{-- "Contacter le support": the chat with the Castl-it-POS team, held on
              castlitpos.com. Not on the till itself, where a floating button would
              sit on the cashier's buttons; nor on the master, which IS the team. --}}
-        @if (! config('castlit.is_master') && auth()->check() && ! request()->routeIs('pos', 'pos.*'))
+        @if ($supportReachable)
             @include('castlit.partials.support-widget', [
                 'supportApi' => 'https://'.config('castlit.main_domain').'/api/v1/support/conversations',
                 'supportIdentity' => \App\Support\SupportChat::signIdentity($tenant->name, auth()->user()->name, auth()->user()->email),

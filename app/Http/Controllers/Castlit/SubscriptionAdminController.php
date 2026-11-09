@@ -67,7 +67,33 @@ class SubscriptionAdminController extends Controller
             'accessEvents' => $installId
                 ? ClientAccessEvent::where('tenant_install_id', $installId)->latest('id')->limit(100)->get()
                 : collect(),
+            // The shop's conversations with the team, newest first.
+            'conversations' => $installId
+                ? \App\Models\SupportConversation::where('tenant_install_id', $installId)
+                    ->withCount(['messages as unread_count' => fn ($q) => $q->where('sender', 'client')->whereNull('read_at')])
+                    ->orderByRaw('COALESCE(last_message_at, created_at) DESC')
+                    ->limit(10)->get()
+                : collect(),
         ]);
+    }
+
+    /**
+     * « Écrire à ce client »: into the shop's conversation, which every one of
+     * its logged-in devices (back office, app) joins and shows with a badge.
+     */
+    public function writeSupport(Request $request, Subscription $subscription): RedirectResponse
+    {
+        $install = $subscription->install;
+        if (! $install) {
+            return back()->with('error', 'Ce client n’a pas encore d’espace.');
+        }
+        $data = $request->validate(['body' => ['required', 'string', 'max:4000']], [], ['body' => 'message']);
+
+        $message = \App\Support\SupportChat::writeToShop($install, $data['body'], $request->user()?->name);
+
+        return redirect()->route('castlit.admin.show', $subscription)
+            ->with('success', 'Message envoyé : il s’affichera dans le chat support de « '.$install->domain.' » (back-office et application).')
+            ->with('support_written', $message->conversation_id);
     }
 
     /**
