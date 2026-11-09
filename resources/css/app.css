@@ -6977,12 +6977,15 @@
     }
 }
 
-@media print {
-    @page {
-        margin: 0;
-        size: 80mm auto;
-    }
+/* Every page prints on A4. The 80 mm receipt format is added by app.js only
+   while a receipt prints (thermal-print-mode): set here, it squeezed every
+   report and list onto a receipt-width page and cut it on the left. */
+@page {
+    size: A4 portrait;
+    margin: 12mm;
+}
 
+@media print {
     body {
         background: white !important;
     }
@@ -7697,3 +7700,148 @@
 .pos-held-age.is-late { background: #fff1f2; color: #be123c; }
 .dark .pos-held-age.is-waiting { background: rgb(120 53 15 / 34%); color: #fbbf24; }
 .dark .pos-held-age.is-late { background: rgb(190 18 60 / 26%); color: #fda4af; }
+
+/* ── Back-office printing ────────────────────────────────────────────────────
+   What « Imprimer / PDF » gives: the page's content on A4, without the app
+   around it (menus, top bar, filters, buttons, support bubble), black on
+   white, tables whole. `.print-only` shows only on paper (report header);
+   `.print-hide` only on screen. */
+.print-only {
+    display: none;
+}
+
+@media print {
+    html,
+    body,
+    body > div,
+    .app-main-shell,
+    .app-page-content {
+        background: #fff !important;
+        color: #0f172a !important;
+    }
+
+    .app-sidebar,
+    .app-sidebar-peek-zone,
+    .app-nav-backdrop,
+    .app-topbar,
+    .sw-root,
+    .print-hide,
+    dialog:not([open]) {
+        display: none !important;
+    }
+
+    .print-only {
+        display: block !important;
+    }
+
+    .app-main-shell,
+    .app-main-shell > * {
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
+    .app-main-shell .overflow-x-auto,
+    .app-main-shell .overflow-y-auto,
+    .app-main-shell .overflow-hidden {
+        overflow: visible !important;
+        max-height: none !important;
+    }
+
+    .app-main-shell article,
+    .app-main-shell .shadow-sm,
+    .app-main-shell .shadow-xl {
+        box-shadow: none !important;
+        background: #fff !important;
+    }
+
+    .app-main-shell [class*="bg-slate-50"],
+    .app-main-shell [class*="bg-white/"] {
+        background: transparent !important;
+    }
+
+    .app-main-shell table {
+        width: 100% !important;
+        min-width: 0 !important;
+        border-collapse: collapse;
+        font-size: 10.5px;
+    }
+
+    .app-main-shell th,
+    .app-main-shell td {
+        padding: 5px 6px !important;
+    }
+
+    .app-main-shell thead {
+        display: table-header-group;
+    }
+
+    .app-main-shell tr,
+    .app-main-shell article {
+        break-inside: avoid;
+    }
+
+    /* Reports: a header, the totals in one row, then the table. */
+    .report-print-head {
+        border-bottom: 1.5px solid #0f172a;
+        margin: 0 0 10px;
+        padding: 0 0 8px;
+    }
+
+    .report-print-head h1 {
+        font-size: 18px;
+        font-weight: 800;
+        margin: 2px 0 4px;
+    }
+
+    .report-print-head p {
+        color: #334155;
+        font-size: 11px;
+        margin: 0;
+    }
+
+    .report-print-head .report-print-shop {
+        color: #0f172a;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .report-kpis {
+        display: grid !important;
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        gap: 6px !important;
+        margin-bottom: 10px;
+    }
+
+    .report-kpis > article {
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 6px !important;
+        padding: 6px 8px !important;
+    }
+
+    .report-kpis > article p {
+        font-size: 14px !important;
+        margin-top: 2px !important;
+    }
+
+    .report-kpis > article p ~ p,
+    .report-kpis > article p ~ small {
+        font-size: 9.5px !important;
+        color: #475569 !important;
+    }
+
+    .report-kpis > article span,
+    .report-kpis > article small {
+        font-size: 9px !important;
+    }
+
+    .report-section {
+        margin-top: 0 !important;
+    }
+
+    .report-section > * + * {
+        margin-top: 8px !important;
+    }
+}

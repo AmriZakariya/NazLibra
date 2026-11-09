@@ -3895,10 +3895,16 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                     console.error('Hardware print error:', error);
                 }
             }
+            // The receipt's 80 mm page exists only for this print: every
+            // other print (reports, lists) stays on A4.
+            const receiptPage = document.createElement('style');
+            receiptPage.textContent = '@page { size: 80mm auto; margin: 0; }';
+            document.head.appendChild(receiptPage);
             document.body.classList.add('thermal-print-mode');
             window.print();
             window.setTimeout(() => {
                 document.body.classList.remove('thermal-print-mode');
+                receiptPage.remove();
                 scheduleFullscreenRestore(120);
             }, 500);
         });

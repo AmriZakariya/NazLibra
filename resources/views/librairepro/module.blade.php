@@ -8,13 +8,13 @@
 @endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" :title="$pageTitle">
-    <section class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <section class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between {{ $module === 'reports' ? 'print-hide' : '' }}">
         <div>
             <p class="text-sm font-medium text-indigo-600 dark:text-indigo-300">Module</p>
             <h1 class="mt-1 text-2xl font-semibold tracking-normal">{{ $meta['title'] }}</h1>
             <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">{{ $meta['subtitle'] }}</p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2 print-hide">
             <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Exporter</button>
             @if ($module === 'sales')
                 <a href="{{ route('pos') }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Ajouter vente</a>
@@ -3780,7 +3780,7 @@
                 default => $reportContext['sales'],
             };
         @endphp
-        <details class="app-collapsible-menu mt-6" data-collapsible-menu data-menu-key="module-reports-menu">
+        <details class="app-collapsible-menu mt-6 print-hide" data-collapsible-menu data-menu-key="module-reports-menu">
             <summary class="app-collapsible-menu-summary">
                 <span><strong>Menu rapports</strong><small>{{ $reportTabs[$reportSection] ?? 'Rapports' }}</small></span>
                 <em data-collapsible-menu-state>Afficher</em>
@@ -3792,8 +3792,23 @@
             </nav>
         </details>
 
-        <section class="mt-6 space-y-5">
-            <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+        @php
+            $reportClient = request('customer_id') ? $reportContext['clients']->firstWhere('id', (int) request('customer_id')) : null;
+        @endphp
+        <section class="mt-6 space-y-5 report-section">
+            {{-- On paper only: what this is, for whom, over which days. --}}
+            <header class="report-print-head print-only" data-report-print-head>
+                <p class="report-print-shop">{{ $tenant->name }}</p>
+                <h1>{{ $reportTabs[$reportSection] ?? 'Rapport' }}</h1>
+                <p>
+                    Période : du {{ \Illuminate\Support\Carbon::parse($reportContext['from'])->format('d/m/Y') }}
+                    au {{ \Illuminate\Support\Carbon::parse($reportContext['to'])->format('d/m/Y') }}
+                    @if ($reportClient) · Client : {{ $reportClient->name }}@endif
+                    @if (request('q')) · Recherche : « {{ request('q') }} »@endif
+                </p>
+                <p>Imprimé le {{ \App\Support\TenantClock::currentTimeLabel($tenant) }}</p>
+            </header>
+            <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03] print-hide">
                 <div class="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div>
                         <p class="text-sm font-semibold text-brand">Rapports</p>
@@ -3820,7 +3835,7 @@
                 </form>
             </article>
 
-            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4 report-kpis">
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Ventes nettes</span><p class="mt-2 text-2xl font-semibold">{{ $money($summary['net_revenue']) }}</p><p class="mt-1 text-xs text-slate-500">Brut {{ $money($summary['gross_revenue']) }} - retours {{ $money($summary['returns']) }}</p></article>
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Coût articles</span><p class="mt-2 text-2xl font-semibold">{{ $money($summary['purchase_cost']) }}</p><p class="mt-1 text-xs text-slate-500">Basé sur prix d'achat catalogue</p></article>
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Dépenses</span><p class="mt-2 text-2xl font-semibold text-rose-600">{{ $money($summary['expenses']) }}</p><p class="mt-1 text-xs text-slate-500">Période filtrée</p></article>
