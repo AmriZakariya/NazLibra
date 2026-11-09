@@ -106,6 +106,7 @@
                     </button>
                 </form>
                 <a href="{{ route('castlit.admin.index') }}" class="btn btn-ghost" style="padding:11px 18px; white-space:nowrap">← Abonnements</a>
+                <a href="{{ route('castlit.admin.app-updates') }}" class="btn btn-ghost" style="padding:11px 18px; white-space:nowrap" data-app-updates-link>Mises à jour app</a>
                 <a href="{{ route('castlit.admin.support') }}" class="btn btn-ghost" style="padding:11px 18px; white-space:nowrap" data-support-link>
                     Support
                     @php $supportUnread = \App\Support\SupportChat::unreadConversations(); @endphp

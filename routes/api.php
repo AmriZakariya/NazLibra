@@ -74,6 +74,9 @@ Route::prefix('v1')->group(function (): void {
             Route::get('{id}/messages/{message}/attachment', 'attachment')
                 ->whereNumber('message')->middleware('throttle:120,1')->name('api.support.attachment');
         });
+        // Soft / forced app update, asked at launch before any space is chosen.
+        Route::get('public/app-version', [\App\Http\Controllers\Api\AppVersionController::class, 'show'])
+            ->middleware('throttle:60,1');
         // « Envoyer les journaux au support »: before or after login.
         Route::post('support/logs', [\App\Http\Controllers\Api\DeviceReportController::class, 'store'])
             ->middleware('throttle:5,10');

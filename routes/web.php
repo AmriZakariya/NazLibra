@@ -55,6 +55,10 @@ if (config('castlit.is_master')) {
     Route::get('/terms', [MarketingController::class, 'terms'])->name('castlit.terms');
     Route::get('/conditions', [MarketingController::class, 'terms']);
 
+    // The APK for Android devices without Google Play (PAX), asked by the app.
+    Route::get('/app/castlitpos.apk', [\App\Http\Controllers\Castlit\AppUpdateAdminController::class, 'apk'])
+        ->middleware('throttle:30,1')->name('castlit.app.apk');
+
     Route::middleware(['auth', 'platform.admin', 'no.store'])
         ->prefix('castlit-admin')
         ->name('castlit.admin.')
@@ -82,6 +86,9 @@ if (config('castlit.is_master')) {
             Route::post('/support/{conversation}/statut', [\App\Http\Controllers\Castlit\SupportAdminController::class, 'status'])->whereNumber('conversation')->name('support.status');
             Route::get('/support/{conversation}/nouveaux', [\App\Http\Controllers\Castlit\SupportAdminController::class, 'poll'])->whereNumber('conversation')->name('support.poll');
             Route::get('/support/{conversation}/fichiers/{message}', [\App\Http\Controllers\Castlit\SupportAdminController::class, 'attachment'])->whereNumber('conversation')->whereNumber('message')->name('support.attachment');
+            // « Mises à jour de l'app » — must precede the /{subscription} route.
+            Route::get('/app', [\App\Http\Controllers\Castlit\AppUpdateAdminController::class, 'index'])->name('app-updates');
+            Route::post('/app', [\App\Http\Controllers\Castlit\AppUpdateAdminController::class, 'save'])->name('app-updates.save');
             Route::get('/journaux', [\App\Http\Controllers\Castlit\DeviceReportAdminController::class, 'index'])->name('logs');
             Route::get('/journaux/{report:reference}', [\App\Http\Controllers\Castlit\DeviceReportAdminController::class, 'show'])->name('logs.show');
             Route::get('/journaux/{report:reference}/telecharger', [\App\Http\Controllers\Castlit\DeviceReportAdminController::class, 'download'])->name('logs.download');
