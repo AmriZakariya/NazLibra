@@ -35,6 +35,9 @@ class TenantInstall extends Model
         'owner_password'     => 'encrypted',
         'last_backup_at'     => 'datetime',
         'schedule_ran_at'    => 'datetime',
+        'activity_at'        => 'datetime',
+        'activity'           => 'array',
+        'activity_checked_at' => 'datetime',
     ];
 
     protected $attributes = [

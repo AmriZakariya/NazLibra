@@ -86,12 +86,17 @@ class ClientAdminController extends Controller
     }
 
     /** List every install with its live/enabled state and version vs master. */
-    public function index(): View
+    public function index(Request $request): View
     {
+        // « Moins actifs d'abord »: the ones to call. A space never seen comes
+        // first (COALESCE to an old date works on SQLite and MySQL alike).
+        $quiet = $request->query('tri') === 'activite';
         $installs = TenantInstall::with('subscription')
-            ->orderByDesc('provisioned_at')
-            ->orderByDesc('id')
-            ->paginate(30);
+            ->when($quiet,
+                fn ($q) => $q->orderByRaw("COALESCE(activity_at, '1970-01-01 00:00:00') ASC")->orderBy('id'),
+                fn ($q) => $q->orderByDesc('provisioned_at')->orderByDesc('id'))
+            ->paginate(30)
+            ->withQueryString();
 
         // Backfill access codes for installs provisioned before this feature.
         $installs->getCollection()->each(fn (TenantInstall $i) => $i->ensureAccessCode());
@@ -101,6 +106,7 @@ class ClientAdminController extends Controller
 
         return view('castlit.admin.clients', [
             'installs'  => $installs,
+            'quiet'     => $quiet,
             // When the master last ran the spaces' schedulers; null means its
             // cron has never run, so no space is backed up or swept either.
             'upkeepRanAt' => ($ran = Cache::get(RunClientSchedulesCommand::HEARTBEAT)) ? Carbon::parse($ran) : null,
@@ -134,8 +140,16 @@ class ClientAdminController extends Controller
     {
         $data = $request->validate([
             'install' => ['required', 'integer'],
-            'do'      => ['required', 'in:update,clear-cache,disable,enable,paid,unpaid,regenerate-code'],
+            'do'      => ['required', 'in:update,clear-cache,disable,enable,paid,unpaid,regenerate-code,activity'],
         ]);
+
+        // « Actualiser » the whole column: install 0 means every space. Asked
+        // after the response, so the page does not wait on each space.
+        if ($data['do'] === 'activity' && (int) $data['install'] === 0) {
+            dispatch(fn () => \App\Support\ClientActivity::collectAll())->afterResponse();
+
+            return back()->with('success', 'Activité des espaces en cours d’actualisation : rechargez la page dans une minute.');
+        }
 
         $install = TenantInstall::find((int) $data['install']);
         if (! $install) {
@@ -150,7 +164,16 @@ class ClientAdminController extends Controller
             'paid'            => $this->markPaid($install),
             'unpaid'          => $this->markUnpaid($install),
             'regenerate-code' => $this->regenerateCode($install),
+            'activity'        => $this->refreshActivity($install),
         };
+    }
+
+    /** Ask one space right now what it last did. */
+    public function refreshActivity(TenantInstall $install): RedirectResponse
+    {
+        return \App\Support\ClientActivity::collect($install)
+            ? back()->with('success', "Activité de « {$install->domain} » actualisée.")
+            : back()->with('error', "« {$install->domain} » n’a pas répondu : {$install->activity_error}");
     }
 
     /**

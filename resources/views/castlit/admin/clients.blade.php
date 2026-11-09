@@ -51,6 +51,17 @@
                   width: 26px; height: 26px; cursor: pointer; line-height: 1; }
     .accode-btn:hover { border-color: var(--brand); color: var(--brand); }
     .accode form { margin: 0; }
+    .act { font-size: 12.5px; line-height: 1.5; min-width: 170px; max-width: 240px; }
+    .act-when { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 13px; white-space: nowrap; }
+    .act-when::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .act-fresh .act-when { color: var(--ok); } .act-idle .act-when { color: var(--warn); } .act-gone .act-when { color: var(--err); }
+    .act-what { color: var(--ink); overflow-wrap: anywhere; }
+    .act-meta { color: var(--muted); font-size: 11.5px; }
+    .act-err { color: var(--warn); font-size: 11.5px; }
+    .act-btn { border: none; background: none; color: var(--brand); font: inherit; font-size: 11.5px; font-weight: 650; padding: 0; cursor: pointer; }
+    .act-head { display: inline-flex; align-items: center; gap: 8px; }
+    .act-head a, .act-head button { color: var(--brand); text-transform: none; letter-spacing: 0; font-weight: 650; font-size: 11.5px; text-decoration: none; background: none; border: none; padding: 0; cursor: pointer; }
+    .act-head form { margin: 0; display: inline; }
     .actions { display: flex; gap: 7px; justify-content: flex-end; flex-wrap: wrap; }
     .actions form { margin: 0; }
     .btn-sm { font-size: 12.5px; font-weight: 650; padding: 7px 12px; border-radius: 9px; border: 1px solid var(--sand);
@@ -158,6 +169,19 @@
                         <th>Commerce</th>
                         <th>Facturation</th>
                         <th>État</th>
+                        <th data-activity-head><span class="act-head">Dernière activité
+                            @if ($quiet)
+                                <a href="{{ route('castlit.admin.clients', [], false) }}">· récents</a>
+                            @else
+                                <a href="{{ route('castlit.admin.clients', ['tri' => 'activite'], false) }}" data-sort-quiet>· moins actifs d’abord</a>
+                            @endif
+                            <form method="POST" action="{{ route('castlit.admin.clients.action', [], false) }}">
+                                @csrf
+                                <input type="hidden" name="install" value="0">
+                                <input type="hidden" name="do" value="activity">
+                                <button type="submit" title="Demander à chaque espace son activité maintenant">· actualiser</button>
+                            </form>
+                        </span></th>
                         <th>Version déployée</th>
                         <th>Entretien</th>
                         <th>Créé le</th>
@@ -217,6 +241,39 @@
                                 @endif
                                 @if ($install->current_step)
                                     <div class="step">{{ $install->current_step }}</div>
+                                @endif
+                            </td>
+                            @php
+                                $level = \App\Support\ClientActivity::level($install->activity_at);
+                                $what = \App\Support\ClientActivity::describe($install->activity);
+                                $act = $install->activity ?? [];
+                            @endphp
+                            <td class="act act-{{ $level }}" data-activity="{{ $level }}">
+                                @if (! $install->isLive())
+                                    <span class="muted">—</span>
+                                @else
+                                    @if ($install->activity_at)
+                                        <div class="act-when" title="{{ $install->activity_at->format('d/m/Y H:i') }}">{{ $install->activity_at->locale('fr')->diffForHumans() }}</div>
+                                        @if ($what)<div class="act-what">{{ $what }}</div>@endif
+                                        <div class="act-meta">
+                                            Ventes : {{ $act['sales_today'] ?? 0 }} aujourd’hui · {{ $act['sales_7d'] ?? 0 }} sur 7 j
+                                        </div>
+                                    @elseif ($install->activity_checked_at && ! $install->activity_error)
+                                        <div class="act-when">Aucune activité</div>
+                                    @else
+                                        <span class="muted">—</span>
+                                    @endif
+                                    @if ($install->activity_error)
+                                        <div class="act-err" title="{{ $install->activity_error }}">{{ \Illuminate\Support\Str::limit($install->activity_error, 60) }}</div>
+                                    @endif
+                                    <form method="POST" action="{{ route('castlit.admin.clients.action', [], false) }}" style="margin:0">
+                                        @csrf
+                                        <input type="hidden" name="install" value="{{ $install->id }}">
+                                        <input type="hidden" name="do" value="activity">
+                                        <button type="submit" class="act-btn">
+                                            ↻ {{ $install->activity_checked_at ? 'vérifié '.$install->activity_checked_at->locale('fr')->diffForHumans() : 'vérifier' }}
+                                        </button>
+                                    </form>
                                 @endif
                             </td>
                             <td>
@@ -313,7 +370,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="empty">Aucun espace client provisionné pour le moment.</td></tr>
+                        <tr><td colspan="8" class="empty">Aucun espace client provisionné pour le moment.</td></tr>
                     @endforelse
                 </tbody>
             </table>

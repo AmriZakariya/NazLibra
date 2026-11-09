@@ -24,6 +24,8 @@ Schedule::command('invoices:mark-overdue')->dailyAt('01:15');
 // these; the client spaces have no cron of their own.
 if (config('castlit.is_master')) {
     Schedule::command('castlit:run-client-schedules')->everyFifteenMinutes()->withoutOverlapping(30);
+    // What each space last did, for the clients list.
+    Schedule::command('castlit:client-activity')->everyFifteenMinutes()->withoutOverlapping(30);
     Schedule::command('castlit:backup-clients')->dailyAt('02:30')->withoutOverlapping(120);
     // DB-IP publishes on the first days of the month.
     Schedule::command('castlit:update-geoip')->monthlyOn(6, '03:40');
