@@ -68,6 +68,41 @@ class TenantClock
         return $date->copy()->setTimezone(self::timezone($tenant))->format($format);
     }
 
+    /**
+     * A date or time typed in a form, read on the shop's clock and returned in
+     * UTC for storage. A value that already says its offset ("…Z", "+01:00",
+     * as the app sends) is taken as it says. Empty gives null.
+     */
+    public static function fromInput(mixed $value, Tenant|string|null $tenant = null): ?\Illuminate\Support\Carbon
+    {
+        if ($value instanceof CarbonInterface) {
+            return \Illuminate\Support\Carbon::instance($value)->utc();
+        }
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        $value = trim((string) $value);
+        $explicit = (bool) preg_match('/(Z|[+-]\d{2}:?\d{2})$/i', $value) && str_contains($value, 'T');
+
+        // Laravel's Carbon, which the models and callers type against.
+        $parsed = $explicit
+            ? \Illuminate\Support\Carbon::parse($value)
+            : \Illuminate\Support\Carbon::parse($value, self::timezone($tenant));
+
+        return $parsed->utc();
+    }
+
+    /** A stored time (or now) as a form field shows it, on the shop's clock. */
+    public static function inputValue(mixed $value = null, Tenant|string|null $tenant = null, string $format = 'Y-m-d\TH:i'): string
+    {
+        $date = $value === null || $value === ''
+            ? now()
+            : ($value instanceof CarbonInterface ? $value : Carbon::parse($value));
+
+        return $date->copy()->setTimezone(self::timezone($tenant))->format($format);
+    }
+
     public static function isValid(?string $timezone): bool
     {
         return is_string($timezone)

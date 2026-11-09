@@ -22,7 +22,7 @@
             @forelse ($transactions as $transaction)
                 <tr>
                     <td class="px-3 py-3 font-semibold">{{ $transaction->number }}</td>
-                    <td class="px-3 py-3">{{ $transaction->transacted_at?->format('d/m/Y H:i') }}</td>
+                    <td class="px-3 py-3">{{ \App\Support\TenantClock::format($transaction->transacted_at, $tenant) }}</td>
                     <td class="px-3 py-3"><p class="font-semibold">{{ $transaction->account?->name ?? 'Compte supprimé' }}</p><p class="mt-1 text-xs text-slate-500">{{ $transaction->relatedAccount?->name ? 'Lié: '.$transaction->relatedAccount->name : ($transaction->note ?: '—') }}</p></td>
                     <td class="px-3 py-3"><x-status-pill tone="info">{{ ['deposit' => 'Dépôt', 'transfer' => 'Transfert', 'opening' => 'Solde initial'][$transaction->type] ?? $transaction->type }}</x-status-pill></td>
                     <td class="px-3 py-3"><x-status-pill :tone="$transaction->direction === 'in' ? 'success' : 'danger'">{{ $transaction->direction === 'in' ? 'Entrée' : 'Sortie' }}</x-status-pill></td>

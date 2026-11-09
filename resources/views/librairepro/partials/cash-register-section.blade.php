@@ -245,7 +245,7 @@
                         <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                             @forelse ($cashRegister['movements'] as $movement)
                                 <tr class="hover:bg-slate-50 dark:hover:bg-white/5">
-                                    <td class="px-3 py-3 text-slate-600 dark:text-slate-300">{{ $movement->moved_at?->format('d/m/Y H:i') }}</td>
+                                    <td class="px-3 py-3 text-slate-600 dark:text-slate-300">{{ \App\Support\TenantClock::format($movement->moved_at, $tenant) }}</td>
                                     <td class="px-3 py-3"><x-status-pill :tone="$movementTones[$movement->type] ?? 'primary'">{{ $movementLabels[$movement->type] ?? $movement->type }}</x-status-pill><p class="mt-1 max-w-xs truncate text-xs text-slate-500 dark:text-slate-400">{{ $movement->note }}</p></td>
                                     <td class="px-3 py-3 font-semibold">{{ $movement->session?->number }}</td>
                                     <td class="px-3 py-3 text-slate-600 dark:text-slate-300">{{ $movement->reference ?: '—' }}</td>

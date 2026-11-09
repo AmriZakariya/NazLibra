@@ -1218,7 +1218,7 @@ class LibraireProController extends Controller
                         'note' => $line['note'],
                     ])->all(),
                     'note' => $data['note'] ?? null,
-                    'adjusted_at' => $data['adjusted_at'] ?? now(),
+                    'adjusted_at' => \App\Support\TenantClock::fromInput($data['adjusted_at'] ?? null, $tenant) ?? now(),
                 ]);
 
                 foreach ($pendingLines as $line) {
@@ -1423,7 +1423,7 @@ class LibraireProController extends Controller
      */
     private function validatedStockTransfer(Request $request, Tenant $tenant): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'transferred_at' => ['nullable', 'date'],
             // Ids from the shop's own list, not typed names. The old free-text
             // fields were resolved by fuzzy match with a fallback to the
@@ -1442,6 +1442,13 @@ class LibraireProController extends Controller
             'destination_location_id.required' => "Choisissez l'emplacement de destination.",
             'destination_location_id.different' => 'La destination doit être différente de la source.',
         ]);
+
+        // Typed on the shop's clock, stored in UTC.
+        if (! empty($data['transferred_at'])) {
+            $data['transferred_at'] = \App\Support\TenantClock::fromInput($data['transferred_at'], $tenant);
+        }
+
+        return $data;
     }
 
     /**
@@ -5422,7 +5429,7 @@ class LibraireProController extends Controller
 
                 $paymentMethod = collect($payments)->filter(fn ($amount) => $amount > 0.001)->keys()->join('+') ?: 'credit';
                 $saleNumber = $this->nextSaleNumber($tenant);
-                $soldAt = ! empty($data['sold_at']) ? Carbon::parse($data['sold_at']) : now();
+                $soldAt = \App\Support\TenantClock::fromInput($data['sold_at'] ?? null, $tenant) ?? now();
                 $sale = Sale::create([
                     ...$this->webSaleOrigin(),
                     'tenant_id' => $tenant->id,
@@ -6215,7 +6222,7 @@ class LibraireProController extends Controller
                 'number' => $this->nextPaymentNumber($tenant),
                 'method' => $data['method'],
                 'amount' => $amount,
-                'paid_at' => ! empty($data['paid_at']) ? Carbon::parse($data['paid_at']) : now(),
+                'paid_at' => \App\Support\TenantClock::fromInput($data['paid_at'] ?? null, $tenant) ?? now(),
                 'reference' => $data['reference'] ?? null,
                 'note' => $data['note'] ?? null,
                 'idempotency_key' => $idempotencyKey,
@@ -6319,7 +6326,7 @@ class LibraireProController extends Controller
             'assigned_to' => $data['assigned_to'] ?? null,
             'delivery_address' => $data['delivery_address'],
             'note' => $data['note'] ?? null,
-            'scheduled_at' => ! empty($data['scheduled_at']) ? Carbon::parse($data['scheduled_at']) : null,
+            'scheduled_at' => \App\Support\TenantClock::fromInput($data['scheduled_at'] ?? null, $tenant),
         ]);
 
         return back()->with('status', 'Livraison créée.');
@@ -6439,7 +6446,7 @@ class LibraireProController extends Controller
                 'customer_phone' => $data['customer_phone'] ?? $contact?->phone,
                 'customer_email' => $data['customer_email'] ?? $contact?->email,
                 'delivery_address' => $data['delivery_address'] ?? $contact?->address,
-                'ordered_at' => ! empty($data['ordered_at']) ? Carbon::parse($data['ordered_at']) : now(),
+                'ordered_at' => \App\Support\TenantClock::fromInput($data['ordered_at'] ?? null, $tenant) ?? now(),
                 'expected_at' => $data['expected_at'] ?? null,
                 'subtotal_amount' => $subtotal,
                 'discount_amount' => round($lineDiscount + $documentDiscount, 2),
@@ -6620,7 +6627,7 @@ class LibraireProController extends Controller
                 'discount_amount' => $discount,
                 'tax_amount' => round($total * 0.2 / 1.2, 2),
                 'total_amount' => $total,
-                'quoted_at' => ! empty($data['quoted_at']) ? Carbon::parse($data['quoted_at']) : now(),
+                'quoted_at' => \App\Support\TenantClock::fromInput($data['quoted_at'] ?? null, $tenant) ?? now(),
                 'expires_at' => $data['expires_at'] ?? now()->addDays(15)->toDateString(),
                 'lines' => $payloadLines,
                 'metadata' => [
@@ -7424,7 +7431,7 @@ class LibraireProController extends Controller
                 'number' => $this->nextPurchasePaymentNumber($tenant),
                 'method' => $data['method'],
                 'amount' => $amount,
-                'paid_at' => ! empty($data['paid_at']) ? Carbon::parse($data['paid_at']) : now(),
+                'paid_at' => \App\Support\TenantClock::fromInput($data['paid_at'] ?? null, $tenant) ?? now(),
                 'reference' => $data['reference'] ?? null,
                 'note' => $data['note'] ?? null,
                 'idempotency_key' => $idempotencyKey,
@@ -7536,7 +7543,7 @@ class LibraireProController extends Controller
                 'number' => $this->nextPurchaseReturnNumber($tenant),
                 'status' => 'completed',
                 'total_amount' => round($total, 2),
-                'returned_at' => ! empty($data['returned_at']) ? Carbon::parse($data['returned_at']) : now(),
+                'returned_at' => \App\Support\TenantClock::fromInput($data['returned_at'] ?? null, $tenant) ?? now(),
                 'reason' => $data['reason'] ?? null,
                 'lines' => $payloadLines,
                 'idempotency_key' => $idempotencyKey,
@@ -8854,7 +8861,7 @@ class LibraireProController extends Controller
             'payment_method' => $data['payment_method'] ?? null,
             'reference' => $data['reference'] ?? null,
             'note' => $data['note'] ?? null,
-            'transacted_at' => $data['transacted_at'] ?? now(),
+            'transacted_at' => \App\Support\TenantClock::fromInput($data['transacted_at'] ?? null, $tenant) ?? now(),
             'metadata' => collect($data)->only(['transfer_pair'])->filter()->all(),
         ]);
     }
