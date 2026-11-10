@@ -50,7 +50,7 @@
             </div>
         </div>
 
-        <div class="mt-6 grid gap-3 sm:grid-cols-3">
+        <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div class="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-white/10 dark:bg-white/5">
                 <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
                     <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -78,6 +78,15 @@
                     <strong class="block text-2xl font-black text-slate-950 dark:text-white">{{ number_format($totals['users'], 0, ',', ' ') }}</strong>
                 </div>
             </div>
+            <a href="{{ route('profile.activity', ['outcome' => 'failed', 'kind' => 'all']) }}" data-failed-total class="flex items-center gap-4 rounded-xl border p-4 transition {{ $totals['failed_today'] > 0 ? 'border-rose-200 bg-rose-50 hover:border-rose-300 dark:border-rose-500/30 dark:bg-rose-500/10' : 'border-slate-200 bg-slate-50/80 dark:border-white/10 dark:bg-white/5' }}">
+                <span class="grid size-11 shrink-0 place-items-center rounded-xl {{ $totals['failed_today'] > 0 ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300' : 'bg-slate-100 text-slate-400 dark:bg-white/10' }}">
+                    <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </span>
+                <div class="min-w-0">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $tr('Échecs sur 24 h') }}</p>
+                    <strong class="block text-2xl font-black {{ $totals['failed_today'] > 0 ? 'text-rose-600 dark:text-rose-300' : 'text-slate-950 dark:text-white' }}">{{ number_format($totals['failed_today'], 0, ',', ' ') }}</strong>
+                </div>
+            </a>
         </div>
     </header>
 
@@ -89,7 +98,7 @@
                 <input name="q" value="{{ $filters['q'] }}" placeholder="{{ $tr('Rechercher par action, référence, appareil, route ou URL...') }}" class="h-12 w-full rounded-xl border border-slate-200 bg-white py-3 pl-12 pr-4 text-sm text-slate-950 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900 dark:text-white" autofocus>
             </div>
 
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <label class="space-y-2">
                     <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $tr('Utilisateur') }}</span>
                     <select name="user_id" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900 dark:text-white">
@@ -105,6 +114,22 @@
                         <option value="">{{ $tr('Tous les appareils') }}</option>
                         @foreach ($devices as $device)
                             <option value="{{ $device->id }}" @selected((string) $filters['device_id'] === (string) $device->id)>{{ $device->name }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="space-y-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $tr('Type') }}</span>
+                    <select name="kind" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900 dark:text-white">
+                        @foreach (['' => 'Actions, connexions, téléchargements', 'action' => 'Actions', 'auth' => 'Connexions', 'download' => 'Téléchargements', 'view' => 'Navigation (pages et écrans)', 'all' => 'Tout, navigation comprise'] as $value => $label)
+                            <option value="{{ $value }}" @selected($filters['kind'] === $value)>{{ $tr($label) }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label class="space-y-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">{{ $tr('Résultat') }}</span>
+                    <select name="outcome" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900 dark:text-white">
+                        @foreach (['' => 'Tous', 'ok' => 'Réussis', 'failed' => 'Échecs'] as $value => $label)
+                            <option value="{{ $value }}" @selected($filters['outcome'] === $value)>{{ $tr($label) }}</option>
                         @endforeach
                     </select>
                 </label>
@@ -393,6 +418,17 @@
                 card("{{ $tr('Appareil') }}", props.app_device || row.real_device_platform || row.virtual_device_label || ""),
                 card("{{ $tr('Emplacement') }}", props.location || "")
             ].join("");
+            var failed = row.outcome === "failed";
+            var resultBanner = bool(row.outcome_message) || failed
+                ? '<div data-audit-result class="mb-4 rounded-xl border p-4 ' + (failed
+                    ? 'border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10'
+                    : 'border-emerald-200 bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10') + '">' +
+                    '<p class="text-[11px] font-bold uppercase tracking-[0.08em] ' + (failed ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300') + '">' +
+                        (failed ? "{{ $tr('Échec') }}" : "{{ $tr('Résultat') }}") + '</p>' +
+                    '<p class="mt-1 break-words text-sm font-semibold text-slate-900 dark:text-white">' + esc(row.outcome_message || "{{ $tr('Aucun message') }}") + '</p>' +
+                    (props.exception ? '<p class="mt-2 break-all font-mono text-[11px] text-rose-700 dark:text-rose-300">' + esc(props.exception.class + " — " + props.exception.file) + '</p>' : '') +
+                '</div>'
+                : '';
             var hasSubject = bool(row.subject_type_label) || bool(row.subject_id) || bool(row.subject_reference) || bool(row.reference_text);
             var technicalCards = [
                 card("{{ $tr('Méthode') }}", props.method),
@@ -402,7 +438,8 @@
                 card("{{ $tr('Contrôleur') }}", props.route_action),
                 card("{{ $tr('Chemin') }}", props.path, "font-mono text-xs"),
                 card("{{ $tr('Requête AJAX') }}", props.is_ajax ? "{{ $tr('Oui') }}" : "{{ $tr('Non') }}"),
-                card("{{ $tr('Clé d’idempotence') }}", props.idempotency_key, "font-mono text-xs")
+                card("{{ $tr('Clé d’idempotence') }}", props.idempotency_key, "font-mono text-xs"),
+                card("{{ $tr('Durée') }}", row.duration_ms !== null && row.duration_ms !== undefined ? row.duration_ms + " ms" : "")
             ].join("");
             var technicalPanel =
                 '<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">' + technicalCards + '</div>' +
@@ -433,7 +470,7 @@
                     '<button onclick="auditSwitchTab(\'device\')" id="tab-btn-device" class="audit-dt-tab inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition text-slate-500 hover:text-slate-700 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> {{ $tr('Appareil') }}</button>' +
                     '<button onclick="auditSwitchTab(\'technical\')" id="tab-btn-technical" class="audit-dt-tab inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition text-slate-500 hover:text-slate-700 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82"/></svg> {{ $tr('Technique') }}</button>' +
                 '</div>' +
-                '<div id="tab-panel-summary" class="max-h-[70vh] overflow-y-auto px-6 py-5">' +
+                '<div id="tab-panel-summary" class="max-h-[70vh] overflow-y-auto px-6 py-5">' + resultBanner +
                     '<div class="grid gap-3 sm:grid-cols-3">' +
                         '<div class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04]"><p class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr('Méthode') }}</p><span class="mt-2 inline-flex rounded-lg px-2.5 py-1 text-xs font-bold ' + methodClass + '">' + esc(props.method || "—") + '</span></div>' +
                         card("{{ $tr('Statut réponse') }}", props.status_code) +
@@ -442,7 +479,8 @@
                     (isApp ? '<div class="mt-4 grid gap-3 sm:grid-cols-3" data-audit-app>' + appRows + '</div>' : '') +
                     (hasSubject || !isApp ? '<div class="mt-4 grid gap-3 sm:grid-cols-3">' + targetRows + '</div>' : '') +
                     '<div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04]"><p class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr('Route') }}</p><p class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">' + esc(props.route || "—") + '</p><div class="mt-2 space-y-1 rounded-lg bg-white p-2.5 dark:bg-white/5"><p class="break-all text-[11px] font-mono text-slate-500 dark:text-slate-300">' + esc(props.path || "—") + '</p><p class="break-all text-[11px] font-mono text-slate-400">' + esc(props.url || "—") + '</p></div></div>' +
-                    '<div class="mt-4">' + codeBlock("{{ $tr('Données envoyées') }}", props.payload_json, "{{ $tr('Aucune donnée formulaire conservée pour cette action.') }}") + '</div>' +
+                    (props.errors_json ? '<div class="mt-4">' + codeBlock("{{ $tr('Erreurs affichées') }}", props.errors_json, "") + '</div>' : '') +
+                    (row.kind === "view" ? '' : '<div class="mt-4">' + codeBlock("{{ $tr('Données envoyées') }}", props.payload_json, "{{ $tr('Aucune donnée formulaire conservée pour cette action.') }}") + '</div>') +
                 '</div>' +
                 '<div id="tab-panel-device" class="hidden max-h-[70vh] overflow-y-auto px-6 py-5"><div class="grid gap-3 sm:grid-cols-2">' + deviceCards + '</div></div>' +
                 '<div id="tab-panel-technical" class="hidden max-h-[70vh] overflow-y-auto px-6 py-5">' +

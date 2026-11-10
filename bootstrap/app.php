@@ -38,7 +38,15 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\SetLibraireProLocale::class,
             \App\Http\Middleware\RecordUserActivity::class,
         ]);
+        // Every write from the app, and the screens it opened.
+        $middleware->api(append: [
+            \App\Http\Middleware\RecordApiActivity::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // The activity journal keeps what a crash was, beside the action that
+        // hit it. Reporting carries on as before.
+        $exceptions->report(function (\Throwable $e): void {
+            \App\Support\ActivityRecorder::rememberException($e);
+        });
     })->create();

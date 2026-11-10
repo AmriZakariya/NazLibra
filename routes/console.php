@@ -19,6 +19,10 @@ Schedule::command('telescope:prune --hours=336')->daily();
 // morning already sees the right list.
 Schedule::command('invoices:mark-overdue')->dailyAt('01:15');
 
+// Page views in the activity journal are for following a visit: 30 days.
+// On a quarter hour: client spaces run their schedule every 15 minutes.
+Schedule::call(fn () => \App\Support\ActivityRecorder::pruneViews())->name('activity:prune-views')->dailyAt('03:15');
+
 // ─── Master only: the upkeep of every client space ────────────────────────────
 // One cron line on castlitpos.com (`* * * * * php artisan schedule:run`) drives
 // these; the client spaces have no cron of their own.

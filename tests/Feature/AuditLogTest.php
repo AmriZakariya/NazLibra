@@ -32,14 +32,18 @@ class AuditLogTest extends TestCase
         $this->assertSame('Audit Test', $properties['payload']['name']);
     }
 
-    public function test_read_only_pages_are_not_recorded_in_audit_log(): void
+    public function test_opening_a_page_is_a_light_page_view_not_an_action(): void
     {
         $this->seed();
         $before = \DB::table('audit_logs')->count();
 
         $this->get(route('dashboard'))->assertOk();
 
-        $this->assertSame($before, \DB::table('audit_logs')->count());
+        $this->assertSame($before + 1, \DB::table('audit_logs')->count());
+        $log = \DB::table('audit_logs')->latest('id')->first();
+        $this->assertSame('view', $log->kind);
+        $this->assertSame('dashboard', $log->action);
+        $this->assertArrayNotHasKey('payload', json_decode($log->properties, true), 'a page view stays light');
     }
 
     public function test_owner_can_filter_activity_log_by_user_and_date(): void

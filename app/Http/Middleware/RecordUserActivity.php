@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Tenant;
+use App\Support\ActivityRecorder;
 use App\Support\RequestSnapshot;
 use App\Support\TenantContext;
 use App\Support\TenantClock;
@@ -10,62 +11,125 @@ use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * The back office's half of the activity journal: every write, whether it
+ * worked or not and why, every file handed out, every page opened (kept 30
+ * days), every login. Requests sent in the background (fetch, JSON) count as
+ * much as forms: the catalogue import was one of them and went unrecorded.
+ *
+ * Only automatic traffic is left out, by name, in NOT_RECORDED; a test walks
+ * every route so nothing else can slip out unnoticed.
+ */
 class RecordUserActivity
 {
-    private const RECORDED_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
+    /** Calls a screen makes on its own, not things a person did. */
+    public const NOT_RECORDED = [
+        'device.heartbeat',
+        'profile.activity.data',
+    ];
+
+    /** Tooling, and the platform's own admin on the master: not a shop's activity. */
+    public const NOT_RECORDED_PATHS = ['livewire/*', 'telescope/*', 'telescope-api/*', '_debugbar/*', 'up', 'castlit-admin', 'castlit-admin/*'];
+
+    /** Routes that are about getting in or out, not about the shop's data. */
+    public const AUTH_ROUTES = ['login.store', 'logout', 'session.lock', 'session.unlock'];
 
     public function handle(Request $request, Closure $next): Response
     {
-        $actor = $request->user();
-        $tenantId = $this->tenantId($request, $actor);
+        $before = $request->user();
+        $tenantId = $this->tenantId($request, $before);
         $response = $next($request);
 
-        if ($this->shouldRecord($request, $response)) {
-            $this->record($request, $response, $tenantId, $actor?->id);
+        // Logged in by this very request, or out of it: whoever it was.
+        $actor = $request->user() ?? $before;
+        $tenantId ??= $actor ? $this->tenantId($request, $actor) : null;
+
+        $kind = $this->kind($request, $response, $actor !== null);
+        if ($kind !== null && $tenantId !== null) {
+            $this->record($request, $response, $tenantId, $actor?->id, $kind);
         }
 
         return $response;
     }
 
-    private function shouldRecord(Request $request, Response $response): bool
+    private function kind(Request $request, Response $response, bool $signedIn): ?string
     {
-        $routeName = $request->route()?->getName();
+        if (in_array($request->route()?->getName(), self::NOT_RECORDED, true) || $request->is(...self::NOT_RECORDED_PATHS)) {
+            return null;
+        }
+        if (ActivityRecorder::isWrite($request)) {
+            return in_array($request->route()?->getName(), self::AUTH_ROUTES, true) ? ActivityRecorder::AUTH : ActivityRecorder::ACTION;
+        }
+        if (! $signedIn || $request->method() !== 'GET') {
+            return null;
+        }
+        if (ActivityRecorder::isDownload($request, $response)) {
+            return ActivityRecorder::DOWNLOAD;
+        }
 
-        return in_array($request->method(), self::RECORDED_METHODS, true)
-            && $response->getStatusCode() < 500
-            && ! $request->is('livewire/*')
-            && ! $request->expectsJson()
-            && ! $response instanceof \Illuminate\Http\JsonResponse
-            && ! in_array($routeName, ['device.heartbeat', 'profile.activity.data'], true);
+        return ActivityRecorder::isPageView($request, $response) ? ActivityRecorder::VIEW : null;
     }
 
-    private function record(Request $request, Response $response, ?int $tenantId, ?int $userId): void
+    private function record(Request $request, Response $response, int $tenantId, ?int $userId, string $kind): void
     {
         try {
-            if (! Schema::hasTable('audit_logs')) {
-                return;
-            }
-
-            $subject = $this->subject($request);
             $device = $this->deviceInfo($request);
             $action = $request->route()?->getName() ?: $request->method().' '.$request->path();
-            $tenant = $tenantId ? Tenant::find($tenantId) : null;
+            $tenant = Tenant::find($tenantId);
+            [$outcome, $message, $details] = ActivityRecorder::outcome($request, $response);
 
-            // For store/create actions that don't have route parameters, try to extract subject from response
-            if (empty($subject['type']) && $response->isRedirect()) {
-                $subject = $this->subjectFromResponse($request, $response) ?: $subject;
+            $subject = ['type' => null, 'id' => null];
+            if ($kind !== ActivityRecorder::VIEW) {
+                $subject = $this->subject($request);
+                // A creation has no route parameter: its id is in the redirect.
+                if (empty($subject['type']) && $response->isRedirect()) {
+                    $subject = $this->subjectFromResponse($request, $response) ?: $subject;
+                }
             }
-
             $snapshots = $this->subjectSnapshots($subject);
 
-            DB::table('audit_logs')->insert([
+            $properties = [
+                'method' => $request->method(),
+                'url' => $request->fullUrl(),
+                'path' => $request->path(),
+                'route' => $action,
+                'route_action' => $request->route()?->getActionName(),
+                'status_code' => $response->getStatusCode(),
+                'timezone' => TenantClock::timezone($tenant),
+                'ip' => $request->ip(),
+                'referer' => $request->headers->get('referer'),
+                'user_agent' => str($request->userAgent() ?? '')->limit(240)->value(),
+                'query' => RequestSnapshot::query($request),
+                'route_parameters' => RequestSnapshot::routeParameters($request),
+            ];
+            // A page view stays light: where, from where, how long.
+            if ($kind !== ActivityRecorder::VIEW) {
+                $properties += [
+                    'content_type' => $request->headers->get('content-type'),
+                    'accept' => $request->headers->get('accept'),
+                    'is_ajax' => $request->ajax(),
+                    'headers' => RequestSnapshot::headers($request),
+                    'payload' => RequestSnapshot::payload($request),
+                    'result' => $message,
+                ] + $details;
+            }
+
+            // A failed login names who tried, from the address typed.
+            if ($userId === null && $kind === ActivityRecorder::AUTH && is_string($request->input('email'))) {
+                $userId = \App\Models\User::whereRaw('LOWER(email) = ?', [mb_strtolower(trim($request->input('email')))])->value('id');
+            }
+
+            ActivityRecorder::write([
                 'tenant_id' => $tenantId,
                 'user_id' => $userId,
+                'kind' => $kind,
+                'outcome' => $outcome,
+                'outcome_message' => $kind === ActivityRecorder::VIEW ? null : $message,
+                'duration_ms' => ActivityRecorder::duration($request),
                 'action' => $action,
-                'friendly_action' => $this->friendlyAction($action),
+                'friendly_action' => $kind === ActivityRecorder::VIEW ? $this->pageLabel($request) : $this->friendlyAction($action),
                 'subject_type' => $subject['type'] ?? null,
                 'subject_id' => $subject['id'] ?? null,
                 'subject_name_snapshot' => $snapshots['name'],
@@ -78,33 +142,24 @@ class RecordUserActivity
                 'real_device_browser' => $device['real_device_browser'],
                 'real_device_ip' => $device['real_device_ip'],
                 'real_device_user_agent' => $device['real_device_user_agent'],
-                'properties' => json_encode([
-                    'method' => $request->method(),
-                    'url' => $request->fullUrl(),
-                    'path' => $request->path(),
-                    'route' => $action,
-                    'route_action' => $request->route()?->getActionName(),
-                    'status_code' => $response->getStatusCode(),
-                    'timezone' => TenantClock::timezone($tenant),
-                    'ip' => $request->ip(),
-                    'referer' => $request->headers->get('referer'),
-                    'content_type' => $request->headers->get('content-type'),
-                    'accept' => $request->headers->get('accept'),
-                    'is_ajax' => $request->ajax(),
-                    'user_agent' => str($request->userAgent() ?? '')->limit(240)->value(),
-                    'query' => RequestSnapshot::query($request),
-                    'headers' => RequestSnapshot::headers($request),
-                    'payload' => RequestSnapshot::payload($request),
-                    'route_parameters' => RequestSnapshot::routeParameters($request),
-                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-                'created_at' => now(),
-                'updated_at' => now(),
+                'properties' => $properties,
             ]);
         } catch (\Throwable $e) {
-            if (app()->hasDebugModeEnabled()) {
-                throw $e;
-            }
+            report($e);
         }
+    }
+
+    /** "Page · Ventes › Devis": the screen, in the words of the menu. */
+    private function pageLabel(Request $request): string
+    {
+        $route = $request->route();
+        if ($route?->getName() === 'module') {
+            $parts = array_filter([$route->parameter('module'), $route->parameter('section') ?? $request->query('section')]);
+
+            return 'Page · '.implode(' › ', array_map(fn ($p) => $this->humanizeEntity((string) $p), $parts));
+        }
+
+        return 'Page · '.$this->humanizeEntity((string) ($route?->getName() ?: $request->path()));
     }
 
     private function tenantId(Request $request, mixed $actor = null): ?int
@@ -228,7 +283,7 @@ class RecordUserActivity
             'catalog.items.update' => 'Modification article',
             'catalog.items.destroy' => 'Suppression article',
             'catalog.labels.print' => 'Impression étiquettes',
-            'catalog.import' => 'Importation catalogue',
+            'catalog.import' => 'Import catalogue',
             'pos.store' => 'Encaissement POS',
             'pos.refund' => 'Remboursement POS',
             'sales.store' => 'Création vente',
@@ -308,6 +363,16 @@ class RecordUserActivity
             'session.lock' => 'Verrouillage session',
             'session.unlock' => 'Déverrouillage session',
             'login.store' => 'Connexion',
+            'catalog.export' => 'Export catalogue',
+            'catalog.labels' => 'Impression étiquettes',
+            'catalog.import.example' => 'Modèle d’import catalogue',
+            'contacts.import' => 'Import contacts',
+            'contacts.import.example' => 'Modèle d’import contacts',
+            'sales.pdf' => 'PDF vente',
+            'sales.invoices.pdf' => 'PDF facture',
+            'purchases.pdf' => 'PDF achat',
+            'documents.invoices.pdf' => 'PDF facture',
+            'documents.estimates.pdf' => 'PDF devis',
             'logout' => 'Déconnexion',
             'messaging.store' => 'Envoi message',
             'messaging.templates.store' => 'Création modèle message',

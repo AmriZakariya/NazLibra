@@ -292,58 +292,8 @@ class AuthController extends Controller
             abort(403, 'Seul le propriétaire peut consulter le journal d’activité.');
         }
 
-        $filters = $request->validate([
-            'user_id' => ['nullable', 'integer'],
-            'from' => ['nullable', 'date'],
-            'to' => ['nullable', 'date'],
-            'method' => ['nullable', 'in:POST,PUT,PATCH,DELETE'],
-            'q' => ['nullable', 'string', 'max:120'],
-            'device_id' => ['nullable', 'integer'],
-        ]);
-
-        $query = AuditLog::query()
-            ->where('tenant_id', $tenant->id)
-            ->with('user')
-            ->latest();
-
-        if (! empty($filters['user_id'])) {
-            $query->where('user_id', (int) $filters['user_id']);
-        }
-
-        if (! empty($filters['device_id'])) {
-            $query->where('virtual_device_id', (int) $filters['device_id']);
-        }
-
-        if (! empty($filters['from'])) {
-            $query->where('created_at', '>=', \Carbon\Carbon::parse($filters['from'])->startOfDay());
-        }
-
-        if (! empty($filters['to'])) {
-            $query->where('created_at', '<=', \Carbon\Carbon::parse($filters['to'])->endOfDay());
-        }
-
-        if (! empty($filters['method'])) {
-            $query->where('properties->method', $filters['method']);
-        }
-
-        if (! empty($filters['q'])) {
-            $search = trim((string) $filters['q']);
-            $query->where(function ($builder) use ($search): void {
-                $builder->where('action', 'like', '%'.$search.'%')
-                    ->orWhere('friendly_action', 'like', '%'.$search.'%')
-                    ->orWhere('subject_type', 'like', '%'.$search.'%')
-                    ->orWhere('subject_reference_snapshot', 'like', '%'.$search.'%')
-                    ->orWhere('subject_name_snapshot', 'like', '%'.$search.'%')
-                    ->orWhere('properties->path', 'like', '%'.$search.'%')
-                    ->orWhere('properties->url', 'like', '%'.$search.'%')
-                    ->orWhere('device_name_snapshot', 'like', '%'.$search.'%')
-                    ->orWhere('device_code_snapshot', 'like', '%'.$search.'%')
-                    ->orWhere('real_device_platform', 'like', '%'.$search.'%')
-                    ->orWhere('real_device_browser', 'like', '%'.$search.'%')
-                    ->orWhere('real_device_ip', 'like', '%'.$search.'%')
-                    ->orWhere('app_version', 'like', '%'.$search.'%');
-            });
-        }
+        $filters = $this->activityFilters($request);
+        $query = $this->filteredActivity($tenant, $filters);
 
         $logs = $query->paginate(20)->withQueryString();
 
@@ -361,11 +311,15 @@ class AuthController extends Controller
                 'method' => $filters['method'] ?? '',
                 'q' => $filters['q'] ?? '',
                 'device_id' => $filters['device_id'] ?? '',
+                'kind' => $filters['kind'] ?? '',
+                'outcome' => $filters['outcome'] ?? '',
             ],
             'totals' => [
                 'all' => AuditLog::where('tenant_id', $tenant->id)->count(),
                 'today' => AuditLog::where('tenant_id', $tenant->id)->whereDate('created_at', now()->toDateString())->count(),
                 'users' => AuditLog::where('tenant_id', $tenant->id)->whereNotNull('user_id')->distinct('user_id')->count('user_id'),
+                'failed_today' => AuditLog::where('tenant_id', $tenant->id)->where('outcome', \App\Support\ActivityRecorder::FAILED)
+                    ->where('created_at', '>=', now()->subDay())->count(),
             ],
             'actionLabels' => $this->actionLabels(),
         ]);
@@ -380,50 +334,7 @@ class AuthController extends Controller
             abort(403);
         }
 
-        $filters = $request->validate([
-            'user_id' => ['nullable', 'integer'],
-            'from' => ['nullable', 'date'],
-            'to' => ['nullable', 'date'],
-            'method' => ['nullable', 'in:POST,PUT,PATCH,DELETE'],
-            'q' => ['nullable', 'string', 'max:120'],
-            'device_id' => ['nullable', 'integer'],
-        ]);
-
-        $query = AuditLog::query()->where('tenant_id', $tenant->id)->with('user')->latest();
-
-        if (! empty($filters['user_id'])) {
-            $query->where('user_id', (int) $filters['user_id']);
-        }
-        if (! empty($filters['device_id'])) {
-            $query->where('virtual_device_id', (int) $filters['device_id']);
-        }
-        if (! empty($filters['from'])) {
-            $query->where('created_at', '>=', \Carbon\Carbon::parse($filters['from'])->startOfDay());
-        }
-        if (! empty($filters['to'])) {
-            $query->where('created_at', '<=', \Carbon\Carbon::parse($filters['to'])->endOfDay());
-        }
-        if (! empty($filters['method'])) {
-            $query->where('properties->method', $filters['method']);
-        }
-        if (! empty($filters['q'])) {
-            $search = trim((string) $filters['q']);
-            $query->where(function ($builder) use ($search): void {
-                $builder->where('action', 'like', '%'.$search.'%')
-                    ->orWhere('friendly_action', 'like', '%'.$search.'%')
-                    ->orWhere('subject_reference_snapshot', 'like', '%'.$search.'%')
-                    ->orWhere('subject_name_snapshot', 'like', '%'.$search.'%')
-                    ->orWhere('properties->path', 'like', '%'.$search.'%')
-                    ->orWhere('properties->url', 'like', '%'.$search.'%')
-                    ->orWhere('properties->user_agent', 'like', '%'.$search.'%')
-                    ->orWhere('device_name_snapshot', 'like', '%'.$search.'%')
-                    ->orWhere('device_code_snapshot', 'like', '%'.$search.'%')
-                    ->orWhere('real_device_platform', 'like', '%'.$search.'%')
-                    ->orWhere('real_device_browser', 'like', '%'.$search.'%')
-                    ->orWhere('real_device_ip', 'like', '%'.$search.'%')
-                    ->orWhere('app_version', 'like', '%'.$search.'%');
-            });
-        }
+        $query = $this->filteredActivity($tenant, $this->activityFilters($request));
 
         $actionLabels = $this->actionLabels();
 
@@ -510,6 +421,10 @@ class AuthController extends Controller
             ->addColumn('real_device_ip', fn (AuditLog $log) => $log->real_device_ip)
             ->addColumn('real_device_user_agent', fn (AuditLog $log) => $log->real_device_user_agent)
             ->addColumn('app_version', fn (AuditLog $log) => $log->app_version ?: ($log->properties['app_version'] ?? null))
+            ->addColumn('kind', fn (AuditLog $log) => $log->kind ?? 'action')
+            ->addColumn('outcome', fn (AuditLog $log) => $log->outcome ?? 'ok')
+            ->addColumn('outcome_message', fn (AuditLog $log) => $log->outcome_message)
+            ->addColumn('duration_ms', fn (AuditLog $log) => $log->duration_ms)
             ->addColumn('properties_json', function (AuditLog $log) {
                 $props = $log->properties ?? [];
                 $payload = $props['payload'] ?? [];
@@ -559,6 +474,9 @@ class AuthController extends Controller
                     'app_version' => $log->app_version ?: ($props['app_version'] ?? null),
                     'app_platform' => $props['app_platform'] ?? null,
                     'app_device' => $props['app_device'] ?? null,
+                    'screen' => $props['screen'] ?? null,
+                    'errors_json' => empty($props['errors']) ? null : $encode($props['errors']),
+                    'exception' => $props['exception'] ?? null,
                     'payload_json' => $encode($payload),
                     'route_json' => $encode($routeParams),
                     'query_json' => $encode($queryParams),
@@ -573,6 +491,75 @@ class AuthController extends Controller
             })
             ->rawColumns(['action', 'reference', 'device', 'user_avatar', 'properties_json', 'action_raw'])
             ->toJson();
+    }
+
+    /** @return array<string, mixed> */
+    private function activityFilters(Request $request): array
+    {
+        return $request->validate([
+            'user_id' => ['nullable', 'integer'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+            'method' => ['nullable', 'in:POST,PUT,PATCH,DELETE'],
+            'q' => ['nullable', 'string', 'max:120'],
+            'device_id' => ['nullable', 'integer'],
+            // Empty: everything but page views, which would drown the rest.
+            'kind' => ['nullable', 'in:all,'.implode(',', \App\Support\ActivityRecorder::KINDS)],
+            'outcome' => ['nullable', 'in:ok,failed'],
+        ]);
+    }
+
+    /** @param array<string, mixed> $filters */
+    private function filteredActivity(\App\Models\Tenant $tenant, array $filters): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = AuditLog::query()->where('tenant_id', $tenant->id)->with('user')->latest()->orderByDesc('id');
+
+        $kind = $filters['kind'] ?? '';
+        if ($kind === '' || $kind === null) {
+            $query->where('kind', '!=', \App\Support\ActivityRecorder::VIEW);
+        } elseif ($kind !== 'all') {
+            $query->where('kind', $kind);
+        }
+        if (! empty($filters['outcome'])) {
+            $query->where('outcome', $filters['outcome']);
+        }
+        if (! empty($filters['user_id'])) {
+            $query->where('user_id', (int) $filters['user_id']);
+        }
+        if (! empty($filters['device_id'])) {
+            $query->where('virtual_device_id', (int) $filters['device_id']);
+        }
+        if (! empty($filters['from'])) {
+            $query->where('created_at', '>=', \Carbon\Carbon::parse($filters['from'])->startOfDay());
+        }
+        if (! empty($filters['to'])) {
+            $query->where('created_at', '<=', \Carbon\Carbon::parse($filters['to'])->endOfDay());
+        }
+        if (! empty($filters['method'])) {
+            $query->where('properties->method', $filters['method']);
+        }
+        if (! empty($filters['q'])) {
+            $search = trim((string) $filters['q']);
+            $query->where(function ($builder) use ($search): void {
+                $builder->where('action', 'like', '%'.$search.'%')
+                    ->orWhere('friendly_action', 'like', '%'.$search.'%')
+                    ->orWhere('outcome_message', 'like', '%'.$search.'%')
+                    ->orWhere('subject_type', 'like', '%'.$search.'%')
+                    ->orWhere('subject_reference_snapshot', 'like', '%'.$search.'%')
+                    ->orWhere('subject_name_snapshot', 'like', '%'.$search.'%')
+                    ->orWhere('properties->path', 'like', '%'.$search.'%')
+                    ->orWhere('properties->url', 'like', '%'.$search.'%')
+                    ->orWhere('properties->user_agent', 'like', '%'.$search.'%')
+                    ->orWhere('device_name_snapshot', 'like', '%'.$search.'%')
+                    ->orWhere('device_code_snapshot', 'like', '%'.$search.'%')
+                    ->orWhere('real_device_platform', 'like', '%'.$search.'%')
+                    ->orWhere('real_device_browser', 'like', '%'.$search.'%')
+                    ->orWhere('real_device_ip', 'like', '%'.$search.'%')
+                    ->orWhere('app_version', 'like', '%'.$search.'%');
+            });
+        }
+
+        return $query;
     }
 
     /**
