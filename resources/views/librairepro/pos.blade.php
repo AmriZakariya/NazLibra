@@ -5,7 +5,8 @@
     $money = fn ($amount): string => $shopMoney->format($amount);
     $tr = fn ($text) => \App\Support\Locale::t($text);
     $businessMode = \App\Support\BusinessMode::current($tenant);
-    $productTypes = ['all' => 'Tous', 'book' => 'Livres', 'supply' => 'Papeterie', 'service' => 'Services'];
+    // The shop's own types, in its words (Paramètres › Types d'articles).
+    $productTypes = ['all' => 'Tous'] + collect(\App\Support\ItemTypes::visibleForTenant($tenant))->mapWithKeys(fn ($t) => [$t['value'] => $t['plural']])->all();
     $resumeDiscountType = old('discount_type', $resumeTicket?->discount_type ?: 'fixed');
     $resumeDiscountValue = old('discount_value', $resumeTicket?->discount_value ?? $resumeTicket?->discount_amount ?? 0);
     $resumeDiscountRuleId = (int) old('discount_rule_id', 0);
@@ -240,7 +241,7 @@
 
                         <div class="mt-3 grid gap-2 border-t border-slate-200 pt-3 dark:border-white/10 sm:grid-cols-2 xl:grid-cols-3">
                             <label class="pos-control block">
-                                <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">📚 {{ $tr('Famille') }}</span>
+                                <span class="pos-control-label text-xs font-semibold uppercase tracking-wide text-slate-500">🏷️ {{ $tr('Famille') }}</span>
                                 <select class="pos-type-filter mt-2 h-[44px] w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium transition hover:border-slate-300 focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950 dark:hover:border-white/20" title="Filtrer par famille de produit">
                                     @foreach ($productTypes as $value => $label)
                                         <option value="{{ $value }}" @selected($type === $value)>{{ $label }}</option>

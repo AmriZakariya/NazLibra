@@ -4016,6 +4016,7 @@
                         // que disent l'écran de transfert et tout le stock.
                         'warehouses' => 'Emplacements',
                         'store' => 'Caisse & stock',
+                        'item-types' => 'Types d’articles',
                         'documents' => 'PDF',
                         'theme' => 'Thème',
                         'modules' => 'Modules',
@@ -4588,6 +4589,83 @@
                     </div>
                 </article>
 
+                @elseif ($settingsSection === 'item-types')
+                    @php
+                        $shopItemTypes = \App\Support\ItemTypes::forTenant($tenant);
+                        $shopTypesRenamed = \App\Support\ItemTypes::overrides($tenant) !== [];
+                    @endphp
+                    <article class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950/40" data-item-types-settings>
+                        <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                            <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div class="flex items-start gap-4">
+                                    <span class="grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-lg font-semibold text-white">≡</span>
+                                    <div>
+                                        <p class="text-xs font-semibold uppercase tracking-wide text-brand">Paramètres · catalogue</p>
+                                        <h2 class="mt-1 text-xl font-semibold text-slate-950 dark:text-slate-100">Types d’articles</h2>
+                                        <p class="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
+                                            Les mots de votre commerce, partout : fiche article, filtres du catalogue, de l’inventaire et de la caisse, sur le web et dans l’application.
+                                            Par défaut ce sont ceux de votre activité (<strong>{{ \App\Support\ItemTypes::activityLabel(\App\Support\ItemTypes::activityForTenant($tenant)) }}</strong>).
+                                            Vos articles gardent leur type : seul le nom change.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <x-status-pill tone="primary">{{ collect($shopItemTypes)->where('visible', true)->count() }} affiché(s)</x-status-pill>
+                                    @if ($shopTypesRenamed)<x-status-pill tone="warning">Personnalisé</x-status-pill>@endif
+                                </div>
+                            </div>
+                        </div>
+
+                        <form action="{{ route('settings.item-types.update') }}" method="POST" class="space-y-4 p-5">
+                            @csrf
+                            <div class="overflow-x-auto rounded-xl border border-slate-200 dark:border-white/10">
+                                <table class="w-full min-w-[720px] text-left text-sm">
+                                    <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                                        <tr>
+                                            <th class="px-4 py-3">Nom</th>
+                                            <th class="px-4 py-3">Pluriel (filtres)</th>
+                                            <th class="px-4 py-3">Aide à la création</th>
+                                            <th class="px-4 py-3 text-center">Afficher</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-200 dark:divide-white/10">
+                                        @foreach ($shopItemTypes as $shopType)
+                                            @php $field = 'types['.$shopType['value'].']'; @endphp
+                                            <tr data-item-type="{{ $shopType['value'] }}">
+                                                <td class="px-4 py-3 align-top">
+                                                    <input name="{{ $field }}[label]" required maxlength="40" value="{{ old('types.'.$shopType['value'].'.label', $shopType['label']) }}" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                                    <span class="mt-1 block text-xs text-slate-400">Par défaut : {{ $shopType['default_label'] }}{{ $shopType['value'] === 'supply' ? ' · type de base' : '' }}</span>
+                                                </td>
+                                                <td class="px-4 py-3 align-top">
+                                                    <input name="{{ $field }}[plural]" maxlength="40" value="{{ old('types.'.$shopType['value'].'.plural', $shopType['plural']) }}" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                                    <span class="mt-1 block text-xs text-slate-400">Par défaut : {{ $shopType['default_plural'] }}</span>
+                                                </td>
+                                                <td class="px-4 py-3 align-top">
+                                                    <input name="{{ $field }}[hint]" maxlength="120" value="{{ old('types.'.$shopType['value'].'.hint', $shopType['hint']) }}" class="h-10 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                                </td>
+                                                <td class="px-4 py-3 text-center align-top">
+                                                    @if ($shopType['locked'])
+                                                        <input type="hidden" name="{{ $field }}[visible]" value="1">
+                                                        <span class="inline-flex h-10 items-center text-xs font-semibold text-slate-400" title="Chaque commerce vend des produits : ce type reste affiché.">Toujours</span>
+                                                    @else
+                                                        <input type="hidden" name="{{ $field }}[visible]" value="0">
+                                                        <input type="checkbox" name="{{ $field }}[visible]" value="1" @checked($shopType['visible']) class="mt-3 size-4 rounded border-slate-300 accent-[var(--brand-primary)]" aria-label="Afficher {{ $shopType['label'] }}">
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Un type masqué disparaît de la création d’article et des filtres ; les articles qui l’ont déjà le gardent et restent vendables.</p>
+                            <div class="flex flex-wrap items-center justify-end gap-2">
+                                @if ($shopTypesRenamed)
+                                    <button type="submit" name="reset" value="1" formnovalidate class="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:border-brand/40 hover:text-brand dark:border-white/10 dark:text-slate-200">Revenir aux noms par défaut</button>
+                                @endif
+                                <button type="submit" class="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:brightness-110">Enregistrer</button>
+                            </div>
+                        </form>
+                    </article>
                 @elseif ($settingsSection === 'modules')
                     <article class="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-950/40">
                         <div class="border-b border-slate-200 p-5 dark:border-white/10">

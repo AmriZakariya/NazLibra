@@ -392,6 +392,7 @@ Route::post('/caisse/registre/{session}/fermer', [LibraireProController::class, 
 Route::post('/parametres/theme', [LibraireProController::class, 'updateTheme'])->name('settings.theme.update');
 Route::post('/parametres/societe', [LibraireProController::class, 'updateCompanyProfile'])->name('settings.company.update');
 Route::post('/parametres/modules', [LibraireProController::class, 'updateModuleSettings'])->name('settings.modules.update');
+Route::post('/parametres/types-articles', [LibraireProController::class, 'updateItemTypes'])->name('settings.item-types.update');
 Route::post('/parametres/caisse', [LibraireProController::class, 'updatePosSettings'])->name('settings.pos.update');
 Route::post('/parametres/appareils-virtuels', [LibraireProController::class, 'updateVirtualDeviceSettings'])->name('settings.virtual-devices.update');
 Route::post('/parametres/groupes-impression', [LibraireProController::class, 'storePrinterGroup'])->name('settings.printer-groups.store');

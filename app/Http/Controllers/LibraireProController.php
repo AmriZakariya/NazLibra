@@ -949,7 +949,8 @@ class LibraireProController extends Controller
             'suggestedItemCode' => $this->nextItemCode($tenant->id),
             'inventoryCostingMethod' => data_get($tenant->settings, 'inventory.costing_method', 'lifo'),
             'businessActivity' => ItemTypes::activityForTenant($tenant),
-            'itemTypeConfig' => ItemTypes::physicalTypes(ItemTypes::activityForTenant($tenant)),
+            'itemTypeConfig' => ItemTypes::physicalForTenant($tenant),
+            'itemTypeNames' => ItemTypes::namesForApp($tenant),
             'stockStats' => [
                 'adjustments' => StockAdjustment::where('tenant_id', $tenant->id)->count(),
                 'transfers' => StockTransfer::where('tenant_id', $tenant->id)->count(),
@@ -3383,6 +3384,40 @@ class LibraireProController extends Controller
         $tenant->update(['settings' => $settings]);
 
         return back()->with('status', 'Paramètres caisse & stock mis à jour.');
+    }
+
+    /**
+     * Paramètres › Types d'articles: the shop's own names for its types, and
+     * which are shown. Only what differs from the activity is kept; items
+     * keep their type whatever is renamed or hidden.
+     */
+    public function updateItemTypes(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $back = redirect()->route('module', ['module' => 'settings', 'section' => 'item-types']);
+
+        $settings = $tenant->settings ?? [];
+        if ($request->boolean('reset')) {
+            data_forget($settings, ItemTypes::SETTINGS_KEY);
+            $tenant->update(['settings' => $settings]);
+
+            return $back->with('status', 'Types d’articles : noms par défaut de votre activité rétablis.');
+        }
+
+        $data = $request->validate([
+            'types' => ['required', 'array'],
+            'types.*.label' => ['required', 'string', 'max:40'],
+            'types.*.plural' => ['nullable', 'string', 'max:40'],
+            'types.*.hint' => ['nullable', 'string', 'max:120'],
+            'types.*.visible' => ['nullable', 'boolean'],
+        ], [
+            'types.*.label.required' => 'Chaque type a besoin d’un nom.',
+        ]);
+
+        data_set($settings, ItemTypes::SETTINGS_KEY, ItemTypes::overridesFrom($tenant, $data['types']));
+        $tenant->update(['settings' => $settings]);
+
+        return $back->with('status', 'Types d’articles enregistrés. L’application les reçoit à sa prochaine synchronisation.');
     }
 
     public function updateModuleSettings(Request $request): RedirectResponse
@@ -11162,15 +11197,7 @@ class LibraireProController extends Controller
 
     private function typeLabel(string $type): string
     {
-        $tenant = $this->tenant();
-        $mode = BusinessMode::current($tenant);
-        $labels = data_get($tenant?->settings, 'catalog.type_labels', $mode['type_labels']);
-
-        return (string) ($labels[$type] ?? $mode['type_labels'][$type] ?? match ($type) {
-            'service' => 'Service',
-            'supply' => 'Produit',
-            default => 'Livre',
-        });
+        return ItemTypes::label($this->tenant(), $type);
     }
 
     private function statusLabel(string $status): string

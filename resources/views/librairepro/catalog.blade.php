@@ -21,7 +21,9 @@
     ]));
     $exportLink = route('catalog.export', request()->query());
     $statusLabel = fn ($status) => ['active' => 'Actif', 'archived' => 'Archivé', 'out_of_stock' => 'Rupture'][$status] ?? $status;
-    $catalogTypeLabels = collect($itemTypeConfig ?? [])->mapWithKeys(fn ($config, $key) => [$key => $config['label'] ?? $key])->all() + ['service' => 'Service'];
+    $catalogTypeLabels = collect($itemTypeNames ?? [])->map(fn ($names) => $names['label'])->all()
+        + collect($itemTypeConfig ?? [])->mapWithKeys(fn ($config, $key) => [$key => $config['label'] ?? $key])->all()
+        + ['service' => 'Service'];
     $physicalTypeSummary = collect($itemTypeConfig ?? [])->pluck('label')->filter()->implode(' / ') ?: 'Article physique';
     $typeLabel = fn ($type) => $catalogTypeLabels[$type] ?? $type;
     $sortIndicator = fn ($key) => $sort === $key ? ($direction === 'asc' ? ' ↑' : ' ↓') : '';

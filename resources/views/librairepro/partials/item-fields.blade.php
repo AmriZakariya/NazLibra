@@ -5,14 +5,15 @@
     $select = 'mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900';
     $section = 'lg:col-span-4 mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase text-slate-500 shadow-sm dark:border-white/10 dark:bg-white/5';
     $required = '<span class="ms-1 text-rose-500">*</span>';
-    // $itemTypeConfig is passed from the controller (activity-aware physical types, no service).
-    // Fall back to bookstore types when the variable is absent (e.g. partial includes).
-    $typeConfig  = $itemTypeConfig ?? \App\Support\ItemTypes::physicalTypes(\App\Support\ItemTypes::defaultActivity());
+    // $itemTypeConfig is passed from the controller: the shop's shown stock types,
+    // in its own words (Paramètres › Types d'articles), no service.
+    $typesTenant = \App\Support\TenantContext::resolve(request());
+    $typeConfig  = $itemTypeConfig ?? \App\Support\ItemTypes::physicalForTenant($typesTenant);
     $defaultType = array_key_first($typeConfig) ?? 'supply';
     $typeValue   = old('type', $item?->type ?? $defaultType);
-    // Ensure the current item's type is always an option even if activity changed.
+    // The item's own type stays an option, even hidden or from another activity.
     if ($item && ! isset($typeConfig[$item->type]) && $item->type !== 'service') {
-        $typeConfig[$item->type] = ['label' => ucfirst($item->type), 'hint' => '', 'fields' => null];
+        $typeConfig[$item->type] = ['label' => \App\Support\ItemTypes::label($typesTenant, $item->type), 'hint' => '', 'fields' => null];
     }
     $typeOptions = $typeConfig;
     $hasBookFieldProfile = collect($typeOptions)->contains(fn ($option) => ($option['fields'] ?? null) === 'book');

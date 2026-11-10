@@ -16,7 +16,7 @@
         $query !== '' ? 'Recherche: '.$query : null,
         $categoryFilter ? 'Catégorie: '.($categories->firstWhere('id', (int) $categoryFilter)?->name ?? 'filtrée') : null,
         $brandFilter ? 'Marque: '.($brands->firstWhere('id', (int) $brandFilter)?->name ?? 'filtrée') : null,
-        $type !== 'all' ? 'Type: '.(['book' => 'Livres', 'supply' => 'Papeterie', 'service' => 'Services'][$type] ?? $type) : null,
+        $type !== 'all' ? 'Type: '.\App\Support\ItemTypes::label($tenant, $type, true) : null,
     ])->filter();
 @endphp
 
@@ -111,9 +111,9 @@
                     </select>
                     <select name="type" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <option value="all" @selected($type === 'all')>Tous les types</option>
-                        <option value="book" @selected($type === 'book')>Livres</option>
-                        <option value="supply" @selected($type === 'supply')>Papeterie</option>
-                        <option value="service" @selected($type === 'service')>Services</option>
+                        @foreach (\App\Support\ItemTypes::visibleForTenant($tenant) as $shopType)
+                            <option value="{{ $shopType['value'] }}" @selected($type === $shopType['value'])>{{ $shopType['plural'] }}</option>
+                        @endforeach
                     </select>
                     <div class="label-filter-actions">
                         <button class="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white dark:bg-white dark:text-slate-950" type="submit">Rechercher</button>

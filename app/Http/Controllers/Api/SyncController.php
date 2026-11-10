@@ -594,7 +594,11 @@ class SyncController extends Controller
             'business_activity'         => \App\Support\ItemTypes::activityForTenant($tenant),
             // The item form's types, in the web's words and order — the app
             // kept its own list, knew five activities and offered no service.
+            // Only the shown ones, with the shop's own names and plurals
+            // (Paramètres › Types d'articles).
             'item_types'                => \App\Support\ItemTypes::forApp($tenant),
+            // Every type's name, hidden ones too: an existing item keeps its name.
+            'item_type_names'           => \App\Support\ItemTypes::namesForApp($tenant),
             'inventory_costing_method'  => (string) data_get($tenant->settings, 'inventory.costing_method', 'lifo'),
             'branding'                  => $this->branding($tenant),
             // Who did each line (the barber on a cut). Asked by default where

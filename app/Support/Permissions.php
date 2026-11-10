@@ -323,6 +323,7 @@ class Permissions
             // password screen.
             'settings.theme.update' => 'settings.company',
             'settings.company.update' => 'settings.company',
+            'settings.item-types.update' => 'settings.company',
             'settings.pos.update' => 'settings.pos',
             'settings.documents.update' => 'settings.documents',
             'settings.messaging.update' => 'settings.messaging',

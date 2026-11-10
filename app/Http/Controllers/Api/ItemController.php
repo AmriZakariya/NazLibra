@@ -377,13 +377,16 @@ class ItemController extends Controller
         $tenant   = $request->attributes->get('api_tenant');
         $activity = ItemTypes::activityForTenant($tenant);
 
-        $rawTypes = ItemTypes::physicalTypes($activity);
-        $physical = array_values(array_map(fn ($key, $type) => [
-            'value'        => $key,
+        // The shop's shown types, in its own words.
+        $shown = ItemTypes::visibleForTenant($tenant);
+        $physical = array_values(array_map(fn (array $type) => [
+            'value'        => $type['value'],
             'label'        => $type['label'],
+            'plural'       => $type['plural'],
             'hint'         => $type['hint'],
             'tracks_stock' => true,
-        ], array_keys($rawTypes), $rawTypes));
+        ], array_filter($shown, fn (array $type) => $type['value'] !== 'service')));
+        $service = collect($shown)->firstWhere('value', 'service') ?? collect(ItemTypes::forTenant($tenant))->firstWhere('value', 'service');
 
         return response()->json([
             'ok'       => true,
@@ -394,8 +397,8 @@ class ItemController extends Controller
             'physical_types' => $physical,
             'service_type' => [
                 'value'        => 'service',
-                'label'        => 'Service',
-                'hint'         => 'Prestation sans stock',
+                'label'        => $service['label'] ?? 'Service',
+                'hint'         => $service['hint'] ?? 'Prestation sans stock',
                 'tracks_stock' => false,
             ],
         ]);
