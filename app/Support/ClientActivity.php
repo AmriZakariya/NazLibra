@@ -122,6 +122,26 @@ final class ClientActivity
         return implode(' · ', array_filter(array_map(fn ($p) => is_string($p) ? trim($p) : $p, $parts))) ?: null;
     }
 
+    /**
+     * The app versions the space's devices last ran, each with what the
+     * update policy would tell it (ok / soft / force).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function devices(?TenantInstall $install): array
+    {
+        $devices = $install?->activity['devices'] ?? [];
+        if (! is_array($devices) || $devices === []) {
+            return [];
+        }
+
+        $policies = \App\Models\AppUpdatePolicy::query()->get()->keyBy('platform');
+        return array_values(array_map(fn (array $d) => $d + [
+            'status' => AppVersions::status($policies->get((string) ($d['platform'] ?? '')), (string) ($d['version'] ?? '')),
+            'at_carbon' => isset($d['at']) ? Carbon::parse($d['at']) : null,
+        ], array_filter($devices, 'is_array')));
+    }
+
     private static function failed(TenantInstall $install, string $error): bool
     {
         Log::info('CastLit: activity not collected', ['install' => $install->id, 'error' => $error]);

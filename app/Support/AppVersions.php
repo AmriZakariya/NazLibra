@@ -50,6 +50,21 @@ final class AppVersions
         return array_pad($x, $n, 0) <=> array_pad($y, $n, 0);
     }
 
+    /** OK, SOFT or FORCE: what this version is told under this policy. */
+    public static function status(?AppUpdatePolicy $policy, ?string $version): string
+    {
+        if (! $policy || ! self::valid($version)) {
+            return self::OK;
+        }
+        if (self::valid($policy->min_version) && self::compare($version, $policy->min_version) < 0) {
+            return self::FORCE;
+        }
+
+        return self::valid($policy->latest_version) && self::compare($version, $policy->latest_version) < 0
+            ? self::SOFT
+            : self::OK;
+    }
+
     /** @return array<string, mixed> what the app is told */
     public static function decide(string $platform, ?string $version): array
     {
@@ -57,14 +72,7 @@ final class AppVersions
             ? AppUpdatePolicy::where('platform', $platform)->first()
             : null;
 
-        $status = self::OK;
-        if ($policy && self::valid($version)) {
-            if (self::valid($policy->min_version) && self::compare($version, $policy->min_version) < 0) {
-                $status = self::FORCE;
-            } elseif (self::valid($policy->latest_version) && self::compare($version, $policy->latest_version) < 0) {
-                $status = self::SOFT;
-            }
-        }
+        $status = self::status($policy, $version);
 
         return [
             'ok' => true,

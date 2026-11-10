@@ -125,6 +125,38 @@ class ClientActivityTest extends TestCase
         $this->assertSame($sortedPositions, $positions, 'never seen, then the longest quiet, first');
     }
 
+    public function test_the_client_page_lists_each_device_version_against_the_update_policy(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-10 12:00:00', 'UTC'));
+        \App\Models\AppUpdatePolicy::create(['platform' => 'android', 'latest_version' => '1.0.14', 'min_version' => '1.0.12']);
+        $install = $this->space('', 0, ['activity_at' => now(), 'activity' => [
+            'status' => 'success', 'last' => null, 'devices' => [
+                ['version' => '1.0.14', 'platform' => 'android', 'device' => 'Android 8.1 · PAX A920', 'terminal' => 'Caisse 1', 'user' => 'Ahmed', 'at' => '2026-11-10T11:00:00Z'],
+                ['version' => '1.0.13', 'platform' => 'android', 'device' => 'Android 14 · Samsung SM-X200', 'terminal' => null, 'user' => 'Sara', 'at' => '2026-11-09T09:00:00Z'],
+                ['version' => '1.0.11', 'platform' => 'android', 'device' => 'Android 11 · Sunmi V2', 'terminal' => null, 'user' => null, 'at' => '2026-10-01T09:00:00Z'],
+            ],
+        ]]);
+
+        $admin = User::factory()->create(['is_platform_admin' => true]);
+        $page = $this->actingAs($admin)->get('/castlit-admin/'.$install->subscription_id)->assertOk();
+
+        $page->assertSee('Versions de l\'application', false)
+            ->assertSee('Android 8.1 · PAX A920')
+            ->assertSee('data-version-status="ok"', false)
+            ->assertSee('data-version-status="soft"', false)
+            ->assertSee('data-version-status="force"', false)
+            ->assertSee('v1.0.11');
+    }
+
+    public function test_a_client_without_versions_says_so(): void
+    {
+        $install = $this->space('');
+        $admin = User::factory()->create(['is_platform_admin' => true]);
+
+        $this->actingAs($admin)->get('/castlit-admin/'.$install->subscription_id)->assertOk()
+            ->assertSee('Aucun appareil n\'a encore envoyé sa version', false);
+    }
+
     public function test_refresh_goes_through_the_worker_since_the_web_process_cannot_run_a_space(): void
     {
         $install = $this->space(json_encode(['status' => 'success', 'at' => null, 'last' => null]));

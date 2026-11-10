@@ -51,7 +51,7 @@ class ActivityCommand extends Command
             'status' => 'success',
             'at' => $last['at'] ?? null,
             'last' => $last,
-        ] + $signals + $this->saleCounts($ignored), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        ] + $signals + $this->saleCounts($ignored) + ['devices' => $this->devices($ignored)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         return self::SUCCESS;
     }
@@ -146,6 +146,51 @@ class ActivityCommand extends Command
             'label' => trim(($row->friendly_action ?: $row->action).' '.($row->subject_reference_snapshot ?? '')),
             'user' => $row->user_id ? $this->name((int) $row->user_id) : null,
         ] : null;
+    }
+
+    /**
+     * Which build of the app each device last used (60 days), newest first:
+     * who is behind before an update is forced. One row per physical device
+     * (its install id), or per device name for logs written before it was sent.
+     *
+     * @param array<int, int> $ignored
+     * @return array<int, array<string, mixed>>
+     */
+    private function devices(array $ignored): array
+    {
+        if (! Schema::hasTable('audit_logs') || ! Schema::hasColumn('audit_logs', 'app_version')) {
+            return [];
+        }
+
+        $rows = DB::table('audit_logs')
+            ->whereNotNull('app_version')
+            ->where('created_at', '>=', now()->subDays(60))
+            ->when($ignored, fn ($q) => $q->where(fn ($w) => $w->whereNull('user_id')->orWhereNotIn('user_id', $ignored)))
+            ->orderByDesc('created_at')->orderByDesc('id')
+            ->limit(3000)
+            ->get(['user_id', 'app_version', 'app_install_id', 'real_device_platform', 'device_name_snapshot', 'properties', 'created_at']);
+
+        $devices = [];
+        foreach ($rows as $row) {
+            $key = $row->app_install_id ?: 'label:'.($row->real_device_platform ?? '').'|'.($row->device_name_snapshot ?? '');
+            if (isset($devices[$key])) {
+                continue;
+            }
+            $props = json_decode((string) $row->properties, true);
+            $devices[$key] = [
+                'version' => (string) $row->app_version,
+                'platform' => is_array($props) ? ($props['app_platform'] ?? null) : null,
+                'device' => $row->real_device_platform,
+                'terminal' => $row->device_name_snapshot,
+                'user' => $row->user_id ? $this->name((int) $row->user_id) : null,
+                'at' => $this->iso($row->created_at),
+            ];
+            if (count($devices) >= 30) {
+                break;
+            }
+        }
+
+        return array_values($devices);
     }
 
     /**

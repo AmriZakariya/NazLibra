@@ -381,11 +381,19 @@
             var deviceCards = [
                 card("{{ $tr('Appareil virtuel') }}", row.virtual_device_label || "{{ $tr('Non utilisé') }}"),
                 card("{{ $tr('Code appareil') }}", row.virtual_device_code || ""),
-                card("{{ $tr('Plateforme réelle') }}", row.real_device_platform || ""),
+                card("{{ $tr('Version de l’application') }}", props.app_version ? "v" + props.app_version : ""),
+                card("{{ $tr('Plateforme réelle') }}", row.real_device_platform || props.app_device || ""),
                 card("{{ $tr('Navigateur') }}", row.real_device_browser || ""),
                 card("{{ $tr('Adresse IP') }}", row.real_device_ip || props.ip || ""),
                 card("{{ $tr('User-Agent') }}", row.real_device_user_agent || props.user_agent || "", "font-mono text-xs")
             ].join("");
+            var isApp = String(row.action_raw || "").indexOf("api.") === 0 || bool(props.app_version);
+            var appRows = [
+                card("{{ $tr('Version de l’application') }}", props.app_version ? "v" + props.app_version : ""),
+                card("{{ $tr('Appareil') }}", props.app_device || row.real_device_platform || row.virtual_device_label || ""),
+                card("{{ $tr('Emplacement') }}", props.location || "")
+            ].join("");
+            var hasSubject = bool(row.subject_type_label) || bool(row.subject_id) || bool(row.subject_reference) || bool(row.reference_text);
             var technicalCards = [
                 card("{{ $tr('Méthode') }}", props.method),
                 card("{{ $tr('Statut HTTP') }}", props.status_code),
@@ -393,7 +401,8 @@
                 card("{{ $tr('Route Laravel') }}", props.route),
                 card("{{ $tr('Contrôleur') }}", props.route_action),
                 card("{{ $tr('Chemin') }}", props.path, "font-mono text-xs"),
-                card("{{ $tr('Requête AJAX') }}", props.is_ajax ? "{{ $tr('Oui') }}" : "{{ $tr('Non') }}")
+                card("{{ $tr('Requête AJAX') }}", props.is_ajax ? "{{ $tr('Oui') }}" : "{{ $tr('Non') }}"),
+                card("{{ $tr('Clé d’idempotence') }}", props.idempotency_key, "font-mono text-xs")
             ].join("");
             var technicalPanel =
                 '<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">' + technicalCards + '</div>' +
@@ -430,11 +439,13 @@
                         card("{{ $tr('Statut réponse') }}", props.status_code) +
                         card("{{ $tr('Adresse IP') }}", props.ip || row.real_device_ip) +
                     '</div>' +
-                    '<div class="mt-4 grid gap-3 sm:grid-cols-3">' + targetRows + '</div>' +
+                    (isApp ? '<div class="mt-4 grid gap-3 sm:grid-cols-3" data-audit-app>' + appRows + '</div>' : '') +
+                    (hasSubject || !isApp ? '<div class="mt-4 grid gap-3 sm:grid-cols-3">' + targetRows + '</div>' : '') +
                     '<div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.04]"><p class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">{{ $tr('Route') }}</p><p class="mt-1 text-sm font-semibold text-slate-900 dark:text-white">' + esc(props.route || "—") + '</p><div class="mt-2 space-y-1 rounded-lg bg-white p-2.5 dark:bg-white/5"><p class="break-all text-[11px] font-mono text-slate-500 dark:text-slate-300">' + esc(props.path || "—") + '</p><p class="break-all text-[11px] font-mono text-slate-400">' + esc(props.url || "—") + '</p></div></div>' +
+                    '<div class="mt-4">' + codeBlock("{{ $tr('Données envoyées') }}", props.payload_json, "{{ $tr('Aucune donnée formulaire conservée pour cette action.') }}") + '</div>' +
                 '</div>' +
                 '<div id="tab-panel-device" class="hidden max-h-[70vh] overflow-y-auto px-6 py-5"><div class="grid gap-3 sm:grid-cols-2">' + deviceCards + '</div></div>' +
-                '<div id="tab-panel-tech" class="hidden max-h-[70vh] overflow-y-auto px-6 py-5">' +
+                '<div id="tab-panel-technical" class="hidden max-h-[70vh] overflow-y-auto px-6 py-5">' +
                     '<div class="grid gap-3 sm:grid-cols-2">' +
                         card("{{ $tr('Action technique') }}", row.action_raw, "font-mono text-xs") +
                         card("{{ $tr('URL complète') }}", props.url, "font-mono text-xs") +
@@ -460,10 +471,10 @@
                 var panel = document.getElementById("tab-panel-" + t);
                 if (!btn || !panel) return;
                 if (t === tab) {
-                    btn.className = "audit-dt-tab inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition bg-white text-brand shadow-sm ring-1 ring-slate-200/60";
+                    btn.className = "audit-dt-tab inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition bg-white text-brand shadow-sm ring-1 ring-slate-200/60 dark:bg-white/10 dark:ring-white/10";
                     panel.classList.remove("hidden");
                 } else {
-                    btn.className = "audit-dt-tab inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition text-slate-500 hover:text-slate-700 hover:bg-white/60";
+                    btn.className = "audit-dt-tab inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-semibold transition text-slate-500 hover:text-slate-700 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white";
                     panel.classList.add("hidden");
                 }
             });

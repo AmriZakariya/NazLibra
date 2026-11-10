@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'real_device_platform', 'real_device_browser',
     'real_device_ip', 'real_device_user_agent',
     'friendly_action', 'subject_name_snapshot', 'subject_reference_snapshot',
+    'app_version', 'app_install_id',
 ])]
 class AuditLog extends Model
 {

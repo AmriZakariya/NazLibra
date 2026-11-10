@@ -20,7 +20,7 @@
     @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
     .step-now { font-weight: 700; }
     .secret { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; letter-spacing: .5px; }
-    .mini-btn { border: 1px solid var(--sand); background: var(--surface); color: var(--muted); border-radius: 7px; font-size: 12px; font-weight: 650; padding: 2px 8px; cursor: pointer; margin-inline-start: 4px; }
+    .mini-btn { text-decoration: none; display: inline-block; border: 1px solid var(--sand); background: var(--surface); color: var(--muted); border-radius: 7px; font-size: 12px; font-weight: 650; padding: 2px 8px; cursor: pointer; margin-inline-start: 4px; }
     .mini-btn:hover { border-color: var(--brand); color: var(--brand); }
     .card-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .code-big { font-size: 16px; font-weight: 800; letter-spacing: 2px; }
@@ -43,6 +43,10 @@
     .acc-never { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--warn-bg); color: var(--warn); }
     .acc-bad { color: var(--err); font-weight: 650; }
     .acc-scroll { overflow-x: auto; margin: 0 -20px; padding: 0 20px; }
+    .ver { display: inline-flex; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+    .ver-ok { background: var(--ok-bg); color: var(--ok); }
+    .ver-soft { background: var(--warn-bg); color: var(--warn); }
+    .ver-force { background: var(--err-bg); color: var(--err); }
     .acc-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
     .acc-tbl th { text-align: start; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 8px 10px 8px 0; border-bottom: 1px solid var(--sand); }
     .acc-tbl td { padding: 9px 10px 9px 0; border-bottom: 1px solid color-mix(in srgb, var(--sand) 55%, transparent); vertical-align: top; }
@@ -348,6 +352,41 @@
                                                     </td>
                                                     <td class="nowrap mono">{{ $e->ip ?? '—' }}</td>
                                                     <td class="nowrap">{{ ['ok' => 'Code valide', 'invalid' => 'Code erroné', 'blocked' => 'Espace suspendu', 'unknown' => 'Inconnu'][$e->outcome] ?? $e->outcome }}</td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Which build each of the shop's devices last used, as the
+                         space reported it with its activity: who is behind,
+                         before an update is forced. --}}
+                    <div class="card" id="versions" data-app-versions>
+                        <h2 class="card-h">Versions de l'application
+                            <a class="mini-btn" href="{{ route('castlit.admin.app-updates') }}">Gérer les mises à jour</a>
+                        </h2>
+                        <div class="body">
+                            @if ($appDevices === [])
+                                <p class="acc-sum">Aucun appareil n'a encore envoyé sa version
+                                    — elle s'affiche après une action depuis l'application (version 1.0.13 et suivantes),
+                                    au prochain relevé d'activité.</p>
+                            @else
+                                <div class="acc-scroll">
+                                    <table class="acc-tbl">
+                                        <thead><tr><th>Appareil</th><th>Terminal</th><th>Version</th><th>Utilisateur</th><th>Dernière action</th></tr></thead>
+                                        <tbody>
+                                            @foreach ($appDevices as $d)
+                                                <tr data-version-status="{{ $d['status'] }}">
+                                                    <td>{{ $d['device'] ?: ucfirst((string) ($d['platform'] ?? '—')) }}</td>
+                                                    <td>{{ $d['terminal'] ?? '—' }}</td>
+                                                    <td class="nowrap">
+                                                        <span class="ver ver-{{ $d['status'] }}" title="{{ ['ok' => 'À jour', 'soft' => 'Mise à jour proposée', 'force' => 'Mise à jour obligatoire'][$d['status']] ?? '' }}">v{{ $d['version'] }}</span>
+                                                    </td>
+                                                    <td>{{ $d['user'] ?? '—' }}</td>
+                                                    <td class="nowrap">@if ($d['at_carbon'])<span title="{{ \App\Support\TenantClock::format($d['at_carbon']) }}">{{ $d['at_carbon']->locale('fr')->diffForHumans() }}</span>@else — @endif</td>
                                                 </tr>
                                             @endforeach
                                         </tbody>

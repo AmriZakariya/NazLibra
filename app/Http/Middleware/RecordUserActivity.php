@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Tenant;
+use App\Support\RequestSnapshot;
 use App\Support\TenantContext;
 use App\Support\TenantClock;
 use Closure;
@@ -91,10 +92,10 @@ class RecordUserActivity
                     'accept' => $request->headers->get('accept'),
                     'is_ajax' => $request->ajax(),
                     'user_agent' => str($request->userAgent() ?? '')->limit(240)->value(),
-                    'query' => $this->sanitizedQuery($request),
-                    'headers' => $this->sanitizedHeaders($request),
-                    'payload' => $this->sanitizedPayload($request),
-                    'route_parameters' => $this->routeParameters($request),
+                    'query' => RequestSnapshot::query($request),
+                    'headers' => RequestSnapshot::headers($request),
+                    'payload' => RequestSnapshot::payload($request),
+                    'route_parameters' => RequestSnapshot::routeParameters($request),
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -131,76 +132,6 @@ class RecordUserActivity
         }
 
         return ['type' => null, 'id' => null];
-    }
-
-    private function routeParameters(Request $request): array
-    {
-        return collect($request->route()?->parameters() ?? [])
-            ->mapWithKeys(function ($value, string $key): array {
-                if ($value instanceof Model) {
-                    return [$key => [
-                        'type' => $value::class,
-                        'id' => $value->getKey(),
-                    ]];
-                }
-
-                return [$key => $value];
-            })
-            ->all();
-    }
-
-    private function sanitizedPayload(Request $request): array
-    {
-        return collect($request->except([
-            '_token',
-            '_method',
-            'password',
-            'password_confirmation',
-            'current_password',
-            'pin',
-            'clear_pin',
-            'token',
-            'api_key',
-            'secret',
-        ]))
-            ->reject(fn ($value) => $value instanceof \Illuminate\Http\UploadedFile)
-            ->map(fn ($value) => is_string($value) ? str($value)->limit(500)->value() : $value)
-            ->all();
-    }
-
-    private function sanitizedQuery(Request $request): array
-    {
-        return collect($request->query())
-            ->map(fn ($value) => is_string($value) ? str($value)->limit(500)->value() : $value)
-            ->all();
-    }
-
-    private function sanitizedHeaders(Request $request): array
-    {
-        $allowed = [
-            'host',
-            'referer',
-            'origin',
-            'user-agent',
-            'accept',
-            'accept-language',
-            'content-type',
-            'x-requested-with',
-            'x-forwarded-for',
-            'x-real-ip',
-        ];
-
-        return collect($allowed)
-            ->mapWithKeys(function (string $name) use ($request): array {
-                $value = $request->headers->get($name);
-
-                if ($value === null || $value === '') {
-                    return [];
-                }
-
-                return [$name => str($value)->limit(500)->value()];
-            })
-            ->all();
     }
 
     private function deviceInfo(Request $request): array

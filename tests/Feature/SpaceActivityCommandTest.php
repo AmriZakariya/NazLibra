@@ -73,6 +73,32 @@ class SpaceActivityCommandTest extends TestCase
         $this->assertSame('Vente BL00042 · 120,50 MAD · Ahmed', ClientActivity::describe($data));
     }
 
+    public function test_a_space_reports_the_version_each_device_last_used(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-10 12:00:00', 'UTC'));
+        $tenant = DB::table('tenants')->insertGetId([
+            'name' => 'Spa', 'slug' => 'spa', 'currency' => 'MAD', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $owner = User::factory()->create(['name' => 'Ahmed']);
+        $log = fn (?string $install, string $version, string $device, string $at, array $props = []) => DB::table('audit_logs')->insert([
+            'tenant_id' => $tenant, 'user_id' => $owner->id, 'action' => 'api.post', 'app_version' => $version,
+            'app_install_id' => $install, 'real_device_platform' => $device,
+            'properties' => json_encode($props + ['app_platform' => 'android']), 'created_at' => $at, 'updated_at' => $at,
+        ]);
+        $log('pax-0001', '1.0.12', 'Android 8.1 · PAX A920', '2026-11-08 10:00:00');
+        $log('pax-0001', '1.0.13', 'Android 8.1 · PAX A920', '2026-11-10 11:00:00');
+        $log('tab-0002', '1.0.12', 'Android 14 · Samsung SM-X200', '2026-11-09 09:00:00');
+        $log('old-0003', '1.0.9', 'Android 11 · Sunmi V2', '2026-08-01 09:00:00'); // over 60 days
+
+        Artisan::call('castlit:activity');
+        $devices = ClientActivity::parse(Artisan::output())['devices'];
+
+        $this->assertCount(2, $devices);
+        $this->assertSame(['1.0.13', 'Android 8.1 · PAX A920', 'android', 'Ahmed'],
+            [$devices[0]['version'], $devices[0]['device'], $devices[0]['platform'], $devices[0]['user']]);
+        $this->assertSame('1.0.12', $devices[1]['version']);
+    }
+
     public function test_an_empty_space_reports_no_activity(): void
     {
         Artisan::call('castlit:activity');

@@ -340,7 +340,8 @@ class AuthController extends Controller
                     ->orWhere('device_code_snapshot', 'like', '%'.$search.'%')
                     ->orWhere('real_device_platform', 'like', '%'.$search.'%')
                     ->orWhere('real_device_browser', 'like', '%'.$search.'%')
-                    ->orWhere('real_device_ip', 'like', '%'.$search.'%');
+                    ->orWhere('real_device_ip', 'like', '%'.$search.'%')
+                    ->orWhere('app_version', 'like', '%'.$search.'%');
             });
         }
 
@@ -419,7 +420,8 @@ class AuthController extends Controller
                     ->orWhere('device_code_snapshot', 'like', '%'.$search.'%')
                     ->orWhere('real_device_platform', 'like', '%'.$search.'%')
                     ->orWhere('real_device_browser', 'like', '%'.$search.'%')
-                    ->orWhere('real_device_ip', 'like', '%'.$search.'%');
+                    ->orWhere('real_device_ip', 'like', '%'.$search.'%')
+                    ->orWhere('app_version', 'like', '%'.$search.'%');
             });
         }
 
@@ -507,6 +509,7 @@ class AuthController extends Controller
             ->addColumn('real_device_browser', fn (AuditLog $log) => $log->real_device_browser)
             ->addColumn('real_device_ip', fn (AuditLog $log) => $log->real_device_ip)
             ->addColumn('real_device_user_agent', fn (AuditLog $log) => $log->real_device_user_agent)
+            ->addColumn('app_version', fn (AuditLog $log) => $log->app_version ?: ($log->properties['app_version'] ?? null))
             ->addColumn('properties_json', function (AuditLog $log) {
                 $props = $log->properties ?? [];
                 $payload = $props['payload'] ?? [];
@@ -515,40 +518,52 @@ class AuthController extends Controller
                 $headers = $props['headers'] ?? [];
                 $method = (string) ($props['method'] ?? '—');
                 $encode = fn (mixed $value): string => json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}';
+                // App actions once kept "response_status" and no IP; the
+                // detail reads either, and leaves a gap blank rather than "—".
+                $status = $props['status_code'] ?? $props['response_status'] ?? null;
+                $ip = $props['ip'] ?? $log->real_device_ip;
                 $requestSummary = [
                     'method' => $method,
-                    'status_code' => $props['status_code'] ?? null,
+                    'status_code' => $status,
                     'route' => $props['route'] ?? null,
                     'route_action' => $props['route_action'] ?? null,
                     'path' => $props['path'] ?? null,
                     'url' => $props['url'] ?? null,
                     'timezone' => $props['timezone'] ?? config('app.timezone'),
-                    'ip' => $props['ip'] ?? $log->real_device_ip,
+                    'ip' => $ip,
                     'referer' => $props['referer'] ?? null,
                     'content_type' => $props['content_type'] ?? null,
                     'accept' => $props['accept'] ?? null,
                     'is_ajax' => $props['is_ajax'] ?? null,
+                    'location' => $props['location'] ?? null,
+                    'idempotency_key' => $props['idempotency_key'] ?? null,
+                    'app_version' => $log->app_version ?: ($props['app_version'] ?? null),
                 ];
 
                 return json_encode([
                     'method' => $method,
-                    'status_code' => $props['status_code'] ?? '—',
-                    'ip' => $props['ip'] ?? '—',
-                    'route' => $props['route'] ?? '—',
-                    'route_action' => $props['route_action'] ?? '—',
+                    'status_code' => $status,
+                    'ip' => $ip,
+                    'route' => $props['route'] ?? null,
+                    'route_action' => $props['route_action'] ?? null,
                     'timezone' => $props['timezone'] ?? config('app.timezone'),
-                    'path' => $props['path'] ?? '—',
-                    'url' => $props['url'] ?? '—',
-                    'referer' => $props['referer'] ?? '—',
-                    'content_type' => $props['content_type'] ?? '—',
-                    'accept' => $props['accept'] ?? '—',
+                    'path' => $props['path'] ?? null,
+                    'url' => $props['url'] ?? null,
+                    'referer' => $props['referer'] ?? null,
+                    'content_type' => $props['content_type'] ?? null,
+                    'accept' => $props['accept'] ?? null,
                     'is_ajax' => $props['is_ajax'] ?? false,
-                    'user_agent' => $props['user_agent'] ?? '—',
+                    'user_agent' => $props['user_agent'] ?? $log->real_device_user_agent,
+                    'location' => $props['location'] ?? null,
+                    'idempotency_key' => $props['idempotency_key'] ?? null,
+                    'app_version' => $log->app_version ?: ($props['app_version'] ?? null),
+                    'app_platform' => $props['app_platform'] ?? null,
+                    'app_device' => $props['app_device'] ?? null,
                     'payload_json' => $encode($payload),
                     'route_json' => $encode($routeParams),
                     'query_json' => $encode($queryParams),
                     'headers_json' => $encode($headers),
-                    'request_summary_json' => $encode($requestSummary),
+                    'request_summary_json' => $encode(array_filter($requestSummary, fn ($v) => $v !== null && $v !== '')),
                     'full_json' => $encode($props),
                     'has_payload' => ! empty($payload),
                     'has_route_parameters' => ! empty($routeParams),

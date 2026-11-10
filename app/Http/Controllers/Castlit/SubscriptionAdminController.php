@@ -64,6 +64,7 @@ class SubscriptionAdminController extends Controller
         return view('castlit.admin.show', [
             'subscription' => $subscription,
             'access'       => $installId ? ($this->accessSummaries([$installId])[$installId] ?? null) : null,
+            'appDevices'   => \App\Support\ClientActivity::devices($subscription->install),
             'accessEvents' => $installId
                 ? ClientAccessEvent::where('tenant_install_id', $installId)->latest('id')->limit(100)->get()
                 : collect(),
