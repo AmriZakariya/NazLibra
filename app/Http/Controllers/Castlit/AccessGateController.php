@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Castlit;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
 
 /**
@@ -31,37 +30,22 @@ class AccessGateController extends Controller
             return back()->withErrors(['code' => 'Client introuvable.']);
         }
 
-        try {
-            $base = 'https://'.strtolower((string) config('castlit.main_domain'));
-            $res = Http::acceptJson()->asJson()->timeout(12)->post(
-                $base.'/api/v1/public/client-access',
-                [
-                    'subdomain' => $sub,
-                    'code' => strtoupper(trim($data['code'])),
-                    // For the master's access journal: the visitor, not
-                    // this server, is the one entering the code.
-                    'channel' => 'web',
-                    'client_ip' => $request->ip(),
-                    'client_user_agent' => mb_substr((string) $request->userAgent(), 0, 500),
-                    'device_id' => $this->browserId($request),
-                ],
-            );
+        [$outcome, $message] = \App\Support\AccessGate::check($sub, $data['code'], $request, $this->browserId($request));
 
-            if ($res->successful() && $res->json('ok') === true) {
-                $request->session()->put('access_verified', true);
+        if ($outcome === \App\Support\AccessGate::VALID) {
+            $request->session()->put('access_verified', true);
 
-                return redirect()->route('login')
-                    ->withCookie(cookie()->forever(self::BROWSER_COOKIE, $this->browserId($request)));
-            }
-
-            return back()->withErrors([
-                'code' => $res->json('message') ?? 'Code de vérification invalide.',
-            ]);
-        } catch (\Throwable) {
-            return back()->withErrors([
-                'code' => 'Vérification indisponible pour le moment. Réessayez.',
-            ]);
+            // This browser is remembered: no code to type again tomorrow.
+            return redirect()->route('login')
+                ->withCookie(cookie()->forever(self::BROWSER_COOKIE, $this->browserId($request)))
+                ->withCookie(\App\Support\AccessGate::rememberCookie($sub, $data['code']));
         }
+
+        return back()->withErrors([
+            'code' => $outcome === \App\Support\AccessGate::INVALID
+                ? ($message ?? 'Code de vérification invalide.')
+                : 'Vérification indisponible pour le moment. Réessayez.',
+        ]);
     }
 
     private const BROWSER_COOKIE = 'castlit_browser';
