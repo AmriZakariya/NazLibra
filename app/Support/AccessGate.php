@@ -61,6 +61,43 @@ final class AccessGate
         return [self::UNREACHABLE, null];
     }
 
+    /**
+     * Whether this browser is already through the gate of [$subdomain]: in this
+     * session, or remembered with a code the master still accepts (or cannot
+     * be asked about). A code the master refuses is forgotten.
+     */
+    public static function passes(Request $request, string $subdomain): bool
+    {
+        if ($request->session()->get('access_verified') === true) {
+            return true;
+        }
+
+        $code = self::rememberedCode($request, $subdomain);
+        if ($code === null) {
+            return false;
+        }
+
+        [$outcome] = self::check($subdomain, $code, $request, self::browserId($request), remembered: true);
+        if ($outcome !== self::INVALID) {
+            $request->session()->put('access_verified', true);
+
+            return true;
+        }
+
+        // Regenerated or blocked: forget this browser.
+        \Illuminate\Support\Facades\Cookie::queue(\Illuminate\Support\Facades\Cookie::forget(self::COOKIE));
+
+        return false;
+    }
+
+    /** The random id this browser keeps for the access journal, if it has one. */
+    public static function browserId(Request $request): ?string
+    {
+        $id = (string) $request->cookie('castlit_browser');
+
+        return preg_match('/^[a-f0-9]{32}$/', $id) ? $id : null;
+    }
+
     /** The cookie that remembers this browser for this space (encrypted by the framework). */
     public static function rememberCookie(string $subdomain, string $code): Cookie
     {

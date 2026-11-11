@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Castlit;
 
 use App\Http\Controllers\Controller;
+use App\Support\AccessGate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -14,9 +15,18 @@ use Illuminate\View\View;
  */
 class AccessGateController extends Controller
 {
-    public function show(Request $request): View
+    public function show(Request $request): View|RedirectResponse
     {
-        return view('castlit.access', ['subdomain' => $this->subdomain($request)]);
+        $sub = $this->subdomain($request);
+
+        // Opened straight from the address bar's history or a bookmark: a
+        // browser already through the gate is not asked for the code again.
+        if ($sub !== null && ! config('castlit.is_master')
+            && AccessGate::passes($request, $sub)) {
+            return redirect()->route('login');
+        }
+
+        return view('castlit.access', ['subdomain' => $sub]);
     }
 
     public function verify(Request $request): RedirectResponse
@@ -30,19 +40,19 @@ class AccessGateController extends Controller
             return back()->withErrors(['code' => 'Client introuvable.']);
         }
 
-        [$outcome, $message] = \App\Support\AccessGate::check($sub, $data['code'], $request, $this->browserId($request));
+        [$outcome, $message] = AccessGate::check($sub, $data['code'], $request, $this->browserId($request));
 
-        if ($outcome === \App\Support\AccessGate::VALID) {
+        if ($outcome === AccessGate::VALID) {
             $request->session()->put('access_verified', true);
 
             // This browser is remembered: no code to type again tomorrow.
             return redirect()->route('login')
                 ->withCookie(cookie()->forever(self::BROWSER_COOKIE, $this->browserId($request)))
-                ->withCookie(\App\Support\AccessGate::rememberCookie($sub, $data['code']));
+                ->withCookie(AccessGate::rememberCookie($sub, $data['code']));
         }
 
         return back()->withErrors([
-            'code' => $outcome === \App\Support\AccessGate::INVALID
+            'code' => $outcome === AccessGate::INVALID
                 ? ($message ?? 'Code de vérification invalide.')
                 : 'Vérification indisponible pour le moment. Réessayez.',
         ]);

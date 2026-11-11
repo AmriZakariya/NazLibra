@@ -5,7 +5,6 @@ namespace App\Http\Middleware;
 use App\Support\AccessGate;
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cookie;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -32,32 +31,12 @@ class EnsureAccessVerified
             return $next($request);
         }
 
-        // Already cleared this session, or currently on the gate itself.
-        if ($request->session()->get('access_verified') === true
-            || $request->routeIs('castlit.access.*')) {
+        // The gate itself, or a browser already through it (this session, or
+        // remembered and checked again with the master, quietly).
+        if ($request->routeIs('castlit.access.*') || AccessGate::passes($request, $sub)) {
             return $next($request);
         }
 
-        // A browser that entered the code before: checked again, quietly.
-        if ($code = AccessGate::rememberedCode($request, $sub)) {
-            [$outcome] = AccessGate::check($sub, $code, $request, $this->browserId($request), remembered: true);
-            if ($outcome !== AccessGate::INVALID) {
-                $request->session()->put('access_verified', true);
-
-                return $next($request);
-            }
-
-            // Regenerated or blocked: forget this browser.
-            Cookie::queue(Cookie::forget(AccessGate::COOKIE));
-        }
-
         return redirect()->route('castlit.access.show');
-    }
-
-    private function browserId(Request $request): ?string
-    {
-        $id = (string) $request->cookie('castlit_browser');
-
-        return preg_match('/^[a-f0-9]{32}$/', $id) ? $id : null;
     }
 }

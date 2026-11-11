@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Support\AccessGate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -75,7 +76,7 @@ class AccessGateRememberTest extends TestCase
 
     public function test_an_unreachable_master_does_not_lock_the_shop_out(): void
     {
-        Http::fake(['*/api/v1/public/client-access' => fn () => throw new \Illuminate\Http\Client\ConnectionException('timeout')]);
+        Http::fake(['*/api/v1/public/client-access' => fn () => throw new ConnectionException('timeout')]);
         $this->onSpace()->remembered()->get('http://'.self::HOST.'/connexion')->assertOk();
 
         Http::fake(['*/api/v1/public/client-access' => Http::response(['message' => 'Too Many Attempts.'], 429)]);
@@ -99,5 +100,43 @@ class AccessGateRememberTest extends TestCase
         $this->onSpace()->remembered()->get('http://'.self::HOST.'/connexion')->assertOk();
 
         Http::assertSentCount(1);
+    }
+
+    // The address bar's history leads straight to /acces: the gate page
+    // itself must recognise a remembered browser.
+    public function test_a_remembered_browser_opening_the_gate_goes_to_login(): void
+    {
+        Http::fake(['*/api/v1/public/client-access' => Http::response(['ok' => true])]);
+
+        $this->onSpace()->remembered()->get('http://'.self::HOST.'/acces')
+            ->assertRedirect(route('login'));
+        $this->onSpace()->get('http://'.self::HOST.'/connexion')->assertOk();
+    }
+
+    public function test_a_browser_cleared_this_session_skips_the_gate_without_asking_the_master(): void
+    {
+        Http::fake();
+
+        $this->onSpace()->withSession(['access_verified' => true])
+            ->get('http://'.self::HOST.'/acces')->assertRedirect(route('login'));
+        Http::assertNothingSent();
+    }
+
+    public function test_a_new_browser_sees_the_form(): void
+    {
+        Http::fake();
+
+        $this->onSpace()->get('http://'.self::HOST.'/acces')
+            ->assertOk()->assertSee('Accès sécurisé');
+        Http::assertNothingSent();
+    }
+
+    public function test_a_regenerated_code_shows_the_form_and_forgets_the_browser(): void
+    {
+        Http::fake(['*/api/v1/public/client-access' => Http::response(['ok' => false, 'message' => 'Code de vérification invalide.'], 422)]);
+
+        $this->onSpace()->remembered()->get('http://'.self::HOST.'/acces')
+            ->assertOk()->assertSee('Accès sécurisé')
+            ->assertCookieExpired(AccessGate::COOKIE);
     }
 }
