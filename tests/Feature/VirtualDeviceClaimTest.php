@@ -2,11 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Models\Location;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\VirtualDevice;
 use App\Models\VirtualDeviceSession;
+use App\Services\VirtualDeviceSessions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -21,7 +21,9 @@ class VirtualDeviceClaimTest extends TestCase
     use RefreshDatabase;
 
     private Tenant $tenant;
+
     private User $user;
+
     private VirtualDevice $device;
 
     protected function setUp(): void
@@ -148,7 +150,7 @@ class VirtualDeviceClaimTest extends TestCase
     {
         $this->connect('tablet-a')->assertOk();
 
-        app(\App\Services\VirtualDeviceSessions::class)
+        app(VirtualDeviceSessions::class)
             ->releaseDevice($this->tenant, (int) $this->device->id);
 
         $this->connect('tablet-b')->assertOk();
@@ -167,7 +169,7 @@ class VirtualDeviceClaimTest extends TestCase
             ->assertOk()
             ->assertJsonPath('ok', true);
 
-        app(\App\Services\VirtualDeviceSessions::class)
+        app(VirtualDeviceSessions::class)
             ->releaseDevice($this->tenant, (int) $this->device->id);
 
         // The app uses this to send the user back to terminal selection.
@@ -256,5 +258,46 @@ class VirtualDeviceClaimTest extends TestCase
             ->get(route('devices.index'))
             ->assertOk()
             ->assertSee('Silencieux depuis');
+    }
+
+    /** The phone that took the terminal, last seen [minutes] ago. */
+    private function heldSince(int $minutes): void
+    {
+        $this->connect('visitor-phone')->assertOk();
+        VirtualDeviceSession::where('virtual_device_id', $this->device->id)
+            ->update(['last_seen_at' => now()->subMinutes($minutes)]);
+    }
+
+    // The public demo's visitors never log out: every terminal ended up held
+    // and App Review would have been stuck on « Choisir un terminal ».
+    public function test_on_the_demo_an_idle_terminal_is_free_again(): void
+    {
+        config(['castlit.demo.enabled' => true]);
+        $this->heldSince(31);
+
+        $this->withToken($this->token())->getJson('/api/v1/virtual-devices')
+            ->assertOk()
+            ->assertJsonPath('devices.0.is_occupied', false);
+        $this->connect('reviewer-iphone')->assertOk();
+        $this->assertDatabaseHas('virtual_device_sessions', [
+            'virtual_device_id' => $this->device->id,
+            'disconnect_reason' => 'demo_idle',
+        ]);
+    }
+
+    public function test_on_the_demo_a_terminal_in_use_keeps_its_holder(): void
+    {
+        config(['castlit.demo.enabled' => true]);
+        $this->heldSince(5);
+
+        $this->connect('reviewer-iphone')->assertStatus(409);
+    }
+
+    public function test_a_real_shop_keeps_an_idle_terminal_held(): void
+    {
+        config(['castlit.demo.enabled' => false]);
+        $this->heldSince(600);
+
+        $this->connect('another-tablet')->assertStatus(409);
     }
 }

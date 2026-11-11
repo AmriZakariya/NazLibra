@@ -18,9 +18,41 @@ use RuntimeException;
  * deliberate, so a claim can never lapse quietly and let two devices ring up
  * sales on the same terminal. The cost is that a dead tablet blocks its
  * terminal until someone frees it from the back office.
+ *
+ * The public demo is the exception (see [releaseIdleDemoSeats]): its visitors
+ * never log out, so its terminals would all end up held by phones long gone.
  */
 class VirtualDeviceSessions
 {
+    /** On the demo, a terminal not seen for this long is free again. */
+    public const DEMO_IDLE_MINUTES = 30;
+
+    /**
+     * On the public demo install only, releases terminals whose holder has
+     * not been seen for [DEMO_IDLE_MINUTES]. Its visitors (App Review among
+     * them) never log out: every terminal ended up held and the next visitor
+     * was stuck on « Choisir un terminal ». A device in use checks in every
+     * minute and keeps its seat. Real shops keep the never-lapse rule.
+     */
+    public function releaseIdleDemoSeats(Tenant $tenant): int
+    {
+        if (! filter_var(config('castlit.demo.enabled', false), FILTER_VALIDATE_BOOL)) {
+            return 0;
+        }
+
+        $cutoff = now()->subMinutes(self::DEMO_IDLE_MINUTES);
+
+        return VirtualDeviceSession::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereNull('disconnected_at')
+            ->where(fn ($q) => $q->where('last_seen_at', '<', $cutoff)
+                ->orWhere(fn ($q) => $q->whereNull('last_seen_at')->where('connected_at', '<', $cutoff)))
+            ->update([
+                'disconnected_at' => now(),
+                'disconnect_reason' => 'demo_idle',
+            ]);
+    }
+
     /**
      * The holding session for each occupied device, keyed by device id.
      *
@@ -28,6 +60,8 @@ class VirtualDeviceSessions
      */
     public function holders(Tenant $tenant): array
     {
+        $this->releaseIdleDemoSeats($tenant);
+
         return VirtualDeviceSession::query()
             ->where('tenant_id', $tenant->id)
             ->whereNull('disconnected_at')
@@ -40,6 +74,8 @@ class VirtualDeviceSessions
 
     public function holderOf(Tenant $tenant, int $deviceId): ?VirtualDeviceSession
     {
+        $this->releaseIdleDemoSeats($tenant);
+
         return VirtualDeviceSession::query()
             ->where('tenant_id', $tenant->id)
             ->where('virtual_device_id', $deviceId)

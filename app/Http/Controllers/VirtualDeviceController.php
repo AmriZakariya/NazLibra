@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Tenant;
 use App\Models\VirtualDevice;
 use App\Models\VirtualDeviceSession;
+use App\Services\VirtualDeviceSessions;
 use App\Support\TenantContext;
 use App\Support\TenantClock;
 use Illuminate\Contracts\View\View;
@@ -173,7 +174,8 @@ class VirtualDeviceController extends Controller
 
         // Occupancy is "not disconnected", not "heartbeat is fresh": a claim is
         // released only by that device or an admin, so a silent holder must
-        // still show the terminal as taken.
+        // still show the terminal as taken. Except on the public demo.
+        app(VirtualDeviceSessions::class)->releaseIdleDemoSeats($tenant);
         $activeSessions = VirtualDeviceSession::where('tenant_id', $tenant->id)
             ->whereNull('disconnected_at')
             ->with('user')
@@ -221,6 +223,8 @@ class VirtualDeviceController extends Controller
                 'virtual_device_id' => 'Ce terminal est réservé à l’application mobile. Choisissez un terminal web.',
             ]);
         }
+
+        app(VirtualDeviceSessions::class)->releaseIdleDemoSeats($tenant);
 
         return DB::transaction(function () use ($tenant, $user, $device, $request) {
             $existingSession = $this->currentDeviceSession($tenant, $user);
