@@ -239,7 +239,7 @@ class UserAccessTest extends TestCase
             'show_signature' => '1',
             'signature' => '/signatures/owner.png',
             'bank_details' => 'Banque test - RIB 123',
-            'country' => 'Maroc',
+            'country' => 'MA',
             'state' => 'Casablanca-Settat',
             'city' => 'Casablanca',
             'postcode' => '20000',

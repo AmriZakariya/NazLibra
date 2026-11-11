@@ -5028,7 +5028,28 @@
                         <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                             <h3 class="text-sm font-semibold">Adresse</h3>
                             <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Pays</span><input name="country" value="{{ old('country', $companyProfile['country']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                @php
+                                    // The same list as sign-up. An older profile has a typed
+                                    // name (« Maroc ») or none: it is read the way phone
+                                    // numbers read it (name, then timezone, then currency).
+                                    $countryGroups = \App\Support\Countries::grouped(in_array(app()->getLocale(), ['fr', 'ar', 'en'], true) ? app()->getLocale() : 'fr');
+                                    $selectedCountry = old('country', \App\Support\Phone::defaultCountry($tenant));
+                                @endphp
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Pays</span>
+                                    <select name="country" data-company-country class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                        <optgroup label="{{ __('castlit.f_country_frequent') }}">
+                                            @foreach ($countryGroups['frequent'] as $code => $name)
+                                                <option value="{{ $code }}" @selected($selectedCountry === $code)>{{ \App\Support\Countries::flag($code) }} {{ $name }}</option>
+                                            @endforeach
+                                        </optgroup>
+                                        <optgroup label="{{ __('castlit.f_country_all') }}">
+                                            @foreach ($countryGroups['others'] as $code => $name)
+                                                <option value="{{ $code }}" @selected($selectedCountry === $code)>{{ \App\Support\Countries::flag($code) }} {{ $name }}</option>
+                                            @endforeach
+                                        </optgroup>
+                                    </select>
+                                    @error('country')<span class="text-xs text-rose-600">{{ $message }}</span>@enderror
+                                </label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">État / région</span><input name="state" value="{{ old('state', $companyProfile['state']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Ville</span><input name="city" value="{{ old('city', $companyProfile['city']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Code postal</span><input name="postcode" value="{{ old('postcode', $companyProfile['postcode']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
@@ -5205,7 +5226,7 @@
                                 </label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Format date</span><select name="date_format" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach(['dd/mm/yyyy','dd-mm-yyyy','mm-dd-yyyy','yyyy-mm-dd'] as $format)<option value="{{ $format }}" @selected(old('date_format', $companyProfile['date_format']) === $format)>{{ $format }}</option>@endforeach</select></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Format heure</span><select name="time_format" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="24" @selected(old('time_format', $companyProfile['time_format']) === '24')>24 heures</option><option value="12" @selected(old('time_format', $companyProfile['time_format']) === '12')>12 heures</option></select></label>
-                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Langue</span><select name="language_id" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="fr" @selected(old('language_id', $companyProfile['language_id']) === 'fr')>Français</option><option value="ar" @selected(old('language_id', $companyProfile['language_id']) === 'ar')>العربية</option><option value="en" @selected(old('language_id', $companyProfile['language_id']) === 'en')>English</option></select></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Langue</span><select name="language_id" data-company-language class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach (\App\Support\Locale::SHOP_LANGUAGES as $code => $label)<option value="{{ $code }}" @selected(old('language_id', $companyProfile['language_id']) === $code)>{{ $label }}</option>@endforeach</select><span class="block text-xs text-slate-500">L'application suit cette langue. Le site web s'affiche en français, ou en arabe.</span></label>
                                 @php
                                     $currencyValue = strtoupper((string) old('currency', $companyProfile['currency']));
                                     $currencyOptions = \App\Support\Countries::currencyOptions();

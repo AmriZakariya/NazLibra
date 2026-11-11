@@ -60,6 +60,7 @@ use App\Services\Documents\DocumentNumberGenerator;
 use App\Services\Documents\InvoiceService;
 use App\Support\AppModules;
 use App\Support\BusinessMode;
+use App\Support\Countries;
 use App\Support\ItemTypes;
 use App\Support\Locale;
 use App\Support\Money;
@@ -3152,7 +3153,9 @@ class LibraireProController extends Controller
             'show_signature' => ['nullable', 'boolean'],
             'signature' => ['nullable', 'string', 'max:500'],
             'bank_details' => ['nullable', 'string', 'max:2000'],
-            'country' => ['nullable', 'string', 'max:120'],
+            // An ISO code from the same list as sign-up, not free text: phone
+            // numbers and the currency are read from it.
+            'country' => ['nullable', 'string', Rule::in(Countries::codes())],
             'state' => ['nullable', 'string', 'max:120'],
             'city' => ['nullable', 'string', 'max:120'],
             'postcode' => ['nullable', 'string', 'max:40'],
@@ -3167,7 +3170,7 @@ class LibraireProController extends Controller
             'currency_placement' => ['required', 'in:Left,Right'],
             'decimals' => ['required', 'integer', 'min:0', 'max:4'],
             'qty_decimals' => ['required', 'integer', 'min:0', 'max:4'],
-            'language_id' => ['required', 'in:fr,ar,en'],
+            'language_id' => ['required', Rule::in(array_keys(Locale::SHOP_LANGUAGES))],
             'round_off' => ['nullable', 'boolean'],
             'default_account_id' => ['nullable', 'string', 'max:120'],
             'sales_discount' => ['nullable', 'numeric', 'min:0', 'max:100'],
@@ -3189,6 +3192,15 @@ class LibraireProController extends Controller
         foreach (['show_signature', 'round_off', 'mrp_column', 'change_return', 'previous_balance_bit', 't_and_c_status', 't_and_c_status_pos', 'toggle_header_footer'] as $boolean) {
             $data[$boolean] = $request->boolean($boolean);
         }
+
+        // The code for phone numbers and the currency, the name for documents
+        // (in the shop's language where the list has it). Saving the profile
+        // used to drop the code and keep whatever text had been typed.
+        $countryCode = ($data['country'] ?? null) ? strtoupper($data['country']) : null;
+        $data['country_code'] = $countryCode;
+        $data['country'] = $countryCode
+            ? (string) Countries::name($countryCode, in_array($data['language_id'], ['fr', 'ar', 'en'], true) ? $data['language_id'] : 'fr')
+            : null;
 
         $businessMode = BusinessMode::get($data['business_mode'] ?? data_get($tenant->settings, 'company_profile.business_mode'));
         $data['business_mode'] = $businessMode['key'];
@@ -3242,7 +3254,7 @@ class LibraireProController extends Controller
         if (isset($data['receipt_footer'])) {
             $settings['receipt_footer'] = trim($data['receipt_footer']) ?: null;
         }
-        $settings['locale'] = $data['language_id'] === 'ar' ? 'ar_MA' : ($data['language_id'] === 'en' ? 'en_US' : 'fr_MA');
+        $settings['locale'] = Locale::SHOP_LOCALES[$data['language_id']];
         $settings['number_format'] = [
             'currency_placement' => $data['currency_placement'],
             'decimals' => (int) $data['decimals'],

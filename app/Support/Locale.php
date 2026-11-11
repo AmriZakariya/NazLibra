@@ -8,7 +8,34 @@ use Illuminate\Support\Facades\Session;
 
 class Locale
 {
+    /** What the web back office is translated into; any other language shows French. */
     public const SUPPORTED = ['fr', 'ar'];
+
+    /**
+     * The shop's language, as offered in Paramètres › Société: every language
+     * the app speaks, each named in itself. The app follows it at sync; the
+     * web shows it when it is in [SUPPORTED], French otherwise.
+     */
+    public const SHOP_LANGUAGES = [
+        'fr' => 'Français',
+        'ar' => 'العربية',
+        'en' => 'English',
+        'es' => 'Español',
+        'pt' => 'Português',
+        'de' => 'Deutsch',
+        'it' => 'Italiano',
+    ];
+
+    /** The shop's number/date locale for each language. */
+    public const SHOP_LOCALES = [
+        'fr' => 'fr_MA',
+        'ar' => 'ar_MA',
+        'en' => 'en_US',
+        'es' => 'es_ES',
+        'pt' => 'pt_PT',
+        'de' => 'de_DE',
+        'it' => 'it_IT',
+    ];
 
     public static function current(?Tenant $tenant = null): string
     {
