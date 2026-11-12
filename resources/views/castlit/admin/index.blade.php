@@ -66,6 +66,14 @@
     .accode-btn:hover { border-color: var(--brand); color: var(--brand); }
     .accode form { margin: 0; }
     .accode-btn.copied { border-color: var(--ok); color: var(--ok); }
+    .camp { display: inline-block; margin-top: 6px; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+            background: color-mix(in srgb, var(--brand, #3157D5) 14%, transparent); color: var(--brand, #3157D5); max-width: 220px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+    .campaigns { margin: 0 0 16px; }
+    .campaigns-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px; margin-bottom: 8px; }
+    .campaigns-clear { font-size: 12px; font-weight: 700; color: var(--brand, #3157D5); }
+    .campaigns-tbl .num { text-align: end; font-variant-numeric: tabular-nums; width: 110px; }
+    .campaigns-tbl .camp { margin-top: 0; }
     .origins strong { color: var(--ink); font-variant-numeric: tabular-nums; }
     .pager { margin-top: 18px; }
     /* Connexions: has the client reached their space (access journal). */
@@ -132,6 +140,36 @@
             </div>
         @endif
 
+        {{-- Quelles publicités amènent des commerces : 30 derniers jours, par
+             source et campagne (balises utm, sinon le site d'où vient la
+             visite). Une ligne filtre la liste. --}}
+        @if ($campaigns->isNotEmpty() || $campaignFilter)
+            <div class="campaigns" data-campaigns>
+                <div class="campaigns-head">
+                    <strong>Campagnes · 30 derniers jours</strong>
+                    @if ($campaignFilter)
+                        <a class="campaigns-clear" href="{{ route('castlit.admin.index', array_filter(['status' => $status === 'all' ? null : $status])) }}">Filtre : {{ $campaignFilter }} ✕</a>
+                    @endif
+                </div>
+                @if ($campaigns->isNotEmpty())
+                    <div class="tbl-scroll">
+                        <table class="tbl campaigns-tbl">
+                            <thead><tr><th>Source · campagne</th><th class="num">Demandes</th><th class="num">Approuvées</th></tr></thead>
+                            <tbody>
+                                @foreach ($campaigns as $c)
+                                    <tr>
+                                        <td><a href="{{ route('castlit.admin.index', ['status' => 'all', 'campaign_source' => $c['source'], 'campaign_name' => $c['name'] ?? '-']) }}"><span class="camp">{{ $c['label'] }}</span></a></td>
+                                        <td class="num">{{ $c['total'] }}</td>
+                                        <td class="num">{{ $c['approved'] }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+        @endif
+
         <div class="card">
           <div class="tbl-scroll">
             <table class="tbl">
@@ -179,6 +217,9 @@
                                         <span class="none">Lieu non renseigné</span>
                                     @endif
                                 </div>
+                                @if ($sub->campaignLabel())
+                                    <span class="camp" title="Campagne">{{ $sub->campaignLabel() }}</span>
+                                @endif
                             </td>
                             {{-- Demande et espace dans une colonne : deux colonnes de
                                  badges coûtaient la place des dernières colonnes. --}}

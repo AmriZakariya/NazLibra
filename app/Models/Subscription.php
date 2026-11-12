@@ -25,6 +25,7 @@ class Subscription extends Model
     protected $fillable = [
         'business_name', 'activity', 'currency', 'contact_name', 'email',
         'phone', 'desired_subdomain', 'heard_about', 'source', 'country', 'city', 'status',
+        'campaign_source', 'campaign_medium', 'campaign_name',
         'rejection_reason', 'reviewed_by', 'reviewed_at', 'meta',
     ];
 
@@ -42,6 +43,22 @@ class Subscription extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /**
+     * « facebook · promo-nov », « google · organic », « Direct »; null for a
+     * request that came in before campaigns were recorded, or not from the site.
+     */
+    public function campaignLabel(): ?string
+    {
+        if (! $this->campaign_source) {
+            return null;
+        }
+        if ($this->campaign_source === \App\Support\CampaignAttribution::DIRECT) {
+            return 'Direct';
+        }
+
+        return $this->campaign_source.' · '.($this->campaign_name ?: ($this->campaign_medium ?: '—'));
     }
 
     public function isPending(): bool

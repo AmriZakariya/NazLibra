@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Castlit;
 use App\Http\Controllers\Controller;
 use App\Support\AppVersions;
 use App\Support\BusinessMode;
+use App\Support\CampaignAttribution;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -62,6 +63,16 @@ class MarketingController extends Controller
             (bool) preg_match('/iphone|ipad|ipod/i', $agent) => AppVersions::storeUrl('ios'),
             default => null,
         };
+
+        if ($store) {
+            // The ad's tags ride along, so installs show per campaign in the
+            // Play Console. This click's own tags first, else the visit's.
+            $touch = CampaignAttribution::fromRequest($request);
+            if (in_array($touch['source'] ?? null, [null, CampaignAttribution::DIRECT], true)) {
+                $touch = CampaignAttribution::current($request);
+            }
+            $store = CampaignAttribution::withPlayReferrer($store, $touch);
+        }
 
         $response = $store
             ? redirect()->away($store, 302)

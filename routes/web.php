@@ -56,8 +56,10 @@ if (config('castlit.is_master')) {
     Route::get('/conditions', [MarketingController::class, 'terms']);
 
     // The printed "download the app" link: each phone to its own store.
-    Route::get('/telecharger', [MarketingController::class, 'download'])->name('castlit.download');
-    Route::get('/download', [MarketingController::class, 'download']);
+    Route::get('/telecharger', [MarketingController::class, 'download'])
+        ->middleware(\App\Http\Middleware\CaptureCampaign::class)->name('castlit.download');
+    Route::get('/download', [MarketingController::class, 'download'])
+        ->middleware(\App\Http\Middleware\CaptureCampaign::class);
 
     // The APK for Android devices without Google Play (PAX), asked by the app.
     Route::get('/app/castlitpos.apk', [\App\Http\Controllers\Castlit\AppUpdateAdminController::class, 'apk'])
@@ -458,5 +460,6 @@ Route::delete('/appareils/{device}', [VirtualDeviceController::class, 'destroy']
 
 // ─── CastLit master: public landing takes over `/` (must be last — see note above) ──
 if (config('castlit.is_master')) {
-    Route::get('/', [MarketingController::class, 'landing'])->name('castlit.landing');
+    Route::get('/', [MarketingController::class, 'landing'])
+        ->middleware(\App\Http\Middleware\CaptureCampaign::class)->name('castlit.landing');
 }

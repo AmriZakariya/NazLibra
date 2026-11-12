@@ -120,6 +120,18 @@
                         <div class="kv"><span class="k">Ville</span><span class="v">{{ $subscription->city ?: '—' }}</span></div>
                         <div class="kv"><span class="k">Pays</span><span class="v">@if ($subscription->country){{ \App\Support\Countries::flag($subscription->country) }} {{ $subscription->countryName() }}@else — @endif</span></div>
                         <div class="kv"><span class="k">Provenance</span><span class="v">@include('castlit.admin.partials.origin', ['sub' => $subscription])</span></div>
+                        @php $camp = $subscription->meta['campaign'] ?? []; @endphp
+                        <div class="kv" data-campaign><span class="k">Campagne</span><span class="v">
+                            @if ($subscription->campaignLabel())
+                                {{ $subscription->campaignLabel() }}
+                                @if ($subscription->campaign_medium) <span class="muted">({{ $subscription->campaign_medium }})</span>@endif
+                                @foreach (['content' => 'contenu', 'term' => 'mot-clé', 'click_id' => 'clic', 'referrer' => 'depuis', 'landing' => 'page'] as $key => $label)
+                                    @if (! empty($camp[$key]))<br><span class="muted">{{ $label }} : {{ $camp[$key] }}</span>@endif
+                                @endforeach
+                            @else
+                                —
+                            @endif
+                        </span></div>
                         <div class="kv"><span class="k">Nous a connus via</span><span class="v">{{ $subscription->heard_about ?: '—' }}</span></div>
                         <div class="kv"><span class="k">Reçue le</span><span class="v">{{ $subscription->created_at->format('d/m/Y à H:i') }}</span></div>
                         @if ($subscription->reviewed_at)

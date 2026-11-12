@@ -33,6 +33,19 @@ class SubscriptionAdminController extends Controller
             $status = 'all';
         }
 
+        // ?campaign_source=facebook&campaign_name=promo-nov, from the summary
+        // below. A name of "-" means "no campaign name".
+        $campaignSource = trim((string) $request->query('campaign_source', ''));
+        $campaignName = $request->query('campaign_name');
+        if ($campaignSource !== '') {
+            $query->where('campaign_source', $campaignSource);
+            if (is_string($campaignName) && $campaignName !== '') {
+                $campaignName === '-'
+                    ? $query->whereNull('campaign_name')
+                    : $query->where('campaign_name', $campaignName);
+            }
+        }
+
         // Counted in PHP rather than SQL: requests from before the `source`
         // column are read from what they did record (see origin()), and the
         // table is a few hundred rows at most.
@@ -43,11 +56,32 @@ class SubscriptionAdminController extends Controller
 
         $subscriptions = $query->paginate(20)->withQueryString();
 
+        // Which ads bring shops: the last 30 days, per source and campaign,
+        // with how many were approved. Grouped in PHP: a few dozen rows.
+        $campaigns = Subscription::query()
+            ->where('created_at', '>=', now()->subDays(30))
+            ->whereNotNull('campaign_source')
+            ->get(['id', 'status', 'campaign_source', 'campaign_name'])
+            ->groupBy(fn (Subscription $s): string => $s->campaign_source."\0".($s->campaign_name ?? ''))
+            ->map(fn ($rows) => [
+                'source' => $rows->first()->campaign_source,
+                'name' => $rows->first()->campaign_name,
+                'label' => $rows->first()->campaignLabel(),
+                'total' => $rows->count(),
+                'approved' => $rows->where('status', Subscription::STATUS_APPROVED)->count(),
+            ])
+            ->sortByDesc('total')
+            ->values();
+
         return view('castlit.admin.index', [
             'subscriptions' => $subscriptions,
             'access'        => $this->accessSummaries($subscriptions->getCollection()->pluck('install.id')->filter()->all()),
             'status'        => $status,
             'origins'       => $origins,
+            'campaigns'     => $campaigns,
+            'campaignFilter' => $campaignSource !== ''
+                ? $campaignSource.(is_string($campaignName) && $campaignName !== '' ? ' · '.($campaignName === '-' ? 'sans nom' : $campaignName) : '')
+                : null,
             'counts'        => [
                 'pending'  => Subscription::where('status', Subscription::STATUS_PENDING)->count(),
                 'approved' => Subscription::where('status', Subscription::STATUS_APPROVED)->count(),

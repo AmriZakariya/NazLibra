@@ -62,6 +62,8 @@ class SubscriptionController extends Controller
             throw $e->redirectTo($this->formUrl());
         }
 
+        $campaign = \App\Support\CampaignAttribution::forSubscription($request);
+
         $subscription = Subscription::create([
             'business_name'     => $validated['business_name'],
             'activity'          => $validated['activity'] ?? null,
@@ -75,7 +77,10 @@ class SubscriptionController extends Controller
             'country'           => $validated['country'],
             'city'              => filled($validated['city'] ?? null) ? trim($validated['city']) : null,
             'status'            => Subscription::STATUS_PENDING,
+            ...$campaign['columns'],
             'meta'              => [
+                // utm_content/term, click id, referring site, first page seen.
+                'campaign'   => $campaign['meta'] ?: null,
                 // The browser's zone: a shop in Montréal is not on Toronto
                 // time just because that is Canada's main zone.
                 'timezone'   => \App\Support\Countries::timezone($validated['country'], (string) $request->input('timezone')),
