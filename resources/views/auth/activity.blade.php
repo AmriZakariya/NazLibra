@@ -183,6 +183,13 @@
                     <span class="ml-auto text-xs text-slate-500 audit-result-count">{{ $totals['all'] }} {{ $tr('résultat(s)') }}</span>
                 </div>
             @endif
+            @if ($hiddenViews > 0)
+                <p class="flex flex-wrap items-center gap-2 text-sm text-slate-500" data-hidden-views>
+                    <svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <span>{{ number_format($hiddenViews, 0, ',', ' ') }} {{ $tr('consultation(s) de page masquée(s) par le filtre « Type ».') }}</span>
+                    <a href="{{ route('profile.activity', array_merge(array_filter($filters, fn ($v) => $v !== '' && $v !== null), ['kind' => 'all'])) }}" class="font-semibold text-brand hover:underline">{{ $tr('Afficher') }}</a>
+                </p>
+            @endif
         </form>
     </section>
 

@@ -314,13 +314,24 @@ class AuthController extends Controller
                 'kind' => $filters['kind'] ?? '',
                 'outcome' => $filters['outcome'] ?? '',
             ],
+            // The cards count what the table shows (the same « Type »), and
+            // « Aujourd'hui » is the shop's day: they used to count page
+            // views the table hides by default, over a UTC day, so a card
+            // said 4 above an empty table.
             'totals' => [
-                'all' => AuditLog::where('tenant_id', $tenant->id)->count(),
-                'today' => AuditLog::where('tenant_id', $tenant->id)->whereDate('created_at', now()->toDateString())->count(),
+                'all' => $this->activityOfKind($tenant, $filters['kind'] ?? '')->count(),
+                'today' => $this->activityOfKind($tenant, $filters['kind'] ?? '')
+                    ->whereBetween('created_at', $this->shopDay($tenant, now(TenantClock::timezone($tenant))->toDateString()))
+                    ->count(),
                 'users' => AuditLog::where('tenant_id', $tenant->id)->whereNotNull('user_id')->distinct('user_id')->count('user_id'),
                 'failed_today' => AuditLog::where('tenant_id', $tenant->id)->where('outcome', \App\Support\ActivityRecorder::FAILED)
                     ->where('created_at', '>=', now()->subDay())->count(),
             ],
+            // Page views the default « Type » leaves out for these filters:
+            // said under the filters rather than leaving an empty table.
+            'hiddenViews' => ($filters['kind'] ?? '') === ''
+                ? $this->filteredActivity($tenant, array_merge($filters, ['kind' => \App\Support\ActivityRecorder::VIEW]))->count()
+                : 0,
             'actionLabels' => $this->actionLabels(),
         ]);
     }
@@ -509,17 +520,36 @@ class AuthController extends Controller
         ]);
     }
 
-    /** @param array<string, mixed> $filters */
-    private function filteredActivity(\App\Models\Tenant $tenant, array $filters): \Illuminate\Database\Eloquent\Builder
+    /** The tenant's journal, narrowed to a « Type » (empty: everything but page views). */
+    private function activityOfKind(\App\Models\Tenant $tenant, ?string $kind): \Illuminate\Database\Eloquent\Builder
     {
-        $query = AuditLog::query()->where('tenant_id', $tenant->id)->with('user')->latest()->orderByDesc('id');
+        $query = AuditLog::query()->where('tenant_id', $tenant->id);
 
-        $kind = $filters['kind'] ?? '';
         if ($kind === '' || $kind === null) {
             $query->where('kind', '!=', \App\Support\ActivityRecorder::VIEW);
         } elseif ($kind !== 'all') {
             $query->where('kind', $kind);
         }
+
+        return $query;
+    }
+
+    /**
+     * A day on the shop's clock, as the UTC instants the journal is stored in.
+     *
+     * @return array{0: \Carbon\CarbonImmutable, 1: \Carbon\CarbonImmutable}
+     */
+    private function shopDay(\App\Models\Tenant $tenant, string $date): array
+    {
+        $day = \Carbon\CarbonImmutable::parse($date, TenantClock::timezone($tenant));
+
+        return [$day->startOfDay()->utc(), $day->endOfDay()->utc()];
+    }
+
+    /** @param array<string, mixed> $filters */
+    private function filteredActivity(\App\Models\Tenant $tenant, array $filters): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = $this->activityOfKind($tenant, $filters['kind'] ?? '')->with('user')->latest()->orderByDesc('id');
         if (! empty($filters['outcome'])) {
             $query->where('outcome', $filters['outcome']);
         }
@@ -529,11 +559,12 @@ class AuthController extends Controller
         if (! empty($filters['device_id'])) {
             $query->where('virtual_device_id', (int) $filters['device_id']);
         }
+        // « Du » and « Au » are days on the shop's clock, not UTC days.
         if (! empty($filters['from'])) {
-            $query->where('created_at', '>=', \Carbon\Carbon::parse($filters['from'])->startOfDay());
+            $query->where('created_at', '>=', $this->shopDay($tenant, (string) $filters['from'])[0]);
         }
         if (! empty($filters['to'])) {
-            $query->where('created_at', '<=', \Carbon\Carbon::parse($filters['to'])->endOfDay());
+            $query->where('created_at', '<=', $this->shopDay($tenant, (string) $filters['to'])[1]);
         }
         if (! empty($filters['method'])) {
             $query->where('properties->method', $filters['method']);

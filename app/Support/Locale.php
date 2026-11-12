@@ -797,6 +797,7 @@ class Locale
             'Échec' => 'فشل',
             'Échecs' => 'حالات الفشل',
             'Échecs sur 24 h' => 'حالات الفشل خلال 24 ساعة',
+            'consultation(s) de page masquée(s) par le filtre « Type ».' => 'عرض (عروض) صفحات مخفية بواسطة مرشح « النوع ».',
             'Résultat' => 'النتيجة',
             'Réussis' => 'الناجحة',
             'Aucun message' => 'لا توجد رسالة',
