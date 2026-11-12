@@ -311,6 +311,19 @@
     .subdomain-row input:focus { box-shadow: none; }
     .subdomain-suf { display: flex; align-items: center; padding: 0 13px; font-size: 13.5px; color: var(--muted); background: color-mix(in srgb, var(--sand) 40%, transparent); white-space: nowrap; flex-shrink: 0; }
 
+    /* Currency as a line that follows the country; the list opens on « Changer ».
+       Without the script the plain select stays, so the form still works. */
+    .currency-line { display: none; }
+    [data-enhanced] .currency-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 11px 13px; border-radius: 11px;
+                     font-size: 13.5px; color: var(--muted); background: color-mix(in srgb, var(--sand) 35%, transparent); }
+    .currency-line strong { color: var(--ink); font-weight: 750; }
+    .link-btn { margin-inline-start: auto; border: 0; background: none; color: var(--brand); font: inherit; font-weight: 750; cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+    .link-btn:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 45%, transparent); }
+    [data-enhanced] .currency-fld:not(.is-open) .currency-label,
+    [data-enhanced] .currency-fld:not(.is-open) select { display: none; }
+    [data-enhanced] .currency-fld.is-open .currency-line { display: none; }
+    .su-steps-short { display: none; }
+
     /* QR code in the app band, for a visitor on a computer: phones get the
        install bar instead, and nobody scans a screen with the same phone. */
     .app-qr { display: flex; align-items: center; gap: 14px; margin-top: 22px; padding: 12px 18px 12px 12px; border-radius: 16px;
@@ -319,9 +332,8 @@
     .app-qr p { font-size: 13.5px; line-height: 1.45; color: rgba(255,255,255,.9); }
     .app-qr code { display: block; margin-top: 4px; font-size: 12.5px; color: #cfe0ff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
-    /* Install bar: phones only, decided by the script below. It waits until the
-       visitor is past the hero and steps aside while the sign-up form is on
-       screen or a field has the keyboard. */
+    /* Install bar: phones only, decided by the script below. It steps aside
+       while the sign-up form is on screen or a field has the keyboard. */
     .dl-bar { position: fixed; inset-inline: 0; bottom: 0; z-index: 55; display: flex; align-items: center; gap: 10px;
               padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: var(--surface); color: var(--ink);
               border-top: 1px solid var(--sand); box-shadow: 0 -10px 30px rgba(14,19,48,.14);
@@ -394,8 +406,17 @@
         /* Under 16px, iOS Safari zooms the whole page on focus. */
         .fld input, .fld select { font-size: 16px; padding: 13px 13px; }
         .subdomain-suf { padding: 0 10px; font-size: 14px; }
-        /* The keyboard is up: the chat bubble would sit on the next field. */
-        body.is-typing .sw-bubble { opacity: 0; pointer-events: none; }
+        /* The form is on screen: the chat bubble would sit on its fields. */
+        body.is-typing .sw-bubble, body.form-on-screen .sw-bubble { opacity: 0; pointer-events: none; }
+        .signup { padding-top: 36px; }
+        .signup-aside h2 { font-size: 22px; }
+        /* The three steps as one row of chips: the long list pushed the
+           first field below the fold of a phone. */
+        .signup-aside ul { display: none; }
+        .su-steps-short { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin-top: 14px; }
+        .su-steps-short li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: 999px;
+                             background: rgba(255,255,255,.14); font-size: 12.5px; font-weight: 700; }
+        .signup-aside .su-steps-short b { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #fff; color: var(--brand-deep); font-size: 11px; }
     }
 </style>
 
@@ -679,6 +700,11 @@
                     <li><b>2</b><span>{{ __('castlit.su_step2') }} <code>*.{{ $mainDomain ?? config('castlit.main_domain') }}</code>.</span></li>
                     <li><b>3</b><span>{{ __('castlit.su_step3') }}</span></li>
                 </ul>
+                <ol class="su-steps-short" aria-hidden="true">
+                    <li><b>1</b>{{ __('castlit.su_step1_short') }}</li>
+                    <li><b>2</b>{{ __('castlit.su_step2_short') }}</li>
+                    <li><b>3</b>{{ __('castlit.su_step3_short') }}</li>
+                </ol>
             </aside>
 
             <div class="form-body">
@@ -699,8 +725,7 @@
                         @error('business_name')<span class="field-error">{{ $message }}</span>@enderror
                     </div>
 
-                    <div class="grid2">
-                        <div class="fld">
+                    <div class="fld">
                             <label for="activity">{{ __('castlit.f_activity') }}</label>
                             <select id="activity" name="activity">
                                 <option value="">{{ __('castlit.f_choose') }}</option>
@@ -709,20 +734,28 @@
                                 @endforeach
                             </select>
                             @error('activity')<span class="field-error">{{ $message }}</span>@enderror
-                        </div>
-                        <div class="fld">
-                            <label for="currency">{{ __('castlit.f_currency') }} <span class="req">*</span></label>
-                            <select id="currency" name="currency" required>
-                                @php $currencyPreset = old('currency', \App\Support\Countries::currencyMap()[$detectedCountry ?? ''] ?? 'MAD'); @endphp
-                                @foreach ($currencies as $c => $currencyName)
-                                    <option value="{{ $c }}" @selected($currencyPreset === $c)>{{ $c }} — {{ $currencyName }}</option>
-                                @endforeach
-                            </select>
-                            @error('currency')<span class="field-error">{{ $message }}</span>@enderror
-                        </div>
                     </div>
 
-                    @include('castlit.partials.place-fields')
+                    @include('castlit.partials.place-fields', ['cityHints' => true])
+
+                    {{-- The currency follows the country, so it is a line, not a
+                         question; « Changer » opens the list for the few who
+                         sell in another one. Open from the start after an error. --}}
+                    <div class="fld currency-fld {{ $errors->has('currency') ? 'is-open' : '' }}" data-currency-fld>
+                        <p class="currency-line">
+                            <span>{{ __('castlit.f_currency') }} :</span>
+                            <strong data-currency-current></strong>
+                            <button type="button" class="link-btn" data-currency-change>{{ __('castlit.f_change') }}</button>
+                        </p>
+                        <label for="currency" class="currency-label">{{ __('castlit.f_currency') }} <span class="req">*</span></label>
+                        <select id="currency" name="currency" required>
+                            @php $currencyPreset = old('currency', \App\Support\Countries::currencyMap()[$detectedCountry ?? ''] ?? 'MAD'); @endphp
+                            @foreach ($currencies as $c => $currencyName)
+                                <option value="{{ $c }}" @selected($currencyPreset === $c)>{{ $c }} — {{ $currencyName }}</option>
+                            @endforeach
+                        </select>
+                        @error('currency')<span class="field-error">{{ $message }}</span>@enderror
+                    </div>
 
                     <div class="fld">
                         <label for="desired_subdomain">{{ __('castlit.f_address') }} <span class="req">*</span></label>
@@ -748,7 +781,7 @@
 
                     <div class="fld">
                         <label for="email">{{ __('castlit.f_email') }} <span class="req">*</span></label>
-                        <input id="email" name="email" type="email" required maxlength="190" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" value="{{ old('email') }}" placeholder="vous@exemple.com">
+                        <input id="email" name="email" type="email" required maxlength="190" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" value="{{ old('email') }}" placeholder="{{ __('castlit.f_email_ph') }}">
                         @error('email')<span class="field-error">{{ $message }}</span>@enderror
                     </div>
 
@@ -766,7 +799,7 @@
     </div>
 </section>
 
-{{-- Install bar for phones. Rendered hidden; the script shows it on Android
+{{-- Install bar for phones, from the first screen. Rendered hidden; the script shows it on Android
      when the Play link is set, and on an iPhone or iPad only once the App
      Store link is: before that, an iPhone visitor sees no bar at all. --}}
 @php $appStore = (string) ($brand['app_store'] ?? ''); @endphp
@@ -776,7 +809,7 @@
         <button type="button" class="dl-close" data-dl-close aria-label="{{ __('castlit.dl_bar_close') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
-        <img src="{{ asset('img/app-icon.png') }}" width="44" height="44" alt="" loading="lazy" decoding="async">
+        <img src="{{ asset('img/app-icon.png') }}" width="44" height="44" alt="" decoding="async">
         <div class="dl-text"><b>Castl-it POS</b><span>{{ __('castlit.dl_bar_sub') }}</span></div>
         <a class="dl-cta" href="{{ route('castlit.download') }}" target="_blank" rel="noopener" data-dl-cta>{{ __('castlit.dl_bar_cta') }}</a>
     </div>
@@ -813,10 +846,15 @@
             if (!target) return;
             revealNow(target);
             if (push) { try { history.pushState(null, '', '#' + target.id); } catch (e) {} }
-            target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
-            // Focus the first field when landing on the signup form (no extra jump).
-            if (target.id === 'inscription') {
-                var first = target.querySelector('input, select');
+            // The sign-up section aligns on its card: its top padding and the
+            // end of the FAQ were what a visitor from an ad saw first.
+            var anchor = target.id === 'inscription' ? (target.querySelector('.signup-card') || target) : target;
+            anchor.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+            // Landing on the sign-up form: the first real field gets the focus
+            // (it used to be the hidden honeypot). Not on a touch screen,
+            // where the keyboard would cover the form on arrival.
+            if (target.id === 'inscription' && window.matchMedia('(pointer: fine)').matches) {
+                var first = target.querySelector('#business_name');
                 if (first) { setTimeout(function () { try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); } }, reduce ? 0 : 520); }
             }
         }
@@ -1036,8 +1074,58 @@
     (function () {
         var form = document.querySelector('[data-signup-form]');
         if (form) {
+            form.dataset.enhanced = '';
             form.addEventListener('focusin', function () { document.body.classList.add('is-typing'); });
             form.addEventListener('focusout', function () { document.body.classList.remove('is-typing'); });
+            if ('IntersectionObserver' in window) {
+                new IntersectionObserver(function (entries) {
+                    document.body.classList.toggle('form-on-screen', entries[0].isIntersecting);
+                }, { threshold: 0.05 }).observe(form);
+            }
+
+            // Currency: a line that follows the country, « Changer » opens the list.
+            var currency = form.querySelector('#currency');
+            var currencyFld = form.querySelector('[data-currency-fld]');
+            var currencyNow = form.querySelector('[data-currency-current]');
+            var showCurrency = function () {
+                var option = currency && currency.selectedOptions[0];
+                if (currencyNow && option) currencyNow.textContent = option.textContent.trim();
+            };
+            if (currency) {
+                currency.addEventListener('change', showCurrency);
+                currency.addEventListener('currency-follow', showCurrency);
+                form.querySelector('#country') && form.querySelector('#country').addEventListener('change', function () { setTimeout(showCurrency, 0); });
+                showCurrency();
+                setTimeout(showCurrency, 0); // after the place-fields script's own guess
+            }
+            var change = form.querySelector('[data-currency-change]');
+            if (change && currencyFld) {
+                change.addEventListener('click', function () { currencyFld.classList.add('is-open'); currency.focus(); });
+            }
+
+            // The address follows the business name until the visitor types
+            // one: « Boutique Amina » suggests boutiqueamina.castlitpos.com,
+            // and the availability check runs on it.
+            var business = form.querySelector('#business_name');
+            var address = form.querySelector('#desired_subdomain');
+            var addressOwn = !!(address && address.value);
+            if (address) {
+                address.addEventListener('input', function (event) { if (event.isTrusted) addressOwn = address.value !== ''; });
+            }
+            if (business && address) {
+                var suggest;
+                business.addEventListener('input', function () {
+                    if (addressOwn) return;
+                    clearTimeout(suggest);
+                    suggest = setTimeout(function () {
+                        var slug = business.value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                            .toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30);
+                        if (slug.length < 2 || slug === address.value) return;
+                        address.value = slug;
+                        address.dispatchEvent(new Event('input', { bubbles: true }));
+                    }, 350);
+                });
+            }
         }
 
         var bar = document.querySelector('[data-dl-bar]');
@@ -1054,15 +1142,13 @@
         bar.querySelector('[data-dl-cta]').href = url;
         bar.hidden = false;
 
-        var hero = document.querySelector('.hero');
         var signup = document.getElementById('inscription');
         var signupInView = false;
         var dismissed = false;
 
         function update() {
-            var pastHero = !hero || hero.getBoundingClientRect().bottom < window.innerHeight * 0.35;
             var typing = document.body.classList.contains('is-typing');
-            var on = !dismissed && pastHero && !signupInView && !typing;
+            var on = !dismissed && !signupInView && !typing;
             bar.classList.toggle('is-on', on);
             document.body.classList.toggle('dl-on', on);
             bar.inert = !on;

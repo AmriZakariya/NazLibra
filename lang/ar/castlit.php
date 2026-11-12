@@ -248,6 +248,11 @@ return [
     'su_step1'   => 'تملأ النموذج.',
     'su_step2'   => 'نراجع وننشئ',
     'su_step3'   => 'تصلك بيانات الدخول عبر البريد وتبدأ البيع.',
+    'su_step1_short' => 'الاستمارة',
+    'su_step2_short' => 'المراجعة',
+    'su_step3_short' => 'الدخول عبر البريد',
+    'f_change'       => 'تغيير',
+    'f_email_ph'     => 'you@example.com',
 
     'f_business'  => 'اسم المتجر',
     'f_business_ph' => 'مثال: مكتبة المنارة',

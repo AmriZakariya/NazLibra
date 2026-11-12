@@ -73,6 +73,42 @@ final class Countries
         return self::data()['codes'];
     }
 
+    /** A big city of the country, by language, where its zone's name would not do. */
+    private const CITY_NAMES = [
+        'fr' => ['CA' => 'Montréal', 'DZ' => 'Alger', 'BE' => 'Bruxelles', 'TN' => 'Tunis', 'CI' => 'Abidjan', 'SN' => 'Dakar'],
+        'ar' => [
+            'MA' => 'الدار البيضاء', 'FR' => 'باريس', 'BE' => 'بروكسل', 'ES' => 'مدريد', 'DZ' => 'الجزائر', 'TN' => 'تونس',
+            'SN' => 'داكار', 'CI' => 'أبيدجان', 'CA' => 'مونتريال', 'AE' => 'دبي', 'SA' => 'الرياض', 'QA' => 'الدوحة',
+            'EG' => 'القاهرة', 'MR' => 'نواكشوط', 'LY' => 'طرابلس', 'JO' => 'عمّان', 'KW' => 'الكويت', 'BH' => 'المنامة', 'OM' => 'مسقط',
+        ],
+    ];
+
+    /**
+     * An example city for a country, for the « Ville » hint: the city its
+     * main timezone is named after (Africa/Lagos → Lagos), in the visitor's
+     * language for the countries most requests come from.
+     *
+     * @return array<string, string> code => city
+     */
+    public static function exampleCities(string $locale = 'fr'): array
+    {
+        static $cache = [];
+        if (isset($cache[$locale])) {
+            return $cache[$locale];
+        }
+
+        $cities = [];
+        foreach (self::codes() as $code) {
+            $zone = self::timezone($code);
+            $city = str_replace('_', ' ', (string) substr((string) strrchr('/'.$zone, '/'), 1));
+            if ($city !== '' && ! str_starts_with($zone, 'Etc/')) {
+                $cities[$code] = $city;
+            }
+        }
+
+        return $cache[$locale] = array_merge($cities, self::CITY_NAMES[$locale] ?? []);
+    }
+
     /** @return array<string, string> code => French name, in display order */
     public static function all(): array
     {

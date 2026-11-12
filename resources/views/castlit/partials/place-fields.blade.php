@@ -18,7 +18,7 @@
     // says nothing about the client's country.
     $timezoneCountries = (empty($detectCountry) || $detectedCountry || old('country')) ? null : \App\Support\GeoCountry::timezoneMap();
 @endphp
-<div class="grid2" data-place-fields data-currency-map='@json(\App\Support\Countries::currencyMap())' @if ($timezoneCountries) data-timezone-countries='@json($timezoneCountries)' @endif>
+<div class="grid2" data-place-fields data-currency-map='@json(\App\Support\Countries::currencyMap())' @if ($timezoneCountries) data-timezone-countries='@json($timezoneCountries)' @endif @if (! empty($cityHints)) data-city-hints='@json(\App\Support\Countries::exampleCities($placeLocale))' @endif>
     <div class="fld">
         <label for="country">{{ __('castlit.f_country') }} <span class="req">*</span></label>
         <select id="country" name="country" required data-country>
@@ -47,6 +47,8 @@
 <script>
 (() => {
     const block = document.currentScript.previousElementSibling;
+    // Run once the whole form is parsed: the currency field may come after us.
+    const start = () => {
     const form = block.closest('form');
     const country = block.querySelector('[data-country]');
     const currency = form?.querySelector('select[name="currency"]');
@@ -79,7 +81,17 @@
         if ([...currency.options].some((o) => o.value === next)) {
             currency.value = next;
             suggested = next;
+            currency.dispatchEvent(new CustomEvent('currency-follow'));
         }
     });
+
+    // « Ville » suggests a city of the chosen country, not Casablanca for all.
+    const city = block.querySelector('#city');
+    const cities = block.dataset.cityHints ? JSON.parse(block.dataset.cityHints) : null;
+    const hintCity = () => { if (city && cities && cities[country.value]) city.placeholder = cities[country.value]; };
+    country.addEventListener('change', hintCity);
+    hintCity();
+    };
+    document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', start) : start();
 })();
 </script>

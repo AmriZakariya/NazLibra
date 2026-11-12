@@ -248,6 +248,11 @@ return [
     'su_step1'   => 'You fill in the form.',
     'su_step2'   => 'We review and create',
     'su_step3'   => 'You get your login by email and start selling.',
+    'su_step1_short' => 'Form',
+    'su_step2_short' => 'Review',
+    'su_step3_short' => 'Login by email',
+    'f_change'       => 'Change',
+    'f_email_ph'     => 'you@example.com',
 
     'f_business'  => 'Business name',
     'f_business_ph' => 'e.g. Al Manara Bookshop',

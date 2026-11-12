@@ -249,6 +249,11 @@ return [
     'su_step1'   => 'Vous remplissez le formulaire.',
     'su_step2'   => 'Nous validons et créons',
     'su_step3'   => 'Vous recevez vos accès par email et vous vendez.',
+    'su_step1_short' => 'Formulaire',
+    'su_step2_short' => 'Validation',
+    'su_step3_short' => 'Accès par email',
+    'f_change'       => 'Changer',
+    'f_email_ph'     => 'vous@exemple.com',
 
     'f_business'  => 'Nom du commerce',
     'f_business_ph' => 'Ex : Librairie Al Manara',
