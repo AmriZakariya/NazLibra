@@ -175,6 +175,10 @@ return [
     'app_title'   => 'Votre caisse dans la poche, sur Android',
     'app_sub'     => 'Installez Castl-it-POS sur tablette ou téléphone pour un plein écran sans navigateur — et retrouvez les mêmes données sur ordinateur.',
     'app_web'     => 'Utiliser dans le navigateur',
+    'app_qr'      => 'Scannez avec votre téléphone pour installer l’application.',
+    'dl_bar_sub'  => 'Votre caisse dans la poche',
+    'dl_bar_cta'  => 'Installer',
+    'dl_bar_close' => 'Masquer',
     'app_list' => [
         'Fonctionne hors ligne, synchro automatique',
         'Impression ticket ESC/POS & scan code-barres',

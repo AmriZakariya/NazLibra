@@ -174,6 +174,10 @@ return [
     'app_title'   => 'Your register in your pocket, on Android',
     'app_sub'     => 'Install Castl-it-POS on a tablet or phone for a full-screen experience without a browser — and find the same data on your computer.',
     'app_web'     => 'Use it in the browser',
+    'app_qr'      => 'Scan with your phone to install the app.',
+    'dl_bar_sub'  => 'Your till in your pocket',
+    'dl_bar_cta'  => 'Install',
+    'dl_bar_close' => 'Dismiss',
     'app_list' => [
         'Works offline, syncs automatically',
         'ESC/POS receipt printing & barcode scanning',

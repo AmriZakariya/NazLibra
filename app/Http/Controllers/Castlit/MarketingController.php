@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Castlit;
 
 use App\Http\Controllers\Controller;
+use App\Support\AppVersions;
 use App\Support\BusinessMode;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
@@ -43,6 +45,29 @@ class MarketingController extends Controller
             'currencies'  => \App\Support\Countries::currencyOptions(app()->getLocale()),
             'mainDomain'  => config('castlit.main_domain'),
         ]);
+    }
+
+    /**
+     * castlitpos.com/telecharger: the one link printed on flyers, posts and the
+     * QR code. A phone goes to its own store; anything else, or an iPhone
+     * before the App Store listing exists, lands on the page's app section.
+     * Never a 301: the targets move (the App Store link arrives later) and a
+     * browser keeps a permanent redirect for good.
+     */
+    public function download(Request $request): RedirectResponse
+    {
+        $agent = (string) $request->userAgent();
+        $store = match (true) {
+            (bool) preg_match('/android/i', $agent) => AppVersions::storeUrl('android'),
+            (bool) preg_match('/iphone|ipad|ipod/i', $agent) => AppVersions::storeUrl('ios'),
+            default => null,
+        };
+
+        $response = $store
+            ? redirect()->away($store, 302)
+            : redirect()->to(route('castlit.landing').'#application', 302);
+
+        return $response->header('Cache-Control', 'no-store')->header('Vary', 'User-Agent');
     }
 
     /** Confirmation page after a subscription request is submitted. */

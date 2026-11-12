@@ -305,9 +305,44 @@
     .field-hint.ok { color: var(--ok); }
     .subdomain-row { display: flex; align-items: stretch; border: 1.5px solid var(--sand); border-radius: 11px; overflow: hidden; background: var(--paper); }
     .subdomain-row:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 14%, transparent); }
-    .subdomain-row input { border: none; box-shadow: none; background: transparent; text-align: right; }
+    /* The input gives way, never the suffix: with width:100% the input took
+       the whole row on a phone and ".castlitpos.com" was cut off. */
+    .subdomain-row input { border: none; box-shadow: none; background: transparent; text-align: right; flex: 1 1 auto; width: auto; min-width: 0; }
     .subdomain-row input:focus { box-shadow: none; }
-    .subdomain-suf { display: flex; align-items: center; padding: 0 13px; font-size: 13.5px; color: var(--muted); background: color-mix(in srgb, var(--sand) 40%, transparent); white-space: nowrap; }
+    .subdomain-suf { display: flex; align-items: center; padding: 0 13px; font-size: 13.5px; color: var(--muted); background: color-mix(in srgb, var(--sand) 40%, transparent); white-space: nowrap; flex-shrink: 0; }
+
+    /* QR code in the app band, for a visitor on a computer: phones get the
+       install bar instead, and nobody scans a screen with the same phone. */
+    .app-qr { display: flex; align-items: center; gap: 14px; margin-top: 22px; padding: 12px 18px 12px 12px; border-radius: 16px;
+              background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); max-width: 360px; }
+    .app-qr img { width: 92px; height: 92px; border-radius: 10px; background: #fff; padding: 6px; flex-shrink: 0; }
+    .app-qr p { font-size: 13.5px; line-height: 1.45; color: rgba(255,255,255,.9); }
+    .app-qr code { display: block; margin-top: 4px; font-size: 12.5px; color: #cfe0ff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    /* Install bar: phones only, decided by the script below. It waits until the
+       visitor is past the hero and steps aside while the sign-up form is on
+       screen or a field has the keyboard. */
+    .dl-bar { position: fixed; inset-inline: 0; bottom: 0; z-index: 55; display: flex; align-items: center; gap: 10px;
+              padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); background: var(--surface); color: var(--ink);
+              border-top: 1px solid var(--sand); box-shadow: 0 -10px 30px rgba(14,19,48,.14);
+              transform: translateY(110%); transition: transform .32s cubic-bezier(.2,.7,.2,1); }
+    .dl-bar.is-on { transform: none; }
+    .dl-bar[hidden] { display: none; }
+    .dl-bar img { width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0; }
+    .dl-text { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+    .dl-text b { font-size: 14.5px; font-weight: 800; }
+    .dl-text span { font-size: 12.5px; color: var(--muted); }
+    .dl-cta { flex-shrink: 0; display: inline-flex; align-items: center; height: 40px; padding: 0 18px; border-radius: 999px;
+              background: var(--brand); color: #fff; font-weight: 800; font-size: 14px; }
+    .dl-cta:hover { background: var(--brand-strong); }
+    .dl-close { flex-shrink: 0; width: 32px; height: 32px; margin-inline-start: -4px; border: 0; border-radius: 50%; background: transparent;
+                color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+    .dl-close svg { width: 18px; height: 18px; }
+    .dl-cta:focus-visible, .dl-close:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 45%, transparent); outline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { .dl-bar { transition: none; } }
+    /* The chat bubble climbs above the bar rather than covering its button. */
+    body.dl-on .sw-bubble { bottom: calc(86px + env(safe-area-inset-bottom)); transition: bottom .32s cubic-bezier(.2,.7,.2,1); }
+    body.dl-on .sw-panel { bottom: calc(158px + env(safe-area-inset-bottom)); }
     /* Honeypot: hidden without the old left:-9999px trick, which in RTL created
        a ~10000px horizontal scroll area (jump-to-anchor then landed on blank). */
     .hp { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
@@ -326,8 +361,16 @@
         .app-inner { grid-template-columns: 1fr; padding: 40px 32px 0; }
         .app-copy { padding-bottom: 0; }
         .offer { grid-template-columns: 1fr; }
-        .signup-card { grid-template-columns: 1fr; }
-        .signup-aside { display: none; }
+        /* minmax(0, …): with a bare 1fr the aside's longest unbreakable word
+           set the column's minimum and pushed the form past the card. */
+        .signup-card { grid-template-columns: minmax(0, 1fr); }
+        .signup-aside code { overflow-wrap: anywhere; }
+        /* Was display:none, so on a phone the form opened with no title and
+           no word on what happens after sending it. Kept, made compact. */
+        .signup-aside { padding: 28px 28px 26px; }
+        .signup-aside h2 { font-size: 23px; margin-top: 6px; }
+        .signup-aside ul { margin-top: 18px; gap: 10px; }
+        .app-qr { display: none; }
     }
     @media (max-width: 640px) {
         .c-wrap { padding: 0 16px; }
@@ -345,6 +388,14 @@
         .app-inner { padding: 32px 20px 0; }
         .grid2 { grid-template-columns: 1fr; gap: 0; }
         .form-body { padding: 24px 18px; }
+        .signup-aside { padding: 24px 18px 22px; }
+        .signup-aside p { font-size: 14px; margin-top: 8px; }
+        .signup-aside li { font-size: 13.5px; }
+        /* Under 16px, iOS Safari zooms the whole page on focus. */
+        .fld input, .fld select { font-size: 16px; padding: 13px 13px; }
+        .subdomain-suf { padding: 0 10px; font-size: 14px; }
+        /* The keyboard is up: the chat bubble would sit on the next field. */
+        body.is-typing .sw-bubble { opacity: 0; pointer-events: none; }
     }
 </style>
 
@@ -516,7 +567,7 @@
     </div>
 </section>
 
-<section class="section" aria-labelledby="app-title">
+<section class="section" id="application" aria-labelledby="app-title">
     <div class="c-wrap">
         <div class="app reveal">
             <div class="app-inner">
@@ -533,6 +584,10 @@
                     <div class="store-btns">
                         {!! $storeButton() !!}
                         <a href="#inscription" class="btn btn-ghost" style="background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.25)">{{ __('castlit.app_web') }}</a>
+                    </div>
+                    <div class="app-qr">
+                        <img src="{{ asset('img/app-qr.svg') }}" width="92" height="92" alt="" loading="lazy" decoding="async">
+                        <p>{{ __('castlit.app_qr') }}<code dir="ltr">{{ config('castlit.main_domain') }}/telecharger</code></p>
                     </div>
                     <ul class="app-list">
                         @foreach ((array) __('castlit.app_list') as $li)
@@ -640,7 +695,7 @@
 
                     <div class="fld">
                         <label for="business_name">{{ __('castlit.f_business') }} <span class="req">*</span></label>
-                        <input id="business_name" name="business_name" required maxlength="120" value="{{ old('business_name') }}" placeholder="{{ __('castlit.f_business_ph') }}">
+                        <input id="business_name" name="business_name" required maxlength="120" autocomplete="organization" value="{{ old('business_name') }}" placeholder="{{ __('castlit.f_business_ph') }}">
                         @error('business_name')<span class="field-error">{{ $message }}</span>@enderror
                     </div>
 
@@ -671,8 +726,8 @@
 
                     <div class="fld">
                         <label for="desired_subdomain">{{ __('castlit.f_address') }} <span class="req">*</span></label>
-                        <div class="subdomain-row">
-                            <input id="desired_subdomain" name="desired_subdomain" required pattern="[a-z0-9]{2,30}" maxlength="30" autocomplete="off" spellcheck="false" dir="ltr" value="{{ old('desired_subdomain') }}" placeholder="almanara" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9]/g,'')">
+                        <div class="subdomain-row" dir="ltr">
+                            <input id="desired_subdomain" name="desired_subdomain" required pattern="[a-z0-9]{2,30}" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" dir="ltr" value="{{ old('desired_subdomain') }}" placeholder="almanara" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9]/g,'')">
                             <span class="subdomain-suf">.{{ $mainDomain ?? config('castlit.main_domain') }}</span>
                         </div>
                         @error('desired_subdomain')<span class="field-error">{{ $message }}</span>@enderror
@@ -681,19 +736,19 @@
                     <div class="grid2">
                         <div class="fld">
                             <label for="contact_name">{{ __('castlit.f_your_name') }} <span class="req">*</span></label>
-                            <input id="contact_name" name="contact_name" required maxlength="120" value="{{ old('contact_name') }}" placeholder="{{ __('castlit.f_your_name_ph') }}">
+                            <input id="contact_name" name="contact_name" required maxlength="120" autocomplete="name" value="{{ old('contact_name') }}" placeholder="{{ __('castlit.f_your_name_ph') }}">
                             @error('contact_name')<span class="field-error">{{ $message }}</span>@enderror
                         </div>
                         <div class="fld">
                             <label for="phone">{{ __('castlit.f_phone') }}</label>
-                            <input id="phone" name="phone" type="tel" data-phone-country-from="#country" maxlength="40" value="{{ old('phone') }}" placeholder="06 00 00 00 00">
+                            <input id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" data-phone-country-from="#country" maxlength="40" value="{{ old('phone') }}" placeholder="06 00 00 00 00">
                             @error('phone')<span class="field-error">{{ $message }}</span>@enderror
                         </div>
                     </div>
 
                     <div class="fld">
                         <label for="email">{{ __('castlit.f_email') }} <span class="req">*</span></label>
-                        <input id="email" name="email" type="email" required maxlength="190" value="{{ old('email') }}" placeholder="vous@exemple.com">
+                        <input id="email" name="email" type="email" required maxlength="190" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" value="{{ old('email') }}" placeholder="vous@exemple.com">
                         @error('email')<span class="field-error">{{ $message }}</span>@enderror
                     </div>
 
@@ -710,6 +765,22 @@
         </div>
     </div>
 </section>
+
+{{-- Install bar for phones. Rendered hidden; the script shows it on Android
+     when the Play link is set, and on an iPhone or iPad only once the App
+     Store link is: before that, an iPhone visitor sees no bar at all. --}}
+@php $appStore = (string) ($brand['app_store'] ?? ''); @endphp
+@if ($playStore !== '' || $appStore !== '')
+    <div class="dl-bar" role="complementary" aria-label="{{ __('castlit.app_eyebrow') }}" hidden data-dl-bar
+         data-android-url="{{ $playStore }}" data-ios-url="{{ $appStore }}">
+        <button type="button" class="dl-close" data-dl-close aria-label="{{ __('castlit.dl_bar_close') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+        <img src="{{ asset('img/app-icon.png') }}" width="44" height="44" alt="" loading="lazy" decoding="async">
+        <div class="dl-text"><b>Castl-it POS</b><span>{{ __('castlit.dl_bar_sub') }}</span></div>
+        <a class="dl-cta" href="{{ route('castlit.download') }}" target="_blank" rel="noopener" data-dl-cta>{{ __('castlit.dl_bar_cta') }}</a>
+    </div>
+@endif
 @endsection
 
 @push('scripts')
@@ -960,4 +1031,60 @@
 
 @push('scripts')
     @include('castlit.partials.support-widget')
+<script>
+    // Install bar + "typing" state for the sign-up form on phones.
+    (function () {
+        var form = document.querySelector('[data-signup-form]');
+        if (form) {
+            form.addEventListener('focusin', function () { document.body.classList.add('is-typing'); });
+            form.addEventListener('focusout', function () { document.body.classList.remove('is-typing'); });
+        }
+
+        var bar = document.querySelector('[data-dl-bar]');
+        if (!bar) return;
+        var KEY = 'castlit_dl_bar_until';
+        var ua = navigator.userAgent || '';
+        // iPadOS presents itself as a Mac; the touch screen gives it away.
+        var ios = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+        var android = /android/i.test(ua);
+        var url = android ? bar.dataset.androidUrl : (ios ? bar.dataset.iosUrl : '');
+        if (!url) return;
+        try { if (Number(localStorage.getItem(KEY) || 0) > Date.now()) return; } catch (e) {}
+
+        bar.querySelector('[data-dl-cta]').href = url;
+        bar.hidden = false;
+
+        var hero = document.querySelector('.hero');
+        var signup = document.getElementById('inscription');
+        var signupInView = false;
+        var dismissed = false;
+
+        function update() {
+            var pastHero = !hero || hero.getBoundingClientRect().bottom < window.innerHeight * 0.35;
+            var typing = document.body.classList.contains('is-typing');
+            var on = !dismissed && pastHero && !signupInView && !typing;
+            bar.classList.toggle('is-on', on);
+            document.body.classList.toggle('dl-on', on);
+            bar.inert = !on;
+        }
+
+        if (signup && 'IntersectionObserver' in window) {
+            new IntersectionObserver(function (entries) {
+                signupInView = entries[0].isIntersecting;
+                update();
+            }, { threshold: 0.05 }).observe(signup);
+        }
+        window.addEventListener('scroll', update, { passive: true });
+        document.addEventListener('focusin', update);
+        document.addEventListener('focusout', function () { setTimeout(update, 0); });
+
+        bar.querySelector('[data-dl-close]').addEventListener('click', function () {
+            dismissed = true;
+            try { localStorage.setItem(KEY, String(Date.now() + 14 * 86400000)); } catch (e) {}
+            update();
+        });
+
+        update();
+    })();
+</script>
 @endpush

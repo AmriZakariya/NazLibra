@@ -55,6 +55,10 @@ if (config('castlit.is_master')) {
     Route::get('/terms', [MarketingController::class, 'terms'])->name('castlit.terms');
     Route::get('/conditions', [MarketingController::class, 'terms']);
 
+    // The printed "download the app" link: each phone to its own store.
+    Route::get('/telecharger', [MarketingController::class, 'download'])->name('castlit.download');
+    Route::get('/download', [MarketingController::class, 'download']);
+
     // The APK for Android devices without Google Play (PAX), asked by the app.
     Route::get('/app/castlitpos.apk', [\App\Http\Controllers\Castlit\AppUpdateAdminController::class, 'apk'])
         ->middleware('throttle:30,1')->name('castlit.app.apk');
