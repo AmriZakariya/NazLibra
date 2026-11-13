@@ -59,7 +59,7 @@ class SubscriptionController extends Controller
                 ]);
             }
         } catch (ValidationException $e) {
-            \App\Support\MarketingVisits::mark($request, \App\Models\MarketingVisit::REFUSED, array_keys($e->errors()));
+            \App\Support\MarketingVisits::serverRefused($request, array_keys($e->errors()));
             throw $e->redirectTo($this->formUrl());
         }
 
@@ -90,7 +90,7 @@ class SubscriptionController extends Controller
             ],
         ]);
         \App\Support\SubscriptionAlerts::newSubscription($subscription);
-        \App\Support\MarketingVisits::mark($request, \App\Models\MarketingVisit::SENT, [], $subscription);
+        \App\Support\MarketingVisits::serverSent($request, $subscription);
 
         return redirect()
             ->route('castlit.subscribe.success')

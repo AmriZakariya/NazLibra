@@ -22,7 +22,9 @@ class MarketingVisitAdminController extends Controller
             'stage' => ['nullable', 'in:'.implode(',', array_keys(MarketingVisit::STAGES))],
             'device' => ['nullable', 'in:phone,tablet,computer'],
             'q' => ['nullable', 'string', 'max:60'],
+            'robots' => ['nullable', 'boolean'],
         ]);
+        $withRobots = (bool) ($filters['robots'] ?? false);
 
         // Days on the team's clock, stored as UTC.
         $zone = TenantClock::DEFAULT_TIMEZONE;
@@ -47,6 +49,11 @@ class MarketingVisitAdminController extends Controller
         }
         if (filled($filters['q'] ?? null)) {
             $base->where('ip', 'like', '%'.trim($filters['q']).'%');
+        }
+        $robots = (clone $base)->whereNotNull('robot_reason')->count();
+        // Probable robots stay out of the counts and the list unless asked for.
+        if (! $withRobots) {
+            $base->whereNull('robot_reason');
         }
 
         // The funnel and the per-campaign table count the period; the list
@@ -86,6 +93,8 @@ class MarketingVisitAdminController extends Controller
             'campaigns' => $campaigns,
             'filters' => array_merge($filters, ['from' => $from, 'to' => $to]),
             'zone' => $zone,
+            'robots' => $robots,
+            'withRobots' => $withRobots,
         ]);
     }
 }

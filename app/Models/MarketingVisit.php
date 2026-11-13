@@ -30,9 +30,16 @@ class MarketingVisit extends Model
         self::SENT => 'Demande envoyée',
     ];
 
+    /** Why a visit looks automated; see MarketingVisits::serverRefused(). */
+    public const ROBOT_REASONS = [
+        'honeypot' => 'Champ anti-spam rempli',
+        'impossible' => 'Valeur impossible depuis le formulaire',
+        'untouched' => 'Envoyé sans toucher un champ',
+    ];
+
     protected $fillable = [
         'ip', 'country', 'locale', 'device', 'campaign_source', 'campaign_medium', 'campaign_name',
-        'referrer', 'landing', 'user_agent', 'stage', 'refused_fields', 'subscription_id', 'last_seen_at',
+        'referrer', 'landing', 'user_agent', 'stage', 'refused_fields', 'robot_reason', 'subscription_id', 'last_seen_at',
     ];
 
     protected $casts = [

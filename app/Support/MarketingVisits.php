@@ -132,6 +132,50 @@ final class MarketingVisits
         return $visit;
     }
 
+    /** Fields filled from a list on the form: a refused value there was not chosen on the page. */
+    private const LIST_FIELDS = ['activity', 'currency', 'country'];
+
+    /**
+     * The server refused the sign-up form. Besides the step, says whether the
+     * sender looks like a script: it filled the hidden anti-spam field, sent a
+     * value no list on the form offers, or never touched a field (the page
+     * reports the first touch; a person cannot type without one).
+     *
+     * @param  list<string>  $fields
+     */
+    public static function serverRefused(Request $request, array $fields): ?MarketingVisit
+    {
+        $visit = self::current($request);
+        if (! $visit) {
+            return null;
+        }
+        $reason = match (true) {
+            in_array('website', $fields, true) => 'honeypot',
+            array_intersect(self::LIST_FIELDS, $fields) !== [] => 'impossible',
+            MarketingVisit::STAGES[$visit->stage] < MarketingVisit::STAGES[MarketingVisit::STARTED] => 'untouched',
+            default => null,
+        };
+        if ($reason) {
+            $visit->robot_reason = $reason;
+        }
+
+        return self::mark($visit, MarketingVisit::REFUSED, $fields);
+    }
+
+    /** The sign-up was accepted: the visit is sent, flagged if no field was ever touched. */
+    public static function serverSent(Request $request, Subscription $subscription): ?MarketingVisit
+    {
+        $visit = self::current($request);
+        if (! $visit) {
+            return null;
+        }
+        if (MarketingVisit::STAGES[$visit->stage] < MarketingVisit::STAGES[MarketingVisit::STARTED] && ! $visit->robot_reason) {
+            $visit->robot_reason = 'untouched';
+        }
+
+        return self::mark($visit, MarketingVisit::SENT, [], $subscription);
+    }
+
     /**
      * What the page sends back with a step: the visit's id, signed, so the
      * step can be recorded without opening the session (a step sent while

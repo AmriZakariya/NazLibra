@@ -62,6 +62,7 @@ class SubscriptionAdminController extends Controller
         $visits = \App\Models\MarketingVisit::query()
             ->where('created_at', '>=', now()->subDays(30))
             ->whereNotNull('campaign_source')
+            ->whereNull('robot_reason')
             ->get(['id', 'campaign_source', 'campaign_name', 'campaign_medium'])
             ->groupBy($key);
         $requests = Subscription::query()

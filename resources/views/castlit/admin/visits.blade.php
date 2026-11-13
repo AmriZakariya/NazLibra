@@ -45,6 +45,9 @@
     .stage-tried { background: var(--warn-bg); color: var(--warn); }
     .stage-refused { background: var(--err-bg); color: var(--err); }
     .stage-sent { background: var(--ok-bg); color: var(--ok); }
+    .robot { display: inline-block; margin-top: 4px; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--muted) 18%, transparent); color: var(--muted); }
+    .ua { display: block; max-width: 220px; margin-top: 2px; font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    tr.is-robot td { opacity: .62; }
     .section-title { font-size: 15px; font-weight: 800; margin: 22px 0 10px; }
     .empty { padding: 40px; text-align: center; color: var(--muted); }
     .pager { margin: 16px 0 40px; }
@@ -55,7 +58,7 @@
         <div class="admin-head">
             <div>
                 <h1>Visites du site</h1>
-                <p>Les visites de la page castlitpos.com et l'étape atteinte vers une demande d'inscription. Robots, aperçus de liens et l'équipe connectée ne sont pas comptés. Conservées {{ \App\Support\MarketingVisits::KEEP_DAYS }} jours.</p>
+                <p>Les visites de la page castlitpos.com et l'étape atteinte vers une demande d'inscription. Robots connus, serveurs, aperçus de liens et l'équipe connectée ne sont pas comptés ; les robots probables sont mis à part. Conservées {{ \App\Support\MarketingVisits::KEEP_DAYS }} jours.</p>
             </div>
             <a href="{{ route('castlit.admin.index') }}" class="btn btn-ghost" style="margin-left:auto; padding:11px 18px">Demandes</a>
         </div>
@@ -84,6 +87,11 @@
                 <input type="hidden" name="campaign_source" value="{{ $filters['campaign_source'] }}">
                 <input type="hidden" name="campaign_name" value="{{ $filters['campaign_name'] ?? '' }}">
             @endif
+            <label class="robots-toggle"><span>Robots probables</span>
+                <span style="display:flex; align-items:center; gap:6px; text-transform:none; letter-spacing:0; font-weight:600; font-size:13.5px; color:var(--ink); padding:9px 0">
+                    <input type="checkbox" name="robots" value="1" @checked($withRobots)> Afficher ({{ $robots }})
+                </span>
+            </label>
             <button type="submit" class="btn btn-primary" style="padding:10px 18px">Filtrer</button>
             @if (filled($filters['campaign_source'] ?? null))
                 <a href="{{ route('castlit.admin.visits', ['from' => $filters['from'], 'to' => $filters['to']]) }}" class="muted" style="align-self:center">Campagne : {{ $filters['campaign_source'] }}{{ filled($filters['campaign_name'] ?? null) ? ' · '.$filters['campaign_name'] : '' }} ✕</a>
@@ -132,7 +140,7 @@
                 </thead>
                 <tbody>
                     @forelse ($visits as $v)
-                        <tr data-visit>
+                        <tr data-visit class="{{ $v->robot_reason ? 'is-robot' : '' }}">
                             <td class="nowrap">{{ \App\Support\TenantClock::format($v->created_at, $zone, 'd/m/Y H:i') }}
                                 @if ($v->last_seen_at && $v->last_seen_at->diffInMinutes($v->created_at, true) >= 1)
                                     <br><span class="muted">jusqu'à {{ \App\Support\TenantClock::format($v->last_seen_at, $zone, 'H:i') }}</span>
@@ -140,13 +148,16 @@
                             </td>
                             <td class="mono">{{ $v->ip ?? '—' }}</td>
                             <td class="nowrap">@if ($v->country){{ \App\Support\Countries::flag($v->country) }} {{ $v->country }}@else — @endif</td>
-                            <td>{{ $devices[$v->device] ?? '—' }}</td>
+                            <td>{{ $devices[$v->device] ?? '—' }}
+                                @if ($v->user_agent)<span class="ua" title="{{ $v->user_agent }}">{{ $v->user_agent }}</span>@endif
+                            </td>
                             <td>{{ strtoupper((string) $v->locale) ?: '—' }}</td>
                             <td>@if ($v->campaignLabel())<span class="camp">{{ $v->campaignLabel() }}</span>@else <span class="muted">—</span>@endif</td>
                             <td class="muted">{{ $v->referrer ?: '—' }}</td>
                             <td>
                                 <span class="stage stage-{{ $v->stage }}">{{ $stageLabels[$v->stage] ?? $v->stage }}</span>
                                 @if ($v->refused_fields)<br><span class="muted">sur : {{ str_replace(',', ', ', $v->refused_fields) }}</span>@endif
+                                @if ($v->robot_reason)<br><span class="robot" title="{{ \App\Models\MarketingVisit::ROBOT_REASONS[$v->robot_reason] ?? '' }}">Robot probable · {{ \App\Models\MarketingVisit::ROBOT_REASONS[$v->robot_reason] ?? $v->robot_reason }}</span>@endif
                             </td>
                             <td>
                                 @if ($v->subscription)

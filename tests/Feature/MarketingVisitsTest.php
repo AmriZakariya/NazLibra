@@ -205,4 +205,65 @@ class MarketingVisitsTest extends TestCase
         $this->assertTrue(Route::has('castlit.visit.stage'));
         $this->assertTrue(Route::has('castlit.admin.visits'));
     }
+
+    public function test_a_value_no_list_offers_marks_a_probable_robot(): void
+    {
+        $this->get('/')->assertOk();
+        $this->post('/visite/etape', ['visit' => $this->token(), 'stage' => 'started'])->assertNoContent();
+
+        $this->signUp(['activity' => 'free text from a script', 'desired_subdomain' => 'Bad Address!'])->assertRedirect();
+
+        $v = $this->visit();
+        $this->assertSame(MarketingVisit::REFUSED, $v->stage);
+        $this->assertSame('impossible', $v->robot_reason);
+    }
+
+    public function test_a_form_sent_without_touching_a_field_is_a_probable_robot(): void
+    {
+        $this->get('/')->assertOk();
+        $this->signUp(['email' => 'not-an-email'])->assertRedirect();
+
+        $this->assertSame('untouched', $this->visit()->robot_reason);
+    }
+
+    public function test_the_hidden_anti_spam_field_marks_a_probable_robot(): void
+    {
+        $this->get('/')->assertOk();
+        $this->post('/visite/etape', ['visit' => $this->token(), 'stage' => 'started'])->assertNoContent();
+        $this->signUp(['website' => 'https://spam.example'])->assertRedirect();
+
+        $this->assertSame('honeypot', $this->visit()->robot_reason);
+    }
+
+    public function test_a_person_who_typed_and_made_a_mistake_is_not_a_robot(): void
+    {
+        $this->get('/')->assertOk();
+        $this->post('/visite/etape', ['visit' => $this->token(), 'stage' => 'started'])->assertNoContent();
+        $this->signUp(['email' => 'not-an-email'])->assertRedirect();
+        $this->signUp()->assertRedirect(route('castlit.subscribe.success'));
+
+        $v = $this->visit();
+        $this->assertSame(MarketingVisit::SENT, $v->stage);
+        $this->assertNull($v->robot_reason);
+    }
+
+    public function test_probable_robots_leave_the_counts_unless_asked_for(): void
+    {
+        MarketingVisit::create(['stage' => 'opened', 'campaign_source' => 'youtube', 'campaign_name' => 'v', 'ip' => '102.0.0.1']);
+        MarketingVisit::create(['stage' => 'refused', 'campaign_source' => 'youtube', 'campaign_name' => 'v', 'ip' => '31.76.93.71',
+            'robot_reason' => 'impossible', 'user_agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ScriptedBrowser/1.0']);
+
+        $admin = User::factory()->create(['is_platform_admin' => true]);
+        $page = $this->actingAs($admin)->get(route('castlit.admin.visits'))->assertOk();
+        $this->assertSame(1, $page->viewData('funnel')['opened']);
+        $this->assertSame(1, $page->viewData('robots'));
+        $page->assertDontSee('31.76.93.71');
+
+        $all = $this->actingAs($admin)->get(route('castlit.admin.visits', ['robots' => 1]))->assertOk();
+        $this->assertSame(2, $all->viewData('funnel')['opened']);
+        $all->assertSee('31.76.93.71')->assertSee('Robot probable', false)->assertSee('ScriptedBrowser/1.0', false);
+
+        $campaigns = $this->actingAs($admin)->get(route('castlit.admin.index', ['status' => 'all']))->viewData('campaigns');
+        $this->assertSame(1, $campaigns->firstWhere('source', 'youtube')['visits']);
+    }
 }
