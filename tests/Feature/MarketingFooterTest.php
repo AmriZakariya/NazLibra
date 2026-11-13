@@ -42,7 +42,7 @@ class MarketingFooterTest extends TestCase
      * in the body and the JSON-LD too, and the email is in the bottom bar —
      * so a broken contact block or an empty feature column still "passed".
      */
-    private function footer(string $url = '/'): string
+    private function footer(string $url = '/?lang=fr'): string
     {
         $html = $this->get($url)->assertOk()->getContent();
         $start = strpos($html, '<footer>');
@@ -172,7 +172,7 @@ class MarketingFooterTest extends TestCase
         foreach (['fr' => 'Nous contacter', 'en' => 'Get in touch', 'ar' => 'تواصل معنا'] as $lang => $heading) {
             $this->assertStringContainsString(
                 $heading,
-                $this->footer($lang === 'fr' ? '/' : '/?lang='.$lang),
+                $this->footer('/?lang='.$lang),
                 "the $lang footer should be translated",
             );
         }

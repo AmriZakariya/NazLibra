@@ -42,7 +42,7 @@ class SignupFormUxTest extends TestCase
         $response = $this->from('/')->post('/inscription', $this->form(['desired_subdomain' => '']));
 
         $response->assertRedirect(url('/').'#inscription');
-        $page = $this->get('/')->assertOk()->getContent();
+        $page = $this->get('/?lang=fr')->assertOk()->getContent();
         $this->assertStringContainsString('Le champ adresse souhaitée est obligatoire.', $page);
         $this->assertStringNotContainsString('validation.required', $page);
     }
@@ -82,7 +82,7 @@ class SignupFormUxTest extends TestCase
 
     public function test_the_page_checks_the_form_before_sending_it(): void
     {
-        $page = $this->get('/')->assertOk()->getContent();
+        $page = $this->get('/?lang=fr')->assertOk()->getContent();
 
         $this->assertStringContainsString('data-signup-form', $page);
         $this->assertStringContainsString('Ce champ est obligatoire.', $page);

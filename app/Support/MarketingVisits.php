@@ -7,6 +7,7 @@ use App\Models\MarketingVisit;
 use App\Models\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\IpUtils;
 
 /**
  * Who visits the castlitpos.com landing page and how far they get: the page,
@@ -27,6 +28,40 @@ final class MarketingVisits
     ];
 
     private const BOTS = '/bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|monitor|uptime|pingdom|lighthouse|headless|phantom|curl|wget|python|java\/|go-http|okhttp|axios|node-fetch|scrapy|httpclient|semrush|ahrefs|bingpreview|whatsapp|telegram/i';
+
+    /**
+     * Networks that are servers, not people: Meta's (it opens every ad link to
+     * check it, with a phone browser's name) and the big clouds' (scanners,
+     * scrapers). A real visitor almost never browses from a datacenter.
+     */
+    public const DATACENTERS = [
+        // Meta
+        '2a03:2880::/32', '57.141.0.0/16', '31.13.24.0/21', '31.13.64.0/18', '66.220.144.0/20',
+        '69.63.176.0/20', '69.171.224.0/19', '157.240.0.0/16', '173.252.64.0/18', '129.134.0.0/16',
+        // Tencent Cloud
+        '49.51.0.0/16', '170.106.0.0/16', '49.232.0.0/14', '43.128.0.0/10', '129.226.0.0/16', '162.62.0.0/16',
+        '119.28.0.0/15', '150.109.0.0/16',
+        // Amazon Web Services
+        '3.0.0.0/8', '13.32.0.0/12', '52.0.0.0/10', '52.64.0.0/11', '54.0.0.0/8', '18.128.0.0/9',
+        // Google Cloud
+        '34.0.0.0/8', '35.184.0.0/13', '35.192.0.0/12', '35.208.0.0/12', '35.224.0.0/12',
+        // Microsoft Azure
+        '20.0.0.0/8', '40.64.0.0/10', '52.96.0.0/11', '52.128.0.0/9',
+        // Alibaba Cloud, DigitalOcean, OVH, Hetzner
+        '47.74.0.0/15', '47.88.0.0/14', '8.208.0.0/12', '161.35.0.0/16', '164.90.0.0/16', '167.99.0.0/16',
+        '146.190.0.0/16', '51.68.0.0/16', '51.75.0.0/16', '51.77.0.0/16', '135.181.0.0/16', '65.108.0.0/16', '95.216.0.0/16',
+    ];
+
+    /** A robot by its name: crawlers, link previews, scripts. */
+    public static function isBot(string $agent): bool
+    {
+        return $agent === '' || (bool) preg_match(self::BOTS, $agent);
+    }
+
+    public static function fromDatacenter(?string $ip): bool
+    {
+        return $ip !== null && $ip !== '' && IpUtils::checkIp($ip, self::DATACENTERS);
+    }
 
     /** The landing page was opened: start a visit, or keep the session's one. */
     public static function open(Request $request): ?MarketingVisit
@@ -135,15 +170,10 @@ final class MarketingVisits
         return MarketingVisit::where('created_at', '<', now()->subDays(self::KEEP_DAYS))->delete();
     }
 
-    /** The page's language, as MarketingController resolves it (?lang=, then the session). */
+    /** The page's language, as MarketingController resolves it. */
     private static function locale(Request $request): string
     {
-        $lang = $request->query('lang');
-        if (! in_array($lang, MarketingController::LOCALES, true)) {
-            $lang = $request->session()->get('castlit_lang', 'fr');
-        }
-
-        return in_array($lang, MarketingController::LOCALES, true) ? $lang : 'fr';
+        return MarketingLocale::resolve($request);
     }
 
     public static function device(string $agent): string
@@ -161,8 +191,10 @@ final class MarketingVisits
         if (! config('castlit.is_master') || ! $request->hasSession() || ! $request->isMethod('GET')) {
             return false;
         }
-        $agent = (string) $request->userAgent();
-        if ($agent === '' || preg_match(self::BOTS, $agent)) {
+        if (self::isBot((string) $request->userAgent())) {
+            return false;
+        }
+        if (self::fromDatacenter(GeoCountry::clientIp($request) ?? $request->ip())) {
             return false;
         }
         $purpose = Str::lower((string) ($request->header('Sec-Purpose') ?? $request->header('Purpose') ?? ''));

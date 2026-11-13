@@ -33,7 +33,7 @@ class MarketingContentTest extends TestCase
 
     public function test_every_area_of_the_product_is_on_the_page_with_its_screenshot(): void
     {
-        $html = $this->get('/')->assertOk()->getContent();
+        $html = $this->get('/?lang=fr')->assertOk()->getContent();
 
         foreach ((array) __('castlit.areas', [], 'fr') as $area) {
             $this->assertStringContainsString('id="panel-'.$area['key'].'"', $html);
@@ -52,7 +52,7 @@ class MarketingContentTest extends TestCase
     {
         config(['castlit.trial_months' => 2]);
 
-        $html = $this->get('/')->assertOk()->getContent();
+        $html = $this->get('/?lang=fr')->assertOk()->getContent();
 
         $this->assertStringContainsString('2 mois pour l’essayer en vrai', $html);
         $this->assertStringContainsString('2 mois offerts', $html);
@@ -61,7 +61,7 @@ class MarketingContentTest extends TestCase
 
     public function test_no_language_shows_a_raw_translation_key(): void
     {
-        foreach (['/', '/?lang=en', '/?lang=ar'] as $url) {
+        foreach (['/?lang=fr', '/?lang=en', '/?lang=ar'] as $url) {
             $html = $this->get($url)->assertOk()->getContent();
             $this->assertDoesNotMatchRegularExpression('/castlit\.[a-z_]+/', strip_tags($html), "$url shows a key instead of text");
         }

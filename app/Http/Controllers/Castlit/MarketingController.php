@@ -16,18 +16,10 @@ class MarketingController extends Controller
     /** Supported marketing locales. */
     public const LOCALES = ['fr', 'ar', 'en'];
 
-    /** Resolve the marketing locale from ?lang= (persisted) and apply it. */
+    /** The marketing pages' language (see App\Support\MarketingLocale) — applied. */
     private function resolveLocale(Request $request): string
     {
-        $lang = $request->query('lang');
-        if (in_array($lang, self::LOCALES, true)) {
-            $request->session()->put('castlit_lang', $lang);
-        } else {
-            $lang = $request->session()->get('castlit_lang', 'fr');
-            if (! in_array($lang, self::LOCALES, true)) {
-                $lang = 'fr';
-            }
-        }
+        $lang = \App\Support\MarketingLocale::resolve($request);
         app()->setLocale($lang);
 
         return $lang;
