@@ -1075,6 +1075,39 @@
         var form = document.querySelector('[data-signup-form]');
         if (form) {
             form.dataset.enhanced = '';
+
+            // How far this visit got, for castlit-admin › Visites: the form
+            // started, a submit tried, or refused by the browser (on which
+            // fields). The server records « sent » and its own refusals.
+            var stageUrl = @json(route('castlit.visit.stage'));
+            var visitToken = @json(($mv = request()->attributes->get('marketing_visit')) ? \App\Support\MarketingVisits::token($mv) : null);
+            var sendStage = function (stage, fields) {
+                if (!visitToken) return;
+                try {
+                    var data = new FormData();
+                    data.append('visit', visitToken);
+                    data.append('stage', stage);
+                    if (fields) data.append('fields', fields.join(','));
+                    if (!(navigator.sendBeacon && navigator.sendBeacon(stageUrl, data))) {
+                        fetch(stageUrl, { method: 'POST', body: data, keepalive: true, credentials: 'same-origin' });
+                    }
+                } catch (e) {}
+            };
+            var started = false;
+            form.addEventListener('focusin', function () {
+                if (started) return;
+                started = true;
+                sendStage('started');
+            });
+            // After the form's own check, which cancels a submit it refuses.
+            form.addEventListener('submit', function (event) {
+                if (event.defaultPrevented) {
+                    var bad = [].map.call(form.querySelectorAll('[aria-invalid="true"]'), function (el) { return el.name; });
+                    sendStage('refused', bad);
+                } else {
+                    sendStage('tried');
+                }
+            });
             form.addEventListener('focusin', function () { document.body.classList.add('is-typing'); });
             form.addEventListener('focusout', function () { document.body.classList.remove('is-typing'); });
             if ('IntersectionObserver' in window) {

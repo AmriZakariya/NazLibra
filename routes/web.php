@@ -55,6 +55,17 @@ if (config('castlit.is_master')) {
     Route::get('/terms', [MarketingController::class, 'terms'])->name('castlit.terms');
     Route::get('/conditions', [MarketingController::class, 'terms']);
 
+    // How far a landing-page visit got (form started, submit tried), sent by
+    // the page itself with its visit's signed token. No session: a step sent
+    // while the form posts must not race it for the session.
+    Route::post('/visite/etape', [MarketingController::class, 'visitStage'])
+        ->withoutMiddleware([
+            \Illuminate\Session\Middleware\StartSession::class,
+            \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+            \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
+        ])
+        ->middleware('throttle:30,1')->name('castlit.visit.stage');
+
     // The printed "download the app" link: each phone to its own store.
     Route::get('/telecharger', [MarketingController::class, 'download'])
         ->middleware(\App\Http\Middleware\CaptureCampaign::class)->name('castlit.download');
@@ -75,6 +86,8 @@ if (config('castlit.is_master')) {
             Route::post('/nouveau', [SubscriptionAdminController::class, 'store'])->name('store');
             // Client (install) manager — must precede the /{subscription} route.
             Route::get('/clients', [ClientAdminController::class, 'index'])->name('clients');
+            // Who visits the landing page, and how far they get.
+            Route::get('/visites', [\App\Http\Controllers\Castlit\MarketingVisitAdminController::class, 'index'])->name('visits');
             Route::post('/clients/git-pull', [ClientAdminController::class, 'pullFromGit'])->name('clients.git-pull');
             Route::get('/clients/journal', [ClientAdminController::class, 'journal'])->name('clients.journal');
             Route::get('/clients/journal/telecharger', [ClientAdminController::class, 'journalDownload'])->name('clients.journal.download');
@@ -461,5 +474,6 @@ Route::delete('/appareils/{device}', [VirtualDeviceController::class, 'destroy']
 // ─── CastLit master: public landing takes over `/` (must be last — see note above) ──
 if (config('castlit.is_master')) {
     Route::get('/', [MarketingController::class, 'landing'])
-        ->middleware(\App\Http\Middleware\CaptureCampaign::class)->name('castlit.landing');
+        ->middleware([\App\Http\Middleware\CaptureCampaign::class, \App\Http\Middleware\RecordMarketingVisit::class])
+        ->name('castlit.landing');
 }

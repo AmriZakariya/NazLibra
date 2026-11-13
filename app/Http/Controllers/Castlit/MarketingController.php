@@ -81,6 +81,23 @@ class MarketingController extends Controller
         return $response->header('Cache-Control', 'no-store')->header('Vary', 'User-Agent');
     }
 
+    /**
+     * POST /visite/etape — the landing page saying its visitor started the
+     * form, or tried to send it (and which fields the browser refused). Only
+     * those stages: « sent » and the server's refusals are recorded by the
+     * sign-up itself.
+     */
+    public function visitStage(Request $request): Response
+    {
+        $stage = (string) $request->input('stage');
+        if (in_array($stage, [\App\Models\MarketingVisit::STARTED, \App\Models\MarketingVisit::TRIED, \App\Models\MarketingVisit::REFUSED], true)) {
+            $fields = array_filter(explode(',', (string) $request->input('fields', '')));
+            \App\Support\MarketingVisits::mark(\App\Support\MarketingVisits::fromToken((string) $request->input('visit')), $stage, $fields);
+        }
+
+        return response()->noContent();
+    }
+
     /** Confirmation page after a subscription request is submitted. */
     public function success(Request $request): View
     {

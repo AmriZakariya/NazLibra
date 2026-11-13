@@ -43,6 +43,7 @@
         <li><strong>Compte &amp; identité :</strong> nom, adresse e-mail, numéro de téléphone et rôle de l’utilisateur, pour créer et sécuriser votre accès.</li>
         <li><strong>Données commerciales que vous saisissez :</strong> produits, prix, stock, ventes, tickets, factures, clients et fournisseurs. Ces données vous appartiennent et sont gérées pour votre compte.</li>
         <li><strong>Données techniques :</strong> informations d’appareil et de session, journaux d’activité et d’erreurs, nécessaires au bon fonctionnement et à la sécurité.</li>
+        <li><strong>Visites du site castlitpos.com :</strong> adresse IP, pays déduit de cette adresse, langue, type d’appareil, page d’origine et campagne publicitaire, et l’étape atteinte vers une demande d’inscription. Elles servent à mesurer nos campagnes, sans cookie supplémentaire, et sont supprimées après 90 jours.</li>
         <li><strong>Abonnement :</strong> informations de contact liées à votre demande. Les paiements éventuels sont traités par des prestataires de paiement ; nous ne stockons pas les numéros de carte.</li>
     </ul>
     <p>Nous ne vendons pas vos données et ne les utilisons pas à des fins publicitaires.</p>

@@ -28,6 +28,7 @@ class RecordUserActivity
     public const NOT_RECORDED = [
         'device.heartbeat',
         'profile.activity.data',
+        'castlit.visit.stage',
     ];
 
     /** Tooling, and the platform's own admin on the master: not a shop's activity. */

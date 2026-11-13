@@ -35,4 +35,6 @@ if (config('castlit.is_master')) {
     Schedule::command('castlit:update-geoip')->monthlyOn(6, '03:40');
     // Phones' logs sent to support are kept 30 days.
     Schedule::call(fn () => \App\Support\DeviceReports::prune())->name('castlit:prune-device-reports')->dailyAt('03:45');
+    // Landing-page visits (IP, campaign) are kept 90 days.
+    Schedule::call(fn () => \App\Support\MarketingVisits::prune())->name('castlit:prune-marketing-visits')->dailyAt('04:00');
 }

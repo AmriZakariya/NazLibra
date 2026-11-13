@@ -103,6 +103,7 @@
                     @php $supportUnread = \App\Support\SupportChat::unreadConversations(); @endphp
                     @if ($supportUnread > 0)<span style="margin-left:6px; min-width:22px; height:22px; padding:0 6px; border-radius:999px; background:var(--err); color:#fff; font-size:12px; font-weight:800; display:inline-grid; place-items:center">{{ $supportUnread }}</span>@endif
                 </a>
+                <a href="{{ route('castlit.admin.visits') }}" class="btn btn-ghost" style="padding:11px 18px; white-space:nowrap" data-visits-link>Visites</a>
                 <a href="{{ route('castlit.admin.clients') }}" class="btn btn-ghost" style="padding:11px 18px; white-space:nowrap">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></svg>
                     Clients
@@ -154,11 +155,12 @@
                 @if ($campaigns->isNotEmpty())
                     <div class="tbl-scroll">
                         <table class="tbl campaigns-tbl">
-                            <thead><tr><th>Source · campagne</th><th class="num">Demandes</th><th class="num">Approuvées</th></tr></thead>
+                            <thead><tr><th>Source · campagne</th><th class="num">Visites</th><th class="num">Demandes</th><th class="num">Approuvées</th></tr></thead>
                             <tbody>
                                 @foreach ($campaigns as $c)
                                     <tr>
                                         <td><a href="{{ route('castlit.admin.index', ['status' => 'all', 'campaign_source' => $c['source'], 'campaign_name' => $c['name'] ?? '-']) }}"><span class="camp">{{ $c['label'] }}</span></a></td>
+                                        <td class="num"><a href="{{ route('castlit.admin.visits', ['from' => now(\App\Support\TenantClock::DEFAULT_TIMEZONE)->subDays(29)->toDateString(), 'campaign_source' => $c['source'], 'campaign_name' => $c['name'] ?? '-']) }}">{{ $c['visits'] }}</a></td>
                                         <td class="num">{{ $c['total'] }}</td>
                                         <td class="num">{{ $c['approved'] }}</td>
                                     </tr>

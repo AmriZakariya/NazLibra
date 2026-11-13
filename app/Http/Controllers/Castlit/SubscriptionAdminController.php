@@ -58,19 +58,32 @@ class SubscriptionAdminController extends Controller
 
         // Which ads bring shops: the last 30 days, per source and campaign,
         // with how many were approved. Grouped in PHP: a few dozen rows.
-        $campaigns = Subscription::query()
+        $key = fn ($row): string => $row->campaign_source."\0".($row->campaign_name ?? '');
+        $visits = \App\Models\MarketingVisit::query()
             ->where('created_at', '>=', now()->subDays(30))
             ->whereNotNull('campaign_source')
-            ->get(['id', 'status', 'campaign_source', 'campaign_name'])
-            ->groupBy(fn (Subscription $s): string => $s->campaign_source."\0".($s->campaign_name ?? ''))
-            ->map(fn ($rows) => [
-                'source' => $rows->first()->campaign_source,
-                'name' => $rows->first()->campaign_name,
-                'label' => $rows->first()->campaignLabel(),
-                'total' => $rows->count(),
-                'approved' => $rows->where('status', Subscription::STATUS_APPROVED)->count(),
-            ])
-            ->sortByDesc('total')
+            ->get(['id', 'campaign_source', 'campaign_name', 'campaign_medium'])
+            ->groupBy($key);
+        $requests = Subscription::query()
+            ->where('created_at', '>=', now()->subDays(30))
+            ->whereNotNull('campaign_source')
+            ->get(['id', 'status', 'campaign_source', 'campaign_name', 'campaign_medium'])
+            ->groupBy($key);
+        // A campaign with visits and no request yet is the one to look at.
+        $campaigns = $visits->keys()->merge($requests->keys())->unique()
+            ->map(function (string $k) use ($visits, $requests) {
+                $first = ($requests[$k] ?? $visits[$k])->first();
+
+                return [
+                    'source' => $first->campaign_source,
+                    'name' => $first->campaign_name,
+                    'label' => $first->campaignLabel(),
+                    'visits' => isset($visits[$k]) ? $visits[$k]->count() : 0,
+                    'total' => isset($requests[$k]) ? $requests[$k]->count() : 0,
+                    'approved' => isset($requests[$k]) ? $requests[$k]->where('status', Subscription::STATUS_APPROVED)->count() : 0,
+                ];
+            })
+            ->sortByDesc(fn ($c) => [$c['total'], $c['visits']])
             ->values();
 
         return view('castlit.admin.index', [

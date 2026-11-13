@@ -179,7 +179,8 @@ class CampaignAttributionTest extends TestCase
         $admin = User::factory()->create(['is_platform_admin' => true]);
 
         $html = $this->actingAs($admin)->get(route('castlit.admin.index', ['status' => 'all']))->assertOk()->getContent();
-        $this->assertMatchesRegularExpression('/facebook · promo-nov<\/span><\/a><\/td>\s*<td class="num">2<\/td>\s*<td class="num">1<\/td>/', $html);
+        // Visits (none here), then requests and approvals.
+        $this->assertMatchesRegularExpression('/facebook · promo-nov<\/span><\/a><\/td>\s*<td class="num"><a [^>]*>0<\/a><\/td>\s*<td class="num">2<\/td>\s*<td class="num">1<\/td>/', $html);
         $this->assertStringNotContainsString('tiktok · old</span></a>', $html, 'older than 30 days');
 
         $filtered = $this->actingAs($admin)
