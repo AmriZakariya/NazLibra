@@ -1,0 +1,8 @@
+{
+ "1 demande à confirmer": "1 request to confirm",
+ "{0} demandes à confirmer": "{0} requests to confirm",
+ "Cette adresse n’est pas encore utilisable : 1 condition à corriger ci-dessous.": "This address cannot be used yet: 1 condition to fix below.",
+ "Cette adresse n’est pas encore utilisable : {0} conditions à corriger ci-dessous.": "This address cannot be used yet: {0} conditions to fix below.",
+ "L'application et l'espace web suivent cette langue, sauf pour un utilisateur qui choisit la sienne dans le menu Langue.": "The app and the web space follow this language, except for a user who picks their own in the Language menu.",
+ "Langue changée.": "Language changed."
+}

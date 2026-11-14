@@ -1,0 +1,8 @@
+{
+ "1 demande à confirmer": "1 solicitud por confirmar",
+ "{0} demandes à confirmer": "{0} solicitudes por confirmar",
+ "Cette adresse n’est pas encore utilisable : 1 condition à corriger ci-dessous.": "Esta dirección aún no se puede usar: 1 condición por corregir a continuación.",
+ "Cette adresse n’est pas encore utilisable : {0} conditions à corriger ci-dessous.": "Esta dirección aún no se puede usar: {0} condiciones por corregir a continuación.",
+ "L'application et l'espace web suivent cette langue, sauf pour un utilisateur qui choisit la sienne dans le menu Langue.": "La aplicación y el espacio web siguen este idioma, salvo para un usuario que elija el suyo en el menú Idioma.",
+ "Langue changée.": "Idioma cambiado."
+}

@@ -249,13 +249,16 @@ class CommercialDocumentController extends Controller
         $company['logo_src'] = $branding->assetSource($company['store_logo'] ?? null);
         $company['signature_src'] = $branding->assetSource($company['signature'] ?? null);
 
-        return Pdf::loadView('librairepro.pdf.commercial-document', [
+        // Written in the shop's language (see HtmlTranslator::PDF_LOCALES).
+        $html = view('librairepro.pdf.commercial-document', [
             'documentType' => $documentType,
             'document' => $document,
             'tenant' => $tenant,
             'company' => $company,
             'settings' => $branding->settings($tenant),
-        ])->setPaper('a4')->setOptions([
+        ])->render();
+
+        return Pdf::loadHTML(\App\Support\I18n\HtmlTranslator::translate($html, \App\Support\I18n\HtmlTranslator::pdfLocale($tenant)))->setPaper('a4')->setOptions([
             'isRemoteEnabled' => true,
             'defaultFont' => 'DejaVu Sans',
         ])->download($filename);

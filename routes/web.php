@@ -191,8 +191,21 @@ Route::get('/reserver', [\App\Http\Controllers\BookingController::class, 'show']
 Route::get('/reserver/creneaux', [\App\Http\Controllers\BookingController::class, 'slots'])->name('booking.slots');
 Route::post('/reserver', [\App\Http\Controllers\BookingController::class, 'store'])->name('booking.store');
 
+// The language menu: on the login page too, so not behind sign-in.
+Route::post('/langue/{locale}', [LibraireProController::class, 'switchLocale'])
+    ->middleware('throttle:30,1')->name('locale.switch');
+// A language's dictionary for the back office's pages: public (the login page
+// needs it), no session, cached for good under the file's version.
+Route::get('/i18n/{locale}.js', [\App\Http\Controllers\I18nController::class, 'script'])
+    ->where('locale', '[a-z]{2}')
+    ->withoutMiddleware([
+        \Illuminate\Session\Middleware\StartSession::class,
+        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
+    ])
+    ->name('i18n.script');
+
 Route::middleware(['access.verified', 'auth', 'tenant.access', 'session.unlocked', 'device.selected'])->group(function (): void {
-Route::post('/langue/{locale}', [LibraireProController::class, 'switchLocale'])->name('locale.switch');
 Route::get('/', [LibraireProController::class, 'dashboard'])->name('dashboard');
 Route::get('/guide-fonctionnalites', [LibraireProController::class, 'functionalityGuide'])->name('functionality-guide');
 

@@ -13,6 +13,7 @@
         <title>{{ $tr('Session verrouillée') }} · {{ $productName }}</title>
         <link rel="icon" type="image/png" sizes="32x32" href="{{ route('app.icon', 32) }}">
         <link rel="shortcut icon" href="{{ route('app.icon', 32) }}" type="image/x-icon">
+        @include('partials.i18n-head', ['locale' => $locale])
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-slate-950 text-white antialiased">

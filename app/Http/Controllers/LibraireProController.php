@@ -72,6 +72,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\App;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Illuminate\Support\Carbon;
@@ -147,24 +148,21 @@ class LibraireProController extends Controller
         ]);
     }
 
+    /**
+     * The language menu: this person's language, kept on their account (it
+     * follows them on every device) and for this session (the login page,
+     * before an account is known). The shop's language, for its documents
+     * and its app, stays in Paramètres › Société.
+     */
     public function switchLocale(Request $request, string $locale): RedirectResponse
     {
         abort_unless(in_array($locale, Locale::SUPPORTED, true), 404);
 
-        $tenant = $this->tenant();
-        $settings = $tenant->settings ?? [];
-        $settings['language_id'] = $locale;
-        $settings['locale'] = $locale === 'ar' ? 'ar_MA' : 'fr_MA';
+        session([Locale::SESSION_KEY => $locale]);
+        $request->user()?->forceFill(['locale' => $locale])->save();
+        App::setLocale($locale);
 
-        $tenant->forceFill([
-            'locale' => $settings['locale'],
-            'settings' => $settings,
-        ])->save();
-
-        session(['librairepro_locale' => $locale]);
-        Locale::apply($tenant->fresh());
-
-        return redirect()->back()->with('status', $locale === 'ar' ? 'تم تغيير اللغة إلى العربية.' : 'Langue changée en français.');
+        return redirect()->back()->with('status', Locale::t('Langue changée.', $locale));
     }
 
     public function dashboard(Request $request): View
@@ -3199,7 +3197,7 @@ class LibraireProController extends Controller
         $countryCode = ($data['country'] ?? null) ? strtoupper($data['country']) : null;
         $data['country_code'] = $countryCode;
         $data['country'] = $countryCode
-            ? (string) Countries::name($countryCode, in_array($data['language_id'], ['fr', 'ar', 'en'], true) ? $data['language_id'] : 'fr')
+            ? (string) Countries::name($countryCode, $data['language_id'])
             : null;
 
         $businessMode = BusinessMode::get($data['business_mode'] ?? data_get($tenant->settings, 'company_profile.business_mode'));
@@ -7651,7 +7649,7 @@ class LibraireProController extends Controller
             'finance' => ['title' => 'Finances', 'subtitle' => 'Avances, coupons, dépenses, balances et clôture de caisse.', 'active' => 'finance'],
             'cash-register' => ['title' => 'Tiroir caisse', 'subtitle' => 'Ouverture, clôture, solde attendu et historique du tiroir.', 'active' => 'finance'],
             'reports' => ['title' => 'Rapports', 'subtitle' => 'Analytique ventes, inventaire, finances et bibliothèque.', 'active' => 'reports'],
-            'settings' => ['title' => 'Paramètres', 'subtitle' => 'Profil '.$businessMode['short_label'].', utilisateurs, rôles, intégrations et sécurité.', 'active' => 'settings'],
+            'settings' => ['title' => 'Paramètres', 'subtitle' => "Profil {$businessMode['short_label']}, utilisateurs, rôles, intégrations et sécurité.", 'active' => 'settings'],
         ];
 
         abort_unless(isset($modules[$module]), 404);
@@ -9839,14 +9837,16 @@ class LibraireProController extends Controller
         $company['logo_src'] = $this->documentAssetSource((string) ($company['store_logo'] ?? ''));
         $company['signature_src'] = $this->documentAssetSource((string) ($company['signature'] ?? ''));
 
-        $pdf = Pdf::loadView('librairepro.pdf.document', [
+        // Written in the shop's language (see HtmlTranslator::PDF_LOCALES).
+        $html = view('librairepro.pdf.document', [
             'tenant' => $tenant,
             'company' => $company,
             'settings' => $settings,
             'document' => $document,
             'money' => fn ($amount) => $this->money($amount),
             'formatDate' => fn ($date) => $date ? Carbon::parse($date)->format('d/m/Y') : '—',
-        ])->setPaper('a4')->setOptions([
+        ])->render();
+        $pdf = Pdf::loadHTML(\App\Support\I18n\HtmlTranslator::translate($html, \App\Support\I18n\HtmlTranslator::pdfLocale($tenant)))->setPaper('a4')->setOptions([
             'isRemoteEnabled' => true,
             'defaultFont' => 'DejaVu Sans',
         ]);

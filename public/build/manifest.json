@@ -133,7 +133,7 @@
     "isDynamicEntry": true
   },
   "resources/css/app.css": {
-    "file": "assets/app-DIwC7Eqe.css",
+    "file": "assets/app-Cm_Mm1gq.css",
     "name": "app",
     "names": [
       "app.css"
@@ -142,7 +142,7 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-BFhZmHcd.js",
+    "file": "assets/app-WugkfjvG.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -152,6 +152,12 @@
     "css": [
       "assets/app-nh6yBYpf.css"
     ]
+  },
+  "resources/js/i18n.js": {
+    "file": "assets/i18n-D4HLgZtN.js",
+    "name": "i18n",
+    "src": "resources/js/i18n.js",
+    "isEntry": true
   },
   "resources/js/phone.js": {
     "file": "assets/phone-D9sNBfaZ.js",

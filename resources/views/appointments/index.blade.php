@@ -55,7 +55,7 @@
 
     @if ($requests->isNotEmpty())
         <section class="mt-6 rounded-2xl border border-amber-200 bg-amber-50/60 p-5 dark:border-amber-500/20 dark:bg-amber-500/[0.06]" data-booking-requests>
-            <h2 class="font-semibold text-amber-900 dark:text-amber-200">{{ $requests->count() }} demande{{ $requests->count() > 1 ? 's' : '' }} à confirmer</h2>
+            <h2 class="font-semibold text-amber-900 dark:text-amber-200">@if ($requests->count() === 1) 1 demande à confirmer @else {{ $requests->count() }} demandes à confirmer @endif</h2>
             <p class="mt-1 text-sm text-amber-800/80 dark:text-amber-200/70">Envoyées depuis la page de réservation en ligne. Confirmez pour réserver le créneau, puis prévenez le client sur WhatsApp.</p>
             <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 @foreach ($requests as $r)

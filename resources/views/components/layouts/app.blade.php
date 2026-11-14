@@ -107,11 +107,10 @@
             }
         </script>
         <script>
-            window.libraireProLocale = @json($locale);
             // The shop's currency for resources/js/money.js, as App\Support\Money formats it.
             window.appCurrency = @json($shopMoney->toJs());
-            window.libraireProTranslations = @json($locale === 'ar' ? \App\Support\Locale::arabic() : []);
         </script>
+        @include('partials.i18n-head', ['locale' => $locale])
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="min-h-screen bg-slate-50 text-slate-950 antialiased dark:bg-slate-950 dark:text-slate-100">
@@ -656,13 +655,7 @@
                                         </div>
                                     </details>
                                     @endif
-                                    <form action="{{ route('locale.switch', \App\Support\Locale::opposite($locale)) }}" method="POST">
-                                        @csrf
-                                        <button class="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="submit">
-                                            <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                                            {{ $locale === 'ar' ? 'Français' : 'العربية' }}
-                                        </button>
-                                    </form>
+                                    @include('partials.language-menu', ['locale' => $locale])
                                 </div>
                             </div>
                         </details>
@@ -851,12 +844,7 @@
                                         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
                                         {{ $tr('Thème') }}
                                     </button>
-                                    <form action="{{ route('locale.switch', \App\Support\Locale::opposite($locale)) }}" method="POST">
-                                        @csrf
-                                        <button class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="submit">
-                                            <span class="mr-2">🌐</span>{{ $locale === 'ar' ? 'Français' : 'العربية' }}
-                                        </button>
-                                    </form>
+                                    @include('partials.language-menu', ['locale' => $locale])
                                     <form action="{{ route('session.lock') }}" method="POST" class="mt-1">
                                         @csrf
                                         <button class="w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/5" type="submit">{{ $tr('Verrouiller la session') }}</button>

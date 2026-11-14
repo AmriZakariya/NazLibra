@@ -105,6 +105,7 @@
         .footer a { color: #64748b; font-size: 0.8rem; text-decoration: none; }
         .footer a:hover { color: #f87171; }
     </style>
+    @include('partials.i18n-head', ['locale' => $locale])
 </head>
 <body>
     <div class="card">

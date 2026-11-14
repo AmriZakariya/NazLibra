@@ -4527,7 +4527,7 @@
                                         <button type="button" data-copy-target="storefront-url" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900 dark:hover:bg-slate-800">Copier</button>
                                     </div>
                                     @unless ($onlineLive)
-                                        <p class="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300">Cette adresse n’est pas encore utilisable : {{ $onlineMissing }} condition{{ $onlineMissing === 1 ? '' : 's' }} à corriger ci-dessous.</p>
+                                        <p class="mt-2 text-sm font-medium text-amber-700 dark:text-amber-300">@if ($onlineMissing === 1) Cette adresse n’est pas encore utilisable : 1 condition à corriger ci-dessous. @else Cette adresse n’est pas encore utilisable : {{ $onlineMissing }} conditions à corriger ci-dessous. @endif</p>
                                     @endunless
 
                                     <ul class="mt-4 grid gap-2">
@@ -5032,7 +5032,7 @@
                                     // The same list as sign-up. An older profile has a typed
                                     // name (« Maroc ») or none: it is read the way phone
                                     // numbers read it (name, then timezone, then currency).
-                                    $countryGroups = \App\Support\Countries::grouped(in_array(app()->getLocale(), ['fr', 'ar', 'en'], true) ? app()->getLocale() : 'fr');
+                                    $countryGroups = \App\Support\Countries::grouped(app()->getLocale());
                                     $selectedCountry = old('country', \App\Support\Phone::defaultCountry($tenant));
                                 @endphp
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Pays</span>
@@ -5226,7 +5226,7 @@
                                 </label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Format date</span><select name="date_format" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach(['dd/mm/yyyy','dd-mm-yyyy','mm-dd-yyyy','yyyy-mm-dd'] as $format)<option value="{{ $format }}" @selected(old('date_format', $companyProfile['date_format']) === $format)>{{ $format }}</option>@endforeach</select></label>
                                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Format heure</span><select name="time_format" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="24" @selected(old('time_format', $companyProfile['time_format']) === '24')>24 heures</option><option value="12" @selected(old('time_format', $companyProfile['time_format']) === '12')>12 heures</option></select></label>
-                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Langue</span><select name="language_id" data-company-language class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach (\App\Support\Locale::SHOP_LANGUAGES as $code => $label)<option value="{{ $code }}" @selected(old('language_id', $companyProfile['language_id']) === $code)>{{ $label }}</option>@endforeach</select><span class="block text-xs text-slate-500">L'application suit cette langue. Le site web s'affiche en français, ou en arabe.</span></label>
+                                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Langue</span><select name="language_id" data-company-language class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">@foreach (\App\Support\Locale::SHOP_LANGUAGES as $code => $label)<option value="{{ $code }}" @selected(old('language_id', $companyProfile['language_id']) === $code)>{{ $label }}</option>@endforeach</select><span class="block text-xs text-slate-500">L'application et l'espace web suivent cette langue, sauf pour un utilisateur qui choisit la sienne dans le menu Langue.</span></label>
                                 @php
                                     $currencyValue = strtoupper((string) old('currency', $companyProfile['currency']));
                                     $currencyOptions = \App\Support\Countries::currencyOptions();

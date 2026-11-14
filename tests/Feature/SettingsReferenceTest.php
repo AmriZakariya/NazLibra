@@ -49,9 +49,8 @@ class SettingsReferenceTest extends TestCase
         $this->post(route('locale.switch', 'ar'))
             ->assertRedirect();
 
-        $settings = Tenant::firstOrFail()->fresh()->settings;
-        $this->assertSame('ar', $settings['language_id']);
-        $this->assertSame('ar_MA', $settings['locale']);
+        // The menu is each person's language now, not the shop's.
+        $this->assertSame('ar', auth()->user()->fresh()->locale);
 
         $this->get(route('dashboard'))
             ->assertOk()
@@ -60,7 +59,8 @@ class SettingsReferenceTest extends TestCase
             ->assertSee('لوحة التحكم')
             ->assertSee('المقالات')
             ->assertSee('ابحث عن قسم أو إجراء أو إعداد...')
-            ->assertSee('Français');
+            ->assertSee('Français')
+            ->assertSee('Deutsch');
     }
 
     public function test_settings_payment_country_state_and_tax_group_records_are_persisted(): void

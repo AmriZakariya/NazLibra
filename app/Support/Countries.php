@@ -136,7 +136,7 @@ final class Countries
      */
     public static function grouped(string $locale): array
     {
-        $names = self::data()['names'][$locale] ?? self::data()['names']['fr'];
+        $names = self::names($locale);
 
         $frequent = [];
         foreach (self::FREQUENT as $code) {
@@ -157,7 +157,7 @@ final class Countries
             return null;
         }
 
-        $names = self::data()['names'][$locale] ?? self::data()['names']['fr'];
+        $names = self::names($locale);
 
         return $names[strtoupper($code)] ?? $code;
     }
@@ -261,6 +261,35 @@ final class Countries
      *
      * @param  array<string, string>  $names
      */
+    /**
+     * Country names in [$locale]: the bundled lists (fr, ar, en), else the
+     * system's own (intl) for every other language the back office speaks,
+     * else French.
+     *
+     * @return array<string, string>
+     */
+    public static function names(string $locale): array
+    {
+        static $built = [];
+        $data = self::data()['names'];
+        if (isset($data[$locale])) {
+            return $data[$locale];
+        }
+        if (isset($built[$locale])) {
+            return $built[$locale];
+        }
+        if (! class_exists(\Locale::class)) {
+            return $data['fr'];
+        }
+        $names = [];
+        foreach ($data['fr'] as $code => $french) {
+            $name = \Locale::getDisplayRegion('-'.$code, $locale);
+            $names[$code] = $name !== '' && $name !== $code ? $name : $french;
+        }
+
+        return $built[$locale] = $names;
+    }
+
     private static function sortByName(array &$names, string $locale): void
     {
         if (class_exists(\Collator::class)) {

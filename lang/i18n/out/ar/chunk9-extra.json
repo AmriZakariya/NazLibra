@@ -1,0 +1,8 @@
+{
+ "1 demande à confirmer": "طلب واحد في انتظار التأكيد",
+ "{0} demandes à confirmer": "{0} طلبات في انتظار التأكيد",
+ "Cette adresse n’est pas encore utilisable : 1 condition à corriger ci-dessous.": "هذا العنوان غير قابل للاستعمال بعد: شرط واحد يجب تصحيحه أدناه.",
+ "Cette adresse n’est pas encore utilisable : {0} conditions à corriger ci-dessous.": "هذا العنوان غير قابل للاستعمال بعد: {0} شروط يجب تصحيحها أدناه.",
+ "L'application et l'espace web suivent cette langue, sauf pour un utilisateur qui choisit la sienne dans le menu Langue.": "يتبع التطبيق والفضاء على الويب هذه اللغة، إلا بالنسبة لمستخدم يختار لغته من قائمة اللغة.",
+ "Langue changée.": "تم تغيير اللغة."
+}

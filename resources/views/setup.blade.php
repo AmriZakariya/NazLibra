@@ -36,12 +36,14 @@
         : ($step === 'secret' ? 'Configuration initiale' : 'Installation');
 @endphp
 <!DOCTYPE html>
-<html lang="fr">
+@php $locale = \App\Support\Locale::current(); @endphp
+<html lang="{{ $locale }}" dir="{{ \App\Support\Locale::dir($locale) }}" data-locale="{{ $locale }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $isMaintenance ? 'Maintenance' : 'Configuration' }} · {{ config('castlit.brand.name', 'Castl-it-POS') }}</title>
+    @include('partials.i18n-head', ['locale' => $locale])
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <style>
         :root {

@@ -112,12 +112,13 @@ class CompanyCountryLanguageTest extends TestCase
             ->assertOk()->assertJsonPath('locale', 'es_ES');
     }
 
-    public function test_a_language_the_web_does_not_speak_shows_it_in_french(): void
+    public function test_the_web_speaks_every_language_of_the_app(): void
     {
+        // It used to fall back to French for anything but French and Arabic.
         $settings = $this->tenant->settings;
         data_set($settings, 'language_id', 'de');
         $this->tenant->update(['settings' => $settings, 'locale' => 'de_DE']);
 
-        $this->assertSame('fr', Locale::current($this->tenant->fresh()));
+        $this->assertSame('de', Locale::current($this->tenant->fresh(), null));
     }
 }

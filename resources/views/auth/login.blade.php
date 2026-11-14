@@ -35,9 +35,8 @@
         <link rel="icon" type="image/png" sizes="32x32" href="{{ $loginFavicon }}">
         <link rel="shortcut icon" href="{{ $loginFavicon }}" type="image/x-icon">
         <script>
-            window.libraireProLocale = @json($locale);
-            window.libraireProTranslations = @json($locale === 'ar' ? \App\Support\Locale::arabic() : []);
         </script>
+        @include('partials.i18n-head', ['locale' => $locale])
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         <style>
             /* ── Page background ──────────────────────────────────────── */
@@ -272,6 +271,10 @@
         </style>
     </head>
     <body class="min-h-screen bg-[var(--app-bg)] text-slate-950 antialiased">
+        {{-- Before signing in too: the choice is kept for the session, then on the account. --}}
+        <div class="fixed end-3 top-3 z-50 w-56 rounded-xl border border-slate-200 bg-white/95 shadow-sm backdrop-blur" data-login-language>
+            @include('partials.language-menu', ['locale' => $locale])
+        </div>
         <main class="flex min-h-screen items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
             <div class="login-card w-full max-w-5xl">
 

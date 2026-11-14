@@ -12,22 +12,10 @@ startPhoneInputs();
 const money = { format: formatMoney };
 
 const appLocale = document.documentElement.dataset.locale || window.libraireProLocale || 'fr';
-const translations = window.libraireProTranslations || {};
-
-const translate = (text) => {
-    const value = (text || '').toString().replace(/\s+/g, ' ').trim();
-
-    if (appLocale === 'ar') {
-        if (value.startsWith('Bonjour, ')) return `مرحبا، ${value.replace('Bonjour, ', '')}`;
-        if (/^\d+ alerte\(s\), \d+ rupture\(s\)$/.test(value)) {
-            return value.replace(' alerte(s), ', ' تنبيه، ').replace(' rupture(s)', ' نفاد مخزون');
-        }
-        if (/^\d+ résultat\(s\)/.test(value)) return value.replace('résultat(s)', 'نتيجة');
-        if (/^\+\d+% vs hier$/.test(value)) return value.replace('vs hier', 'مقارنة بأمس');
-    }
-
-    return translations[value] || value;
-};
+// Texts are translated by resources/js/i18n.js, loaded before this file.
+const translate = (text) => (window.translate
+    ? window.translate(text)
+    : (text || '').toString().replace(/\s+/g, ' ').trim());
 
 const dataTableLanguage = (overrides = {}) => ({
     search: translate('Recherche table'),
@@ -66,39 +54,6 @@ const freshJsonFetch = (input, options = {}) => {
     });
 };
 
-const translateStaticPage = () => {
-    if (appLocale !== 'ar') return;
-
-    const ignored = 'script,style,textarea,code,pre,[data-no-translate],[data-command-search]';
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-        acceptNode(node) {
-            if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-            if (node.parentElement?.closest(ignored)) return NodeFilter.FILTER_REJECT;
-            return NodeFilter.FILTER_ACCEPT;
-        },
-    });
-
-    const textNodes = [];
-    while (walker.nextNode()) textNodes.push(walker.currentNode);
-
-    textNodes.forEach((node) => {
-        const original = node.nodeValue;
-        const leading = original.match(/^\s*/)?.[0] || '';
-        const trailing = original.match(/\s*$/)?.[0] || '';
-        const translated = translate(original);
-        if (translated !== original.trim()) {
-            node.nodeValue = `${leading}${translated}${trailing}`;
-        }
-    });
-
-    document.querySelectorAll('[placeholder],[title],[aria-label]').forEach((element) => {
-        ['placeholder', 'title', 'aria-label'].forEach((attribute) => {
-            if (!element.hasAttribute(attribute)) return;
-            const translated = translate(element.getAttribute(attribute));
-            if (translated) element.setAttribute(attribute, translated);
-        });
-    });
-};
 
 document.querySelectorAll('.app-theme-toggle').forEach((button) => {
     button.addEventListener('click', () => {
@@ -1937,7 +1892,6 @@ document.querySelectorAll('[data-invoice-form]').forEach((form) => {
     recalc();
 });
 
-translateStaticPage();
 
 const positionSaleActionMenu = (menu) => {
     const summary = menu.querySelector('summary');
