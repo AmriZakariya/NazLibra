@@ -4,6 +4,8 @@
     // The document's own currency (it keeps the one it was issued in), laid
     // out the shop's way: "12,00 €", not "12,00 EUR".
     $currency = \App\Support\Money::normalizeCode($document->currency);
+    // Rates and quantities written like the amounts: « 14.00 » in Egypt.
+    [$decimalMark, $thousandsMark] = \App\Support\Money::for($tenant)->withCode($currency)->separators();
     $documentMoney = \App\Support\Money::for($document->tenant)->withCode($currency);
     $money = fn ($amount) => $documentMoney->format($amount);
     $date = fn ($value) => $value ? \Illuminate\Support\Carbon::parse($value)->format('d/m/Y') : '—';
@@ -30,12 +32,10 @@
         default => null,
     };
 
-    $legal = array_filter([
-        'ICE' => $company['gst_no'] ?? null,
-        'RC' => $company['rc'] ?? null,
-        'IF' => $company['vat_no'] ?? null,
-        'CNSS' => $company['cnss'] ?? null,
-    ], fn ($value) => filled($value));
+    // Named as the shop's country names them: ICE / RC in Morocco, the tax
+    // registration number and commercial register in Egypt.
+    $legal = \App\Support\BusinessIds::lines($tenant, $company);
+    $partnerIdLabel = \App\Support\BusinessIds::partner($tenant);
 
     $taxGroups = collect($document->tax_breakdown ?? [])
         ->filter(fn ($group) => (float) ($group['taxable'] ?? 0) != 0.0 || (float) ($group['tax'] ?? 0) != 0.0)
@@ -133,7 +133,7 @@
                 </p>
                 @if ($legal)
                     <p class="muted legal">
-                        @foreach ($legal as $key => $value){{ $key }} {{ $value }}@if (! $loop->last) · @endif @endforeach
+                        @foreach ($legal as $key => $value)<span>{{ $key }}</span> {{ $value }}@if (! $loop->last) · @endif @endforeach
                     </p>
                 @endif
             </div>
@@ -163,7 +163,7 @@
             @if (! empty($snapshot['billing_address']))<p class="muted">{{ $snapshot['billing_address'] }}</p>@endif
             @if (! empty($snapshot['phone']))<p class="muted">{{ $snapshot['phone'] }}</p>@endif
             @if (! empty($snapshot['email']))<p class="muted">{{ $snapshot['email'] }}</p>@endif
-            @if (! empty($snapshot['ice']))<p class="muted">ICE {{ $snapshot['ice'] }}</p>@endif
+            @if (! empty($snapshot['ice']))<p class="muted"><span>{{ $partnerIdLabel }}</span> {{ $snapshot['ice'] }}</p>@endif
         </div>
         <div class="box">
             <span class="label">Références</span>
@@ -194,10 +194,10 @@
                         @if ($line->description)<br><span class="muted">{{ $line->description }}</span>@endif
                         @if ($line->sku || $line->barcode)<br><span class="muted">{{ $line->sku ?: $line->barcode }}</span>@endif
                     </td>
-                    <td class="right">{{ rtrim(rtrim(number_format((float) $line->quantity, 3, ',', ' '), '0'), ',') }}{{ $line->unit ? ' '.$line->unit : '' }}</td>
+                    <td class="right">{{ rtrim(rtrim(number_format((float) $line->quantity, 3, $decimalMark, $thousandsMark), '0'), $decimalMark) }}{{ $line->unit ? ' '.$line->unit : '' }}</td>
                     <td class="right">{{ $money($line->unit_price) }}</td>
                     <td class="right">{{ (float) $line->discount_amount > 0 ? $money($line->discount_amount) : '—' }}</td>
-                    <td class="right">{{ number_format((float) $line->tax_rate, 2, ',', ' ') }} %</td>
+                    <td class="right">{{ number_format((float) $line->tax_rate, 2, $decimalMark, $thousandsMark) }} %</td>
                     <td class="right"><strong>{{ $money($line->total) }}</strong></td>
                 </tr>
             @endforeach
@@ -244,7 +244,7 @@
             <tbody>
                 @foreach ($taxGroups as $group)
                     <tr>
-                        <td>{{ number_format((float) ($group['rate'] ?? 0), 2, ',', ' ') }} %</td>
+                        <td>{{ number_format((float) ($group['rate'] ?? 0), 2, $decimalMark, $thousandsMark) }} %</td>
                         <td class="right">{{ $money($group['taxable'] ?? 0) }}</td>
                         <td class="right">{{ $money($group['tax'] ?? 0) }}</td>
                     </tr>
@@ -282,7 +282,7 @@
 
     <div class="words">
         {{ $isInvoice ? 'Arrêtée la présente facture' : 'Arrêté le présent devis' }} à la somme de
-        <strong>{{ AmountInWords::money($document->total, $currency) }}</strong>.
+        <strong>{{ AmountInWords::money($document->total, $currency, $pdfLocale ?? 'fr') }}</strong>.
     </div>
 
     @if ($document->customer_message)

@@ -151,7 +151,7 @@ class BackOfficeLanguagesTest extends TestCase
         }
     }
 
-    public function test_pdfs_follow_the_shops_language_except_arabic(): void
+    public function test_pdfs_follow_the_shops_language(): void
     {
         $html = '<html><body><h1>Facture</h1><td title="Total">Total</td><p>Ce texte n’existe pas</p></body></html>';
         $translated = HtmlTranslator::translate($html, 'en');
@@ -159,7 +159,7 @@ class BackOfficeLanguagesTest extends TestCase
         $this->assertStringContainsString('<h1>'.Locale::t('Facture', 'en').'</h1>', $translated);
         $this->assertStringContainsString('Ce texte n’existe pas', $translated, 'unknown text stays');
 
-        $this->assertSame('fr', HtmlTranslator::pdfLocale(new Tenant(['settings' => ['language_id' => 'ar']])), 'dompdf cannot join Arabic letters');
+        $this->assertSame('ar', HtmlTranslator::pdfLocale(new Tenant(['settings' => ['language_id' => 'ar']])), 'Arabic is shaped for dompdf (ArabicShaper)');
         $this->assertSame('de', HtmlTranslator::pdfLocale(new Tenant(['settings' => ['language_id' => 'de']])));
     }
 

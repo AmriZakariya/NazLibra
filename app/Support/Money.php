@@ -34,8 +34,29 @@ final class Money
         'TND' => 'DT',
         'AED' => 'AED',
         'SAR' => 'SAR',
-        'EGP' => 'E£',
+        'EGP' => 'EGP',
         'MRU' => 'UM',
+    ];
+
+    /**
+     * Where a currency is written another way in a language: an Egyptian
+     * shop reads « ج.م » in Arabic and « EGP » otherwise.
+     *
+     * @var array<string, array<string, string>>
+     */
+    public const LOCAL_SYMBOLS = [
+        'EGP' => ['ar' => 'ج.م'],
+    ];
+
+    /**
+     * Decimal and thousands separators, where a currency's market does not
+     * write « 1 250,00 »: Egypt writes 1,250.00. Every other currency keeps
+     * the French layout its shops have always had.
+     *
+     * @var array<string, array{0: string, 1: string}>
+     */
+    public const SEPARATORS = [
+        'EGP' => ['.', ','],
     ];
 
     /** What the settings list offers, by name. */
@@ -97,11 +118,19 @@ final class Money
         return preg_match('/^[A-Z]{3}$/', $code) ? $code : self::DEFAULT_CURRENCY;
     }
 
-    public static function symbolFor(?string $code): string
+    /** The symbol in a language: the page's (the app locale) unless told. */
+    public static function symbolFor(?string $code, ?string $locale = null): string
     {
         $code = self::normalizeCode($code);
+        $locale = substr($locale ?? (string) app()->getLocale(), 0, 2);
 
-        return self::SYMBOLS[$code] ?? $code;
+        return self::LOCAL_SYMBOLS[$code][$locale] ?? self::SYMBOLS[$code] ?? $code;
+    }
+
+    /** @return array{0: string, 1: string} decimal, thousands */
+    public function separators(): array
+    {
+        return self::SEPARATORS[$this->code] ?? [',', ' '];
     }
 
     public function name(): string
@@ -127,7 +156,9 @@ final class Money
     /** The amount alone, as the shop writes it: "1 250,00". */
     public function number(float|int|string|null $amount): string
     {
-        return number_format((float) $amount, $this->decimals, ',', ' ');
+        [$decimal, $thousands] = $this->separators();
+
+        return number_format((float) $amount, $this->decimals, $decimal, $thousands);
     }
 
     /** "Prix (€)" — for a field label. */
@@ -136,14 +167,18 @@ final class Money
         return $text.' ('.$this->symbol().')';
     }
 
-    /** @return array{code: string, symbol: string, placement: string, decimals: int} */
+    /** @return array{code: string, symbol: string, placement: string, decimals: int, decimal_separator: string, thousands_separator: string} */
     public function toJs(): array
     {
+        [$decimal, $thousands] = $this->separators();
+
         return [
             'code' => $this->code,
             'symbol' => $this->symbol(),
             'placement' => $this->placement,
             'decimals' => $this->decimals,
+            'decimal_separator' => $decimal,
+            'thousands_separator' => $thousands,
         ];
     }
 

@@ -6,5 +6,22 @@
  "Profil {0}, utilisateurs, rôles, intégrations et sécurité.": "Perfil de {0}, utilizadores, funções, integrações e segurança.",
  "Trouver une page, une action...": "Encontrar uma página, uma ação...",
  "Télécharger le tableau affiché (CSV)": "Transferir a tabela apresentada (CSV)",
- "Aucune ligne à exporter.": "Não há linhas para exportar."
+ "Aucune ligne à exporter.": "Não há linhas para exportar.",
+ "N° d’enregistrement fiscal": "N.º de registo fiscal",
+ "Registre de commerce": "Registo comercial",
+ "N° de carte fiscale": "N.º de cartão fiscal",
+ "Assurances sociales": "Segurança social",
+ "Autre identifiant": "Outro identificador",
+ "Identifiant fiscal": "Identificador fiscal",
+ "N° TVA": "N.º de IVA",
+ "Sécurité sociale": "Segurança social",
+ "Merci pour votre confiance.": "Obrigado pela sua confiança.",
+ "Les marchandises restent la propriété du magasin jusqu’au paiement complet.": "A mercadoria permanece propriedade da loja até ao pagamento integral.",
+ "Arrêtée la présente facture à la somme de": "A presente fatura ascende a",
+ "Arrêté le présent devis à la somme de": "O presente orçamento ascende a",
+ "CNSS": "CNSS",
+ "IF": "IF",
+ "ICE / GST No": "ICE / GST No",
+ "PAN / identifiant fiscal": "PAN / identificador fiscal",
+ "TVA / VAT No": "N.º de IVA"
 }

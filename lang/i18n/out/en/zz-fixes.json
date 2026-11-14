@@ -2,5 +2,22 @@
  "Profil {0}, utilisateurs, rôles, intégrations et sécurité.": "{0} profile, users, roles, integrations and security.",
  "Trouver une page, une action...": "Find a page, an action...",
  "Télécharger le tableau affiché (CSV)": "Download the table shown (CSV)",
- "Aucune ligne à exporter.": "No rows to export."
+ "Aucune ligne à exporter.": "No rows to export.",
+ "N° d’enregistrement fiscal": "Tax registration no.",
+ "Registre de commerce": "Commercial register",
+ "N° de carte fiscale": "Tax card no.",
+ "Assurances sociales": "Social insurance",
+ "Autre identifiant": "Other identifier",
+ "Identifiant fiscal": "Tax ID",
+ "N° TVA": "VAT no.",
+ "Sécurité sociale": "Social security",
+ "Merci pour votre confiance.": "Thank you for your trust.",
+ "Les marchandises restent la propriété du magasin jusqu’au paiement complet.": "Goods remain the property of the shop until paid in full.",
+ "Arrêtée la présente facture à la somme de": "This invoice amounts to",
+ "Arrêté le présent devis à la somme de": "This quote amounts to",
+ "CNSS": "CNSS",
+ "IF": "IF",
+ "ICE / GST No": "ICE / GST No",
+ "PAN / identifiant fiscal": "PAN / tax ID",
+ "TVA / VAT No": "VAT No"
 }

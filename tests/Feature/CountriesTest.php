@@ -60,9 +60,11 @@ class CountriesTest extends TestCase
     {
         $others = array_values(Countries::grouped('fr')['others']);
 
-        // "Égypte" sits with the Es; a byte sort would put it after Zimbabwe.
-        $egypt = array_search('Égypte', $others, true);
-        $this->assertStringStartsWith('D', $others[$egypt - 1]);
+        // "Émirats arabes unis" sits with the Es; a byte sort would put it
+        // after Zimbabwe. (Égypte was the example until it became frequent.)
+        $emirates = array_search('Émirats arabes unis', $others, true);
+        $this->assertNotFalse($emirates);
+        $this->assertStringStartsWith('D', $others[$emirates - 1]);
         $this->assertSame('Zimbabwe', end($others));
     }
 

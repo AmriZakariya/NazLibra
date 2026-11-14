@@ -9843,15 +9843,15 @@ class LibraireProController extends Controller
         $company['signature_src'] = $this->documentAssetSource((string) ($company['signature'] ?? ''));
 
         // Written in the shop's language (see HtmlTranslator::PDF_LOCALES).
-        $html = view('librairepro.pdf.document', [
+        $html = \App\Support\I18n\HtmlTranslator::pdfHtml('librairepro.pdf.document', [
             'tenant' => $tenant,
             'company' => $company,
             'settings' => $settings,
             'document' => $document,
             'money' => fn ($amount) => $this->money($amount),
             'formatDate' => fn ($date) => $date ? Carbon::parse($date)->format('d/m/Y') : '—',
-        ])->render();
-        $pdf = Pdf::loadHTML(\App\Support\I18n\HtmlTranslator::translate($html, \App\Support\I18n\HtmlTranslator::pdfLocale($tenant)))->setPaper('a4')->setOptions([
+        ], $tenant);
+        $pdf = Pdf::loadHTML($html)->setPaper('a4')->setOptions([
             'isRemoteEnabled' => true,
             'defaultFont' => 'DejaVu Sans',
         ]);

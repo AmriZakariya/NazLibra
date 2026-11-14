@@ -265,7 +265,7 @@ class TenantProvisioningService
         foreach ($unitDefaults as [$n, $d]) {
             Unit::firstOrCreate(['tenant_id' => $tenant->id, 'name' => $n], ['description' => $d]);
         }
-        foreach ([['Sans TVA', 0, true], ['TVA 20%', 20, true], ['TVA 7%', 7, false]] as [$n, $rate, $active]) {
+        foreach (\App\Support\TaxPresets::forCountry(data_get($tenant->settings, 'company_profile.country_code')) as [$n, $rate, $active]) {
             Tax::firstOrCreate(['tenant_id' => $tenant->id, 'name' => $n], ['rate' => $rate, 'is_active' => $active]);
         }
         FinancialAccount::firstOrCreate(

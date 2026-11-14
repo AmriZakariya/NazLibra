@@ -1405,7 +1405,7 @@
                                         @endif
                                         <div class="sale-invoice-sheet rounded-2xl border border-slate-200 bg-white p-6 text-slate-950 dark:border-white/10">
                                             <div class="flex flex-wrap items-start justify-between gap-6 border-b border-slate-200 pb-5">
-                                                <div><strong class="text-lg">{{ $tenant->name }}</strong><p class="mt-1 text-sm text-slate-500">{{ $tenant->phone }} · ICE {{ $tenant->ice }}</p></div>
+                                                <div><strong class="text-lg">{{ $tenant->name }}</strong><p class="mt-1 text-sm text-slate-500">{{ $tenant->phone }} · <span>{{ \App\Support\BusinessIds::main($tenant) }}</span> {{ $tenant->ice }}</p></div>
                                                 <div class="text-right"><p class="text-xs font-semibold uppercase text-slate-500">{{ $sourceInvoice ? 'Facture source' : ($invoiceGenerated ? 'Facture' : 'Pro forma') }}</p><h4 class="text-2xl font-bold">{{ $invoiceNumber ?? 'Non créée' }}</h4><p class="text-sm text-slate-500">{{ $sale->sold_at?->format('d/m/Y') }}{{ $displayDueDate ? ' · échéance '.\Illuminate\Support\Carbon::parse($displayDueDate)->format('d/m/Y') : '' }}</p></div>
                                             </div>
                                             <div class="mt-5 grid gap-4 sm:grid-cols-2">
@@ -2218,7 +2218,7 @@
 
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Nouveau client</span><input name="customer_name" value="{{ old('customer_name', data_get($invoiceCustomerSnapshot, 'name')) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom client si non sélectionné"></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Société</span><input name="company_name" value="{{ old('company_name', data_get($invoiceCustomerSnapshot, 'company_name')) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Raison sociale"></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">ICE</span><input name="ice" value="{{ old('ice', data_get($invoiceCustomerSnapshot, 'ice')) }}" inputmode="numeric" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Identifiant Commun de l'Entreprise">@error('ice')<span class="block text-xs font-medium text-rose-600">{{ $message }}</span>@enderror</label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">{{ \App\Support\BusinessIds::partner($tenant) }}</span><input name="ice" value="{{ old('ice', data_get($invoiceCustomerSnapshot, 'ice')) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900">@error('ice')<span class="block text-xs font-medium text-rose-600">{{ $message }}</span>@enderror</label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" type="tel" value="{{ old('phone', data_get($invoiceCustomerSnapshot, 'phone')) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212..."></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email</span><input name="email" type="email" value="{{ old('email', data_get($invoiceCustomerSnapshot, 'email')) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="client@example.com">@error('email')<span class="block text-xs font-medium text-rose-600">{{ $message }}</span>@enderror</label>
 
@@ -2767,7 +2767,7 @@
                         <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Nom fournisseur *</span><input name="name" required class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Nom société / éditeur"></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="phone" type="tel" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="+212..."></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Email</span><input name="email" type="email" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="contact@..."></label>
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">ICE / IF</span><input name="ice" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Identifiant fiscal"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">{{ \App\Support\BusinessIds::partner($tenant) }}</span><input name="ice" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Identifiant fiscal"></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Ville</span><input name="city" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Casablanca, Rabat..."></label>
                         <label class="space-y-1.5 sm:col-span-2"><span class="text-xs font-semibold uppercase text-slate-500">Adresse</span><input name="address" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Adresse principale"></label>
                         <p class="inline-create-error hidden rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 sm:col-span-2"></p>
@@ -3092,7 +3092,7 @@
                                                                     <p class="text-xs text-slate-500">{{ $purchase->supplier?->phone ?? 'Sans téléphone' }}</p>
                                                                 </div>
                                                                 <div class="flex justify-between gap-3 text-xs"><span class="text-slate-500">Email</span><span>{{ $purchase->supplier?->email ?? '—' }}</span></div>
-                                                                <div class="flex justify-between gap-3 text-xs"><span class="text-slate-500">ICE</span><span>{{ $purchase->supplier?->ice ?? '—' }}</span></div>
+                                                                <div class="flex justify-between gap-3 text-xs"><span class="text-slate-500">{{ \App\Support\BusinessIds::partner($tenant) }}</span><span>{{ $purchase->supplier?->ice ?? '—' }}</span></div>
                                                                 <div class="flex justify-between gap-3 text-xs"><span class="text-slate-500">Solde fournisseur</span><span class="font-semibold {{ ($purchase->supplier?->outstanding_balance ?? 0) > 0 ? 'text-rose-600' : 'text-emerald-600' }}">{{ $money($purchase->supplier?->outstanding_balance ?? 0) }}</span></div>
                                                             </div>
                                                         </div>
@@ -3457,7 +3457,7 @@
                         @if ($contactKind !== 'supplier')
                             <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">CIN</span><input name="cin" value="{{ old('cin', $editContact?->cin) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                         @endif
-                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">ICE / GSTIN</span><input name="ice" value="{{ old('ice', $editContact?->ice) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">{{ \App\Support\BusinessIds::partner($tenant) }}</span><input name="ice" value="{{ old('ice', $editContact?->ice) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">N° taxe</span><input name="tax_number" value="{{ old('tax_number', $editContact?->tax_number) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                         <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Magasin</span><input name="store_id" value="{{ old('store_id', $editContact?->store_id) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Atlas, dépôt..."></label>
                     </div>
@@ -5030,7 +5030,7 @@
                         <section class="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
                             <h3 class="text-sm font-semibold">Fiscalité & informations légales</h3>
                             <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                                @foreach (['cnss' => 'CNSS', 'rc' => 'RC', 'gst_no' => 'ICE / GST No', 'vat_no' => 'TVA / VAT No', 'pan_no' => 'PAN / identifiant fiscal'] as $field => $label)
+                                @foreach (\App\Support\BusinessIds::settings($tenant) as $field => $label)
                                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">{{ $label }}</span><input name="{{ $field }}" value="{{ old($field, $companyProfile[$field]) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
                                 @endforeach
                             </div>
@@ -6555,7 +6555,7 @@
                         <div class="flex justify-between gap-4"><dt class="text-slate-500">Nom</dt><dd class="font-semibold text-right">{{ $tenant->name }}</dd></div>
                         <div class="flex justify-between gap-4"><dt class="text-slate-500">Mode</dt><dd class="font-semibold text-right">{{ $tenant->mode }}</dd></div>
                         <div class="flex justify-between gap-4"><dt class="text-slate-500">Plan</dt><dd class="font-semibold text-right">{{ $tenant->plan }}</dd></div>
-                        <div class="flex justify-between gap-4"><dt class="text-slate-500">ICE</dt><dd class="font-semibold text-right">{{ $tenant->ice }}</dd></div>
+                        <div class="flex justify-between gap-4"><dt class="text-slate-500">{{ \App\Support\BusinessIds::main($tenant) }}</dt><dd class="font-semibold text-right">{{ $tenant->ice }}</dd></div>
                     </dl>
                 </article>
                 <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">

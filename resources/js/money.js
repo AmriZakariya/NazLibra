@@ -7,11 +7,11 @@
  */
 const currency = () => window.appCurrency || { code: 'MAD', symbol: 'DH', placement: 'Right', decimals: 2 };
 
-/** "1 250,00" — the number alone. */
+/** "1 250,00" — the number alone ("1,250.00" for a currency written so, as EGP). */
 export const formatNumber = (value) => {
-    const { decimals } = currency();
+    const { decimals, decimal_separator: decimal = ',', thousands_separator: thousands = ' ' } = currency();
     const [whole, cents] = Number(value || 0).toFixed(decimals).split('.');
-    return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (cents ? `,${cents}` : '');
+    return whole.replace(/\B(?=(\d{3})+(?!\d))/g, thousands) + (cents ? `${decimal}${cents}` : '');
 };
 
 const place = (number, symbol) => (currency().placement === 'Left' ? `${symbol} ${number}` : `${number} ${symbol}`);

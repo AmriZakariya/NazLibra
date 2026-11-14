@@ -22,7 +22,7 @@ const SELECTOR = 'input[type="tel"]:not([data-phone="off"]), input[data-phone]:n
 
 // Where requests come from first (App\Support\Countries::FREQUENT); EH is
 // left out for the reason given there.
-const FREQUENT = ['ma', 'fr', 'be', 'es', 'dz', 'tn', 'sn', 'ci', 'ca'];
+const FREQUENT = ['ma', 'eg', 'fr', 'be', 'es', 'dz', 'tn', 'sn', 'ci', 'ca'];
 
 const WARNING = {
     fr: 'Ce numéro ne semble pas valide pour ce pays — il sera enregistré tel quel.',

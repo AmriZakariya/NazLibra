@@ -3,7 +3,7 @@
         '{{store_name}}' => 'Nom du magasin',
         '{{store_phone}}' => 'Téléphone magasin',
         '{{store_address}}' => 'Adresse magasin',
-        '{{ice}}' => 'ICE',
+        '{{ice}}' => \App\Support\BusinessIds::main($tenant),
         '{{document_title}}' => 'Type de document',
         '{{document_number}}' => 'Numéro',
         '{{document_date}}' => 'Date',

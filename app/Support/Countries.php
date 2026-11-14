@@ -31,7 +31,7 @@ final class Countries
      * Shown first, in this order — where requests actually come from — before
      * every other country alphabetically.
      */
-    public const FREQUENT = ['MA', 'FR', 'BE', 'ES', 'DZ', 'TN', 'SN', 'CI', 'CA'];
+    public const FREQUENT = ['MA', 'EG', 'FR', 'BE', 'ES', 'DZ', 'TN', 'SN', 'CI', 'CA'];
 
     /** Shown first in a currency select, in this order; every other one follows by code. */
     public const FREQUENT_CURRENCIES = ['MAD', 'EUR', 'USD', 'XOF', 'XAF', 'DZD', 'TND', 'GBP', 'CHF', 'CAD', 'SAR', 'AED', 'EGP', 'MRU'];

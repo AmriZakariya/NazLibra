@@ -33,7 +33,66 @@ class AmountInWords
         'CAD' => ['dollar', 'dollars', 'cent', 'cents'],
     ];
 
-    public static function money(float|string $amount, string $currency = 'MAD'): string
+    /**
+     * Currency => locale => [major, minor], for the languages other than
+     * French; a currency missing here is written by its code.
+     */
+    private const NAMES = [
+        'EGP' => ['ar' => ['جنيه مصري', 'قرش'], 'en' => ['Egyptian pounds', 'piastres'], 'es' => ['libras egipcias', 'piastras'], 'pt' => ['libras egípcias', 'piastras'], 'de' => ['ägyptische Pfund', 'Piaster'], 'it' => ['sterline egiziane', 'piastre']],
+        'MAD' => ['ar' => ['درهم', 'سنتيم'], 'en' => ['dirhams', 'centimes'], 'es' => ['dírhams', 'céntimos'], 'pt' => ['dirhams', 'cêntimos'], 'de' => ['Dirham', 'Centimes'], 'it' => ['dirham', 'centesimi']],
+        'EUR' => ['ar' => ['يورو', 'سنت'], 'en' => ['euros', 'cents'], 'es' => ['euros', 'céntimos'], 'pt' => ['euros', 'cêntimos'], 'de' => ['Euro', 'Cent'], 'it' => ['euro', 'centesimi']],
+        'USD' => ['ar' => ['دولار', 'سنت'], 'en' => ['US dollars', 'cents'], 'es' => ['dólares', 'centavos'], 'pt' => ['dólares', 'cêntimos'], 'de' => ['US-Dollar', 'Cent'], 'it' => ['dollari', 'centesimi']],
+        'SAR' => ['ar' => ['ريال سعودي', 'هللة'], 'en' => ['Saudi riyals', 'halalas']],
+        'AED' => ['ar' => ['درهم إماراتي', 'فلس'], 'en' => ['UAE dirhams', 'fils']],
+        'DZD' => ['ar' => ['دينار جزائري', 'سنتيم'], 'en' => ['Algerian dinars', 'centimes']],
+        'TND' => ['ar' => ['دينار تونسي', 'مليم'], 'en' => ['Tunisian dinars', 'millimes']],
+    ];
+
+    /**
+     * The amount in words, in a document's language: French by hand (the
+     * invoice wording Moroccan shops know), any other language through intl,
+     * Arabic as Egyptian invoices write it (« فقط … جنيه مصري لا غير »).
+     * Without intl, a foreign language falls back on the French.
+     */
+    public static function money(float|string $amount, string $currency = 'MAD', ?string $locale = null): string
+    {
+        $locale = substr((string) $locale, 0, 2);
+        if ($locale !== '' && $locale !== 'fr' && class_exists(\NumberFormatter::class)) {
+            return self::spelled((float) $amount, strtoupper($currency), $locale);
+        }
+
+        return self::french($amount, $currency);
+    }
+
+    private static function spelled(float $amount, string $currency, string $locale): string
+    {
+        $cents = (int) round(abs($amount) * 100);
+        $major = intdiv($cents, 100);
+        $minor = $cents % 100;
+        $spell = new \NumberFormatter($locale, \NumberFormatter::SPELLOUT);
+        [$majorName, $minorName] = self::NAMES[$currency][$locale] ?? self::NAMES[$currency]['en'] ?? [$currency, ''];
+
+        $words = $spell->format($major).' '.$majorName;
+        if ($minor > 0) {
+            $joiner = match ($locale) {
+                'ar' => ' و',
+                'en' => ' and ',
+                'es' => ' con ',
+                'pt' => ' e ',
+                'de' => ' und ',
+                'it' => ' e ',
+                default => ' ',
+            };
+            $words .= $joiner.$spell->format($minor).($minorName !== '' ? ' '.$minorName : '');
+        }
+        if ($amount < 0) {
+            $words = '- '.$words;
+        }
+
+        return $locale === 'ar' ? 'فقط '.$words.' لا غير' : mb_strtoupper(mb_substr($words, 0, 1)).mb_substr($words, 1);
+    }
+
+    private static function french(float|string $amount, string $currency = 'MAD'): string
     {
         // Through cents, so 0.1 + 0.2 arithmetic upstream cannot turn 145.30
         // into "cent quarante-cinq dirhams et vingt-neuf centimes".

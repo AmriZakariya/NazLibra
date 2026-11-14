@@ -143,8 +143,9 @@
                     {{ $company['phone'] ?: $company['mobile'] ?: $tenant->phone }}
                     @if ($company['email']) · {{ $company['email'] }} @endif
                 </p>
-                @if ($company['gst_no'] || $company['rc'] || $company['vat_no'])
-                    <p class="muted">ICE {{ $company['gst_no'] ?: '—' }} @if($company['rc']) · RC {{ $company['rc'] }} @endif @if($company['vat_no']) · TVA {{ $company['vat_no'] }} @endif</p>
+                @php($legal = \App\Support\BusinessIds::lines($tenant, $company))
+                @if ($legal)
+                    <p class="muted">@foreach ($legal as $label => $value)<span>{{ $label }}</span> {{ $value }}@if (! $loop->last) · @endif @endforeach</p>
                 @endif
             </div>
         </div>
@@ -172,7 +173,7 @@
             @if ($document['partner']?->phone)<p class="muted">{{ $document['partner']->phone }}</p>@endif
             @if ($document['partner']?->email)<p class="muted">{{ $document['partner']->email }}</p>@endif
             @if ($document['partner']?->address)<p class="muted">{{ $document['partner']->address }}</p>@endif
-            @if ($document['partner']?->ice)<p class="muted">ICE {{ $document['partner']->ice }}</p>@endif
+            @if ($document['partner']?->ice)<p class="muted"><span>{{ \App\Support\BusinessIds::partner($tenant) }}</span> {{ $document['partner']->ice }}</p>@endif
         </div>
         <div class="box">
             <span class="label">Références</span>

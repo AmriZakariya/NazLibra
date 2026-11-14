@@ -4,5 +4,22 @@
  "Profil {0}, utilisateurs, rôles, intégrations et sécurité.": "Perfil de {0}, usuarios, roles, integraciones y seguridad.",
  "Trouver une page, une action...": "Buscar una página, una acción...",
  "Télécharger le tableau affiché (CSV)": "Descargar la tabla mostrada (CSV)",
- "Aucune ligne à exporter.": "No hay filas para exportar."
+ "Aucune ligne à exporter.": "No hay filas para exportar.",
+ "N° d’enregistrement fiscal": "N.º de registro fiscal",
+ "Registre de commerce": "Registro mercantil",
+ "N° de carte fiscale": "N.º de tarjeta fiscal",
+ "Assurances sociales": "Seguridad social",
+ "Autre identifiant": "Otro identificador",
+ "Identifiant fiscal": "Identificador fiscal",
+ "N° TVA": "N.º de IVA",
+ "Sécurité sociale": "Seguridad social",
+ "Merci pour votre confiance.": "Gracias por su confianza.",
+ "Les marchandises restent la propriété du magasin jusqu’au paiement complet.": "La mercancía sigue siendo propiedad de la tienda hasta su pago completo.",
+ "Arrêtée la présente facture à la somme de": "La presente factura asciende a",
+ "Arrêté le présent devis à la somme de": "El presente presupuesto asciende a",
+ "CNSS": "CNSS",
+ "IF": "IF",
+ "ICE / GST No": "ICE / GST No",
+ "PAN / identifiant fiscal": "PAN / identificador fiscal",
+ "TVA / VAT No": "N.º de IVA"
 }
