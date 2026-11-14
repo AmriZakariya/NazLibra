@@ -54,4 +54,15 @@ class PublicStorageTest extends TestCase
         $this->assertStringNotContainsString('|js|storage)/', $lib, 'storage must not be rewritten to the symlink');
         $this->assertStringContainsString('RewriteRule ^storage/ index.php [L]', file_get_contents(public_path('.htaccess')));
     }
+
+    public function test_built_files_are_cached_for_good_and_nothing_else(): void
+    {
+        // Vite puts a content hash in each built file's name, so a browser
+        // may keep it a year; sw.js and the photos keep their names, so not.
+        $htaccess = file_get_contents(public_path('.htaccess'));
+
+        $this->assertStringContainsString('RewriteRule ^build/assets/ - [E=CASTLIT_HASHED_ASSET:1]', $htaccess);
+        $this->assertStringContainsString('Header always set Cache-Control "public, max-age=31536000, immutable" env=CASTLIT_HASHED_ASSET', $htaccess);
+        $this->assertSame(1, substr_count($htaccess, 'immutable'), 'only the hashed build files');
+    }
 }
