@@ -29,12 +29,18 @@
     .filters label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
     .filters input, .filters select { font: inherit; font-size: 14px; text-transform: none; letter-spacing: 0; padding: 9px 11px; border-radius: 10px; border: 1.5px solid var(--sand); background: var(--paper); color: var(--ink); }
 
-    .funnel { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
+    .funnel { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 18px; }
     .step { padding: 14px 16px; }
     .step b { display: block; font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
     .step span { font-size: 12.5px; color: var(--muted); font-weight: 650; }
     .step small { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
     .step.is-sent b { color: var(--ok); }
+    .step.is-lead b { color: var(--brand); }
+    .lead { display: block; font-weight: 700; }
+    .lead a { color: var(--brand); }
+    .followup { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: -4px 0 16px; padding: 12px 14px; border-radius: 12px;
+                background: color-mix(in srgb, var(--brand) 8%, transparent); border: 1px solid color-mix(in srgb, var(--brand) 25%, transparent); font-size: 14px; }
+    .followup a { font-weight: 750; color: var(--brand); }
     .step.is-refused b { color: var(--err); }
     @media (max-width: 860px) { .funnel { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
@@ -98,9 +104,22 @@
             @endif
         </form>
 
+        {{-- People who left an email and sent nothing: the ones to write to. --}}
+        @if ($followups > 0 || ($filters['followup'] ?? false))
+            <div class="followup" data-followup>
+                <strong>{{ $followups }} {{ $followups > 1 ? 'personnes ont laissé leur email' : 'personne a laissé son email' }} sans envoyer la demande.</strong>
+                @if ($filters['followup'] ?? false)
+                    <a href="{{ route('castlit.admin.visits', array_diff_key($filters, ['followup' => 1])) }}">Voir toutes les visites</a>
+                @else
+                    <a href="{{ route('castlit.admin.visits', array_merge($filters, ['followup' => 1])) }}">Voir qui relancer →</a>
+                @endif
+            </div>
+        @endif
+
         <div class="funnel" data-funnel>
             <div class="card step"><span>Page ouverte</span><b>{{ $funnel['opened'] }}</b><small>100 %</small></div>
             <div class="card step"><span>Formulaire commencé</span><b>{{ $funnel['started'] }}</b><small>{{ $pct($funnel['started']) }}</small></div>
+            <div class="card step is-lead"><span>Email laissé</span><b>{{ $funnel['lead'] }}</b><small>{{ $pct($funnel['lead']) }}</small></div>
             <div class="card step"><span>Envoi tenté</span><b>{{ $funnel['tried'] }}</b><small>{{ $pct($funnel['tried']) }}</small></div>
             <div class="card step is-refused"><span>Refusés (sans suite)</span><b>{{ $funnel['refused'] }}</b><small>{{ $pct($funnel['refused']) }}</small></div>
             <div class="card step is-sent"><span>Demande envoyée</span><b>{{ $funnel['sent'] }}</b><small>{{ $pct($funnel['sent']) }}</small></div>
@@ -110,7 +129,7 @@
             <h2 class="section-title">Par campagne</h2>
             <div class="card tbl-scroll" data-visit-campaigns>
                 <table class="tbl">
-                    <thead><tr><th>Source · campagne</th><th class="num">Visites</th><th class="num">Commencé</th><th class="num">Envoi tenté</th><th class="num">Envoyé</th></tr></thead>
+                    <thead><tr><th>Source · campagne</th><th class="num">Visites</th><th class="num">Commencé</th><th class="num">Email laissé</th><th class="num">Envoi tenté</th><th class="num">Envoyé</th></tr></thead>
                     <tbody>
                         @foreach ($campaigns as $c)
                             <tr>
@@ -123,6 +142,7 @@
                                 </td>
                                 <td class="num">{{ $c['opened'] }}</td>
                                 <td class="num">{{ $c['started'] }}</td>
+                                <td class="num">{{ $c['lead'] }}</td>
                                 <td class="num">{{ $c['tried'] }}</td>
                                 <td class="num">{{ $c['sent'] }}</td>
                             </tr>
@@ -136,7 +156,7 @@
         <div class="card tbl-scroll">
             <table class="tbl" style="min-width: 1100px">
                 <thead>
-                    <tr><th>Heure</th><th>IP</th><th>Pays</th><th>Appareil</th><th>Langue</th><th>Campagne</th><th>Venu de</th><th>Étape</th><th>Demande</th></tr>
+                    <tr><th>Heure</th><th>IP</th><th>Pays</th><th>Appareil</th><th>Langue</th><th>Campagne</th><th>Venu de</th><th>Étape</th><th>Demande ou email</th></tr>
                 </thead>
                 <tbody>
                     @forelse ($visits as $v)
@@ -156,12 +176,16 @@
                             <td class="muted">{{ $v->referrer ?: '—' }}</td>
                             <td>
                                 <span class="stage stage-{{ $v->stage }}">{{ $stageLabels[$v->stage] ?? $v->stage }}</span>
-                                @if ($v->refused_fields)<br><span class="muted">sur : {{ str_replace(',', ', ', $v->refused_fields) }}</span>@endif
+                                @if ($v->refused_fields === \App\Support\MarketingVisits::EMPTY_FORM)<br><span class="muted">bouton pressé, formulaire vide</span>
+                                @elseif ($v->refused_fields)<br><span class="muted">sur : {{ str_replace(',', ', ', $v->refused_fields) }}</span>@endif
                                 @if ($v->robot_reason)<br><span class="robot" title="{{ \App\Models\MarketingVisit::ROBOT_REASONS[$v->robot_reason] ?? '' }}">Robot probable · {{ \App\Models\MarketingVisit::ROBOT_REASONS[$v->robot_reason] ?? $v->robot_reason }}</span>@endif
                             </td>
                             <td>
                                 @if ($v->subscription)
                                     <a class="row-link" href="{{ route('castlit.admin.show', $v->subscription) }}">{{ $v->subscription->business_name }}</a>
+                                @elseif ($v->lead_email)
+                                    <span class="lead" data-lead>{{ $v->lead_business ?: '—' }}</span>
+                                    <a class="lead" href="mailto:{{ $v->lead_email }}">{{ $v->lead_email }}</a>
                                 @else
                                     <span class="muted">—</span>
                                 @endif

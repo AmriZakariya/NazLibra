@@ -177,7 +177,7 @@ class MarketingVisitsTest extends TestCase
         $admin = User::factory()->create(['is_platform_admin' => true]);
         $page = $this->actingAs($admin)->get(route('castlit.admin.visits'))->assertOk();
 
-        $this->assertSame(['opened' => 4, 'started' => 3, 'tried' => 2, 'refused' => 1, 'sent' => 1], $page->viewData('funnel'));
+        $this->assertSame(['opened' => 4, 'started' => 3, 'lead' => 0, 'tried' => 2, 'refused' => 1, 'sent' => 1], $page->viewData('funnel'));
         $youtube = $page->viewData('campaigns')->firstWhere('source', 'youtube');
         $this->assertSame([3, 2, 1, 0], [$youtube['opened'], $youtube['started'], $youtube['tried'], $youtube['sent']]);
         $page->assertSee('102.0.0.3')->assertSee('youtube · video-en-nov', false);

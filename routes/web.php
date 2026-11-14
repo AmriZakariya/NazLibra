@@ -66,6 +66,15 @@ if (config('castlit.is_master')) {
         ])
         ->middleware('throttle:30,1')->name('castlit.visit.stage');
 
+    // The form's first step (email + business name), by the same signed token.
+    Route::post('/inscription/brouillon', [MarketingController::class, 'visitLead'])
+        ->withoutMiddleware([
+            \Illuminate\Session\Middleware\StartSession::class,
+            \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+            \Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class,
+        ])
+        ->middleware('throttle:20,1')->name('castlit.visit.lead');
+
     // The printed "download the app" link: each phone to its own store.
     Route::get('/telecharger', [MarketingController::class, 'download'])
         ->middleware(\App\Http\Middleware\CaptureCampaign::class)->name('castlit.download');

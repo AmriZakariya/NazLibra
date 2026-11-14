@@ -13,6 +13,9 @@ class MarketingVisit extends Model
 
     public const STARTED = 'started';
 
+    /** Gave an email at the form's first step. */
+    public const LEAD = 'lead';
+
     public const TRIED = 'tried';
 
     public const REFUSED = 'refused';
@@ -20,11 +23,12 @@ class MarketingVisit extends Model
     public const SENT = 'sent';
 
     /** How far along the way to a sign-up request: a visit only moves forward. */
-    public const STAGES = [self::OPENED => 0, self::STARTED => 1, self::TRIED => 2, self::REFUSED => 3, self::SENT => 4];
+    public const STAGES = [self::OPENED => 0, self::STARTED => 1, self::LEAD => 2, self::TRIED => 3, self::REFUSED => 4, self::SENT => 5];
 
     public const LABELS = [
         self::OPENED => 'Page ouverte',
         self::STARTED => 'Formulaire commencé',
+        self::LEAD => 'Email laissé',
         self::TRIED => 'Envoi tenté',
         self::REFUSED => 'Refusé',
         self::SENT => 'Demande envoyée',
@@ -39,11 +43,12 @@ class MarketingVisit extends Model
 
     protected $fillable = [
         'ip', 'country', 'locale', 'device', 'campaign_source', 'campaign_medium', 'campaign_name',
-        'referrer', 'landing', 'user_agent', 'stage', 'refused_fields', 'robot_reason', 'subscription_id', 'last_seen_at',
+        'referrer', 'landing', 'user_agent', 'stage', 'refused_fields', 'robot_reason', 'lead_email', 'lead_business', 'lead_at', 'subscription_id', 'last_seen_at',
     ];
 
     protected $casts = [
         'last_seen_at' => 'datetime',
+        'lead_at' => 'datetime',
     ];
 
     public function subscription(): BelongsTo

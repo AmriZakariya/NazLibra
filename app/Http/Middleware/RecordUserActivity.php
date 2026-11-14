@@ -29,6 +29,7 @@ class RecordUserActivity
         'device.heartbeat',
         'profile.activity.data',
         'castlit.visit.stage',
+        'castlit.visit.lead',
     ];
 
     /** Tooling, and the platform's own admin on the master: not a shop's activity. */

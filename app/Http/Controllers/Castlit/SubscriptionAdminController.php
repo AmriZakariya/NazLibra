@@ -93,6 +93,11 @@ class SubscriptionAdminController extends Controller
             'status'        => $status,
             'origins'       => $origins,
             'campaigns'     => $campaigns,
+            // Left an email at the form's first step, sent nothing: to write to.
+            'followups'     => \App\Models\MarketingVisit::query()
+                ->where('created_at', '>=', now()->subDays(14))
+                ->whereNotNull('lead_email')->whereNull('robot_reason')
+                ->where('stage', '!=', \App\Models\MarketingVisit::SENT)->count(),
             'campaignFilter' => $campaignSource !== ''
                 ? $campaignSource.(is_string($campaignName) && $campaignName !== '' ? ' · '.($campaignName === '-' ? 'sans nom' : $campaignName) : '')
                 : null,

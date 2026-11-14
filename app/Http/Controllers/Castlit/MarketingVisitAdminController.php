@@ -23,6 +23,8 @@ class MarketingVisitAdminController extends Controller
             'device' => ['nullable', 'in:phone,tablet,computer'],
             'q' => ['nullable', 'string', 'max:60'],
             'robots' => ['nullable', 'boolean'],
+            // Gave an email at the first step and sent nothing: to write to.
+            'followup' => ['nullable', 'boolean'],
         ]);
         $withRobots = (bool) ($filters['robots'] ?? false);
 
@@ -58,11 +60,12 @@ class MarketingVisitAdminController extends Controller
 
         // The funnel and the per-campaign table count the period; the list
         // below also narrows to a stage.
-        $rows = (clone $base)->get(['id', 'stage', 'campaign_source', 'campaign_name', 'campaign_medium']);
+        $rows = (clone $base)->get(['id', 'stage', 'campaign_source', 'campaign_name', 'campaign_medium', 'lead_email']);
         $reached = fn ($set, string $stage) => $set->filter(fn ($v) => MarketingVisit::STAGES[$v->stage] >= MarketingVisit::STAGES[$stage])->count();
         $funnel = [
             'opened' => $rows->count(),
             'started' => $reached($rows, MarketingVisit::STARTED),
+            'lead' => $rows->whereNotNull('lead_email')->count(),
             'tried' => $reached($rows, MarketingVisit::TRIED),
             'refused' => $rows->where('stage', MarketingVisit::REFUSED)->count(),
             'sent' => $rows->where('stage', MarketingVisit::SENT)->count(),
@@ -75,6 +78,7 @@ class MarketingVisitAdminController extends Controller
                 'label' => $set->first()->campaignLabel() ?? 'Non renseignée',
                 'opened' => $set->count(),
                 'started' => $reached($set, MarketingVisit::STARTED),
+                'lead' => $set->whereNotNull('lead_email')->count(),
                 'tried' => $reached($set, MarketingVisit::TRIED),
                 'sent' => $set->where('stage', MarketingVisit::SENT)->count(),
             ])
@@ -83,6 +87,7 @@ class MarketingVisitAdminController extends Controller
 
         $list = (clone $base)->with('subscription:id,business_name')
             ->when(filled($filters['stage'] ?? null), fn ($q) => $q->where('stage', $filters['stage']))
+            ->when((bool) ($filters['followup'] ?? false), fn ($q) => $q->whereNotNull('lead_email')->where('stage', '!=', MarketingVisit::SENT))
             ->latest('id')
             ->paginate(50)
             ->withQueryString();
@@ -95,6 +100,7 @@ class MarketingVisitAdminController extends Controller
             'zone' => $zone,
             'robots' => $robots,
             'withRobots' => $withRobots,
+            'followups' => (clone $base)->whereNotNull('lead_email')->where('stage', '!=', MarketingVisit::SENT)->count(),
         ]);
     }
 }

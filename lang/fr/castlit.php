@@ -280,6 +280,13 @@ return [
     'f_heard'     => 'Comment nous avez-vous connus ?',
     'f_heard_ph'  => 'Bouche-à-oreille, réseaux sociaux, recherche…',
     'f_submit'    => 'Envoyer ma demande →',
+    'f_continue' => 'Continuer →',
+    'f_fill_summary' => 'Complétez les champs en rouge pour continuer.',
+    'f_step_of' => 'Étape :n sur 2',
+    'f_step2_title' => 'Encore quelques détails pour créer votre espace.',
+    'f_wayout' => 'Pas encore prêt ?',
+    'f_wayout_demo' => 'Essayer la démo',
+    'f_wayout_chat' => 'Nous écrire',
     'f_consent'   => "En envoyant ce formulaire, vous acceptez d'être contacté au sujet de votre inscription.",
     'f_errors'    => 'Merci de corriger les champs indiqués ci-dessous.',
 

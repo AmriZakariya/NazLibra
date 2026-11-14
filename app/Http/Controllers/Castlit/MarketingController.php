@@ -90,6 +90,22 @@ class MarketingController extends Controller
         return response()->noContent();
     }
 
+    /**
+     * POST /inscription/brouillon — the form's first step: the visitor's email
+     * and business name, kept on their visit (signed token, no session) so a
+     * prospect who stops before the end can still be written to.
+     */
+    public function visitLead(Request $request): Response
+    {
+        \App\Support\MarketingVisits::lead(
+            \App\Support\MarketingVisits::fromToken((string) $request->input('visit')),
+            (string) $request->input('email', ''),
+            (string) $request->input('business_name', ''),
+        );
+
+        return response()->noContent();
+    }
+
     /** Confirmation page after a subscription request is submitted. */
     public function success(Request $request): View
     {

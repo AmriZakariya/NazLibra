@@ -141,6 +141,13 @@
             </div>
         @endif
 
+        @if (($followups ?? 0) > 0)
+            <a href="{{ route('castlit.admin.visits', ['followup' => 1, 'from' => now(\App\Support\TenantClock::DEFAULT_TIMEZONE)->subDays(13)->toDateString()]) }}"
+               class="flash" data-followups style="display:block; margin-bottom:16px; background:color-mix(in srgb, var(--brand) 8%, transparent); color:var(--ink); border:1px solid color-mix(in srgb, var(--brand) 25%, transparent)">
+                ✉ {{ $followups }} {{ $followups > 1 ? 'personnes ont laissé leur email' : 'personne a laissé son email' }} sans finir l'inscription (14 derniers jours) — <strong style="color:var(--brand)">voir qui relancer →</strong>
+            </a>
+        @endif
+
         {{-- Quelles publicités amènent des commerces : 30 derniers jours, par
              source et campagne (balises utm, sinon le site d'où vient la
              visite). Une ligne filtre la liste. --}}

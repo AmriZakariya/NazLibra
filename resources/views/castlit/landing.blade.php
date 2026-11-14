@@ -324,6 +324,26 @@
     [data-enhanced] .currency-fld.is-open .currency-line { display: none; }
     .su-steps-short { display: none; }
 
+    /* Two steps: email + business name first, the rest after « Continuer ».
+       Without the script everything shows and the form sends in one go. */
+    [data-enhanced]:not(.on-step2) .su-step2 { display: none; }
+    [data-enhanced].on-step2 .su-continue { display: none; }
+    .su-continue { display: none; }
+    [data-enhanced] .su-continue { display: block; margin-top: 4px; }
+    .su-note { margin-top: 10px; text-align: center; font-size: 12.5px; color: var(--muted); }
+    .su-wayout { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 8px; margin-top: 14px; padding-top: 14px;
+                 border-top: 1px dashed var(--sand); font-size: 13.5px; color: var(--muted); }
+    .su-wayout a { color: var(--brand); font-weight: 750; }
+    .su-step2-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 6px 0 16px; font-size: 14px; font-weight: 650; color: var(--ink); }
+    .su-step-pill { font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+                    background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
+    [data-enhanced].on-step2 .su-step2 { animation: su-in .32s ease both; }
+    @keyframes su-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) { [data-enhanced].on-step2 .su-step2 { animation: none; } }
+    .form-summary { margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; font-size: 13.5px; font-weight: 650;
+                    background: var(--err-bg, #FEF2F2); color: var(--err, #b91c1c); }
+    .form-summary[hidden] { display: none; }
+
     /* The space's link: a line under the business name, the field on « Changer ». */
     .link-line { display: none; }
     [data-enhanced] .link-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 11px 13px; border-radius: 11px;
@@ -735,7 +755,11 @@
                     <div class="flash flash-err">{{ __('castlit.f_errors') }}</div>
                 @endif
 
-                <form method="POST" action="{{ route('castlit.subscribe') }}" novalidate data-signup-form>
+                @php $visitToken = ($mv = request()->attributes->get('marketing_visit')) ? \App\Support\MarketingVisits::token($mv) : ''; @endphp
+                {{-- Two steps: the email and the business name first (kept at once,
+                     so a prospect who stops halfway can still be written to),
+                     then the rest. A form the server sent back opens on step 2. --}}
+                <form method="POST" action="{{ route('castlit.subscribe') }}" novalidate data-signup-form data-visit-token="{{ $visitToken }}" class="{{ $errors->any() ? 'on-step2' : '' }}">
                     @csrf
                     <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
                     {{-- The visitor's timezone, for the shop's clock (Montréal is not Toronto). --}}
@@ -778,6 +802,47 @@
                     </div>
 
                     <div class="fld">
+                        <label for="email">{{ __('castlit.f_email') }} <span class="req">*</span></label>
+                        <input id="email" name="email" type="email" required maxlength="190" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" value="{{ old('email') }}" placeholder="{{ __('castlit.f_email_ph') }}">
+                        @error('email')<span class="field-error">{{ $message }}</span>@enderror
+                    </div>
+
+                    <div class="su-continue" data-continue-block>
+                        <p class="form-summary" data-form-summary role="alert" hidden>{{ __('castlit.f_fill_summary') }}</p>
+                        <button type="button" class="btn btn-primary" style="width:100%" data-continue>{{ __('castlit.f_continue') }}</button>
+                        <p class="su-note">{{ __('castlit.cta_trial_note', ['months' => (int) config('castlit.trial_months', 3)]) }}</p>
+                        {{-- For a visitor not ready to fill a form: the demo, or a word with us. --}}
+                        <p class="su-wayout">
+                            <span>{{ __('castlit.f_wayout') }}</span>
+                            @if (config('castlit.demo.url'))
+                                <a href="{{ config('castlit.demo.url') }}" target="_blank" rel="noopener" data-wayout-demo>{{ __('castlit.f_wayout_demo') }}</a>
+                                <span aria-hidden="true">·</span>
+                            @endif
+                            <button type="button" class="link-btn" data-wayout-chat>{{ __('castlit.f_wayout_chat') }}</button>
+                        </p>
+                    </div>
+
+                    <div class="su-step2" data-step2>
+                        <p class="su-step2-head">
+                            <span class="su-step-pill">{{ __('castlit.f_step_of', ['n' => 2]) }}</span>
+                            <span>{{ __('castlit.f_step2_title') }}</span>
+                        </p>
+
+                    <div class="grid2">
+                        <div class="fld">
+                            <label for="contact_name">{{ __('castlit.f_your_name') }} <span class="req">*</span></label>
+                            <input id="contact_name" name="contact_name" required maxlength="120" autocomplete="name" value="{{ old('contact_name') }}" placeholder="{{ __('castlit.f_your_name_ph') }}">
+                            @error('contact_name')<span class="field-error">{{ $message }}</span>@enderror
+                        </div>
+                        <div class="fld">
+                            <label for="phone">{{ __('castlit.f_phone') }}</label>
+                            <input id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" data-phone-country-from="#country" maxlength="40" value="{{ old('phone') }}" placeholder="06 00 00 00 00">
+                            @error('phone')<span class="field-error">{{ $message }}</span>@enderror
+                        </div>
+                    </div>
+
+
+                    <div class="fld">
                             <label for="activity">{{ __('castlit.f_activity') }}</label>
                             <select id="activity" name="activity">
                                 <option value="">{{ __('castlit.f_choose') }}</option>
@@ -816,33 +881,16 @@
                         @error('currency')<span class="field-error">{{ $message }}</span>@enderror
                     </div>
 
-                    <div class="grid2">
-                        <div class="fld">
-                            <label for="contact_name">{{ __('castlit.f_your_name') }} <span class="req">*</span></label>
-                            <input id="contact_name" name="contact_name" required maxlength="120" autocomplete="name" value="{{ old('contact_name') }}" placeholder="{{ __('castlit.f_your_name_ph') }}">
-                            @error('contact_name')<span class="field-error">{{ $message }}</span>@enderror
-                        </div>
-                        <div class="fld">
-                            <label for="phone">{{ __('castlit.f_phone') }}</label>
-                            <input id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" data-phone-country-from="#country" maxlength="40" value="{{ old('phone') }}" placeholder="06 00 00 00 00">
-                            @error('phone')<span class="field-error">{{ $message }}</span>@enderror
-                        </div>
-                    </div>
-
-                    <div class="fld">
-                        <label for="email">{{ __('castlit.f_email') }} <span class="req">*</span></label>
-                        <input id="email" name="email" type="email" required maxlength="190" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" value="{{ old('email') }}" placeholder="{{ __('castlit.f_email_ph') }}">
-                        @error('email')<span class="field-error">{{ $message }}</span>@enderror
-                    </div>
-
                     <div class="fld">
                         <label for="heard_about">{{ __('castlit.f_heard') }}</label>
                         <input id="heard_about" name="heard_about" maxlength="120" value="{{ old('heard_about') }}" placeholder="{{ __('castlit.f_heard_ph') }}">
                         @error('heard_about')<span class="field-error">{{ $message }}</span>@enderror
                     </div>
 
+                    <p class="form-summary" data-form-summary-final role="alert" hidden>{{ __('castlit.f_fill_summary') }}</p>
                     <button type="submit" class="btn btn-primary" style="width:100%; margin-top:6px">{{ __('castlit.f_submit') }}</button>
                     <p style="font-size:12px; color:var(--muted); margin-top:12px; text-align:center">{{ __('castlit.f_consent') }}</p>
+                    </div>
                 </form>
             </div>
         </div>
@@ -1050,18 +1098,79 @@
         input.focus({ preventScroll: true });
     }
 
-    form.addEventListener('submit', (event) => {
+    // Two steps (see the form): the first asks for the business name, the
+    // link and the email, keeps them at once, then shows the rest.
+    const leadUrl = @json(route('castlit.visit.lead'));
+    const stepOne = ['#business_name', '#desired_subdomain', '#email'].map((s) => form.querySelector(s)).filter(Boolean);
+    const twoSteps = () => form.hasAttribute('data-enhanced');
+    const onStepTwo = () => !twoSteps() || form.classList.contains('on-step2');
+    const summary = (which, on) => {
+        const el = form.querySelector(which);
+        if (el) el.hidden = !on;
+    };
+    // The refused fields, or « empty » when nothing at all was typed: a
+    // tap on the button to see, not a typo.
+    const refusedReport = (inputs) => {
+        const bad = inputs.filter((i) => i.getAttribute('aria-invalid') === 'true').map((i) => i.name);
+        const typed = inputs.some((i) => i.type !== 'hidden' && i.tagName !== 'SELECT' && i.value.trim() !== '');
+        return typed ? bad : ['empty'];
+    };
+    const check = (inputs) => {
         let first = null;
-        form.querySelectorAll('input[required], select[required]').forEach((input) => {
+        inputs.forEach((input) => {
             const message = problem(input);
             setError(input, message);
             if (message && !first) first = input;
         });
+        return first;
+    };
+
+    function continueToStepTwo() {
+        const first = check(stepOne);
         if (first) {
-            event.preventDefault();
+            summary('[data-form-summary]', true);
+            form.sendStage?.('refused', refusedReport(stepOne));
             goTo(first);
             return;
         }
+        summary('[data-form-summary]', false);
+        try {
+            const data = new FormData();
+            data.append('visit', form.dataset.visitToken || '');
+            data.append('email', form.querySelector('#email').value);
+            data.append('business_name', form.querySelector('#business_name').value);
+            if (form.dataset.visitToken && !(navigator.sendBeacon && navigator.sendBeacon(leadUrl, data))) {
+                fetch(leadUrl, { method: 'POST', body: data, keepalive: true, credentials: 'same-origin' });
+            }
+        } catch {}
+        form.classList.add('on-step2');
+        const next = form.querySelector('#contact_name');
+        if (next) {
+            next.closest('.su-step2')?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+            setTimeout(() => next.focus({ preventScroll: true }), smooth ? 350 : 0);
+        }
+    }
+    form.querySelector('[data-continue]')?.addEventListener('click', continueToStepTwo);
+    form.querySelector('[data-wayout-chat]')?.addEventListener('click', () => document.querySelector('[data-support-bubble]')?.click());
+
+    form.addEventListener('submit', (event) => {
+        // Enter pressed on the first step: that is « Continuer », not a send.
+        if (!onStepTwo()) {
+            event.preventDefault();
+            form.dataset.continued = '1';
+            continueToStepTwo();
+            return;
+        }
+        const required = [...form.querySelectorAll('input[required], select[required]')];
+        const first = check(required);
+        if (first) {
+            event.preventDefault();
+            summary('[data-form-summary-final]', true);
+            form.dataset.refusedReport = refusedReport(required).join(',');
+            goTo(first);
+            return;
+        }
+        summary('[data-form-summary-final]', false);
         form.querySelector('button[type=submit], button:not([type])')?.setAttribute('disabled', '');
     });
 
@@ -1130,7 +1239,7 @@
             // started, a submit tried, or refused by the browser (on which
             // fields). The server records « sent » and its own refusals.
             var stageUrl = @json(route('castlit.visit.stage'));
-            var visitToken = @json(($mv = request()->attributes->get('marketing_visit')) ? \App\Support\MarketingVisits::token($mv) : null);
+            var visitToken = form.dataset.visitToken || null;
             var sendStage = function (stage, fields) {
                 if (!visitToken) return;
                 try {
@@ -1150,10 +1259,13 @@
                 sendStage('started');
             });
             // After the form's own check, which cancels a submit it refuses.
+            form.sendStage = sendStage;
             form.addEventListener('submit', function (event) {
+                // Enter on the first step became « Continuer »: reported there.
+                if (form.dataset.continued) { delete form.dataset.continued; return; }
                 if (event.defaultPrevented) {
-                    var bad = [].map.call(form.querySelectorAll('[aria-invalid="true"]'), function (el) { return el.name; });
-                    sendStage('refused', bad);
+                    sendStage('refused', (form.dataset.refusedReport || '').split(',').filter(Boolean));
+                    delete form.dataset.refusedReport;
                 } else {
                     sendStage('tried');
                 }

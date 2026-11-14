@@ -21,6 +21,28 @@ final class MarketingVisits
 
     public const KEEP_DAYS = 90;
 
+    /** What a refusal records when the form was sent with nothing typed. */
+    public const EMPTY_FORM = 'empty';
+
+    /**
+     * The first step of the form: an email and a business name, saved before
+     * the rest so a prospect who stops halfway can still be written to.
+     */
+    public static function lead(?MarketingVisit $visit, string $email, string $business): ?MarketingVisit
+    {
+        $email = Str::lower(trim($email));
+        if (! $visit || ! filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 190) {
+            return null;
+        }
+        $visit->fill([
+            'lead_email' => $email,
+            'lead_business' => Str::limit(trim($business), 120, '') ?: null,
+            'lead_at' => $visit->lead_at ?? now(),
+        ]);
+
+        return self::mark($visit, MarketingVisit::LEAD);
+    }
+
     /** Form fields a refusal may name; anything else sent by the page is dropped. */
     public const FIELDS = [
         'business_name', 'activity', 'currency', 'country', 'city', 'address', 'desired_subdomain',
@@ -120,8 +142,11 @@ final class MarketingVisits
             $visit->stage = $stage;
         }
         if ($stage === MarketingVisit::REFUSED) {
+            // « empty »: the button pressed before anything was typed, told
+            // apart from a typo in one field.
+            $empty = in_array(self::EMPTY_FORM, $fields, true);
             $fields = array_values(array_intersect(self::FIELDS, $fields));
-            $visit->refused_fields = $fields ? Str::limit(implode(',', $fields), 200, '') : null;
+            $visit->refused_fields = $empty ? self::EMPTY_FORM : ($fields ? Str::limit(implode(',', $fields), 200, '') : null);
         }
         if ($subscription) {
             $visit->subscription_id = $subscription->id;

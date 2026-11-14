@@ -279,6 +279,13 @@ return [
     'f_heard'     => 'How did you hear about us?',
     'f_heard_ph'  => 'Word of mouth, social media, search…',
     'f_submit'    => 'Send my request →',
+    'f_continue' => 'Continue →',
+    'f_fill_summary' => 'Fill in the fields in red to continue.',
+    'f_step_of' => 'Step :n of 2',
+    'f_step2_title' => 'A few more details to set up your space.',
+    'f_wayout' => 'Not ready yet?',
+    'f_wayout_demo' => 'Try the demo',
+    'f_wayout_chat' => 'Chat with us',
     'f_consent'   => 'By submitting this form, you agree to be contacted about your sign-up.',
     'f_errors'    => 'Please correct the fields highlighted below.',
 
