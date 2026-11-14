@@ -378,7 +378,7 @@
         </section>
     @elseif ($panel === 'stock-adjustments')
         <section class="mt-6 space-y-5">
-            <div class="stock-kpi-grid grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+            <div class="stock-kpi-grid grid gap-3 grid-cols-2 md:grid-cols-3">
                 <article class="stock-kpi-card is-primary rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
                     <div class="stock-kpi-meta">
                         <span class="stock-kpi-label">Ajustements</span>
@@ -397,27 +397,11 @@
                 </article>
                 <article class="stock-kpi-card is-success rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
                     <div class="stock-kpi-meta">
-                        <span class="stock-kpi-label">Valeur achat</span>
-                        <span class="stock-kpi-dot is-success" aria-hidden="true"></span>
-                    </div>
-                    <p class="stock-kpi-value is-money">{{ $money($stockStats['stock_purchase_value']) }}</p>
-                    <p class="stock-kpi-hint">Stock × prix d'achat</p>
-                </article>
-                <article class="stock-kpi-card is-success rounded-xl border border-slate-200 bg-white p-4 text-slate-950 shadow-sm dark:border-white/10 dark:bg-slate-950 dark:text-white">
-                    <div class="stock-kpi-meta">
                         <span class="stock-kpi-label">Valeur vente</span>
                         <span class="stock-kpi-dot is-success" aria-hidden="true"></span>
                     </div>
                     <p class="stock-kpi-value is-money">{{ $money($stockStats['stock_sale_value']) }}</p>
                     <p class="stock-kpi-hint">Potentiel de vente</p>
-                </article>
-                <article class="stock-kpi-card is-warning rounded-xl border border-amber-300 bg-amber-100 p-4 shadow-sm dark:border-amber-400/30 dark:bg-amber-950/60">
-                    <div class="stock-kpi-meta">
-                        <span class="stock-kpi-label is-warning">Alertes stock</span>
-                        <span class="stock-kpi-dot is-warning" aria-hidden="true"></span>
-                    </div>
-                    <p class="stock-kpi-value is-warning">{{ number_format($catalogStats['low'], 0, ',', ' ') }}</p>
-                    <p class="stock-kpi-hint is-warning">À vérifier avant vente</p>
                 </article>
             </div>
             <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -431,11 +415,6 @@
                 </div>
             </div>
             <div class="stock-kpi-grid grid gap-3 grid-cols-2 lg:grid-cols-4">
-                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                    <span class="text-xs font-semibold uppercase text-slate-500">Emplacements</span>
-                    <p class="mt-2 text-2xl font-semibold">{{ $stockStats['locations'] }}</p>
-                    <p class="mt-1 text-xs text-slate-500">Magasins, dépôts, rayons actifs</p>
-                </article>
                 <article class="stock-kpi-card is-neutral rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="stock-kpi-meta">
                         <span class="stock-kpi-label">Emplacements</span>
@@ -515,7 +494,7 @@
                                 <option value="out" @selected($stockInventoryState === 'out')>Rupture</option>
                             </select>
                             <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20">Filtrer</button>
-                            <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:text-slate-200">Reset</a>
+                            <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:text-slate-200">Réinitialiser</a>
                         </form>
                     </div>
                 </div>
@@ -610,7 +589,7 @@
                     <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-slate-900">
                     <div class="grid grid-cols-2 gap-2">
                         <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white">Filtrer</button>
-                        <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Reset</a>
+                        <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Réinitialiser</a>
                     </div>
                 </form>
             </article>
@@ -913,7 +892,7 @@
         @php $canReceiveTransfers = \App\Support\Permissions::userCan($tenant, auth()->user(), 'stock.transfer_receive'); @endphp
         <section class="mt-6 space-y-5">
             <div class="grid gap-3 md:grid-cols-2"><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Transferts</span><p class="mt-2 text-2xl font-semibold">{{ $stockStats['transfers'] }}</p></article><article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Quantité ce mois</span><p class="mt-2 text-2xl font-semibold">{{ number_format($stockStats['transferred_month'], 0, ',', ' ') }}</p></article></div>
-            <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h2 class="font-semibold">Liste de transfert</h2><p class="mt-1 text-sm text-slate-500">Suivi des déplacements entre magasins, dépôts et rayons.</p></div><a href="{{ route('stock', ['panel' => 'stock-transfer-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouveau transfert</a></div><form method="GET" action="{{ route('stock') }}" class="app-action-form mt-4"><input type="hidden" name="panel" value="stock-transfers"><input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Rechercher n°, article, magasin, entrepôt..."><input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('stock', ['panel' => 'stock-transfers']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div></form></article>
+            <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><h2 class="font-semibold">Liste de transfert</h2><p class="mt-1 text-sm text-slate-500">Suivi des déplacements entre magasins, dépôts et rayons.</p></div><a href="{{ route('stock', ['panel' => 'stock-transfer-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Nouveau transfert</a></div><form method="GET" action="{{ route('stock') }}" class="app-action-form mt-4"><input type="hidden" name="panel" value="stock-transfers"><input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Rechercher n°, article, magasin, entrepôt..."><input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('stock', ['panel' => 'stock-transfers']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a></div></form></article>
             <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="overflow-x-auto"><table class="w-full min-w-[1040px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N°</th><th class="px-3 py-3">Date</th><th class="px-3 py-3">Source</th><th class="px-3 py-3">Destination</th><th class="px-3 py-3 text-right">Quantité</th><th class="px-3 py-3">Articles</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($stockTransfers as $transfer)<tr><td class="px-3 py-3 font-semibold">{{ $transfer->number }}</td><td class="px-3 py-3">{{ $tzDate($transfer->transferred_at) }}</td><td class="px-3 py-3">{{ collect([$transfer->store_from, $transfer->warehouse_from])->filter()->implode(' · ') ?: '—' }}</td><td class="px-3 py-3">{{ collect([$transfer->store_to, $transfer->warehouse_to])->filter()->implode(' · ') ?: '—' }}</td><td class="px-3 py-3 text-right font-semibold">{{ number_format($transfer->total_quantity, 0, ',', ' ') }}</td><td class="px-3 py-3 text-sm text-slate-500">{{ collect($transfer->lines)->pluck('name')->take(2)->implode(', ') }}{{ count($transfer->lines ?? []) > 2 ? '…' : '' }}</td><td class="px-3 py-3"><x-status-pill :tone="$transfer->statusTone()">{{ $transfer->statusLabel() }}</x-status-pill></td><td class="px-3 py-3 text-right"><button type="button" onclick="document.getElementById('transfer-detail-{{ $transfer->id }}').showModal()" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold dark:border-white/10">Détail</button></td></tr>@empty<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucun transfert trouvé.</td></tr>@endforelse</tbody></table></div>
                 {{-- Les dialogues vivent HORS du tableau. Un <dialog> entre
                      deux <tr> est du HTML invalide : le parseur le sort du

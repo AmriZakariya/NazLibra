@@ -27,7 +27,7 @@ class PosTest extends TestCase
         $this->get(route('pos'))
             ->assertOk()
             ->assertSee('data-command-menu', false)
-            ->assertSee('Trouver une section, une action, un paramètre...')
+            ->assertSee('Trouver une page, une action...')
             ->assertSee('data-command-input', false)
             ->assertSee('data-fullscreen-toggle', false)
             ->assertSee('Mode plein écran')

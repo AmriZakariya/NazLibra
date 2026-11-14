@@ -1007,6 +1007,10 @@
         color: var(--brand-info);
     }
 
+    .dashboard-report-card.is-neutral em {
+        color: var(--text-muted);
+    }
+
     .dashboard-revenue-chart {
         background:
             linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 42%, transparent), transparent 74%),
@@ -7845,5 +7849,32 @@
 
     .report-section > * + * {
         margin-top: 8px !important;
+    }
+}
+
+/* A list's filters on a phone: the search stays, the rest folds behind
+   « Plus de filtres » (open when one of them is in use). */
+@media (max-width: 639px) {
+    [data-collapsible-filters]:not(.is-open) [data-advanced-filter] {
+        display: none;
+    }
+
+    /* Room under the last row, so the support bubble never sits on a
+       row's buttons; and a smaller bubble. */
+    .app-main-shell {
+        padding-bottom: 88px;
+    }
+
+    body .sw-bubble {
+        width: 48px;
+        height: 48px;
+        bottom: 14px;
+        inset-inline-end: 14px;
+    }
+}
+
+@media (min-width: 640px) {
+    [data-filters-toggle] {
+        display: none;
     }
 }

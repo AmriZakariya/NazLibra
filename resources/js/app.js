@@ -13,8 +13,12 @@ const money = { format: formatMoney };
 
 const appLocale = document.documentElement.dataset.locale || window.libraireProLocale || 'fr';
 // Texts are translated by resources/js/i18n.js, loaded before this file.
-const translate = (text) => (window.translate
-    ? window.translate(text)
+// Its function is kept here, at load: this file then puts its own on
+// window.translate, and calling window.translate from inside it called
+// itself until the stack ran out, which stopped the rest of this file.
+const i18nTranslate = typeof window.translate === 'function' ? window.translate : null;
+const translate = (text) => (i18nTranslate
+    ? i18nTranslate(text)
     : (text || '').toString().replace(/\s+/g, ' ').trim());
 
 const dataTableLanguage = (overrides = {}) => ({
@@ -5908,4 +5912,96 @@ document.querySelectorAll('[data-variant-matrix]').forEach((form) => {
         refresh();
     });
     refresh();
+});
+
+// « Plus de filtres » on a phone (see [data-collapsible-filters] in app.css).
+document.querySelectorAll('[data-filters-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+        const form = button.closest('[data-collapsible-filters]');
+        const open = !form?.classList.contains('is-open');
+        form?.classList.toggle('is-open', open);
+        button.setAttribute('aria-expanded', String(open));
+    });
+});
+
+// The logical column each cell of a row starts at, colspans counted.
+const tableColumns = (row) => {
+    let index = 0;
+    return [...row.cells].map((cell) => {
+        const start = index;
+        index += cell.colSpan || 1;
+        return { cell, start, end: index };
+    });
+};
+
+// A column marked data-hide-when-empty disappears when no row on the page
+// has anything in it (« — » counts as nothing): a sales list without
+// invoice numbers or references no longer runs off the screen for them.
+document.querySelectorAll('table[data-hide-empty-columns]').forEach((table) => {
+    const head = table.tHead?.rows[table.tHead.rows.length - 1];
+    if (!head) return;
+    const headColumns = tableColumns(head);
+    const width = headColumns.at(-1)?.end ?? 0;
+    const bodyRows = [...table.tBodies].flatMap((body) => [...body.rows])
+        .filter((row) => row.cells.length === width);
+    if (bodyRows.length === 0) return;
+
+    const blank = (cell) => /^[\s—–-]*$/.test(cell?.textContent ?? '');
+    const hidden = new Set(headColumns
+        .filter(({ cell, start }) => cell.hasAttribute('data-hide-when-empty') && bodyRows.every((row) => blank(row.cells[start])))
+        .map(({ start }) => start));
+    if (hidden.size === 0) return;
+
+    [...table.rows].forEach((row) => {
+        tableColumns(row).forEach(({ cell, start, end }) => {
+            let covered = 0;
+            for (let column = start; column < end; column += 1) if (hidden.has(column)) covered += 1;
+            if (covered === 0) return;
+            if (covered === end - start) cell.style.display = 'none';
+            else cell.colSpan = (end - start) - covered;
+        });
+    });
+});
+
+// « Exporter » in a module's header: the table on screen, as a CSV file a
+// spreadsheet opens (UTF-8 with a BOM, « ; » between values as a French
+// Excel expects). The rows shown, as the filters and the page chose them.
+document.querySelectorAll('[data-export-table]').forEach((button) => {
+    button.addEventListener('click', () => {
+        const shown = (element) => element.getClientRects().length > 0;
+        const table = [...(document.querySelector('main')?.getElementsByTagName('table') ?? [])]
+            .find((candidate) => shown(candidate) && candidate.tHead && [...candidate.tBodies].some((body) => body.rows.length > 0));
+        const head = table?.tHead.rows[table.tHead.rows.length - 1];
+        const text = (cell) => (cell.innerText || cell.textContent || '').replace(/\s+/g, ' ').trim();
+        const columns = head ? tableColumns(head).filter(({ cell }) => shown(cell)
+            && !cell.querySelector('input[type=checkbox]')
+            && text(cell) !== '' && text(cell).toLowerCase() !== (window.translate?.('Action') ?? 'Action').toLowerCase()) : [];
+        const width = head ? tableColumns(head).at(-1).end : 0;
+        const rows = table ? [...table.tBodies].flatMap((body) => [...body.rows])
+            .filter((row) => shown(row) && tableColumns(row).at(-1)?.end === width && row.cells.length > 1) : [];
+
+        if (columns.length === 0 || rows.length === 0) {
+            window.alert('Aucune ligne à exporter.');
+            return;
+        }
+
+        const csvValue = (value) => (/[";\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+        // Headers from their text, not as drawn: the table shows them in capitals.
+        const lines = [columns.map(({ cell }) => csvValue((cell.textContent || '').replace(/[↑↓↕]/g, '').replace(/\s+/g, ' ').trim()))];
+        rows.forEach((row) => {
+            const cells = tableColumns(row);
+            lines.push(columns.map(({ start }) => csvValue(text(cells.find((c) => c.start === start)?.cell ?? row))));
+        });
+
+        const name = (document.title.split('·')[0] || 'export').trim()
+            .normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'export';
+        const blob = new Blob(['﻿', lines.map((line) => line.join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${name}.csv`;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    });
 });

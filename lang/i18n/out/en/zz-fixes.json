@@ -1,3 +1,6 @@
 {
- "Profil {0}, utilisateurs, rôles, intégrations et sécurité.": "{0} profile, users, roles, integrations and security."
+ "Profil {0}, utilisateurs, rôles, intégrations et sécurité.": "{0} profile, users, roles, integrations and security.",
+ "Trouver une page, une action...": "Find a page, an action...",
+ "Télécharger le tableau affiché (CSV)": "Download the table shown (CSV)",
+ "Aucune ligne à exporter.": "No rows to export."
 }

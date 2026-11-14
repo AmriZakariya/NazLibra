@@ -58,7 +58,7 @@ class SettingsReferenceTest extends TestCase
             ->assertSee('dir="rtl"', false)
             ->assertSee('لوحة التحكم')
             ->assertSee('المقالات')
-            ->assertSee('ابحث عن قسم أو إجراء أو إعداد...')
+            ->assertSee('ابحث عن صفحة أو إجراء...')
             ->assertSee('Français')
             ->assertSee('Deutsch');
     }

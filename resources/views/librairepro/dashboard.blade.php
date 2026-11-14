@@ -96,7 +96,8 @@
 
     <section class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         @foreach ($reportCards as $report)
-            <a href="{{ $report['href'] }}" class="dashboard-report-card is-{{ $report['tone'] }}">
+            {{-- A zero is no news: grey, not the red or orange of a real amount. --}}
+            <a href="{{ $report['href'] }}" class="dashboard-report-card is-{{ preg_match('/[1-9]/', (string) $report['value']) ? $report['tone'] : 'neutral' }}">
                 <span>
                     <small>{{ $tr($report['hint']) }}</small>
                     <strong>{{ $tr($report['label']) }}</strong>

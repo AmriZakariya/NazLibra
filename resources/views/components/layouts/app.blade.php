@@ -532,7 +532,7 @@
                         <div class="app-command-menu relative flex-1" data-command-menu>
                             <label class="app-command-input">
                                 <span class="app-command-icon">⌕</span>
-                                <input type="search" data-command-input autocomplete="off" placeholder="{{ $tr('Trouver une section, une action, un paramètre...') }}">
+                                <input type="search" data-command-input autocomplete="off" placeholder="{{ $tr('Trouver une page, une action...') }}">
                                 <kbd>⌘K</kbd>
                             </label>
                             <div class="app-command-panel hidden" data-command-panel>

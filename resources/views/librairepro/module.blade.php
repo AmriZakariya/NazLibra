@@ -15,7 +15,9 @@
             <p class="mt-2 max-w-3xl text-sm text-slate-600 dark:text-slate-300">{{ $meta['subtitle'] }}</p>
         </div>
         <div class="flex gap-2 print-hide">
-            <button class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Exporter</button>
+            @if ($module !== 'settings')
+                <button type="button" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5" title="Télécharger le tableau affiché (CSV)" data-export-table>Exporter</button>
+            @endif
             @if ($module === 'sales')
                 <a href="{{ route('pos') }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Ajouter vente</a>
                 <a href="{{ route('pos') }}" class="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/5">Caisse</a>
@@ -301,7 +303,7 @@
                         <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <select name="quote_status" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous statuts</option>@foreach ($quoteStatusLabels as $key => $label)<option value="{{ $key }}" @selected(request('quote_status') === $key)>{{ $label }}</option>@endforeach</select>
-                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'sales', 'section' => 'quotes']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'sales', 'section' => 'quotes']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a></div>
                     </form>
                 </article>
                     <div class="overflow-x-auto">
@@ -450,7 +452,7 @@
                         <label class="min-w-[180px] space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="invoice_status" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous</option>@foreach($invoiceStatusLabels as $key => $label)<option value="{{ $key }}" @selected(request('invoice_status') === $key)>{{ $label }}</option>@endforeach</select></label>
                         <label class="min-w-[160px] space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Archives</span><select name="archived" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Actives</option><option value="with" @selected(request('archived') === 'with')>Inclure</option></select></label>
                         <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white" type="submit">Filtrer</button>
-                        <a href="{{ route('module', ['module' => 'sales', 'section' => 'invoices']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Reset</a>
+                        <a href="{{ route('module', ['module' => 'sales', 'section' => 'invoices']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Réinitialiser</a>
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -605,7 +607,7 @@
                         <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <select name="payment_method" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Méthode</option><option value="cash" @selected(request('payment_method') === 'cash')>Espèces</option><option value="card" @selected(request('payment_method') === 'card')>Carte</option><option value="transfer" @selected(request('payment_method') === 'transfer')>Virement</option><option value="advance" @selected(request('payment_method') === 'advance')>Avance</option></select>
-                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'sales', 'section' => 'payments']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'sales', 'section' => 'payments']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a></div>
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -621,7 +623,7 @@
                 </div>
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <form class="app-action-form" method="GET" action="{{ route('module', ['module' => 'sales', 'section' => 'returns']) }}">
-                        <input type="hidden" name="section" value="returns"><input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Retour, vente, client, motif..."><input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><select name="refund_method" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Remboursement</option><option value="cash" @selected(request('refund_method') === 'cash')>Espèces</option><option value="card" @selected(request('refund_method') === 'card')>Carte</option><option value="transfer" @selected(request('refund_method') === 'transfer')>Virement</option><option value="credit" @selected(request('refund_method') === 'credit')>Avoir</option></select><div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'sales', 'section' => 'returns']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+                        <input type="hidden" name="section" value="returns"><input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Retour, vente, client, motif..."><input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><select name="refund_method" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Remboursement</option><option value="cash" @selected(request('refund_method') === 'cash')>Espèces</option><option value="card" @selected(request('refund_method') === 'card')>Carte</option><option value="transfer" @selected(request('refund_method') === 'transfer')>Virement</option><option value="credit" @selected(request('refund_method') === 'credit')>Avoir</option></select><div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'sales', 'section' => 'returns']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a></div>
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -702,7 +704,7 @@
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <form action="{{ route('sales.deliveries.store') }}" method="POST" class="app-action-form">@csrf<select name="sale_id" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" required><option value="">Créer depuis une vente</option>@foreach ($deliverySales as $sale)<option value="{{ $sale->id }}">{{ $sale->number }} · {{ $sale->contact?->name ?? 'Client comptoir' }}</option>@endforeach</select><input name="assigned_to" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Livreur"><input name="scheduled_at" type="datetime-local" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="delivery_address" class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Adresse de livraison"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Créer</button></form>
                 </article>
-                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><form class="app-action-form" method="GET" action="{{ route('module', ['module' => 'sales', 'section' => 'delivery']) }}"><input type="hidden" name="section" value="delivery"><input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Livraison, vente, client, livreur..."><input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><select name="delivery_status" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous statuts</option><option value="pending" @selected(request('delivery_status') === 'pending')>En attente</option><option value="preparing" @selected(request('delivery_status') === 'preparing')>Préparation</option><option value="dispatched" @selected(request('delivery_status') === 'dispatched')>Expédiée</option><option value="delivered" @selected(request('delivery_status') === 'delivered')>Livrée</option><option value="failed" @selected(request('delivery_status') === 'failed')>Échouée</option></select><div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'sales', 'section' => 'delivery']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div></form></article>
+                <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><form class="app-action-form" method="GET" action="{{ route('module', ['module' => 'sales', 'section' => 'delivery']) }}"><input type="hidden" name="section" value="delivery"><input name="q" value="{{ request('q') }}" class="h-11 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm dark:border-white/10 dark:bg-white/5" placeholder="Livraison, vente, client, livreur..."><input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><select name="delivery_status" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous statuts</option><option value="pending" @selected(request('delivery_status') === 'pending')>En attente</option><option value="preparing" @selected(request('delivery_status') === 'preparing')>Préparation</option><option value="dispatched" @selected(request('delivery_status') === 'dispatched')>Expédiée</option><option value="delivered" @selected(request('delivery_status') === 'delivered')>Livrée</option><option value="failed" @selected(request('delivery_status') === 'failed')>Échouée</option></select><div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'sales', 'section' => 'delivery']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a></div></form></article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><div class="overflow-x-auto"><table class="w-full min-w-[1080px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5"><tr><th class="px-3 py-3">N° livraison</th><th class="px-3 py-3">Vente</th><th class="px-3 py-3">Client</th><th class="px-3 py-3">Livreur</th><th class="px-3 py-3">Planifiée</th><th class="px-3 py-3">Statut</th><th class="px-3 py-3">Adresse</th><th class="px-3 py-3 text-right">Action</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-white/10">@forelse ($deliveryOrders as $delivery)<tr><td class="px-3 py-3 font-semibold">{{ $delivery->number }}</td><td class="px-3 py-3">{{ $delivery->sale?->number }}</td><td class="px-3 py-3">{{ $delivery->contact?->name ?? 'Client comptoir' }}</td><td class="px-3 py-3">{{ $delivery->assigned_to ?? '—' }}</td><td class="px-3 py-3">{{ $tzDate($delivery->scheduled_at) }}</td><td class="px-3 py-3"><x-status-pill :tone="$delivery->status === 'delivered' ? 'success' : ($delivery->status === 'failed' ? 'danger' : 'warning')">{{ $delivery->status }}</x-status-pill></td><td class="px-3 py-3 max-w-xs truncate">{{ $delivery->delivery_address ?? '—' }}</td><td class="px-3 py-3"><form action="{{ route('sales.deliveries.update', $delivery) }}" method="POST" class="flex justify-end gap-2">@csrf @method('PATCH')<select name="status" class="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs dark:border-white/10 dark:bg-slate-900"><option value="pending" @selected($delivery->status === 'pending')>En attente</option><option value="preparing" @selected($delivery->status === 'preparing')>Préparation</option><option value="dispatched" @selected($delivery->status === 'dispatched')>Expédiée</option><option value="delivered" @selected($delivery->status === 'delivered')>Livrée</option><option value="failed" @selected($delivery->status === 'failed')>Échouée</option></select><button class="rounded-lg bg-brand px-3 py-2 text-xs font-semibold text-white">OK</button></form></td></tr>@empty<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">Aucune livraison trouvée.</td></tr>@endforelse</tbody></table></div><div class="border-t border-slate-200 px-4 py-3 dark:border-white/10">{{ $deliveryOrders->links() }}</div></article>
             </section>
         @else
@@ -721,49 +723,59 @@
             $salesHeaderClass = 'inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-black text-slate-500 transition hover:bg-white hover:text-brand dark:hover:bg-white/10';
         @endphp
         <section class="mt-6 space-y-5">
-            <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div class="grid grid-cols-2 gap-3 xl:grid-cols-5">
                 <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <span class="text-xs font-semibold uppercase text-slate-500">Résultats filtrés</span>
-                    <p class="mt-2 text-2xl font-black">{{ number_format($sales->total(), 0, ',', ' ') }}</p>
+                    <p class="mt-2 text-xl font-black sm:text-2xl">{{ number_format($sales->total(), 0, ',', ' ') }}</p>
                     <p class="mt-1 text-xs text-slate-500">tickets trouvés</p>
                 </article>
                 <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <span class="text-xs font-semibold uppercase text-slate-500">Page affichée</span>
-                    <p class="mt-2 text-2xl font-black">{{ $sales->firstItem() ?? 0 }}-{{ $sales->lastItem() ?? 0 }}</p>
+                    <p class="mt-2 text-xl font-black sm:text-2xl">{{ $sales->firstItem() ?? 0 }}-{{ $sales->lastItem() ?? 0 }}</p>
                     <p class="mt-1 text-xs text-slate-500">sur {{ number_format($sales->total(), 0, ',', ' ') }}</p>
                 </article>
                 <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <span class="text-xs font-semibold uppercase text-slate-500">Total filtré</span>
-                    <p class="mt-2 text-2xl font-black">{{ $money($salesTotals['total'] ?? 0) }}</p>
+                    <p class="mt-2 text-xl font-black sm:text-2xl">{{ $money($salesTotals['total'] ?? 0) }}</p>
                     <p class="mt-1 text-xs text-slate-500">toutes pages</p>
                 </article>
                 <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm dark:border-emerald-500/20 dark:bg-emerald-500/10">
                     <span class="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-200">Total page</span>
-                    <p class="mt-2 text-2xl font-black text-emerald-700 dark:text-emerald-200">{{ $money($salesPageTotals['total'] ?? 0) }}</p>
+                    <p class="mt-2 text-xl font-black sm:text-2xl text-emerald-700 dark:text-emerald-200">{{ $money($salesPageTotals['total'] ?? 0) }}</p>
                     <p class="mt-1 text-xs text-emerald-700/75 dark:text-emerald-200/75">uniquement lignes visibles</p>
                 </article>
-                <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-sm dark:border-rose-500/20 dark:bg-rose-500/10">
+                <article class="col-span-2 rounded-2xl border border-rose-200 xl:col-span-1 bg-rose-50 p-4 shadow-sm dark:border-rose-500/20 dark:bg-rose-500/10">
                     <span class="text-xs font-semibold uppercase text-rose-700 dark:text-rose-200">Reste client</span>
-                    <p class="mt-2 text-2xl font-black text-rose-700 dark:text-rose-200">{{ $money($salesTotals['due'] ?? 0) }}</p>
+                    <p class="mt-2 text-xl font-black sm:text-2xl text-rose-700 dark:text-rose-200">{{ $money($salesTotals['due'] ?? 0) }}</p>
                     <p class="mt-1 text-xs text-rose-700/75 dark:text-rose-200/75">sur filtres actifs</p>
                 </article>
             </div>
 
             <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
-                <form class="flex flex-wrap items-end gap-3" method="GET" action="{{ route('module', 'sales') }}">
+                @php
+                    $salesFiltered = collect(['from', 'to', 'client', 'payment_status', 'payment_method', 'min_total', 'max_total'])->contains(fn ($key) => filled(request($key)));
+                @endphp
+                <form class="flex flex-wrap items-end gap-3 {{ $salesFiltered ? 'is-open' : '' }}" method="GET" action="{{ route('module', 'sales') }}" data-collapsible-filters>
                     <input type="hidden" name="section" value="list">
                     <input type="hidden" name="sort" value="{{ $salesSort }}">
                     <input type="hidden" name="direction" value="{{ $salesDirection }}">
                     <input name="q" value="{{ request('q') }}" class="h-11 min-w-[220px] flex-[1_1_260px] rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-white/10 dark:bg-white/5" placeholder="Rechercher N° ticket, client, paiement...">
-                    <input name="from" value="{{ request('from') }}" type="date" class="h-11 min-w-[150px] flex-[1_1_150px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                    <input name="to" value="{{ request('to') }}" type="date" class="h-11 min-w-[150px] flex-[1_1_150px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                    <select name="client" class="h-11 min-w-[190px] flex-[1_1_210px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                    <button type="button" class="h-11 rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10" data-filters-toggle aria-expanded="{{ $salesFiltered ? 'true' : 'false' }}">Plus de filtres</button>
+                    <label class="flex min-w-[150px] flex-[1_1_150px] flex-col gap-1" data-advanced-filter>
+                        <span class="text-xs font-semibold text-slate-500">Du</span>
+                        <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                    </label>
+                    <label class="flex min-w-[150px] flex-[1_1_150px] flex-col gap-1" data-advanced-filter>
+                        <span class="text-xs font-semibold text-slate-500">Au</span>
+                        <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                    </label>
+                    <select data-advanced-filter name="client" class="h-11 min-w-[190px] flex-[1_1_210px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <option value="">Tous les clients</option>
                         @foreach ($salesClients as $client)
                             <option value="{{ $client->id }}" @selected((string) request('client') === (string) $client->id)>{{ $client->name }}</option>
                         @endforeach
                     </select>
-                    <select name="payment_status" class="h-11 min-w-[150px] flex-[1_1_160px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                    <select data-advanced-filter name="payment_status" class="h-11 min-w-[150px] flex-[1_1_160px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <option value="">Tous statuts</option>
                         <option value="paid" @selected(request('payment_status') === 'paid')>payé</option>
                         <option value="partial" @selected(request('payment_status') === 'partial')>Partiel</option>
@@ -772,7 +784,7 @@
                         <option value="refunded" @selected(request('payment_status') === 'refunded')>Remboursé</option>
                         <option value="cancelled" @selected(request('payment_status') === 'cancelled')>Annulé</option>
                     </select>
-                    <select name="payment_method" class="h-11 min-w-[150px] flex-[1_1_160px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                    <select data-advanced-filter name="payment_method" class="h-11 min-w-[150px] flex-[1_1_160px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <option value="">Tous paiements</option>
                         <option value="cash" @selected(request('payment_method') === 'cash')>Espèces</option>
                         <option value="card" @selected(request('payment_method') === 'card')>Carte</option>
@@ -780,16 +792,16 @@
                         <option value="advance" @selected(request('payment_method') === 'advance')>Avance</option>
                         <option value="mixed" @selected(request('payment_method') === 'mixed')>Mixte</option>
                     </select>
-                    <input name="min_total" value="{{ request('min_total') }}" inputmode="decimal" class="h-11 min-w-[105px] flex-[1_1_110px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Min ({{ $shopMoney->symbol() }})">
-                    <input name="max_total" value="{{ request('max_total') }}" inputmode="decimal" class="h-11 min-w-[105px] flex-[1_1_110px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Max ({{ $shopMoney->symbol() }})">
-                    <select name="per_page" class="h-11 min-w-[120px] flex-[0_1_130px] rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-900" onchange="this.form.submit()">
+                    <input data-advanced-filter name="min_total" value="{{ request('min_total') }}" inputmode="decimal" class="h-11 min-w-[105px] flex-[1_1_110px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Min ({{ $shopMoney->symbol() }})">
+                    <input data-advanced-filter name="max_total" value="{{ request('max_total') }}" inputmode="decimal" class="h-11 min-w-[105px] flex-[1_1_110px] rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900" placeholder="Max ({{ $shopMoney->symbol() }})">
+                    <select data-advanced-filter name="per_page" class="h-11 min-w-[120px] flex-[0_1_130px] rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-900" onchange="this.form.submit()">
                         @foreach ([10, 25, 50, 100] as $pageSize)
                             <option value="{{ $pageSize }}" @selected((int) ($salesPerPage ?? 25) === $pageSize)>{{ $pageSize }} / page</option>
                         @endforeach
                     </select>
                     <div class="grid min-w-[180px] flex-[0_1_220px] grid-cols-2 gap-2 max-sm:flex-1">
                         <button class="h-11 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white" type="submit">Filtrer</button>
-                        <a href="{{ route('module', 'sales') }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a>
+                        <a href="{{ route('module', 'sales') }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a>
                     </div>
                 </form>
             </article>
@@ -797,27 +809,26 @@
             <article class="overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10">
                     <div>
-                        <h3 class="text-base font-black tracking-tight">Datatable ventes</h3>
-                        <p class="mt-0.5 text-xs text-slate-500">Recherche serveur, tri par colonne, pagination et totaux visibles.</p>
+                        <h3 class="text-base font-black tracking-tight">Liste des ventes</h3>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
-                        <span class="rounded-full bg-slate-100 px-3 py-1.5 dark:bg-white/10">Tri: {{ $salesSort }} {{ $salesDirection === 'asc' ? '↑' : '↓' }}</span>
+                        <span class="rounded-full bg-slate-100 px-3 py-1.5 dark:bg-white/10">Tri: {{ ['sold_at' => 'Date de vente', 'number' => 'Code de vente', 'client' => 'Nom du client', 'updated_at' => 'Créé le / Modifié le', 'total' => 'Total', 'status' => 'Statut de paiement'][$salesSort] ?? 'Date de vente' }} {{ $salesDirection === 'asc' ? '↑' : '↓' }}</span>
                         <span class="rounded-full bg-slate-100 px-3 py-1.5 dark:bg-white/10">{{ $sales->count() }} ligne(s) chargée(s)</span>
                     </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[1460px] text-left text-sm">
+                    <table class="w-full min-w-max text-left text-sm" data-hide-empty-columns>
                         <thead class="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-white/5">
                             <tr>
                                 <th class="px-3 py-3"><input type="checkbox" class="rounded border-slate-300"></th>
-                                <th class="px-3 py-3 whitespace-nowrap">N° facture</th>
+                                <th class="px-3 py-3 whitespace-nowrap" data-hide-when-empty>N° facture</th>
                                 <th class="px-3 py-3 whitespace-nowrap"><a href="{{ $salesSortUrl('sold_at') }}" class="{{ $salesHeaderClass }}">Date de vente <span>{{ $salesSortIndicator('sold_at') }}</span></a></th>
-                                <th class="px-3 py-3 whitespace-nowrap">Date d'échéance</th>
+                                <th class="px-3 py-3 whitespace-nowrap" data-hide-when-empty>Date d'échéance</th>
                                 <th class="px-3 py-3 whitespace-nowrap"><a href="{{ $salesSortUrl('number') }}" class="{{ $salesHeaderClass }}">Code de vente <span>{{ $salesSortIndicator('number') }}</span></a></th>
-                                <th class="px-3 py-3 whitespace-nowrap">Numéro de référence</th>
+                                <th class="px-3 py-3 whitespace-nowrap" data-hide-when-empty>Numéro de référence</th>
                                 <th class="px-3 py-3 whitespace-nowrap"><a href="{{ $salesSortUrl('client') }}" class="{{ $salesHeaderClass }}">Nom du client <span>{{ $salesSortIndicator('client') }}</span></a></th>
                                 <th class="px-3 py-3 whitespace-nowrap">Créé par</th>
-                                <th class="px-3 py-3 whitespace-nowrap">Mis à jour par</th>
+                                <th class="px-3 py-3 whitespace-nowrap" data-hide-when-empty>Mis à jour par</th>
                                 <th class="px-3 py-3 whitespace-nowrap"><a href="{{ $salesSortUrl('updated_at') }}" class="{{ $salesHeaderClass }}">Créé le / Modifié le <span>{{ $salesSortIndicator('updated_at') }}</span></a></th>
                                 <th class="px-3 py-3 text-right whitespace-nowrap"><a href="{{ $salesSortUrl('total') }}" class="{{ $salesHeaderClass }} ml-auto">Total <span>{{ $salesSortIndicator('total') }}</span></a></th>
                                 <th class="px-3 py-3 text-right whitespace-nowrap">Paiement payé</th>
@@ -951,8 +962,8 @@
                                         <p class="mt-1 text-xs text-slate-500">{{ $tzDate($saleUpdatedAt) }}</p>
                                     </td>
                                     <td class="px-3 py-3 whitespace-nowrap text-xs text-slate-500">
-                                        <p title="Créé le (DB)">{{ $tzDate($sale->created_at) }}</p>
-                                        <p class="mt-0.5" title="Modifié le (DB)">{{ $tzDate($sale->updated_at) }}</p>
+                                        <p title="Créé le">{{ $tzDate($sale->created_at) }}</p>
+                                        <p class="mt-0.5" title="Modifié le">{{ $tzDate($sale->updated_at) }}</p>
                                     </td>
                                     <td class="px-3 py-3 text-right font-semibold whitespace-nowrap">{{ $money($sale->total_amount) }}</td>
                                     <td class="px-3 py-3 text-right font-semibold whitespace-nowrap">{{ $money($paid) }}</td>
@@ -1641,7 +1652,7 @@
                                 @endif
                             @empty
                                 <tr>
-                                    <td colspan="13" class="px-4 py-12 text-center text-sm text-slate-500">Aucune vente ne correspond aux filtres.</td>
+                                    <td colspan="14" class="px-4 py-12 text-center text-sm text-slate-500">Aucune vente ne correspond aux filtres.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -1834,7 +1845,7 @@
                         <label class="min-w-[180px] space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Statut</span><select name="invoice_status" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous</option>@foreach($invoiceStatusLabels as $key => $label)<option value="{{ $key }}" @selected(request('invoice_status') === $key)>{{ $label }}</option>@endforeach</select></label>
                         <label class="min-w-[160px] space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Archives</span><select name="archived" class="h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Actives</option><option value="with" @selected(request('archived') === 'with')>Inclure</option></select></label>
                         <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white" type="submit">Filtrer</button>
-                        <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Reset</a>
+                        <a href="{{ route('module', ['module' => 'invoices', 'section' => 'invoices']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold dark:border-white/10">Réinitialiser</a>
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -1978,7 +1989,7 @@
                         <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <select name="estimate_status" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous statuts</option>@foreach ($estimateStatusLabels as $key => $label)<option value="{{ $key }}" @selected(request('estimate_status') === $key)>{{ $label }}</option>@endforeach</select>
-                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'invoices', 'section' => 'estimates']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'invoices', 'section' => 'estimates']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a></div>
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -2494,7 +2505,7 @@
                         <select name="channel" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous canaux</option>@foreach ($onlineOrderChannels as $value => $label)<option value="{{ $value }}" @selected(request('channel') === $value)>{{ $label }}</option>@endforeach</select>
                         <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'online-orders', 'section' => 'list']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'online-orders', 'section' => 'list']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a></div>
                     </form>
                 </article>
 
@@ -2801,7 +2812,7 @@
                         <select name="supplier_id" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous fournisseurs</option>@foreach ($purchaseSuppliers as $supplier)<option value="{{ $supplier->id }}" @selected((string) request('supplier_id') === (string) $supplier->id)>{{ $supplier->name }}</option>@endforeach</select>
                         <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'purchases', 'section' => 'returns']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'purchases', 'section' => 'returns']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a></div>
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -2824,7 +2835,7 @@
                         <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <select name="purchase_status" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Tous statuts</option>@foreach (['draft' => 'Brouillon', 'ordered' => 'Commandé', 'partially_received' => 'Partiel', 'received' => 'Reçu', 'cancelled' => 'Annulé'] as $key => $label)<option value="{{ $key }}" @selected(request('purchase_status') === $key)>{{ $label }}</option>@endforeach</select>
-                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'purchases', 'section' => 'list']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'purchases', 'section' => 'list']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a></div>
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -3522,7 +3533,7 @@
                 </div>
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                        <div><h2 class="font-semibold">{{ $listKind === 'supplier' ? 'Liste des fournisseurs' : 'Liste des clients' }}</h2><p class="mt-1 text-sm text-slate-500">Recherche serveur, pagination, tri, export navigateur et actions rapides.</p></div>
+                        <div><h2 class="font-semibold">{{ $listKind === 'supplier' ? 'Liste des fournisseurs' : 'Liste des clients' }}</h2></div>
                         <div class="app-action-row">
                             <a href="{{ route('module', ['module' => 'contacts', 'section' => $listKind === 'supplier' ? 'supplier-add' : 'customer-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Ajouter</a>
                             <a href="{{ route('contacts.import.example', $listKind) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Exemple Excel</a>
@@ -3622,7 +3633,7 @@
                 </div>
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                     <div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                        <div><h2 class="font-semibold">Liste des paiements anticipés</h2><p class="mt-1 text-sm text-slate-500">Recherche serveur, reçus imprimables, annulation contrôlée et solde client synchronisé.</p></div>
+                        <div><h2 class="font-semibold">Liste des paiements anticipés</h2></div>
                         <div class="app-action-row"><a href="{{ route('module', ['module' => 'finance', 'section' => 'advance-add']) }}" class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Ajouter une avance</a><a href="{{ route('module', ['module' => 'finance', 'section' => 'advances']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Actualiser</a></div>
                     </div>
                     <form class="app-action-form mt-4" method="GET" action="{{ route('module', ['module' => 'finance', 'section' => 'advances']) }}">
@@ -3632,7 +3643,7 @@
                         <select name="payment_method" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Paiement</option><option value="cash" @selected(request('payment_method') === 'cash')>Espèces</option><option value="card" @selected(request('payment_method') === 'card')>Carte</option><option value="transfer" @selected(request('payment_method') === 'transfer')>Virement</option><option value="cheque" @selected(request('payment_method') === 'cheque')>Chèque</option><option value="other" @selected(request('payment_method') === 'other')>Autre</option></select>
                         <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
-                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'finance', 'section' => 'advances']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'finance', 'section' => 'advances']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a></div>
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -3765,7 +3776,7 @@
                         <input name="from" value="{{ request('from') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <input name="to" value="{{ request('to') }}" type="date" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
                         <select name="payment_method" class="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="">Paiement</option><option value="cash" @selected(request('payment_method') === 'cash')>Espèces</option><option value="card" @selected(request('payment_method') === 'card')>Carte</option><option value="transfer" @selected(request('payment_method') === 'transfer')>Virement</option><option value="cheque" @selected(request('payment_method') === 'cheque')>Chèque</option><option value="other" @selected(request('payment_method') === 'other')>Autre</option></select>
-                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'finance', 'section' => 'expenses']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+                        <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Filtrer</button><a href="{{ route('module', ['module' => 'finance', 'section' => 'expenses']) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a></div>
                     </form>
                 </article>
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
@@ -3876,7 +3887,7 @@
                             <option value="{{ $client->id }}" @selected((string) request('customer_id') === (string) $client->id)>{{ $client->name }}</option>
                         @endforeach
                     </select>
-                    <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Afficher</button><a href="{{ route('module', ['module' => 'reports', 'section' => $reportSection]) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Reset</a></div>
+                    <div class="flex gap-2"><button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Afficher</button><a href="{{ route('module', ['module' => 'reports', 'section' => $reportSection]) }}" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Réinitialiser</a></div>
                 </form>
             </article>
 
@@ -4190,8 +4201,8 @@
                         </article>
                         <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                             <p class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Modules</p>
-                            <h3 class="mt-2 text-lg font-semibold">{{ collect($appModuleSettings)->where('enabled', true)->count() }} actif(s)</h3>
-                            <p class="mt-1 text-sm text-slate-500">{{ count($appModuleSettings) }} module(s) configurables</p>
+                            <h3 class="mt-2 text-lg font-semibold">{{ collect($appModuleSettings['enabled'] ?? [])->filter()->count() }} actif(s)</h3>
+                            <p class="mt-1 text-sm text-slate-500">{{ count($appModuleSettings['definitions'] ?? []) }} module(s) configurables</p>
                             <a href="{{ route('module', ['module' => 'settings', 'section' => 'modules']) }}" class="mt-4 inline-flex text-sm font-semibold text-brand">Gérer les modules →</a>
                         </article>
                     </div>
