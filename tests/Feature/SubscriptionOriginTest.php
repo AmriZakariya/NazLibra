@@ -122,6 +122,36 @@ class SubscriptionOriginTest extends TestCase
         $this->assertSame('12 rue Atlas, Maârif', $this->latest()->address);
     }
 
+    public function test_the_apps_first_step_keeps_the_email_until_the_request_is_sent(): void
+    {
+        $lead = $this->postJson('/api/v1/public/subscribe/lead', [
+            'email' => 'Owner@Example.com', 'business_name' => 'Atlas Shop', 'platform' => 'android',
+        ])->assertOk()->assertJsonPath('ok', true)->json('lead');
+
+        $visit = \App\Models\MarketingVisit::query()->latest('id')->firstOrFail();
+        $this->assertSame('owner@example.com', $visit->lead_email);
+        $this->assertSame('Atlas Shop', $visit->lead_business);
+        $this->assertSame('app', $visit->campaign_source);
+        $this->assertSame('android', $visit->campaign_medium);
+        $this->assertSame(\App\Models\MarketingVisit::LEAD, $visit->stage);
+
+        // Listed to write to, until the request comes.
+        $admin = User::factory()->create(['is_platform_admin' => true]);
+        $this->assertSame(1, $this->actingAs($admin)->get(route('castlit.admin.visits'))->viewData('followups'));
+
+        $this->fromApp(['platform' => 'android', 'lead' => $lead])->assertOk();
+
+        $visit->refresh();
+        $this->assertSame(\App\Models\MarketingVisit::SENT, $visit->stage);
+        $this->assertSame($this->latest()->id, $visit->subscription_id);
+    }
+
+    public function test_the_apps_first_step_refuses_a_bad_email(): void
+    {
+        $this->postJson('/api/v1/public/subscribe/lead', ['email' => 'nope'])->assertStatus(422);
+        $this->assertSame(0, \App\Models\MarketingVisit::count());
+    }
+
     public function test_the_app_says_which_store_it_came_from(): void
     {
         $this->fromApp(['platform' => 'android'])->assertOk();

@@ -111,6 +111,28 @@ class PublicController extends Controller
      * /inscription form: same validation, same reserved/availability checks,
      * and the same pending Subscription row the platform admin then approves.
      */
+    /**
+     * POST /api/v1/public/subscribe/lead — the app's sign-up, first step: the
+     * email and business name, kept before the rest so a prospect who stops
+     * halfway can still be written to. Answers a token the final request
+     * sends back, which closes the lead.
+     */
+    public function subscribeLead(Request $request): JsonResponse
+    {
+        if (! config('castlit.is_master')) {
+            return response()->json(['ok' => false], 404);
+        }
+        $data = $request->validate([
+            'email' => ['required', 'email', 'max:190'],
+            'business_name' => ['nullable', 'string', 'max:120'],
+            'platform' => ['nullable', 'string', Rule::in(['android', 'ios', 'windows', 'macos', 'linux', 'web'])],
+        ]);
+
+        $visit = \App\Support\MarketingVisits::appLead($request, $data['email'], (string) ($data['business_name'] ?? ''), $data['platform'] ?? null);
+
+        return response()->json(['ok' => (bool) $visit, 'lead' => $visit ? \App\Support\MarketingVisits::token($visit) : null]);
+    }
+
     public function subscribe(Request $request): JsonResponse
     {
         if (! config('castlit.is_master')) {
@@ -185,6 +207,13 @@ class PublicController extends Controller
             ],
         ]);
         \App\Support\SubscriptionAlerts::newSubscription($subscription);
+        // The app's first step, closed: no longer someone to write to.
+        \App\Support\MarketingVisits::mark(
+            \App\Support\MarketingVisits::fromToken((string) $request->input('lead')),
+            \App\Models\MarketingVisit::SENT,
+            [],
+            $subscription,
+        );
 
         return response()->json([
             'ok'        => true,

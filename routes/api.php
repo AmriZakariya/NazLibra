@@ -62,6 +62,8 @@ Route::prefix('v1')->group(function (): void {
         ->middleware('throttle:20,1');
     Route::post('public/subscribe', [PublicController::class, 'subscribe'])
         ->middleware('throttle:5,1');
+    Route::post('public/subscribe/lead', [PublicController::class, 'subscribeLead'])
+        ->middleware('throttle:10,1');
 
     // ── "Contacter le support": the master holds every conversation ────────
     if (config('castlit.is_master')) {

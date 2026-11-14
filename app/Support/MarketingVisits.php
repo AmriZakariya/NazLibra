@@ -43,6 +43,38 @@ final class MarketingVisits
         return self::mark($visit, MarketingVisit::LEAD);
     }
 
+    /**
+     * The app's sign-up, first step: there is no landing visit, so the lead
+     * is its own row (landing « app »), listed with the website's in
+     * « Visites › Voir qui relancer ». Master only.
+     */
+    public static function appLead(Request $request, string $email, string $business, ?string $platform): ?MarketingVisit
+    {
+        if (! config('castlit.is_master')) {
+            return null;
+        }
+        $agent = (string) $request->userAgent();
+        $visit = MarketingVisit::create([
+            'ip' => GeoCountry::clientIp($request) ?? $request->ip(),
+            'country' => GeoCountry::guess($request),
+            'locale' => Str::limit((string) $request->getPreferredLanguage(['fr', 'ar', 'en', 'es', 'pt', 'de', 'it']), 5, ''),
+            'device' => 'phone',
+            'user_agent' => Str::limit($agent, 250, ''),
+            'campaign_source' => 'app',
+            'campaign_medium' => $platform ?: null,
+            'landing' => 'app',
+            'stage' => MarketingVisit::STARTED,
+            'last_seen_at' => now(),
+        ]);
+
+        $lead = self::lead($visit, $email, $business);
+        if (! $lead) {
+            $visit->delete();
+        }
+
+        return $lead;
+    }
+
     /** Form fields a refusal may name; anything else sent by the page is dropped. */
     public const FIELDS = [
         'business_name', 'activity', 'currency', 'country', 'city', 'address', 'desired_subdomain',
