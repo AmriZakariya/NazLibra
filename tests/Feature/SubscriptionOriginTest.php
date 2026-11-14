@@ -114,6 +114,14 @@ class SubscriptionOriginTest extends TestCase
         return $this->postJson('/api/v1/public/subscribe', $this->request($overrides));
     }
 
+    public function test_the_app_sends_the_shops_street_address(): void
+    {
+        // Asked in its own field so nobody types it as the space's link.
+        $this->fromApp(['platform' => 'android', 'country' => 'MA', 'city' => 'Casablanca', 'address' => ' 12 rue Atlas, Maârif '])->assertOk();
+
+        $this->assertSame('12 rue Atlas, Maârif', $this->latest()->address);
+    }
+
     public function test_the_app_says_which_store_it_came_from(): void
     {
         $this->fromApp(['platform' => 'android'])->assertOk();

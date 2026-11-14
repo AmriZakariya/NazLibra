@@ -137,6 +137,7 @@ class PublicController extends Controller
             'heard_about'       => ['nullable', 'string', 'max:120'],
             'country'           => ['required', 'string', Rule::in(\App\Support\Countries::codes())],
             'city'              => ['nullable', 'string', 'max:120'],
+            'address'           => ['nullable', 'string', 'max:190'],
             // Optional: builds released before this field existed do not
             // send it, and must still be able to sign a shop up.
             'platform'          => ['nullable', 'string', Rule::in(['', 'android', 'ios', 'windows', 'macos', 'linux', 'web'])],
@@ -176,6 +177,7 @@ class PublicController extends Controller
             },
             'country'           => $validated['country'],
             'city'              => filled($validated['city'] ?? null) ? trim($validated['city']) : null,
+            'address'           => filled($validated['address'] ?? null) ? trim($validated['address']) : null,
             'status'            => Subscription::STATUS_PENDING,
             'meta'              => [
                 'ip'         => $request->ip(),
