@@ -403,6 +403,29 @@ class Permissions
      * @param  array<int, string>  $granted
      */
     /**
+     * The user as a member of the tenant, its pivot (role, store access)
+     * loaded; null when they are not one.
+     *
+     * Every back-office page asked this four or five times (the access
+     * check, the layout's menu, its account card, the store list), each a
+     * query. It is now asked once per request: the answer is kept on the
+     * request, so the next one asks again.
+     */
+    public static function membership(\App\Models\Tenant $tenant, ?\App\Models\User $user): ?\App\Models\User
+    {
+        if ($user === null || ! $tenant->exists) {
+            return null;
+        }
+        $attributes = request()->attributes;
+        $key = "castlit.membership.{$tenant->id}.{$user->id}";
+        if (! $attributes->has($key)) {
+            $attributes->set($key, $tenant->users()->whereKey($user->id)->first());
+        }
+
+        return $attributes->get($key);
+    }
+
+    /**
      * The permissions a user holds in a tenant.
      *
      * This lived privately inside the middleware, so nothing else could ask
@@ -417,7 +440,7 @@ class Permissions
             return [];
         }
 
-        $roleKey = (string) ($tenant->users()->whereKey($user->id)->first()?->pivot?->role ?? '');
+        $roleKey = (string) (self::membership($tenant, $user)?->pivot?->role ?? '');
 
         if ($roleKey === '') {
             return [];

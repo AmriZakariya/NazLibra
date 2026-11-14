@@ -72,6 +72,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\App;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -7666,8 +7667,13 @@ class LibraireProController extends Controller
         if (! in_array($salesPerPage, [10, 25, 50, 100], true)) {
             $salesPerPage = 25;
         }
-        $sales = $this->salesListQuery($tenant, $request)->paginate($salesPerPage)->withQueryString();
-        $saleInvoices = SaleInvoice::query()
+        // Each module page builds only what its own part of the view draws:
+        // the others get an empty value of the same type, never a query.
+        $uses = fn (string ...$modules): bool => in_array($module, $modules, true);
+        $none = fn (string $pageName = 'page', int $perPage = 25): LengthAwarePaginator => new LengthAwarePaginator([], 0, $perPage, 1, ['path' => $request->url(), 'pageName' => $pageName]);
+
+        $sales = $uses('sales') ? $this->salesListQuery($tenant, $request)->paginate($salesPerPage)->withQueryString() : $none('page', $salesPerPage);
+        $saleInvoices = ! $uses('sales', 'invoices') ? $none('invoices_page') : SaleInvoice::query()
             ->with(['sale.contact', 'contact', 'user'])
             ->where('tenant_id', $tenant->id)
             ->when(trim((string) $request->query('q')) !== '', function (Builder $builder) use ($request): void {
@@ -7681,7 +7687,7 @@ class LibraireProController extends Controller
             ->latest('issued_at')
             ->paginate(25, ['*'], 'invoices_page')
             ->withQueryString();
-        $commercialInvoices = Invoice::query()
+        $commercialInvoices = ! $uses('sales', 'invoices') ? $none('commercial_invoices_page') : Invoice::query()
             ->with(['customer', 'creator', 'payments', 'sourceSale'])
             ->where('tenant_id', $tenant->id)
             ->when($request->query('archived') !== 'with', fn (Builder $builder) => $builder->whereNull('archived_at'))
@@ -7749,7 +7755,7 @@ class LibraireProController extends Controller
                     ->withErrors(['sale' => 'Une ligne de la précommande n’est plus liée au catalogue.']);
             }
         }
-        $quoteItems = Item::where('tenant_id', $tenant->id)
+        $quoteItems = ! $uses('sales', 'invoices') ? collect() : Item::where('tenant_id', $tenant->id)
             ->with('tax')
             ->where('status', 'active')
             ->orderBy('title')
@@ -7774,7 +7780,7 @@ class LibraireProController extends Controller
                     ->values();
             }
         }
-        $commercialEstimates = Estimate::query()
+        $commercialEstimates = ! $uses('invoices') ? $none('commercial_estimates_page') : Estimate::query()
             ->with(['customer', 'creator', 'convertedInvoice'])
             ->where('tenant_id', $tenant->id)
             ->when($request->query('archived') !== 'with', fn (Builder $builder) => $builder->whereNull('archived_at'))
@@ -7792,7 +7798,7 @@ class LibraireProController extends Controller
             ->latest('id')
             ->paginate(25, ['*'], 'commercial_estimates_page')
             ->withQueryString();
-        $quotations = $this->quotationsQuery($tenant, $request)->paginate(25, ['*'], 'quotes_page')->withQueryString();
+        $quotations = $uses('sales', 'invoices') ? $this->quotationsQuery($tenant, $request)->paginate(25, ['*'], 'quotes_page')->withQueryString() : $none('quotes_page');
         $salesPageTotals = $sales->getCollection()
             ->reduce(function (array $carry, Sale $sale): array {
                 $paid = $this->salePaidAmount($sale);
@@ -7802,9 +7808,9 @@ class LibraireProController extends Controller
 
                 return $carry;
             }, ['total' => 0.0, 'paid' => 0.0, 'due' => 0.0]);
-        $salesTotals = $this->salesListTotals($tenant, $request);
-        $purchaseList = $this->purchasesQuery($tenant, $request)->paginate(25, ['*'], 'purchases_page')->withQueryString();
-        $onlineOrders = $this->onlineOrdersQuery($tenant, $request)->paginate(25, ['*'], 'online_orders_page')->withQueryString();
+        $salesTotals = $uses('sales') ? $this->salesListTotals($tenant, $request) : [];
+        $purchaseList = $uses('purchases') ? $this->purchasesQuery($tenant, $request)->paginate(25, ['*'], 'purchases_page')->withQueryString() : $none('purchases_page');
+        $onlineOrders = $uses('online-orders') ? $this->onlineOrdersQuery($tenant, $request)->paginate(25, ['*'], 'online_orders_page')->withQueryString() : $none('online_orders_page');
         $selectedOnlineOrder = null;
         if ($module === 'online-orders' && $request->filled('order')) {
             $selectedOnlineOrder = OnlineOrder::query()
@@ -7813,28 +7819,29 @@ class LibraireProController extends Controller
                 ->whereKey((int) $request->query('order'))
                 ->first();
         }
-        $purchaseReturns = $this->purchaseReturnsQuery($tenant, $request)->paginate(25, ['*'], 'purchase_returns_page')->withQueryString();
-        $expenses = $this->expensesQuery($tenant, $request)->paginate(25, ['*'], 'expenses_page')->withQueryString();
-        $expenseCategories = $this->expenseCategoriesQuery($tenant, $request)->get();
-        $customerAdvances = $this->customerAdvancesQuery($tenant, $request)->paginate(25, ['*'], 'advances_page')->withQueryString();
-        $coupons = $this->couponsQuery($tenant, $request)->paginate(25, ['*'], 'coupons_page')->withQueryString();
-        $discountRules = $this->discountRulesQuery($tenant, $request)->paginate(25, ['*'], 'discounts_page')->withQueryString();
-        $discountItems = Item::where('tenant_id', $tenant->id)
+        $purchaseReturns = $uses('purchases') ? $this->purchaseReturnsQuery($tenant, $request)->paginate(25, ['*'], 'purchase_returns_page')->withQueryString() : $none('purchase_returns_page');
+        $finance = $uses('finance');
+        $expenses = $finance ? $this->expensesQuery($tenant, $request)->paginate(25, ['*'], 'expenses_page')->withQueryString() : $none('expenses_page');
+        $expenseCategories = $uses('finance', 'reports') ? $this->expenseCategoriesQuery($tenant, $request)->get() : collect();
+        $customerAdvances = $finance ? $this->customerAdvancesQuery($tenant, $request)->paginate(25, ['*'], 'advances_page')->withQueryString() : $none('advances_page');
+        $coupons = $finance ? $this->couponsQuery($tenant, $request)->paginate(25, ['*'], 'coupons_page')->withQueryString() : $none('coupons_page');
+        $discountRules = $finance ? $this->discountRulesQuery($tenant, $request)->paginate(25, ['*'], 'discounts_page')->withQueryString() : $none('discounts_page');
+        $discountItems = ! $finance ? collect() : Item::where('tenant_id', $tenant->id)
             ->where('status', 'active')
             ->where('is_enabled', true)
             ->orderBy('title')
             ->take(1200)
             ->get(['id', 'title', 'item_code', 'barcode', 'isbn', 'sale_price', 'type']);
-        $financialAccounts = FinancialAccount::where('tenant_id', $tenant->id)->orderByDesc('is_active')->orderBy('name')->get();
-        $accountTransactions = $this->accountTransactionsQuery($tenant, $request)->paginate(25, ['*'], 'account_transactions_page')->withQueryString();
-        $cashRegisterContext = $this->cashRegisterContext($tenant, $request);
-        $reportContext = $this->reportContext($tenant, $request);
+        $financialAccounts = $finance ? FinancialAccount::where('tenant_id', $tenant->id)->orderByDesc('is_active')->orderBy('name')->get() : collect();
+        $accountTransactions = $finance ? $this->accountTransactionsQuery($tenant, $request)->paginate(25, ['*'], 'account_transactions_page')->withQueryString() : $none('account_transactions_page');
+        $cashRegisterContext = $uses('cash-register') ? $this->cashRegisterContext($tenant, $request) : [];
+        $reportContext = $uses('reports') ? $this->reportContext($tenant, $request) : [];
         $editContact = null;
         if ($module === 'contacts' && $request->filled('edit')) {
             $editContact = Contact::where('tenant_id', $tenant->id)->whereKey((int) $request->query('edit'))->first();
         }
         $purchasePrefillItemId = (int) $request->query('item');
-        $purchaseItems = Item::where('tenant_id', $tenant->id)->where('status', 'active')->orderBy('title')->take(300)->get();
+        $purchaseItems = $uses('purchases') ? Item::where('tenant_id', $tenant->id)->where('status', 'active')->orderBy('title')->take(300)->get() : collect();
         if ($module === 'purchases' && $purchasePrefillItemId > 0 && ! $purchaseItems->contains('id', $purchasePrefillItemId)) {
             $prefillPurchaseItem = Item::where('tenant_id', $tenant->id)
                 ->where('status', 'active')
@@ -7852,7 +7859,7 @@ class LibraireProController extends Controller
             'module' => $module,
             'section' => $section,
             'meta' => $modules[$module],
-            'sales' => $module === 'sales' ? $sales : $tenant->sales()->with('contact')->latest('sold_at')->take(8)->get(),
+            'sales' => $sales,
             'saleInvoices' => $saleInvoices,
             'commercialInvoices' => $commercialInvoices,
             'selectedCommercialInvoice' => $selectedCommercialInvoice,
@@ -7865,26 +7872,25 @@ class LibraireProController extends Controller
             'salesSort' => $request->query('sort', 'sold_at'),
             'salesDirection' => strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc',
             'nextSaleNumber' => $module === 'sales' ? $this->peekSaleNumber($tenant) : null,
-            'salesClients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
+            'salesClients' => ! $uses('sales', 'invoices', 'online-orders') ? collect() : Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
             'quotations' => $quotations,
             'quoteItems' => $quoteItems,
-            'paymentSales' => $tenant->sales()->with('contact')->latest('sold_at')->take(80)->get(),
-            'salePayments' => $this->salePaymentsQuery($tenant, $request)->paginate(25, ['*'], 'payments_page')->withQueryString(),
-            'saleReturns' => $this->saleReturnsQuery($tenant, $request)->paginate(25, ['*'], 'returns_page')->withQueryString(),
-            'deliveryOrders' => $this->deliveryOrdersQuery($tenant, $request)->paginate(25, ['*'], 'deliveries_page')->withQueryString(),
-            'deliverySales' => $tenant->sales()->with('contact')->whereDoesntHave('deliveryOrders')->latest('sold_at')->take(80)->get(),
+            'paymentSales' => ! $uses('sales') ? collect() : $tenant->sales()->with('contact')->latest('sold_at')->take(80)->get(),
+            'salePayments' => ! $uses('sales') ? $none('payments_page') : $this->salePaymentsQuery($tenant, $request)->paginate(25, ['*'], 'payments_page')->withQueryString(),
+            'saleReturns' => ! $uses('sales') ? $none('returns_page') : $this->saleReturnsQuery($tenant, $request)->paginate(25, ['*'], 'returns_page')->withQueryString(),
+            'deliveryOrders' => ! $uses('sales') ? $none('deliveries_page') : $this->deliveryOrdersQuery($tenant, $request)->paginate(25, ['*'], 'deliveries_page')->withQueryString(),
+            'deliverySales' => ! $uses('sales') ? collect() : $tenant->sales()->with('contact')->whereDoesntHave('deliveryOrders')->latest('sold_at')->take(80)->get(),
             'onlineOrders' => $onlineOrders,
             'selectedOnlineOrder' => $selectedOnlineOrder,
-            'onlineOrderItems' => Item::where('tenant_id', $tenant->id)->where('is_enabled', true)->orderBy('title')->take(600)->get(),
+            'onlineOrderItems' => ! $uses('online-orders') ? collect() : Item::where('tenant_id', $tenant->id)->where('is_enabled', true)->orderBy('title')->take(600)->get(),
             'nextOnlineOrderNumber' => $module === 'online-orders' ? $this->nextOnlineOrderNumber($tenant) : null,
-            'purchases' => $module === 'purchases' ? $purchaseList : Purchase::where('tenant_id', $tenant->id)->with('supplier')->latest()->take(8)->get(),
+            'purchases' => $purchaseList,
             'purchaseReturns' => $purchaseReturns,
-            'purchaseSuppliers' => Contact::where('tenant_id', $tenant->id)->where('kind', 'supplier')->orderBy('name')->get(),
+            'purchaseSuppliers' => ! $uses('purchases') ? collect() : Contact::where('tenant_id', $tenant->id)->where('kind', 'supplier')->orderBy('name')->get(),
             'purchaseItems' => $purchaseItems,
-            'purchaseReturnSources' => Purchase::where('tenant_id', $tenant->id)->with(['supplier', 'items.item'])->whereIn('status', ['received', 'partially_received'])->latest('received_at')->take(80)->get(),
-            'loans' => Loan::where('tenant_id', $tenant->id)->with(['member', 'item'])->latest()->take(8)->get(),
-            'contacts' => Contact::where('tenant_id', $tenant->id)->orderBy('kind')->orderBy('name')->take(12)->get(),
-            'contactStats' => [
+            'purchaseReturnSources' => ! $uses('purchases') ? collect() : Purchase::where('tenant_id', $tenant->id)->with(['supplier', 'items.item'])->whereIn('status', ['received', 'partially_received'])->latest('received_at')->take(80)->get(),
+            'loans' => ! $uses('loans') ? collect() : Loan::where('tenant_id', $tenant->id)->with(['member', 'item'])->latest()->take(8)->get(),
+            'contactStats' => ! $uses('contacts') ? [] : [
                 'clients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->count(),
                 'suppliers' => Contact::where('tenant_id', $tenant->id)->where('kind', 'supplier')->count(),
                 'receivable' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->sum('outstanding_balance')
@@ -7895,26 +7901,26 @@ class LibraireProController extends Controller
                 'supplier_returns' => PurchaseReturn::where('tenant_id', $tenant->id)->where('status', 'completed')->sum('total_amount') + Contact::where('tenant_id', $tenant->id)->where('kind', 'supplier')->sum('advance_balance'),
             ],
             'editContact' => $editContact,
-            'expenses' => $module === 'finance' ? $expenses : Expense::where('tenant_id', $tenant->id)->latest('spent_at')->take(8)->get(),
+            'expenses' => $expenses,
             'expenseCategories' => $expenseCategories,
-            'expenseTotals' => [
+            'expenseTotals' => ! $finance ? [] : [
                 'month' => Expense::where('tenant_id', $tenant->id)->whereDate('spent_at', '>=', now()->startOfMonth())->sum('amount'),
                 'page' => $expenses->sum('amount'),
                 'categories' => $expenseCategories->count(),
                 'total' => Expense::where('tenant_id', $tenant->id)->sum('amount'),
             ],
-            'financeClients' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
+            'financeClients' => ! $uses('finance') ? collect() : Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->get(),
             'customerAdvances' => $customerAdvances,
             'coupons' => $coupons,
             'discountRules' => $discountRules,
             'discountItems' => $discountItems,
-            'discountStats' => [
+            'discountStats' => ! $finance ? [] : [
                 'active' => DiscountRule::where('tenant_id', $tenant->id)->active()->count(),
                 'cart' => DiscountRule::where('tenant_id', $tenant->id)->where('scope', 'cart')->count(),
                 'item' => DiscountRule::where('tenant_id', $tenant->id)->where('scope', 'item')->count(),
                 'payment_limited' => DiscountRule::where('tenant_id', $tenant->id)->whereNotNull('payment_methods')->count(),
             ],
-            'couponStats' => [
+            'couponStats' => ! $finance ? [] : [
                 'active' => Coupon::where('tenant_id', $tenant->id)->where('is_active', true)->where(function (Builder $builder): void {
                     $builder->whereNull('expires_at')->orWhereDate('expires_at', '>=', now()->toDateString());
                 })->count(),
@@ -7922,9 +7928,9 @@ class LibraireProController extends Controller
                 'customer' => Coupon::where('tenant_id', $tenant->id)->whereNotNull('contact_id')->count(),
                 'page' => $coupons->sum('used_amount'),
             ],
-            'couponAssignments' => $this->couponAssignments($tenant, $coupons->getCollection()),
-            'discountAssignments' => $this->discountAssignments($tenant, $discountRules->getCollection()),
-            'advanceStats' => [
+            'couponAssignments' => ! $finance ? [] : $this->couponAssignments($tenant, $coupons->getCollection()),
+            'discountAssignments' => ! $finance ? [] : $this->discountAssignments($tenant, $discountRules->getCollection()),
+            'advanceStats' => ! $finance ? [] : [
                 'balance' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->sum('advance_balance'),
                 'month' => CustomerAdvance::where('tenant_id', $tenant->id)->where('status', 'active')->whereDate('paid_at', '>=', now()->startOfMonth())->sum('amount'),
                 'active_count' => CustomerAdvance::where('tenant_id', $tenant->id)->where('status', 'active')->count(),
@@ -7933,7 +7939,7 @@ class LibraireProController extends Controller
             'financialAccounts' => $financialAccounts,
             'accountTransactions' => $accountTransactions,
             'cashRegister' => $cashRegisterContext,
-            'accountStats' => [
+            'accountStats' => ! $finance ? [] : [
                 'balance' => $financialAccounts->sum('current_balance'),
                 'active' => $financialAccounts->where('is_active', true)->count(),
                 'cash' => $financialAccounts->where('type', 'cash')->sum('current_balance'),
@@ -7942,43 +7948,42 @@ class LibraireProController extends Controller
                 'cash_movements' => AccountTransaction::where('tenant_id', $tenant->id)->whereHas('account', fn (Builder $builder) => $builder->where('type', 'cash'))->count(),
             ],
             'reportContext' => $reportContext,
-            'settingsUsers' => $tenant->users()->orderBy('name')->get(),
-            'settingsRoles' => Role::where('tenant_id', $tenant->id)->orderBy('name')->get(),
-            'permissionCatalog' => $this->permissionCatalog(),
-            'permissionGroups' => \App\Support\Permissions::groups(),
-            'settingsTaxes' => Tax::where('tenant_id', $tenant->id)->orderBy('name')->get(),
-            'settingsUnits' => Unit::where('tenant_id', $tenant->id)->orderBy('name')->get(),
-            'settingsVirtualDevices' => VirtualDevice::where('tenant_id', $tenant->id)
+            'settingsUsers' => ! $uses('settings') ? collect() : $tenant->users()->orderBy('name')->get(),
+            'settingsRoles' => ! $uses('settings') ? collect() : Role::where('tenant_id', $tenant->id)->orderBy('name')->get(),
+            'permissionGroups' => ! $uses('settings') ? [] : \App\Support\Permissions::groups(),
+            'settingsTaxes' => ! $uses('settings') ? collect() : Tax::where('tenant_id', $tenant->id)->orderBy('name')->get(),
+            'settingsUnits' => ! $uses('settings') ? collect() : Unit::where('tenant_id', $tenant->id)->orderBy('name')->get(),
+            'settingsVirtualDevices' => ! $uses('settings') ? collect() : VirtualDevice::where('tenant_id', $tenant->id)
                 ->with(['activeSession.user'])
                 ->orderBy('name')
                 ->get(),
-            'settingsPrinters' => Printer::where('tenant_id', $tenant->id)
+            'settingsPrinters' => ! $uses('settings') ? collect() : Printer::where('tenant_id', $tenant->id)
                 ->orderBy('virtual_device_id')
                 ->orderBy('name')
                 ->get(),
-            'settingsPrinterGroups' => PrinterGroup::where('tenant_id', $tenant->id)
+            'settingsPrinterGroups' => ! $uses('settings') ? collect() : PrinterGroup::where('tenant_id', $tenant->id)
                 ->with(['virtualDevice', 'printerGroupPrinters.printer', 'printerGroupCategories.category'])
                 ->orderBy('virtual_device_id')
                 ->orderBy('name')
                 ->get(),
-            'settingsPrinterCategories' => Category::where('tenant_id', $tenant->id)
+            'settingsPrinterCategories' => ! $uses('settings') ? collect() : Category::where('tenant_id', $tenant->id)
                 ->orderBy('name')
                 ->get(),
-            'settingsTaxGroups' => $this->settingsRecords($tenant, 'tax_groups'),
-            'paymentTypes' => $this->settingsRecords($tenant, 'payment_types'),
-            'countries' => $this->settingsRecords($tenant, 'countries'),
-            'states' => $this->settingsRecords($tenant, 'states'),
-            'messagingConfig' => $this->messagingConfig($tenant),
-            'messageTemplates' => $this->messageTemplates($tenant),
-            'messagingContacts' => Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->take(300)->get(),
-            'messagingOutbox' => collect(data_get($tenant->settings, 'messaging_outbox', []))->take(80)->values(),
-            'documentSettings' => $this->documentSettings($tenant),
-            'stores' => $this->storeCatalog($tenant),
-            'currentStore' => $this->currentStore($tenant),
-            'storeAccessOptions' => $this->storeAccessOptions($tenant),
-            'currentUserIsOwner' => $this->currentUserIsOwner($tenant),
-            'demoMaintenanceStats' => $this->demoMaintenanceStats($tenant),
-            'auditLogs' => AuditLog::where('tenant_id', $tenant->id)->with('user')->latest()->take(12)->get(),
+            'settingsTaxGroups' => ! $uses('settings') ? [] : $this->settingsRecords($tenant, 'tax_groups'),
+            'paymentTypes' => ! $uses('settings') ? [] : $this->settingsRecords($tenant, 'payment_types'),
+            'countries' => ! $uses('settings') ? [] : $this->settingsRecords($tenant, 'countries'),
+            'states' => ! $uses('settings') ? [] : $this->settingsRecords($tenant, 'states'),
+            'messagingConfig' => ! $uses('settings') ? [] : $this->messagingConfig($tenant),
+            'messageTemplates' => ! $uses('settings') ? [] : $this->messageTemplates($tenant),
+            'messagingContacts' => ! $uses('settings') ? collect() : Contact::where('tenant_id', $tenant->id)->where('kind', 'client')->orderBy('name')->take(300)->get(),
+            'messagingOutbox' => ! $uses('settings') ? collect() : collect(data_get($tenant->settings, 'messaging_outbox', []))->take(80)->values(),
+            'documentSettings' => ! $uses('settings') ? [] : $this->documentSettings($tenant),
+            'stores' => ! $uses('finance', 'settings') ? [] : $this->storeCatalog($tenant),
+            'currentStore' => ! $uses('sales', 'cash-register', 'finance', 'settings') ? [] : $this->currentStore($tenant),
+            'storeAccessOptions' => ! $uses('settings') ? [] : $this->storeAccessOptions($tenant),
+            'currentUserIsOwner' => ! $uses('settings') ? false : $this->currentUserIsOwner($tenant),
+            'demoMaintenanceStats' => ! $uses('settings') ? [] : $this->demoMaintenanceStats($tenant),
+            'auditLogs' => ! $uses('settings') ? collect() : AuditLog::where('tenant_id', $tenant->id)->with('user')->latest()->take(12)->get(),
         ]);
     }
 
@@ -9105,7 +9110,7 @@ class LibraireProController extends Controller
         $direction = strtolower((string) $request->query('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
         $builder = Sale::query()
-            ->with(['contact', 'items', 'payments', 'deliveryOrders', 'returns', 'user', 'invoice.user', 'sourceInvoice.creator', 'sourceOnlineOrder', 'virtualDevice:id,name'])
+            ->with(['contact', 'items.item:id,item_code,barcode,type', 'payments', 'deliveryOrders', 'returns', 'user', 'invoice.user', 'sourceInvoice.creator', 'sourceOnlineOrder', 'virtualDevice:id,name'])
             ->where('tenant_id', $tenant->id)
             ->when($detailSale > 0, fn (Builder $builder) => $builder->whereKey($detailSale))
             ->when($detailInvoice > 0, fn (Builder $builder) => $builder->where(function (Builder $builder) use ($detailInvoice): void {
@@ -10195,15 +10200,7 @@ class LibraireProController extends Controller
 
     private function currentUserIsOwner(Tenant $tenant): bool
     {
-        $user = auth()->user();
-
-        if (! $user) {
-            return false;
-        }
-
-        $tenantUser = $tenant->users()->whereKey($user->id)->first();
-
-        return (string) ($tenantUser?->pivot?->role ?? '') === 'owner';
+        return (string) (\App\Support\Permissions::membership($tenant, auth()->user())?->pivot?->role ?? '') === 'owner';
     }
 
     private function ensurePinUnique(Tenant $tenant, string $pin, mixed $excludeUser = null): void
@@ -10516,7 +10513,12 @@ class LibraireProController extends Controller
      */
     private function storeCatalog(Tenant $tenant): array
     {
-        return Location::where('tenant_id', $tenant->id)
+        // Read once per request: the settings page asked three times.
+        $key = "castlit.store-catalog.{$tenant->id}";
+        if (request()->attributes->has($key)) {
+            return request()->attributes->get($key);
+        }
+        $catalog = Location::where('tenant_id', $tenant->id)
             ->orderBy('name')
             ->get()
             ->map(fn (Location $location): array => [
@@ -10529,6 +10531,9 @@ class LibraireProController extends Controller
                 'is_active' => (bool) $location->is_active,
             ])
             ->all();
+        request()->attributes->set($key, $catalog);
+
+        return $catalog;
     }
 
     private function currentStore(Tenant $tenant): array

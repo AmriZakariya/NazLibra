@@ -13,7 +13,7 @@ class StoreLocations
     public function available(Tenant $tenant, ?User $user): Builder
     {
         $query = Location::where('tenant_id', $tenant->id)->where('is_active', true);
-        $membership = $user ? $tenant->users()->whereKey($user->id)->first()?->pivot : null;
+        $membership = \App\Support\Permissions::membership($tenant, $user)?->pivot;
         if (! $membership) {
             return $query->whereRaw('1 = 0');
         }

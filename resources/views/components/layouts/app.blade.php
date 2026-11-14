@@ -29,7 +29,7 @@
     $appVersion = config('app.version', '1.0.0-beta.5');
     $releaseLabel = app()->environment('production') ? $tr('Production') : \Illuminate\Support\Str::headline(app()->environment());
     $authUser = auth()->user();
-    $isOwner = $authUser !== null && (string) ($tenant->users()->whereKey($authUser->id)->first()?->pivot?->role ?? '') === 'owner';
+    $isOwner = (string) (\App\Support\Permissions::membership($tenant, $authUser)?->pivot?->role ?? '') === 'owner';
     $layoutStores = app(\App\Services\StoreLocations::class)->catalog($tenant, $authUser);
     $layoutCurrentStore = $layoutStores->firstWhere('key', (string) data_get($tenant->settings, 'current_store'))
         ?? $layoutStores->firstWhere('is_default', true)
@@ -719,7 +719,7 @@
                                 $accountTimezoneOffset = \App\Support\TenantClock::offset($accountTenant);
                                 $accountCurrentTime = \App\Support\TenantClock::currentTimeLabel($accountTenant);
                                 $accountBusinessMode = \App\Support\BusinessMode::current($accountTenant);
-                                $accountTenantUser = $accountTenant?->users()->whereKey($accountUser?->id)->first();
+                                $accountTenantUser = $accountTenant ? \App\Support\Permissions::membership($accountTenant, $accountUser) : null;
                                 $accountRoleKey = (string) ($accountTenantUser?->pivot?->role ?? '');
                                 $accountRoleName = \App\Models\Role::where('tenant_id', $accountTenant?->id)->where('key', $accountRoleKey)->value('name') ?: ucfirst($accountRoleKey ?: 'Aucun rôle');
                             @endphp
