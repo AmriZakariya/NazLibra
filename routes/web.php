@@ -117,6 +117,7 @@ if (config('castlit.is_master')) {
             Route::get('/clients/op', \Illuminate\Routing\RedirectController::class)
                 ->defaults('destination', '/castlit-admin/clients')->defaults('status', 302);
             Route::get('/{subscription}', [SubscriptionAdminController::class, 'show'])->name('show');
+            Route::post('/{subscription}/lien', [SubscriptionAdminController::class, 'updateSubdomain'])->name('subdomain');
             Route::post('/{subscription}/approuver', [SubscriptionAdminController::class, 'approve'])->name('approve');
             Route::post('/{subscription}/rejeter', [SubscriptionAdminController::class, 'reject'])->name('reject');
             Route::post('/{subscription}/relancer', [SubscriptionAdminController::class, 'retry'])->name('retry');

@@ -67,6 +67,7 @@ class ProvisionTenantJob implements ShouldQueue
             // Where the shop is: its clock, its phone numbers, its address.
             'country'       => $subscription->country,
             'city'          => $subscription->city,
+            'address'       => $subscription->address,
             'timezone'      => data_get($subscription->meta, 'timezone'),
             'contact_name'  => $subscription->contact_name,
             'email'         => $subscription->email,

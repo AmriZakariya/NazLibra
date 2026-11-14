@@ -422,6 +422,38 @@ class SubscriptionAdminController extends Controller
     }
 
     /** A subdomain is free when no live/pending request or install already holds it. */
+    /**
+     * Correct a pending request's link before approving it: shops typed their
+     * city (casablanca.castlitpos.com) when the field read « Adresse ».
+     */
+    public function updateSubdomain(Request $request, Subscription $subscription): RedirectResponse
+    {
+        abort_unless($subscription->isPending(), 422, 'Seule une demande en attente peut changer de lien.');
+
+        $request->merge([
+            'desired_subdomain' => preg_replace('/[^a-z0-9]/', '', strtolower(trim((string) $request->input('desired_subdomain')))) ?? '',
+        ]);
+        $data = $request->validate([
+            'desired_subdomain' => [
+                'required', 'string', 'regex:/^[a-z0-9]{2,30}$/',
+                Rule::notIn(array_merge(config('castlit.system_subdomains', []), config('castlit.reserved_subdomains', []))),
+            ],
+        ], [
+            'desired_subdomain.regex' => 'Le lien doit contenir 2 à 30 caractères (lettres minuscules et chiffres).',
+            'desired_subdomain.not_in' => 'Ce lien est réservé.',
+        ]);
+
+        $new = $data['desired_subdomain'];
+        if ($new !== $subscription->desired_subdomain && ! $this->subdomainAvailable($new)) {
+            return back()->withErrors(['desired_subdomain' => 'Ce lien est déjà pris.'])->withInput();
+        }
+
+        $old = $subscription->desired_subdomain;
+        $subscription->update(['desired_subdomain' => $new]);
+
+        return back()->with('success', "Lien changé : {$old} → {$new}.".config('castlit.main_domain'));
+    }
+
     private function subdomainAvailable(string $subdomain): bool
     {
         $inSubs = Subscription::whereIn('status', [Subscription::STATUS_PENDING, Subscription::STATUS_APPROVED])

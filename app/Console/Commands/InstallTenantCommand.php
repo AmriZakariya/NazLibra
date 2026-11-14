@@ -62,6 +62,7 @@ class InstallTenantCommand extends Command
                     'currency'      => $data['currency'] ?? 'MAD',
                     'country'       => $data['country'] ?? null,
                     'city'          => $data['city'] ?? null,
+                    'address'       => $data['address'] ?? null,
                     'timezone'      => $data['timezone'] ?? null,
                     'phone'         => $data['phone'] ?? null,
                     'email'         => $data['email'],

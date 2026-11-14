@@ -24,7 +24,7 @@ class Subscription extends Model
 
     protected $fillable = [
         'business_name', 'activity', 'currency', 'contact_name', 'email',
-        'phone', 'desired_subdomain', 'heard_about', 'source', 'country', 'city', 'status',
+        'phone', 'desired_subdomain', 'heard_about', 'source', 'country', 'city', 'address', 'status',
         'campaign_source', 'campaign_medium', 'campaign_name',
         'rejection_reason', 'reviewed_by', 'reviewed_at', 'meta',
     ];

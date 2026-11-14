@@ -118,6 +118,7 @@
                         <div class="kv"><span class="k">Email</span><span class="v">{{ $subscription->email }}</span></div>
                         <div class="kv"><span class="k">Téléphone</span><span class="v">{{ $subscription->phone ?: '—' }}</span></div>
                         <div class="kv"><span class="k">Ville</span><span class="v">{{ $subscription->city ?: '—' }}</span></div>
+                        <div class="kv"><span class="k">Adresse</span><span class="v">{{ $subscription->address ?: '—' }}</span></div>
                         <div class="kv"><span class="k">Pays</span><span class="v">@if ($subscription->country){{ \App\Support\Countries::flag($subscription->country) }} {{ $subscription->countryName() }}@else — @endif</span></div>
                         <div class="kv"><span class="k">Provenance</span><span class="v">@include('castlit.admin.partials.origin', ['sub' => $subscription])</span></div>
                         @php $camp = $subscription->meta['campaign'] ?? []; @endphp
@@ -433,6 +434,21 @@
                 <div class="body">
                     <div class="actions">
                         @if ($subscription->isPending())
+                            {{-- The link can still be corrected before the space is created. --}}
+                            <form method="POST" action="{{ route('castlit.admin.subdomain', $subscription) }}" class="link-edit" data-link-edit>
+                                @csrf
+                                <label for="desired_subdomain" style="font-size:12.5px; font-weight:650; display:block; margin-bottom:6px">Lien de l'espace</label>
+                                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+                                    <span style="display:flex; align-items:center; border:1.5px solid var(--sand); border-radius:10px; overflow:hidden; background:var(--paper)" dir="ltr">
+                                        <input id="desired_subdomain" name="desired_subdomain" value="{{ old('desired_subdomain', $subscription->desired_subdomain) }}" maxlength="30" pattern="[a-z0-9]{2,30}" required autocomplete="off" spellcheck="false"
+                                               style="border:0; background:transparent; padding:9px 10px; font:inherit; width:150px; color:var(--ink)">
+                                        <span style="padding:0 10px; color:var(--muted); font-size:13px">.{{ config('castlit.main_domain') }}</span>
+                                    </span>
+                                    <button type="submit" class="btn btn-ghost" style="padding:9px 14px">Enregistrer</button>
+                                </div>
+                                @error('desired_subdomain')<p style="color:var(--err); font-size:12.5px; margin-top:6px">{{ $message }}</p>@enderror
+                            </form>
+                            <div class="divider"></div>
                             <form method="POST" action="{{ route('castlit.admin.approve', $subscription) }}"
                                   onsubmit="return confirm('Approuver et provisionner {{ $subscription->desired_subdomain }}.{{ config('castlit.main_domain') }} ?')">
                                 @csrf

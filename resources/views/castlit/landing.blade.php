@@ -324,6 +324,29 @@
     [data-enhanced] .currency-fld.is-open .currency-line { display: none; }
     .su-steps-short { display: none; }
 
+    /* The space's link: a line under the business name, the field on « Changer ». */
+    .link-line { display: none; }
+    [data-enhanced] .link-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 11px 13px; border-radius: 11px;
+                     font-size: 13.5px; color: var(--muted); border: 1.5px dashed color-mix(in srgb, var(--brand) 32%, transparent);
+                     background: color-mix(in srgb, var(--brand) 6%, transparent); }
+    .link-line svg { width: 16px; height: 16px; color: var(--brand); flex-shrink: 0; }
+    .link-line strong { color: var(--ink); font-weight: 750; overflow-wrap: anywhere; }
+    .link-line .is-empty { color: var(--muted); font-weight: 600; }
+    .link-status { flex-basis: 100%; font-size: 12.5px; font-weight: 650; color: var(--muted); }
+    .link-status:empty { display: none; }
+    .link-status.ok { color: var(--ok); }
+    [data-enhanced] .link-fld:not(.is-open) .link-label,
+    [data-enhanced] .link-fld:not(.is-open) .subdomain-row,
+    [data-enhanced] .link-fld:not(.is-open) .link-hint,
+    [data-enhanced] .link-fld:not(.is-open) .field-hint { display: none; }
+    [data-enhanced] .link-fld.is-open .link-line { display: none; }
+    .subdomain-pre { display: flex; align-items: center; padding-inline-start: 13px; font-size: 13.5px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+    .link-fld .subdomain-row input { text-align: left; padding-inline: 2px 6px; }
+    .link-hint { font-size: 12.5px; margin-top: 5px; color: var(--muted); }
+    .link-city { margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.45;
+                 background: var(--warn-bg, #FEF6E7); color: var(--warn, #9a6200); display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+    .link-city[hidden] { display: none; }
+
     /* QR code in the app band, for a visitor on a computer: phones get the
        install bar instead, and nobody scans a screen with the same phone. */
     .app-qr { display: flex; align-items: center; gap: 14px; margin-top: 22px; padding: 12px 18px 12px 12px; border-radius: 16px;
@@ -725,6 +748,35 @@
                         @error('business_name')<span class="field-error">{{ $message }}</span>@enderror
                     </div>
 
+
+                    {{-- The space's web link, not the shop's street address:
+                         « Adresse souhaitée » had shops typing their city
+                         (casablanca.castlitpos.com). It follows the business
+                         name as a line; « Changer » opens the field, as does
+                         any problem with it. --}}
+                    @php $linkDomain = $mainDomain ?? config('castlit.main_domain'); @endphp
+                    <div class="fld link-fld {{ $errors->has('desired_subdomain') ? 'is-open' : '' }}" data-link-fld>
+                        <p class="link-line">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+                            <span>{{ __('castlit.f_link_line') }} :</span>
+                            <strong dir="ltr" data-link-preview><span data-link-sub class="is-empty">{{ __('castlit.f_link_empty') }}</span>.{{ $linkDomain }}</strong>
+                            <button type="button" class="link-btn" data-link-change>{{ __('castlit.f_change') }}</button>
+                            <span class="link-status" data-link-status aria-live="polite"></span>
+                        </p>
+                        <label for="desired_subdomain" class="link-label">{{ __('castlit.f_address') }} <span class="req">*</span></label>
+                        <div class="subdomain-row" dir="ltr">
+                            <span class="subdomain-pre">https://</span>
+                            <input id="desired_subdomain" name="desired_subdomain" required pattern="[a-z0-9]{2,30}" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" dir="ltr" value="{{ old('desired_subdomain') }}" placeholder="{{ __('castlit.f_link_empty') }}" aria-describedby="link-hint" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9]/g,'')">
+                            <span class="subdomain-suf">.{{ $linkDomain }}</span>
+                        </div>
+                        <span class="link-hint" id="link-hint">{{ __('castlit.f_link_hint') }}</span>
+                        <p class="link-city" data-link-city hidden>
+                            <span data-link-city-text></span>
+                            <button type="button" class="link-btn" data-link-use>{{ __('castlit.f_link_use') }}</button>
+                        </p>
+                        @error('desired_subdomain')<span class="field-error">{{ $message }}</span>@enderror
+                    </div>
+
                     <div class="fld">
                             <label for="activity">{{ __('castlit.f_activity') }}</label>
                             <select id="activity" name="activity">
@@ -737,6 +789,13 @@
                     </div>
 
                     @include('castlit.partials.place-fields', ['cityHints' => true])
+
+                    {{-- The street address has its own field, so nobody puts it in the link. --}}
+                    <div class="fld">
+                        <label for="address">{{ __('castlit.f_shop_address') }}</label>
+                        <input id="address" name="address" maxlength="190" autocomplete="street-address" value="{{ old('address') }}" placeholder="{{ __('castlit.f_shop_address_ph') }}">
+                        @error('address')<span class="field-error">{{ $message }}</span>@enderror
+                    </div>
 
                     {{-- The currency follows the country, so it is a line, not a
                          question; « Changer » opens the list for the few who
@@ -755,15 +814,6 @@
                             @endforeach
                         </select>
                         @error('currency')<span class="field-error">{{ $message }}</span>@enderror
-                    </div>
-
-                    <div class="fld">
-                        <label for="desired_subdomain">{{ __('castlit.f_address') }} <span class="req">*</span></label>
-                        <div class="subdomain-row" dir="ltr">
-                            <input id="desired_subdomain" name="desired_subdomain" required pattern="[a-z0-9]{2,30}" maxlength="30" autocomplete="off" autocapitalize="none" spellcheck="false" dir="ltr" value="{{ old('desired_subdomain') }}" placeholder="almanara" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9]/g,'')">
-                            <span class="subdomain-suf">.{{ $mainDomain ?? config('castlit.main_domain') }}</span>
-                        </div>
-                        @error('desired_subdomain')<span class="field-error">{{ $message }}</span>@enderror
                     </div>
 
                     <div class="grid2">
@@ -1136,29 +1186,111 @@
                 change.addEventListener('click', function () { currencyFld.classList.add('is-open'); currency.focus(); });
             }
 
-            // The address follows the business name until the visitor types
-            // one: « Boutique Amina » suggests boutiqueamina.castlitpos.com,
-            // and the availability check runs on it.
+            // The link follows the business name until the visitor types one:
+            // « Boutique Amina » gives boutiqueamina.castlitpos.com, checked
+            // for availability. Shown as a line; « Changer » opens the field,
+            // and so does any problem with it.
             var business = form.querySelector('#business_name');
             var address = form.querySelector('#desired_subdomain');
+            var cityInput = form.querySelector('#city');
+            var linkFld = form.querySelector('[data-link-fld]');
+            var linkSub = form.querySelector('[data-link-sub]');
+            var linkStatus = form.querySelector('[data-link-status]');
+            var emptyLink = linkSub ? linkSub.textContent : '';
             var addressOwn = !!(address && address.value);
+            var slugOf = function (text) {
+                return String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30);
+            };
+            var openLink = function () { if (linkFld) linkFld.classList.add('is-open'); };
+            var showLink = function () {
+                if (!linkSub || !address) return;
+                linkSub.textContent = address.value || emptyLink;
+                linkSub.classList.toggle('is-empty', !address.value);
+            };
             if (address) {
-                address.addEventListener('input', function (event) { if (event.isTrusted) addressOwn = address.value !== ''; });
+                address.addEventListener('input', function (event) {
+                    if (event.isTrusted) addressOwn = address.value !== '';
+                    showLink();
+                    checkCity();
+                });
+                // Refused (format, taken, reserved): the field opens on it.
+                new MutationObserver(function () {
+                    if (address.getAttribute('aria-invalid') === 'true') openLink();
+                }).observe(address, { attributes: true, attributeFilter: ['aria-invalid'] });
+                showLink();
             }
+            // The availability answer, mirrored on the line while it is closed.
+            // The status lives inside the watched block: its own writes are
+            // ignored, and it writes only on a change, or it would loop.
+            if (linkFld && linkStatus) {
+                new MutationObserver(function (records) {
+                    if (records.every(function (r) { return linkStatus.contains(r.target); })) return;
+                    var hint = linkFld.querySelector('.field-hint');
+                    var text = hint ? hint.textContent : '';
+                    var cls = 'link-status' + (hint && hint.classList.contains('ok') ? ' ok' : '');
+                    if (linkStatus.textContent !== text) linkStatus.textContent = text;
+                    if (linkStatus.className !== cls) linkStatus.className = cls;
+                }).observe(linkFld, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class'] });
+            }
+            var changeLink = form.querySelector('[data-link-change]');
+            if (changeLink) changeLink.addEventListener('click', function () { openLink(); address.focus(); });
+
             if (business && address) {
                 var suggest;
                 business.addEventListener('input', function () {
-                    if (addressOwn) return;
                     clearTimeout(suggest);
                     suggest = setTimeout(function () {
-                        var slug = business.value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                            .toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30);
+                        checkCity();
+                        if (addressOwn) return;
+                        var slug = slugOf(business.value);
                         if (slug.length < 2 || slug === address.value) return;
                         address.value = slug;
                         address.dispatchEvent(new Event('input', { bubbles: true }));
                     }, 350);
                 });
             }
+
+            // A city typed as the link (casablanca.castlitpos.com): said, with
+            // the business name's link offered instead. A warning, not a block.
+            var cityWarn = form.querySelector('[data-link-city]');
+            var cityText = form.querySelector('[data-link-city-text]');
+            var cityMessage = @json(__('castlit.f_link_city'));
+            var hintsBlock = form.querySelector('[data-city-hints]');
+            var knownCities = ['casablanca', 'rabat', 'marrakech', 'marrakesh', 'fes', 'fez', 'tanger', 'tangier', 'agadir', 'meknes', 'oujda',
+                'kenitra', 'tetouan', 'safi', 'eljadida', 'nador', 'beniMellal', 'mohammedia', 'laayoune', 'dakhla', 'essaouira',
+                'paris', 'lyon', 'marseille', 'toulouse', 'lille', 'bruxelles', 'brussels', 'alger', 'algiers', 'oran', 'constantine',
+                'tunis', 'sfax', 'sousse', 'dakar', 'abidjan', 'montreal', 'dubai', 'riyadh', 'doha', 'cairo', 'lagos', 'accra']
+                .map(function (c) { return c.toLowerCase(); });
+            try {
+                var hinted = hintsBlock ? JSON.parse(hintsBlock.dataset.cityHints || '{}') : {};
+                Object.keys(hinted).forEach(function (code) { var s = slugOf(hinted[code]); if (s.length > 2) knownCities.push(s); });
+            } catch (e) {}
+            function checkCity() {
+                if (!cityWarn || !address) return;
+                var value = address.value;
+                var typedCity = cityInput ? slugOf(cityInput.value) : '';
+                var isCity = value.length > 2 && (knownCities.indexOf(value) !== -1 || (typedCity.length > 2 && value === typedCity));
+                var suggestion = business ? slugOf(business.value) : '';
+                if (!isCity || suggestion.length < 2 || suggestion === value) {
+                    cityWarn.hidden = true;
+                    return;
+                }
+                cityText.textContent = cityMessage.replace(':slug', suggestion);
+                cityWarn.dataset.suggestion = suggestion;
+                cityWarn.hidden = false;
+                openLink();
+            }
+            var useSuggestion = form.querySelector('[data-link-use]');
+            if (useSuggestion) {
+                useSuggestion.addEventListener('click', function () {
+                    address.value = cityWarn.dataset.suggestion || '';
+                    addressOwn = false;
+                    address.dispatchEvent(new Event('input', { bubbles: true }));
+                    cityWarn.hidden = true;
+                    address.focus();
+                });
+            }
+            if (cityInput) cityInput.addEventListener('input', checkCity);
         }
 
         var bar = document.querySelector('[data-dl-bar]');

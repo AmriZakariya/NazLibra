@@ -44,6 +44,7 @@ class SubscriptionController extends Controller
                 'heard_about'       => ['nullable', 'string', 'max:120'],
                 'country'           => ['required', 'string', Rule::in(\App\Support\Countries::codes())],
                 'city'              => ['nullable', 'string', 'max:120'],
+                'address'           => ['nullable', 'string', 'max:190'],
                 // Honeypot — must stay empty (bots fill it).
                 'website'           => ['nullable', 'size:0'],
             ], [
@@ -77,6 +78,7 @@ class SubscriptionController extends Controller
             'source'            => Subscription::SOURCE_WEBSITE,
             'country'           => $validated['country'],
             'city'              => filled($validated['city'] ?? null) ? trim($validated['city']) : null,
+            'address'           => filled($validated['address'] ?? null) ? trim($validated['address']) : null,
             'status'            => Subscription::STATUS_PENDING,
             ...$campaign['columns'],
             'meta'              => [

@@ -23,7 +23,7 @@ final class MarketingVisits
 
     /** Form fields a refusal may name; anything else sent by the page is dropped. */
     public const FIELDS = [
-        'business_name', 'activity', 'currency', 'country', 'city', 'desired_subdomain',
+        'business_name', 'activity', 'currency', 'country', 'city', 'address', 'desired_subdomain',
         'contact_name', 'phone', 'email', 'heard_about', 'website',
     ];
 
