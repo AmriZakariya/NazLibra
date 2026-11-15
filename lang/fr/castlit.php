@@ -2,7 +2,7 @@
 
 return [
     'meta_title'       => 'Castl-it-POS — Logiciel de caisse, stock et facturation',
-    'meta_description' => 'Castl-it-POS : caisse tactile, gestion de stock, facturation, fidélité et écran cuisine pour boutiques, cafés, restaurants, librairies et pharmacies. Fonctionne sans internet, sur Android, Windows et navigateur. :months mois d’essai gratuit.',
+    'meta_description' => 'Castl-it-POS : caisse tactile, gestion de stock, facturation, fidélité et écran cuisine pour boutiques, cafés, restaurants, librairies et pharmacies. Fonctionne sans internet, sur Android, iPhone, iPad, Windows et navigateur. :months mois d’essai gratuit.',
 
     'nav_features'   => 'Fonctionnalités',
     'nav_restaurant' => 'Restauration',
@@ -161,9 +161,9 @@ return [
 
     'hw_eyebrow' => 'Appareils & matériel',
     'hw_title'   => 'Utilisez le matériel que vous avez déjà',
-    'hw_sub'     => 'Un téléphone Android suffit pour commencer. Ajoutez une imprimante ou une douchette quand vous le souhaitez.',
+    'hw_sub'     => 'Un téléphone Android ou un iPhone suffit pour commencer. Ajoutez une imprimante ou une douchette quand vous le souhaitez.',
     'hardware' => [
-        ['t' => 'Android',            'd' => 'Tablettes et téléphones, plein écran.'],
+        ['t' => 'Android & iPhone',   'd' => 'Téléphones, tablettes et iPad, plein écran.'],
         ['t' => 'Windows & navigateur', 'd' => 'Sur PC, Mac ou tout navigateur récent.'],
         ['t' => 'Terminaux PAX',      'd' => 'Imprimante ticket intégrée.'],
         ['t' => 'Imprimante ticket',  'd' => 'ESC/POS en réseau (Wi-Fi ou câble).'],
@@ -172,8 +172,9 @@ return [
     ],
 
     'app_eyebrow' => 'Application mobile',
-    'app_title'   => 'Votre caisse dans la poche, sur Android',
-    'app_sub'     => 'Installez Castl-it-POS sur tablette ou téléphone pour un plein écran sans navigateur — et retrouvez les mêmes données sur ordinateur.',
+    'app_title'   => 'Votre caisse dans la poche, sur Android et iPhone',
+    'app_sub'     => 'Installez Castl-it-POS sur votre téléphone ou tablette, Android, iPhone ou iPad, pour un plein écran sans navigateur — et retrouvez les mêmes données sur ordinateur.',
+    'app_ios_note' => 'Sur iPhone et iPad : créez d’abord votre espace sur ce site, puis connectez-vous dans l’application.',
     'app_web'     => 'Utiliser dans le navigateur',
     'app_qr'      => 'Scannez avec votre téléphone pour installer l’application.',
     'dl_bar_sub'  => 'Votre caisse dans la poche',
@@ -217,7 +218,7 @@ return [
     'offer_list' => [
         'Tous les modules inclus pendant l’essai',
         'Import de votre catalogue Excel et de vos photos',
-        'Application Android, PC et navigateur',
+        'Application Android et iPhone, PC et navigateur',
         'Vos données restent les vôtres, exportables à tout moment',
     ],
     'offer_quote'     => 'Plusieurs magasins ou un besoin particulier ?',
@@ -229,7 +230,7 @@ return [
     'faqs' => [
         ['q' => 'Castl-it-POS fonctionne-t-il sans connexion internet ?', 'a' => 'Oui. Chaque vente est enregistrée sur l’appareil et synchronisée dès le retour du réseau. Les caisses d’un même magasin peuvent aussi partager leurs tickets par le Wi-Fi local, sans internet.'],
         ['q' => 'Combien coûte Castl-it-POS ?', 'a' => 'Vous commencez par :months mois d’essai gratuit, sans carte bancaire. Pour la suite, nous vous proposons un tarif selon le nombre de magasins et de caisses : écrivez-nous.'],
-        ['q' => 'Sur quels appareils puis-je l’utiliser ?', 'a' => 'Sur tablette et téléphone Android, sur PC Windows et dans n’importe quel navigateur. Les terminaux PAX avec imprimante intégrée sont pris en charge. Vos données sont les mêmes sur tous vos postes.'],
+        ['q' => 'Sur quels appareils puis-je l’utiliser ?', 'a' => 'Sur téléphone et tablette Android, sur iPhone et iPad, sur PC Windows et dans n’importe quel navigateur. Les terminaux PAX avec imprimante intégrée sont pris en charge. Vos données sont les mêmes sur tous vos postes.'],
         ['q' => 'Puis-je importer mon catalogue existant ?', 'a' => 'Oui : importez articles et services depuis un fichier Excel, et vos photos en masse depuis un dossier ZIP, associées par nom de fichier ou code-barres.'],
         ['q' => 'Est-ce adapté aux cafés et restaurants ?', 'a' => 'Oui : tickets nommés par table avec minuteur, écran cuisine (KDS), options et suppléments, et plusieurs caisses qui partagent les commandes en salle.'],
         ['q' => 'Puis-je gérer plusieurs magasins ?', 'a' => 'Oui. Plusieurs magasins et dépôts, chacun avec son stock, des transferts entre eux et des rapports par magasin ou consolidés.'],
@@ -297,6 +298,7 @@ return [
     'footer_reach'   => 'Nous contacter',
     'footer_support' => 'Une question sur Castl-it-POS ? Écrivez-nous, nous répondons à chaque message.',
     'footer_android' => 'Télécharger sur Android',
+    'footer_ios'     => 'Télécharger sur iPhone',
     'footer_soon'    => 'Bientôt disponible',
     'footer_privacy' => 'Confidentialité',
     'footer_terms'   => 'Conditions',

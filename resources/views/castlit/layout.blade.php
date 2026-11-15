@@ -129,8 +129,9 @@
                 // Now the app is published these point search engines at the
                 // listing; without them a rich result has nowhere to send
                 // someone who wants to install it.
-                'installUrl' => $brand['play_store'] ?: null,
-                'downloadUrl' => $brand['play_store'] ?: null,
+                // Both stores: Google reads a list here as well as one link.
+                'installUrl' => array_values(array_filter([$brand['play_store'] ?? '', $brand['app_store'] ?? ''])) ?: null,
+                'downloadUrl' => array_values(array_filter([$brand['play_store'] ?? '', $brand['app_store'] ?? ''])) ?: null,
                 'inLanguage' => ['fr', 'ar', 'en'],
                 'url' => $siteUrl,
                 'publisher' => ['@id' => $siteUrl.'/#organization'],
@@ -340,6 +341,14 @@
                                 <path d="M3.6 1.8a1 1 0 0 0-.5.9v18.6a1 1 0 0 0 .5.9l10-10.2-10-10.2Zm11.1 9.1 2.7-2.8-9.7-5.5 7 8.3Zm0 2.2-7 8.3 9.7-5.5-2.7-2.8Zm4.2-1.1L21 10.7c.8-.4.8-1.5 0-2l-2.1-1.2-3 3 3 3Z"/>
                             </svg>
                             {{ __('castlit.footer_android') }}
+                        </a>
+                    @endif
+                    @if ($brand['app_store'] ?? '')
+                        <a href="{{ $brand['app_store'] }}" target="_blank" rel="noopener" class="footer-store">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M16.37 12.62c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.87-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.59 1.1 8.75.73 1.05 1.6 2.24 2.73 2.2 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.4 1.2-2.46-.03-.01-2.3-.88-2.3-3.52ZM14.19 6.15c.6-.73 1.01-1.75.9-2.76-.87.04-1.92.58-2.54 1.31-.56.65-1.05 1.69-.92 2.68.97.08 1.96-.49 2.56-1.23Z"/>
+                            </svg>
+                            {{ __('castlit.footer_ios') }}
                         </a>
                     @endif
 

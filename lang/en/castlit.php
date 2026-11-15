@@ -2,7 +2,7 @@
 
 return [
     'meta_title'       => 'Castl-it-POS — POS, inventory & invoicing software',
-    'meta_description' => 'Castl-it-POS: touchscreen point of sale, inventory, invoicing, loyalty and kitchen display for shops, cafés, restaurants, bookshops and pharmacies. Works offline, on Android, Windows and the browser. :months-month free trial.',
+    'meta_description' => 'Castl-it-POS: touchscreen point of sale, inventory, invoicing, loyalty and kitchen display for shops, cafés, restaurants, bookshops and pharmacies. Works offline, on Android, iPhone, iPad, Windows and the browser. :months-month free trial.',
 
     'nav_features'   => 'Features',
     'nav_restaurant' => 'Restaurants',
@@ -160,9 +160,9 @@ return [
 
     'hw_eyebrow' => 'Devices & hardware',
     'hw_title'   => 'Use the hardware you already have',
-    'hw_sub'     => 'An Android phone is enough to start. Add a printer or a scanner whenever you like.',
+    'hw_sub'     => 'An Android phone or an iPhone is enough to start. Add a printer or a scanner whenever you like.',
     'hardware' => [
-        ['t' => 'Android',             'd' => 'Tablets and phones, full screen.'],
+        ['t' => 'Android & iPhone',    'd' => 'Phones, tablets and iPad, full screen.'],
         ['t' => 'Windows & browser',   'd' => 'On PC, Mac or any recent browser.'],
         ['t' => 'PAX terminals',       'd' => 'Built-in receipt printer.'],
         ['t' => 'Receipt printer',     'd' => 'ESC/POS over the network (Wi-Fi or cable).'],
@@ -171,8 +171,9 @@ return [
     ],
 
     'app_eyebrow' => 'Mobile app',
-    'app_title'   => 'Your register in your pocket, on Android',
-    'app_sub'     => 'Install Castl-it-POS on a tablet or phone for a full-screen experience without a browser — and find the same data on your computer.',
+    'app_title'   => 'Your register in your pocket, on Android and iPhone',
+    'app_sub'     => 'Install Castl-it-POS on your phone or tablet, Android, iPhone or iPad, for a full-screen experience without a browser — and find the same data on your computer.',
+    'app_ios_note' => 'On iPhone and iPad: first create your space on this website, then sign in on the app.',
     'app_web'     => 'Use it in the browser',
     'app_qr'      => 'Scan with your phone to install the app.',
     'dl_bar_sub'  => 'Your till in your pocket',
@@ -216,7 +217,7 @@ return [
     'offer_list' => [
         'All modules included during the trial',
         'Import your Excel catalogue and your photos',
-        'Android app, PC and browser',
+        'Android and iPhone app, PC and browser',
         'Your data stays yours, exportable at any time',
     ],
     'offer_quote'     => 'Several stores or a specific need?',
@@ -228,7 +229,7 @@ return [
     'faqs' => [
         ['q' => 'Does Castl-it-POS work without an internet connection?', 'a' => 'Yes. Every sale is saved on the device and synced as soon as the network is back. Registers in the same shop can also share tickets over the local Wi-Fi, without internet.'],
         ['q' => 'How much does Castl-it-POS cost?', 'a' => 'You start with a :months-month free trial, no credit card. After that, we offer a price based on your number of stores and registers: just write to us.'],
-        ['q' => 'Which devices can I use?', 'a' => 'Android tablets and phones, Windows PCs and any browser. PAX terminals with a built-in printer are supported. Your data is the same on every device.'],
+        ['q' => 'Which devices can I use?', 'a' => 'Android phones and tablets, iPhone and iPad, Windows PCs and any browser. PAX terminals with a built-in printer are supported. Your data is the same on every device.'],
         ['q' => 'Can I import my existing catalogue?', 'a' => 'Yes: import products and services from an Excel file, and your photos in bulk from a ZIP folder, matched by file name or barcode.'],
         ['q' => 'Is it suitable for cafés and restaurants?', 'a' => 'Yes: tickets named by table with a timer, a kitchen display (KDS), options and add-ons, and several registers sharing orders on the floor.'],
         ['q' => 'Can I manage several stores?', 'a' => 'Yes. Several stores and warehouses, each with its own stock, transfers between them and reports per store or combined.'],
@@ -296,6 +297,7 @@ return [
     'footer_reach'   => 'Get in touch',
     'footer_support' => 'A question about Castl-it-POS? Write to us — every message gets an answer.',
     'footer_android' => 'Get it on Android',
+    'footer_ios'     => 'Download on iPhone',
     'footer_soon'    => 'Coming soon',
     'footer_privacy' => 'Privacy',
     'footer_terms'   => 'Terms',

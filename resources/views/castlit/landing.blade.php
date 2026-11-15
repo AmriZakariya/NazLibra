@@ -3,6 +3,7 @@
 @php
     $brand = config('castlit.brand');
     $playStore = $brand['play_store'] ?? '';
+    $appStoreUrl = $brand['app_store'] ?? '';
     $months = (int) config('castlit.trial_months', 3);
     // Placeholders inside the translated arrays are not replaced by __(), so
     // the trial length is filled in here for the strings that carry it.
@@ -145,6 +146,7 @@
 
     /* Store badge (hero + app band) */
     .store-btns { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .app-ios-note { margin: 14px 0 0; font-size: 13.5px; color: #cfe0ff; }
     .store-btn { position: relative; display: inline-flex; align-items: center; gap: 12px; height: 54px; padding: 0 20px 0 16px;
                  background: #0C1020; color: #fff; border-radius: 13px; border: 1px solid rgba(255,255,255,.16); box-shadow: var(--shadow);
                  transition: transform .14s ease, border-color .2s ease; }
@@ -475,6 +477,16 @@
         return '<a href="'.$href.'" '.($soon ? 'aria-disabled="true"' : 'target="_blank" rel="noopener"').' class="'.$cls.'">'
             .$ribbon.$svg.'<span class="st-text"><span class="st-small">'.$small.'</span><span class="st-big">Google Play</span></span></a>';
     };
+    // App Store badge, beside Google Play once the iOS app is published.
+    $appStoreButton = function () use ($appStoreUrl) {
+        if ($appStoreUrl === '') {
+            return '';
+        }
+        $svg = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.62c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.87-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.59 1.1 8.75.73 1.05 1.6 2.24 2.73 2.2 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.4 1.2-2.46-.03-.01-2.3-.88-2.3-3.52ZM14.19 6.15c.6-.73 1.01-1.75.9-2.76-.87.04-1.92.58-2.54 1.31-.56.65-1.05 1.69-.92 2.68.97.08 1.96-.49 2.56-1.23Z"/></svg>';
+
+        return '<a href="'.e($appStoreUrl).'" target="_blank" rel="noopener" class="store-btn">'
+            .$svg.'<span class="st-text"><span class="st-small">'.e(__('castlit.store_available')).'</span><span class="st-big">App Store</span></span></a>';
+    };
     $demoUrl = config('castlit.demo.url');
     $demoCreds = null;
     if ($demoUrl) {
@@ -511,6 +523,7 @@
                     <a href="{{ $demoUrl }}" target="_blank" rel="noopener" class="btn btn-ghost btn-demo">{{ __('castlit.cta_demo') }}</a>
                 @endif
                 {!! $storeButton() !!}
+                {!! $appStoreButton() !!}
             </div>
             <p class="cta-note">{{ __('castlit.cta_trial_note', ['months' => $months]) }}</p>
             @if ($demoCreds)
@@ -647,8 +660,13 @@
                     <p>{{ __('castlit.app_sub') }}</p>
                     <div class="store-btns">
                         {!! $storeButton() !!}
+                {!! $appStoreButton() !!}
                         <a href="#inscription" class="btn btn-ghost" style="background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.25)">{{ __('castlit.app_web') }}</a>
                     </div>
+                    @if ($appStoreUrl !== '')
+                        {{-- No sign-up inside the iOS app (App Review): the shop is created here first. --}}
+                        <p class="app-ios-note">{{ __('castlit.app_ios_note') }}</p>
+                    @endif
                     <div class="app-qr">
                         <img src="{{ asset('img/app-qr.svg') }}" width="92" height="92" alt="" loading="lazy" decoding="async">
                         <p>{{ __('castlit.app_qr') }}<code dir="ltr">{{ config('castlit.main_domain') }}/telecharger</code></p>

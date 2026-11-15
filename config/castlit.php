@@ -39,7 +39,9 @@ return [
 
         // The published application id, for store links and structured data.
         'android_package' => env('CASTLIT_ANDROID_PACKAGE', 'com.castlitpos.app'),
-        'app_store'  => env('CASTLIT_APP_STORE_URL', ''),
+        // Published 2026-11-15. No country in the path, so each visitor lands
+        // on their own App Store (Morocco, Egypt…), not the US one.
+        'app_store'  => env('CASTLIT_APP_STORE_URL', 'https://apps.apple.com/app/id6833454584'),
         // Social profile URLs → JSON-LD sameAs (helps entity/knowledge-graph SEO).
         // Empty ones are dropped; fill via env as accounts go live.
         'social' => array_values(array_filter([

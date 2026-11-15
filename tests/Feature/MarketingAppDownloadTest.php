@@ -125,4 +125,39 @@ class MarketingAppDownloadTest extends TestCase
 
         $this->assertStringContainsString('<title>castlitpos.com/telecharger</title>', $svg);
     }
+
+    public function test_the_published_ios_app_is_the_default_link(): void
+    {
+        // Published 2026-11-15: no .env needed, and client installs inherit it.
+        // No country in the path, so each visitor gets their own App Store.
+        $this->assertSame('https://apps.apple.com/app/id6833454584', (require config_path('castlit.php'))['brand']['app_store']);
+    }
+
+    public function test_the_site_offers_both_stores_once_the_ios_app_is_live(): void
+    {
+        $appStore = 'https://apps.apple.com/app/id6833454584';
+        config(['castlit.brand.app_store' => $appStore]);
+
+        $html = $this->get('/?lang=fr')->assertOk()->getContent();
+
+        $this->assertSame(2, substr_count($html, '<span class="st-big">App Store</span>'), 'hero and app section, beside Google Play');
+        $this->assertStringContainsString(__('castlit.footer_ios', [], 'fr'), $html);
+        $this->assertStringContainsString(__('castlit.app_ios_note', [], 'fr'), $html, 'no sign-up in the iOS app: the site says where to start');
+        $this->assertStringContainsString('sur Android et iPhone', $html);
+
+        // Structured data: both listings as install links.
+        preg_match('/<script type="application\/ld\+json">\s*(.+?)\s*<\/script>/s', $html, $m);
+        $app = collect(json_decode($m[1], true)['@graph'])->firstWhere('@type', 'SoftwareApplication');
+        $this->assertSame(['https://play.google.com/store/apps/details?id=com.castlitpos.app', $appStore], $app['installUrl']);
+        $this->assertStringContainsString('iOS', $app['operatingSystem']);
+    }
+
+    public function test_every_language_mentions_the_iphone(): void
+    {
+        foreach (['fr', 'en', 'ar'] as $locale) {
+            $this->assertMatchesRegularExpression('/iPhone|آيفون/u', __('castlit.meta_description', ['months' => 3], $locale), $locale);
+            $this->assertMatchesRegularExpression('/iPhone|آيفون/u', __('castlit.app_title', [], $locale), $locale);
+            $this->assertNotSame('castlit.app_ios_note', __('castlit.app_ios_note', [], $locale), $locale);
+        }
+    }
 }

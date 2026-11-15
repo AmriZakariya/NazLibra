@@ -134,7 +134,7 @@ class MarketingFooterTest extends TestCase
     public function test_the_footer_does_not_advertise_a_store_link_it_has_not_got(): void
     {
         // An empty URL must drop the button, not render a link to nowhere.
-        config(['castlit.brand.play_store' => '']);
+        config(['castlit.brand.play_store' => '', 'castlit.brand.app_store' => '']);
 
         // The attribute, not the bare class name: the stylesheet defines
         // `.footer-store` whether or not anything uses it, so the loose
@@ -143,6 +143,7 @@ class MarketingFooterTest extends TestCase
 
         $this->assertStringNotContainsString('class="footer-store"', $footer);
         $this->assertStringNotContainsString('play.google.com', $footer);
+        $this->assertStringNotContainsString('apps.apple.com', $footer);
     }
 
     public function test_an_empty_social_list_renders_no_social_row(): void
