@@ -164,7 +164,10 @@ class ItemTypes
             'barber' => 'barber',
             'cosmetics' => 'cosmetics',
             'electronics' => 'electronics',
-            'drugstore', 'retail' => 'general',
+            // Produit + Service, the base every shop has; their own words for a
+            // product come from BusinessMode (a shop may rename them).
+            'drugstore', 'retail', 'chocolate', 'wholesale', 'butcher', 'greengrocer',
+            'jewelry', 'optician', 'florist' => 'general',
             // Only reached by a mode with no arm above — and that would hand a
             // spa or a phone shop the bookshop's "Livre". BusinessModeTest
             // fails for any mode that lands here.

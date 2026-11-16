@@ -11264,6 +11264,16 @@ class LibraireProController extends Controller
         ])));
 
         if ($rawType !== '') {
+            // The shop's own names for its types, as its example sheet and
+            // export write them: « Pain / pâtisserie », « Viande / volaille ».
+            foreach (\App\Support\ItemTypes::forTenant($this->tenant()) as $type) {
+                foreach ([$type['label'], $type['default_label']] as $label) {
+                    if ($label !== '' && $rawType === Str::lower(Str::ascii($label))) {
+                        return $type['value'];
+                    }
+                }
+            }
+
             if (str_contains($rawType, 'service') || str_contains($rawType, 'prestation') || str_contains($rawType, 'non physique')) {
                 return 'service';
             }
@@ -11357,53 +11367,8 @@ class LibraireProController extends Controller
      */
     private function importExampleRows(string $kind): array
     {
-        return match ($kind) {
-            'categories' => [
-                'title' => 'Liste des catégories',
-                'filename' => 'exemple-import-categories.xlsx',
-                'headers' => ['Nom de catégorie', 'La description', 'Statut'],
-                'rows' => [
-                    ['FOURNITURE SCOLAIRE', 'Cahiers, cartables, trousses et rentrée scolaire', 'Active'],
-                    ['ROMANS', 'Livres de lecture', 'Active'],
-                ],
-            ],
-            'brands' => [
-                'title' => 'Liste des marques',
-                'filename' => 'exemple-import-marques.xlsx',
-                'headers' => ['Marque', 'La description', 'Statut'],
-                'rows' => [
-                    ['OXFORD', 'Papeterie et cahiers', 'Active'],
-                    ['BORDAS', 'Éditeur scolaire', 'Active'],
-                ],
-            ],
-            'variants' => [
-                'title' => 'Liste des variantes',
-                'filename' => 'exemple-import-variantes.xlsx',
-                'headers' => ['Nom de la variante', 'La description', 'Statut'],
-                'rows' => [
-                    ['BLEU MARINE', 'Couleur', 'Active'],
-                    ['RELIÉ', 'Format livre', 'Active'],
-                ],
-            ],
-            'services' => [
-                'title' => 'Liste des services',
-                'filename' => 'exemple-import-services.xlsx',
-                'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément", 'Image'],
-                'rows' => [
-                    ['', 'Photocopie A4 noir et blanc', 'Services[SERVICE]', 'Service', '0.20', '0.50', 'Sans TVA(0.00%)', 'Active', 'impression, rapide', 'Photocopie standard A4 noir et blanc', 'Service', 'photocopie.jpg'],
-                    ['', 'Adhésion annuelle', 'Services[SERVICE]', 'Service', '0.00', '100.00', 'Sans TVA(0.00%)', 'Active', 'adhésion, bibliothèque', 'Abonnement annuel membre', 'Service', ''],
-                ],
-            ],
-            default => [
-                'title' => "Liste d'articles",
-                'filename' => 'exemple-import-articles.xlsx',
-                'headers' => ['Code de barre', 'ISBN', "Nom de l'article", "Catégorie/Type d'élément", 'Marque', 'Auteur', 'Unité', 'Stock', "Quantité d'alerte", "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément", 'Image'],
-                'rows' => [
-                    ['9780000000001', '', 'Cahier 96 pages grand format', 'FOURNITURE SCOLAIRE[ITEM]', 'OXFORD', '', 'Pièce', '50', '5', '8.00', '12.00', 'Sans TVA(0.00%)', 'Active', 'rentrée, scolaire', 'Cahier grand format 96 pages ligné', 'Article', '9780000000001.jpg'],
-                    ['9782000000002', '9782000000002', 'Roman exemple relié', 'ROMANS[ITEM]', 'BORDAS', 'Auteur Exemple', 'Pièce', '8', '2', '55.00', '85.00', 'TVA 7%(7.00%)', 'Active', 'roman, lecture', 'Roman relié, édition récente', 'Livre', 'https://exemple.com/photos/roman.jpg'],
-                ],
-            ],
-        };
+        // In the shop's own trade, units, item types and taxes.
+        return \App\Support\ImportExamples::sheet($this->tenant(), $kind);
     }
 
     /**

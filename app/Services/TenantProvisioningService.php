@@ -256,6 +256,23 @@ class TenantProvisioningService
                 ['Pièce', 'Produit vendu'], ['Séance', 'Prestation unitaire'],
                 ['Forfait', 'Ensemble de séances'], ['Service', 'Prestation non physique'],
             ],
+            'chocolate' => [
+                ['Pièce', 'Unité standard'], ['Kg', 'Vendu au poids'],
+                ['Boîte', 'Coffret ou ballotin'], ['Service', 'Prestation non physique'],
+            ],
+            'wholesale' => [
+                ['Pièce', 'Unité standard'], ['Carton', 'Colis fournisseur'],
+                ['Pack', 'Lot composé'], ['Palette', 'Livraison en gros'],
+                ['Service', 'Prestation non physique'],
+            ],
+            'butcher', 'greengrocer' => [
+                ['Kg', 'Vendu au poids'], ['Pièce', 'Unité standard'],
+                ['Botte', 'Vendu à la botte'], ['Service', 'Prestation non physique'],
+            ],
+            'florist' => [
+                ['Tige', 'Fleur à l’unité'], ['Bouquet', 'Composition'],
+                ['Pièce', 'Plante ou accessoire'], ['Service', 'Livraison ou prestation'],
+            ],
             default => [
                 ['Pièce', 'Unité standard'], ['Pack', 'Lot composé'],
                 ['Boîte', 'Conditionnement'], ['Service', 'Prestation non physique'],
@@ -287,6 +304,13 @@ class TenantProvisioningService
             'barber'     => ['Coupes', 'Barbe', 'Soins', 'Enfants', 'Produits'],
             'cosmetics'  => ['Parfums', 'Maquillage', 'Soins', 'Coffrets', 'Accessoires'],
             'electronics' => ['Téléphones', 'Tablettes & ordinateurs', 'Accessoires', 'Audio', 'Réparations'],
+            'chocolate'  => ['Chocolats', 'Confiseries', 'Coffrets', 'Dragées', 'Fêtes & événements'],
+            'wholesale'  => ['Alimentation', 'Boissons', 'Hygiène', 'Entretien', 'Divers'],
+            'butcher'    => ['Bœuf', 'Agneau', 'Volaille', 'Viande hachée', 'Charcuterie'],
+            'greengrocer' => ['Fruits', 'Légumes', 'Herbes', 'Fruits secs', 'Épicerie'],
+            'jewelry'    => ['Bagues', 'Colliers', 'Bracelets', 'Montres', 'Réparations'],
+            'optician'   => ['Montures', 'Verres', 'Lentilles', 'Solaires', 'Accessoires'],
+            'florist'    => ['Bouquets', 'Compositions', 'Plantes', 'Événements', 'Accessoires'],
             default      => ['Général'],
         };
     }

@@ -619,6 +619,13 @@ class SetupController extends Controller
             'retail' => ['Produits', 'Accessoires', 'Services', 'Promotions', 'Nouveautés', 'Divers'],
             'barber' => ['Coupes', 'Barbe', 'Soins', 'Enfants', 'Produits'],
             'beauty' => ['Coiffure', 'Soins visage', 'Soins corps', 'Onglerie', 'Produits'],
+            'chocolate' => ['Chocolats', 'Confiseries', 'Coffrets', 'Dragées', 'Fêtes & événements'],
+            'wholesale' => ['Alimentation', 'Boissons', 'Hygiène', 'Entretien', 'Divers'],
+            'butcher' => ['Bœuf', 'Agneau', 'Volaille', 'Viande hachée', 'Charcuterie'],
+            'greengrocer' => ['Fruits', 'Légumes', 'Herbes', 'Fruits secs', 'Épicerie'],
+            'jewelry' => ['Bagues', 'Colliers', 'Bracelets', 'Montres', 'Réparations'],
+            'optician' => ['Montures', 'Verres', 'Lentilles', 'Solaires', 'Accessoires'],
+            'florist' => ['Bouquets', 'Compositions', 'Plantes', 'Événements', 'Accessoires'],
             default => ['Romans', 'Scolaire', 'Papeterie', 'Fournitures', 'Services', 'Informatique'],
         };
     }

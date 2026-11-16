@@ -327,7 +327,8 @@ class MarketingController extends Controller
     private function activityOptions(): array
     {
         return collect(BusinessMode::all())
-            ->map(fn (array $m) => $m['label'] ?? '')
+            // In the visitor's language: the back office's dictionary has them.
+            ->map(fn (array $m) => \App\Support\Locale::t((string) ($m['label'] ?? ''), app()->getLocale()))
             ->toArray();
     }
 }
