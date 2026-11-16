@@ -98,4 +98,28 @@ class ShopActivitiesTest extends TestCase
         $sheet = ImportExamples::sheet($tenant, 'items');
         $this->assertContains('TVA 14%(14.00%)', array_merge(...$sheet['rows']));
     }
+
+    public function test_a_cleared_catalogue_imports_again_without_a_code_clash(): void
+    {
+        // Deleted items keep their item_code, and the unique (tenant,
+        // item_code) key counts them: the demo shop, cleared then
+        // re-imported, got a 500 on the first new row.
+        $this->seed();
+        $tenant = $this->shopAs('chocolate');
+        $owner = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
+        Item::where('tenant_id', $tenant->id)->get()->each->delete();
+        $this->assertSame(0, Item::where('tenant_id', $tenant->id)->count());
+
+        $sheet = ImportExamples::sheet($tenant, 'items');
+        $path = \App\Support\SimpleXlsx::write($sheet['title'], $sheet['headers'], $sheet['rows']);
+
+        $this->actingAs($owner)->post(route('catalog.import'), [
+            'kind' => 'items',
+            'catalog_file' => new UploadedFile($path, 'articles.xlsx', null, null, true),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame(2, Item::where('tenant_id', $tenant->id)->count());
+        $codes = Item::withTrashed()->where('tenant_id', $tenant->id)->pluck('item_code');
+        $this->assertSame($codes->count(), $codes->unique()->count());
+    }
 }

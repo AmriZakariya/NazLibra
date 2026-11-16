@@ -430,7 +430,7 @@ class ItemController extends Controller
         $code = $base;
         $suffix = 1;
         while (
-            Item::where('tenant_id', $item->tenant_id)
+            Item::withTrashed()->where('tenant_id', $item->tenant_id)
                 ->where('item_code', $code)
                 ->where('id', '!=', $item->id)
                 ->exists()

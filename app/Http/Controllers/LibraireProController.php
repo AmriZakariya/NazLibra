@@ -2627,8 +2627,11 @@ class LibraireProController extends Controller
 
         // ── Item-code counter — avoids N×2 existence queries ─────────────────────
         $codePrefix  = 'IT' . now()->format('ym');
-        $codeCounter = Item::where('tenant_id', $tenant->id)->count() + 1;
-        $usedCodes   = Item::where('tenant_id', $tenant->id)->whereNotNull('item_code')
+        // Deleted items too: they keep their code, and the unique key
+        // (tenant, item_code) counts them — a shop that cleared its catalogue
+        // and imported again hit a 500 on the first row.
+        $codeCounter = Item::withTrashed()->where('tenant_id', $tenant->id)->count() + 1;
+        $usedCodes   = Item::withTrashed()->where('tenant_id', $tenant->id)->whereNotNull('item_code')
             ->pluck('item_code')->flip()->toArray();
 
         $resolveNextCode = function () use ($codePrefix, &$codeCounter, &$usedCodes): string {
@@ -11350,14 +11353,15 @@ class LibraireProController extends Controller
     private function nextItemCode(int $tenantId, ?int $ignoreItemId = null): string
     {
         $prefix = 'IT'.now()->format('ym');
-        $next = Item::where('tenant_id', $tenantId)
+        // Deleted items keep their code and the unique key counts them.
+        $next = Item::withTrashed()->where('tenant_id', $tenantId)
                 ->when($ignoreItemId, fn (Builder $builder) => $builder->where('id', '!=', $ignoreItemId))
                 ->count() + 1;
 
         do {
             $code = $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
             $next++;
-        } while (Item::where('tenant_id', $tenantId)->where('item_code', $code)->when($ignoreItemId, fn (Builder $builder) => $builder->where('id', '!=', $ignoreItemId))->exists());
+        } while (Item::withTrashed()->where('tenant_id', $tenantId)->where('item_code', $code)->when($ignoreItemId, fn (Builder $builder) => $builder->where('id', '!=', $ignoreItemId))->exists());
 
         return $code;
     }
