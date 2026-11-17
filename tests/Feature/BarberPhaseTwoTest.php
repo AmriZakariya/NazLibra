@@ -253,6 +253,10 @@ class BarberPhaseTwoTest extends TestCase
 
     public function test_the_agenda_page_lists_the_day_per_barber(): void
     {
+        // Midday: between 23:00 and midnight UTC the shop (Casablanca, UTC+1)
+        // is already on the next day, and the test failed every night.
+        $this->travelTo(now()->setTime(12, 0));
+
         Appointment::create([
             'tenant_id' => $this->tenant->id, 'customer_name' => 'Karim', 'staff_user_id' => $this->barber->id,
             'service_name' => 'Coupe homme', 'starts_at' => now()->setTime(10, 0), 'duration_minutes' => 30, 'status' => 'booked',

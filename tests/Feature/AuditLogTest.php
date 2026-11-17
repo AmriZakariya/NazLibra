@@ -48,6 +48,10 @@ class AuditLogTest extends TestCase
 
     public function test_owner_can_filter_activity_log_by_user_and_date(): void
     {
+        // Midday: between 23:00 and midnight UTC the shop (Casablanca, UTC+1)
+        // is already on the next day, and the test failed every night.
+        $this->travelTo(now()->setTime(12, 0));
+
         $this->seed();
 
         $owner = User::where('email', 'amina@librairie-atlas.ma')->firstOrFail();
