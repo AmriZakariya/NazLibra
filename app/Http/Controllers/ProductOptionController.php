@@ -14,9 +14,9 @@ use Illuminate\Validation\Rule;
 /**
  * The axes an article can vary on, and building its variants from them.
  *
- * Deliberately separate from VariantController: that one edits ONE variant
- * (its barcode, its price, its stock), this one decides which variants should
- * exist at all.
+ * Deliberately separate from editing ONE variant (its barcode, price, stock,
+ * duration: LibraireProController::updateVariant, `catalog.variants.update`);
+ * this one decides which variants should exist at all.
  */
 class ProductOptionController extends Controller
 {

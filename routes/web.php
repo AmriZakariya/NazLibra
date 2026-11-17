@@ -12,7 +12,6 @@ use App\Http\Controllers\ModifierController;
 use App\Http\Controllers\ProductOptionController;
 use App\Http\Controllers\OnlineStoreController;
 use App\Http\Controllers\SetupController;
-use App\Http\Controllers\VariantController;
 use App\Http\Controllers\VirtualDeviceController;
 use Illuminate\Support\Facades\Route;
 
@@ -334,16 +333,6 @@ Route::post('/catalogue/options-ligne/{modifierGroup}/articles', [ModifierContro
 Route::post('/catalogue/options-ligne/{modifierGroup}/choix', [ModifierController::class, 'storeModifier'])->name('catalog.modifiers.store');
 Route::put('/catalogue/options-ligne/choix/{modifier}', [ModifierController::class, 'updateModifier'])->name('catalog.modifiers.update');
 Route::delete('/catalogue/options-ligne/choix/{modifier}', [ModifierController::class, 'destroyModifier'])->name('catalog.modifiers.destroy');
-Route::get('/variantes', [VariantController::class, 'index'])->name('variants.index');
-Route::get('/variantes/data', [VariantController::class, 'data'])->name('variants.data');
-Route::get('/variantes/ajouter', [VariantController::class, 'create'])->name('variants.create');
-Route::post('/variantes', [VariantController::class, 'store'])->name('variants.store');
-Route::get('/variantes/{variant}', [VariantController::class, 'show'])->name('variants.show');
-Route::get('/variantes/{variant}/modifier', [VariantController::class, 'edit'])->name('variants.edit');
-Route::put('/variantes/{variant}', [VariantController::class, 'update'])->name('variants.update');
-Route::post('/variantes/{variant}/dupliquer', [VariantController::class, 'duplicate'])->name('variants.duplicate');
-Route::post('/variantes/{variant}/basculer', [VariantController::class, 'toggle'])->name('variants.toggle');
-Route::delete('/variantes/{variant}', [VariantController::class, 'destroy'])->name('variants.destroy');
 Route::post('/catalogue/import', [LibraireProController::class, 'importItems'])->name('catalog.import');
 Route::get('/catalogue/import/exemple/{kind}', [LibraireProController::class, 'importExample'])->name('catalog.import.example');
 Route::post('/catalogue/photos/correspondances', [LibraireProController::class, 'photoMatches'])->name('catalog.photos.match');

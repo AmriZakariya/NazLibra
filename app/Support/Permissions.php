@@ -208,11 +208,6 @@ class Permissions
             // the upload it prepares.
             'catalog.photos.match' => 'items.edit',
             'catalog.photos.store' => 'items.edit',
-            'variants.store' => 'items.edit',
-            'variants.update' => 'items.edit',
-            'variants.duplicate' => 'items.edit',
-            'variants.toggle' => 'items.edit',
-            'variants.destroy' => 'items.delete',
 
             'catalog.stock-adjustments.store' => 'stock.adjust',
             'catalog.stock-transfers.store' => 'stock.transfer',
