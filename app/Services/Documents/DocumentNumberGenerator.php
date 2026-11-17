@@ -6,6 +6,7 @@ use App\Models\DocumentSequence;
 use App\Models\Invoice;
 use App\Models\SaleInvoice;
 use App\Models\Tenant;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class DocumentNumberGenerator
 {
@@ -59,6 +60,40 @@ class DocumentNumberGenerator
             'prefix' => $prefix,
             'serial' => $serial,
         ];
+    }
+
+    /**
+     * Claim the next number of a series stored in one table, skipping every
+     * number that table already holds — soft-deleted rows included, because
+     * they still occupy the (tenant_id, number) unique index.
+     *
+     * A sequence can fall behind its table: the demo cleanup deletes the
+     * sequences but only soft-deletes the documents, and an import can write
+     * numbers without claiming them. Without this check the counter restarts
+     * at 00001 and the insert dies on the unique index at the cashier's till.
+     *
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     */
+    public function nextIn(Tenant $tenant, string $documentType, ?string $prefix, string $model): array
+    {
+        return $this->next($tenant, $documentType, $prefix, self::takenIn($tenant, $model));
+    }
+
+    /**
+     * "Is this number already used in that table?" for one tenant.
+     *
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     * @return \Closure(string):bool
+     */
+    public static function takenIn(Tenant $tenant, string $model): \Closure
+    {
+        return function (string $candidate) use ($tenant, $model): bool {
+            $query = in_array(SoftDeletes::class, class_uses_recursive($model), true)
+                ? $model::withTrashed()
+                : $model::query();
+
+            return $query->where('tenant_id', $tenant->id)->where('number', $candidate)->exists();
+        };
     }
 
     /**

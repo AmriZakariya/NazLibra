@@ -8752,7 +8752,7 @@ class LibraireProController extends Controller
 
     private function nextSaleNumber(Tenant $tenant): string
     {
-        return $this->numbers->next($tenant, 'sale', null, fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists())['number'];
+        return $this->numbers->nextIn($tenant, 'sale', null, Sale::class)['number'];
     }
 
     private function peekSaleNumber(Tenant $tenant): string
@@ -8762,27 +8762,24 @@ class LibraireProController extends Controller
 
     private function nextTicketNumber(Tenant $tenant): string
     {
-        return $this->numbers->next($tenant, 'ticket', 'ATT')['number'];
+        return $this->numbers->nextIn($tenant, 'ticket', 'ATT', PosTicket::class)['number'];
     }
 
     private function nextPaymentNumber(Tenant $tenant): string
     {
-        return $this->numbers->next(
-            $tenant,
-            'payment',
-            'PAY',
-            fn (string $n) => SalePayment::where('tenant_id', $tenant->id)->where('number', $n)->exists()
-        )['number'];
+        return $this->numbers->nextIn($tenant, 'payment', 'PAY', SalePayment::class)['number'];
     }
 
     private function nextReturnNumber(Tenant $tenant): string
     {
-        return $this->numbers->next($tenant, 'return', 'RET')['number'];
+        // RTN, the same series the till's API claims from: one kind of
+        // document, one series. Older back-office returns keep their RET.
+        return $this->numbers->nextIn($tenant, 'return', 'RTN', SaleReturn::class)['number'];
     }
 
     private function nextDeliveryNumber(Tenant $tenant): string
     {
-        return $this->numbers->next($tenant, 'delivery', 'LIV')['number'];
+        return $this->numbers->nextIn($tenant, 'delivery', 'LIV', DeliveryOrder::class)['number'];
     }
 
     private function nextOnlineOrderNumber(Tenant $tenant): string
@@ -10044,6 +10041,13 @@ class LibraireProController extends Controller
             'pos_tickets'              => PosTicket::where('tenant_id', $tenant->id)->delete(),
             'cash_register_movements'  => $saleIds->isEmpty() ? 0 : CashRegisterMovement::where('tenant_id', $tenant->id)->whereIn('sale_id', $saleIds)->delete(),
             'sale_stock_movements'     => DB::table('stock_movements')->where('tenant_id', $tenant->id)->where('reference_type', Sale::class)->delete(),
+            // A return belongs to its sale. Left behind, it kept its number
+            // while the cleanup reset the sequence, and the next refund at the
+            // till collided with it.
+            'return_stock_movements'   => DB::table('stock_movements')->where('tenant_id', $tenant->id)->where('reference_type', SaleReturn::class)->delete(),
+            'sale_returns'             => $hardDelete
+                ? SaleReturn::withTrashed()->where('tenant_id', $tenant->id)->forceDelete()
+                : SaleReturn::where('tenant_id', $tenant->id)->delete(),
             'sales'                    => $hardDelete ? $saleQuery()->forceDelete() : $saleQuery()->delete(),
         ];
 

@@ -261,7 +261,7 @@ class ReturnController extends Controller
                     && ($alreadyReturnedAmount + $returnTotal + 0.001) >= $saleTotal;
                 $isFullRefund = $amountFullyRefunded || $allLinesFullyReturned;
 
-                $numberData  = $this->numbers->next($tenant, 'return', null);
+                $numberData  = $this->numbers->nextIn($tenant, 'return', null, SaleReturn::class);
                 $saleReturn  = SaleReturn::create([
                     'tenant_id'        => $tenant->id,
                     'sale_id'          => $sale->id,

@@ -188,7 +188,7 @@ class OnlineOrderController extends Controller
                 // split the sale series in two in the first place.
                 $saleNumber = $this->numbers->next(
                     $tenant, 'sale', null,
-                    fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists()
+                    DocumentNumberGenerator::takenIn($tenant, Sale::class)
                 )['number'];
 
                 $total          = (float) $order->total_amount;
@@ -277,7 +277,7 @@ class OnlineOrderController extends Controller
                 if ($paidAmount > 0) {
                     $paymentNumber = $this->numbers->next(
                         $tenant, 'payment', 'PAY',
-                        fn (string $n) => SalePayment::where('tenant_id', $tenant->id)->where('number', $n)->exists()
+                        DocumentNumberGenerator::takenIn($tenant, SalePayment::class)
                     )['number'];
 
                     SalePayment::create([

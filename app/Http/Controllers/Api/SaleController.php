@@ -503,7 +503,7 @@ class SaleController extends Controller
                     $tenant,
                     'sale',
                     null,
-                    fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists()
+                    DocumentNumberGenerator::takenIn($tenant, Sale::class)
                 )['number'];
             });
         }
@@ -735,7 +735,7 @@ class SaleController extends Controller
                     $tenant,
                     'sale_payment',
                     'PAY',
-                    fn (string $n) => SalePayment::where('tenant_id', $tenant->id)->where('number', $n)->exists()
+                    DocumentNumberGenerator::takenIn($tenant, SalePayment::class)
                 )['number'];
                 SalePayment::create([
                     'tenant_id'  => $tenant->id,
@@ -817,7 +817,7 @@ class SaleController extends Controller
                         $tenant,
                         'sale',
                         null,
-                        fn ($n) => Sale::where('tenant_id', $tenant->id)->where('number', $n)->exists()
+                        DocumentNumberGenerator::takenIn($tenant, Sale::class)
                     )['number'];
                 });
             }
