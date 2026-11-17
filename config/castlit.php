@@ -32,16 +32,19 @@ return [
         // "bientôt disponible" for an app that is already published, and the
         // landing page decides between the real link and that ribbon purely on
         // whether this string is empty. An env var still overrides it.
-        'play_store' => env(
-            'CASTLIT_PLAY_STORE_URL',
-            'https://play.google.com/store/apps/details?id=com.castlitpos.app',
-        ),
+        //
+        // `?:`, not env()'s default: a `CASTLIT_PLAY_STORE_URL=` line left
+        // empty (as .env.example once had) reads as "" and not as unset, and
+        // the welcome email then silently dropped the store button.
+        'play_store' => env('CASTLIT_PLAY_STORE_URL')
+            ?: 'https://play.google.com/store/apps/details?id=com.castlitpos.app',
 
         // The published application id, for store links and structured data.
         'android_package' => env('CASTLIT_ANDROID_PACKAGE', 'com.castlitpos.app'),
         // Published 2026-11-15. No country in the path, so each visitor lands
         // on their own App Store (Morocco, Egypt…), not the US one.
-        'app_store'  => env('CASTLIT_APP_STORE_URL', 'https://apps.apple.com/app/id6833454584'),
+        // An empty env line falls back too, as for Google Play above.
+        'app_store'  => env('CASTLIT_APP_STORE_URL') ?: 'https://apps.apple.com/app/id6833454584',
         // Social profile URLs → JSON-LD sameAs (helps entity/knowledge-graph SEO).
         // Empty ones are dropped; fill via env as accounts go live.
         'social' => array_values(array_filter([

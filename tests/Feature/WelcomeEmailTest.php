@@ -207,4 +207,39 @@ class WelcomeEmailTest extends TestCase
                 && $n->details()['clientName'] === 'spatest',
         );
     }
+
+    /**
+     * A production .env copied from .env.example carried `CASTLIT_APP_STORE_URL=`.
+     * env() read that as "", not as unset, so the default never applied and
+     * the welcome email went out without its App Store button.
+     */
+    public function test_an_empty_store_line_in_the_env_still_sends_both_store_links(): void
+    {
+        $names = ['CASTLIT_APP_STORE_URL', 'CASTLIT_PLAY_STORE_URL'];
+        foreach ($names as $name) {
+            putenv($name.'=');
+            $_ENV[$name] = $_SERVER[$name] = '';
+        }
+
+        try {
+            $brand = (require config_path('castlit.php'))['brand'];
+        } finally {
+            foreach ($names as $name) {
+                putenv($name);
+                unset($_ENV[$name], $_SERVER[$name]);
+            }
+        }
+
+        $this->assertSame('https://apps.apple.com/app/id6833454584', $brand['app_store']);
+        $this->assertSame('https://play.google.com/store/apps/details?id=com.castlitpos.app', $brand['play_store']);
+
+        config(['castlit.brand.app_store' => $brand['app_store'], 'castlit.brand.play_store' => $brand['play_store']]);
+        [$html, $text] = $this->render($this->install());
+
+        foreach ([$html, $text] as $body) {
+            $this->assertStringContainsString('https://apps.apple.com/app/id6833454584', $body);
+            $this->assertStringContainsString('https://play.google.com/store/apps/details?id=com.castlitpos.app', $body);
+        }
+        $this->assertStringContainsString('App Store', $html);
+    }
 }
