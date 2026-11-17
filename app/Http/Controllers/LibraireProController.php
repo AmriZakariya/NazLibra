@@ -1088,7 +1088,7 @@ class LibraireProController extends Controller
                     $details[] = $item->tax->name;
                 }
 
-                return '<div class="catalog-price"><strong>'.$this->money($sale).'</strong>'
+                return '<div class="catalog-price"><strong>'.($item->price_is_from ? '<span class="catalog-from">dès</span> ' : '').$this->money($sale).'</strong>'
                     .($details ? '<small>'.e(implode(' · ', $details)).'</small>' : '').'</div>';
             })
             ->editColumn('stock_quantity', function (Item $item): string {
@@ -1349,7 +1349,8 @@ class LibraireProController extends Controller
                 'status' => $item->status,
                 'is_enabled' => (bool) $item->is_enabled,
                 'checkout_visible' => (bool) $item->checkout_visible,
-                'price' => $this->money($item->sale_price),
+                'price' => \App\Support\FromPrice::label(Money::for($this->tenant()), $item->sale_price, (bool) $item->price_is_from),
+                'price_is_from' => (bool) $item->price_is_from,
                 'raw_price' => (float) $item->sale_price,
                 'tax_rate' => (float) ($item->tax?->rate ?? 0),
                 'tax_inclusive' => ($item->tax_type ?? 'Exclusive') === 'Inclusive',
@@ -4989,6 +4990,10 @@ class LibraireProController extends Controller
 
                     $catalogPrice = ($variant ? $variant->price() : (float) $item->sale_price) + $modifierDelta;
                     $unitPrice = $priceEditable && $line['unit_price'] !== null ? (float) $line['unit_price'] : $catalogPrice;
+                    // « À partir de »: the catalogue price is a floor; a discount goes lower.
+                    if ($message = \App\Support\FromPrice::violation($item, $variant, $unitPrice, Money::for($tenant))) {
+                        throw new \RuntimeException($message);
+                    }
                     $lineTotal = round($unitPrice * $line['quantity'], 2);
                     $averageCost = $item->type !== 'service' ? $this->locationAverageCost($tenant->id, $item->id, $variant?->id, $saleLocationId) : 0.0;
                     $subtotal += $lineTotal;
@@ -10886,6 +10891,7 @@ class LibraireProController extends Controller
             'sale_price' => ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
             'reseller_sale_price' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
             'duration_minutes' => ['nullable', 'integer', 'min:5', 'max:600'],
+            'price_is_from' => ['nullable', 'boolean'],
             'warehouse' => ['nullable', 'string', 'max:255'],
             'opening_stock' => ['nullable', 'integer', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
@@ -10930,6 +10936,8 @@ class LibraireProController extends Controller
         $data['item_group'] = $data['item_group'] ?? 'Single';
         // Only a service is timed; goods carry no duration.
         $data['duration_minutes'] = ($data['type'] ?? $item?->type) === 'service' ? ($data['duration_minutes'] ?? null) : null;
+        // « À partir de »: the sale price is a floor, not a fixed price.
+        $data['price_is_from'] = $request->boolean('price_is_from');
         $data['seller_points'] = $data['seller_points'] ?? 0;
         $data['discount_type'] = $data['discount_type'] ?? 'Percentage';
         $data['discount'] = $data['discount'] ?? 0;

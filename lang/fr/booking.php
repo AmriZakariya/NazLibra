@@ -18,6 +18,7 @@ return [
     'phone' => 'Téléphone (WhatsApp)',
     'note' => 'Un mot pour le salon (facultatif)',
     'minutes' => ':count min',
+    'from' => 'dès',
     'submit' => 'Envoyer ma demande',
     'summary_empty' => 'Choisissez une prestation, un jour et une heure.',
     'sent_title' => 'Demande envoyée',

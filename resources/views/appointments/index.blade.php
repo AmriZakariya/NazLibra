@@ -152,7 +152,7 @@
                 {{-- Picking a service fills in its duration. --}}
                 <select name="item_id" class="{{ $input }}" onchange="const d = this.selectedOptions[0]?.dataset.duration; if (d) this.form.duration_minutes.value = d;">
                     <option value="">—</option>
-                    @foreach ($services as $service)<option value="{{ $service->id }}" data-duration="{{ $service->duration_minutes }}">{{ $service->title }} · {{ $money($service->sale_price) }}@if ($service->duration_minutes) · {{ $service->duration_minutes }} min @endif</option>@endforeach
+                    @foreach ($services as $service)<option value="{{ $service->id }}" data-duration="{{ $service->duration_minutes }}">{{ $service->title }} · @if ($service->price_is_from){{ __('booking.from') }} @endif{{ $money($service->sale_price) }}@if ($service->duration_minutes) · {{ $service->duration_minutes }} min @endif</option>@endforeach
                 </select>
             </label>
             <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Client existant</span>

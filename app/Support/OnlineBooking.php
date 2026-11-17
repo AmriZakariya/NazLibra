@@ -114,7 +114,7 @@ class OnlineBooking
             ->where('type', 'service')
             ->whereNotIn('status', ['archived', 'inactive'])
             ->orderBy('title')
-            ->get(['id', 'title', 'sale_price', 'duration_minutes']);
+            ->get(['id', 'title', 'sale_price', 'duration_minutes', 'price_is_from']);
     }
 
     /** @return list<string>  the days a client may pick, Y-m-d in the shop's day */

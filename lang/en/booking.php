@@ -17,6 +17,7 @@ return [
     'name' => 'Name',
     'phone' => 'Phone (WhatsApp)',
     'note' => 'A note for the shop (optional)',
+    'from' => 'from',
     'minutes' => ':count min',
     'submit' => 'Send my request',
     'summary_empty' => 'Pick a service, a day and a time.',

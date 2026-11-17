@@ -133,7 +133,7 @@
                         <label class="choice">
                             <input type="radio" name="item_id" value="{{ $service->id }}" data-label="{{ $service->title }}" @checked((string) old('item_id', $services->count() === 1 ? $service->id : '') === (string) $service->id) required>
                             <span><b>{{ $service->title }}</b><small>{{ __('booking.minutes', ['count' => $service->duration_minutes ?: $duration]) }}</small></span>
-                            <span class="price">{{ $shopMoney->format($service->sale_price) }}</span>
+                            <span class="price">{{ \App\Support\FromPrice::label($shopMoney, $service->sale_price, (bool) $service->price_is_from, __('booking.from')) }}</span>
                         </label>
                     @endforeach
                 </div>

@@ -212,6 +212,17 @@
 </label>
 
 <label class="block rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900">
+    <input type="hidden" name="price_is_from" value="0">
+    <span class="flex items-start gap-3">
+        <input name="price_is_from" value="1" type="checkbox" @checked((bool) old('price_is_from', $item?->price_is_from ?? false)) class="mt-1 rounded border-slate-300 text-brand focus:ring-brand">
+        <span>
+            <span class="block text-xs font-semibold uppercase text-slate-500">Prix « à partir de »</span>
+            <small class="mt-1 block text-xs text-slate-500">Le prix de vente est un minimum : la caisse demande le montant et refuse un prix plus bas (une remise permet de descendre).</small>
+        </span>
+    </span>
+</label>
+
+<label class="block rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900">
     <input type="hidden" name="checkout_visible" value="0">
     <span class="flex items-start gap-3">
         <input name="checkout_visible" value="1" type="checkbox" @checked((bool) $checkoutVisible) class="mt-1 rounded border-slate-300 text-brand focus:ring-brand">

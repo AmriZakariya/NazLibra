@@ -3,5 +3,8 @@
  "Durée (min), Prix à partir de (oui/non), Variantes, Options.": "Durata (min), Prezzo da (sì/no), Varianti, Opzioni.",
  "Prestations (salon) :": "Servizi (salone):",
  "Variantes :": "Varianti:",
- "Sans prix de vente, le prix le plus bas des variantes devient le prix de l'article. Un même fichier réimporté met à jour sans créer de doublons.": "Senza prezzo di vendita, il prezzo più basso delle varianti diventa quello dell'articolo. Reimportare lo stesso file aggiorna senza creare duplicati."
+ "Sans prix de vente, le prix le plus bas des variantes devient le prix de l'article. Un même fichier réimporté met à jour sans créer de doublons.": "Senza prezzo di vendita, il prezzo più basso delle varianti diventa quello dell'articolo. Reimportare lo stesso file aggiorna senza creare duplicati.",
+ "Le prix de vente est un minimum : la caisse demande le montant et refuse un prix plus bas (une remise permet de descendre).": "Il prezzo di vendita è un minimo: la cassa chiede l'importo e rifiuta un prezzo più basso (uno sconto permette di scendere).",
+ "Prix « à partir de »": "Prezzo «da»",
+ "dès": "da"
 }

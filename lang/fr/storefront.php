@@ -42,6 +42,7 @@ return [
     'no_code' => 'Sans code',
     'available_on_request' => 'Disponible sur demande auprès du magasin.',
     'price' => 'Prix',
+    'from' => 'dès',
     'quantity' => 'Quantité',
     'add' => 'Ajouter',
     'add_quantity' => 'Ajouter au panier',

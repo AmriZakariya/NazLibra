@@ -331,6 +331,11 @@ class SaleController extends Controller
                 ? (float) $line['unit_price']
                 : ($variant ? $variant->price() : (float) $item->sale_price)
                     + $this->modifiers->priceDelta($modifiers);
+            // « À partir de »: the catalogue price is a floor. Authoritative
+            // here whatever the till did; a discount is the way to go lower.
+            if ($message = \App\Support\FromPrice::violation($item, $variant, $unitPrice, \App\Support\Money::for($tenant))) {
+                throw ValidationException::withMessages(['items' => $message]);
+            }
             $lineTotal  = round($unitPrice * (int) $line['quantity'], 2);
 
             // Snapshot the weighted-average cost at this location right now.

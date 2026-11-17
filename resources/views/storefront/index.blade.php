@@ -279,7 +279,7 @@
                             <div class="mt-auto space-y-3 pt-4">
                                 <div class="rounded-2xl bg-slate-50 px-3 py-2">
                                     <span class="text-xs font-black uppercase text-slate-400">{{ __('storefront.price') }}</span>
-                                    <p class="break-words text-2xl font-black leading-tight tracking-tight text-slate-950">{{ $money($item->sale_price) }}</p>
+                                    <p class="break-words text-2xl font-black leading-tight tracking-tight text-slate-950">{{ $item->price_is_from ? __('storefront.from').' ' : '' }}{{ $money($item->sale_price) }}</p>
                                 </div>
                                 <div class="grid grid-cols-2 gap-2">
                                     <button type="button" onclick="document.getElementById('store-item-detail-{{ $item->id }}').showModal()" class="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 px-3 text-sm font-black text-slate-700 transition hover:border-brand hover:text-brand">
@@ -322,7 +322,7 @@
                                 </div>
                                 <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
                                     <div class="grid grid-cols-2 gap-3 text-sm">
-                                        <div class="rounded-2xl bg-slate-50 p-3 col-span-2"><span class="block text-xs font-bold uppercase text-slate-400">{{ __('storefront.price') }}</span><strong class="block break-words text-2xl leading-tight">{{ $money($item->sale_price) }}</strong></div>
+                                        <div class="rounded-2xl bg-slate-50 p-3 col-span-2"><span class="block text-xs font-bold uppercase text-slate-400">{{ __('storefront.price') }}</span><strong class="block break-words text-2xl leading-tight">{{ $item->price_is_from ? __('storefront.from').' ' : '' }}{{ $money($item->sale_price) }}</strong></div>
                                         <div class="rounded-2xl bg-slate-50 p-3"><span class="block text-xs font-bold uppercase text-slate-400">{{ __('storefront.stock') }}</span><strong class="text-lg">{{ $item->type === 'service' ? __('storefront.service') : $available }}</strong></div>
                                         <div class="rounded-2xl bg-slate-50 p-3"><span class="block text-xs font-bold uppercase text-slate-400">{{ __('storefront.category') }}</span><strong>{{ $item->category?->name ?? __('storefront.uncategorized') }}</strong></div>
                                         <div class="rounded-2xl bg-slate-50 p-3 col-span-2"><span class="block text-xs font-bold uppercase text-slate-400">{{ __('storefront.brand') }}</span><strong>{{ $item->brand?->name ?? '—' }}</strong></div>

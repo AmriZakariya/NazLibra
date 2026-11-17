@@ -433,6 +433,7 @@
                             data-id="{{ $item->id }}"
                             data-name="{{ $item->title }}"
                             data-price="{{ $item->sale_price }}"
+                            data-price-is-from="{{ $item->price_is_from ? '1' : '0' }}"
                             data-stock="{{ $posStock }}"
                             data-sellable="{{ $isSellable ? '1' : '0' }}"
                             data-stock-url="{{ route('catalog', ['panel' => 'stock-adjustment-add', 'stock_q' => $item->barcode ?? $item->isbn ?? $item->item_code ?? $item->title]) }}"
@@ -463,7 +464,7 @@
                                 <p class="mt-2 rounded-lg bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-100 dark:bg-rose-500/10 dark:text-rose-300 dark:ring-rose-500/20">{{ $tr('Non vendable · cliquer pour gérer le stock') }}</p>
                             @endunless
                             <div class="pos-product-footer mt-3 flex items-center justify-between gap-2">
-                                <p class="text-lg font-semibold">{{ $money($item->sale_price) }}</p>
+                                <p class="text-lg font-semibold">@if ($item->price_is_from)<span class="text-xs font-medium text-slate-500">{{ $tr('dès') }}</span> @endif{{ $money($item->sale_price) }}</p>
                                 @if (($topSold[$item->id] ?? 0) > 0)
                                     <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500 dark:bg-white/10">{{ (int) $topSold[$item->id] }} {{ $tr('vendus') }}</span>
                                 @endif

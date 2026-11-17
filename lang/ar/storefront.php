@@ -42,6 +42,7 @@ return [
     'no_code' => 'بدون كود',
     'available_on_request' => 'متوفر عند الطلب من المتجر.',
     'price' => 'السعر',
+    'from' => 'ابتداءً من',
     'quantity' => 'الكمية',
     'add' => 'إضافة',
     'add_quantity' => 'إضافة إلى السلة',
