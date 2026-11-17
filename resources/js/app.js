@@ -2431,6 +2431,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 data-id="${escapeHtml(item.id)}"
                 data-name="${escapeHtml(item.name)}"
                 data-price="${escapeHtml(item.price)}"
+                data-price-is-from="${item.price_is_from ? '1' : '0'}"
                 data-stock="${escapeHtml(stock)}"
                 data-sellable="${isSellable ? '1' : '0'}"
                 data-stock-url="${escapeHtml(item.stock_url || '')}"
@@ -3058,9 +3059,18 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         bump.addEventListener('animationend', () => bump.remove(), { once: true });
     };
 
-    const addProduct = (button) => {
+    const addProduct = (button, { prompt = true } = {}) => {
         if (button.dataset.sellable === '0') {
             openStockDialog(button);
+            return null;
+        }
+
+        // « À partir de »: the catalogue price is a floor, so the cashier is
+        // asked for the real price (prefilled with the base) before the line
+        // exists. Restoring a held ticket passes prompt:false — its lines
+        // already carry the price that was asked for.
+        if (prompt && button.dataset.priceIsFrom === '1') {
+            openItemDialog(productFromButton(button));
             return null;
         }
 
@@ -3070,7 +3080,9 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         // line's price has been edited, re-adding the same item starts a NEW
         // line instead — so the cart can hold several entries of the same item
         // at different prices.
-        const existing = cart.find((item) => item.id === id && item.price === item.originalPrice);
+        const existing = button.dataset.priceIsFrom === '1'
+            ? null
+            : cart.find((item) => item.id === id && item.price === item.originalPrice);
         let line;
         let added; // did a unit actually get added? (false when the stock cap blocked it)
         if (existing) {
@@ -3089,6 +3101,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 barcode: button.dataset.barcode || '',
                 quantity: 1,
                 note: '',
+                priceIsFrom: button.dataset.priceIsFrom === '1',
             };
             cart.push(line);
             added = true;
@@ -3127,12 +3140,21 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         itemDialog.dataset.productStock = String(item.stock);
         itemDialog.dataset.productType = item.type || 'book';
         itemDialog.dataset.productOriginalPrice = String(item.originalPrice ?? item.price);
+        itemDialog.dataset.productIsFrom = item.priceIsFrom ? '1' : '0';
+        const dialogError = itemDialog.querySelector('.pos-dialog-error');
+        if (dialogError) {
+            dialogError.textContent = '';
+            dialogError.classList.add('hidden');
+        }
         if (dialogTitle) dialogTitle.textContent = item.name;
         if (dialogMeta) dialogMeta.textContent = `${item.barcode || 'Sans code'} · stock ${stockLabel(item)}${canExceedStock(item) ? ' · hors stock autorisé' : ''}`;
         if (dialogQuantity) dialogQuantity.value = String(item.quantity || 1);
         if (dialogPrice) {
             dialogPrice.value = Number(item.price || 0).toFixed(2);
-            dialogPrice.disabled = !priceEditable;
+            // A from-price line always takes a typed price, whatever the shop
+            // decided about editing prices: that is what « à partir de » means.
+            dialogPrice.disabled = !priceEditable && !item.priceIsFrom;
+            dialogPrice.min = item.priceIsFrom ? String(Number(item.originalPrice ?? item.price)) : '0';
         }
         if (dialogNote) dialogNote.value = item.note || '';
         if (dialogStaff) dialogStaff.value = String(item.staffUserId || lastStaffId || '');
@@ -3150,6 +3172,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         barcode: button.dataset.barcode || '',
         quantity: 1,
         note: '',
+        priceIsFrom: button.dataset.priceIsFrom === '1',
     });
 
     const applyDialogItem = () => {
@@ -3162,7 +3185,22 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         };
         const quantity = normalizeQuantity(dialogItem, Number(dialogQuantity.value || 1), true);
         const originalPrice = Number(itemDialog.dataset.productOriginalPrice || 0);
-        const price = priceEditable ? Math.max(0, Number(dialogPrice.value || 0)) : originalPrice;
+        const isFrom = itemDialog.dataset.productIsFrom === '1';
+        const price = (priceEditable || isFrom) ? Math.max(0, Number(dialogPrice.value || 0)) : originalPrice;
+        // The server refuses it too; saying so here keeps the dialog open.
+        if (isFrom && price + 0.005 < originalPrice) {
+            const dialogError = itemDialog.querySelector('.pos-dialog-error');
+            const message = translate('Ce prix est vendu à partir de') + ' ' + money.format(originalPrice)
+                + ' : ' + translate('le prix ne peut pas être plus bas. Pour descendre en dessous, appliquez une remise.');
+            if (dialogError) {
+                dialogError.textContent = message;
+                dialogError.classList.remove('hidden');
+            } else {
+                showToast(message);
+            }
+            dialogPrice.focus();
+            return;
+        }
         const note = dialogNote?.value?.trim() || '';
         // Remembered for the next line: a cut and a beard are the same barber.
         const staffUserId = dialogStaff ? (dialogStaff.value || '') : '';
@@ -3187,6 +3225,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 quantity,
                 note,
                 staffUserId,
+                priceIsFrom: isFrom,
             });
         }
 
@@ -3921,7 +3960,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 // Use the exact line addProduct created/updated — a plain
                 // find-by-id would target the wrong entry once the same item
                 // appears on several lines (e.g. different prices).
-                const added = addProduct(product);
+                const added = addProduct(product, { prompt: false });
                 if (added) {
                     added.quantity = Math.min(added.stock, quantity);
                     added.quantity = normalizeQuantity(added, quantity, false);

@@ -724,6 +724,7 @@
                         <input class="pos-dialog-price mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-900" type="number" min="0" step="0.01" @disabled(! $priceEditable)>
                     </label>
                 </div>
+                <p class="pos-dialog-error hidden rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300" role="alert"></p>
                 @unless ($priceEditable)
                     <p class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-white/5">Le prix est verrouillé par les paramètres de caisse. Activez “Prix modifiable” dans Paramètres pour autoriser les changements au comptoir.</p>
                 @endunless

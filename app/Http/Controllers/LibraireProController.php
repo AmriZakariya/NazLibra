@@ -4897,7 +4897,10 @@ class LibraireProController extends Controller
         }
 
         $lineItems = $cart->map(function ($line) use ($priceEditable) {
-            $price = $priceEditable && array_key_exists('price', $line)
+            // A from-price item always takes the price the cashier typed,
+            // even where prices are otherwise locked (checked against the
+            // floor below).
+            $price = array_key_exists('price', $line)
                 ? round(max(0, (float) $line['price']), 2)
                 : null;
 
@@ -5017,7 +5020,7 @@ class LibraireProController extends Controller
                     $modifierDelta = $modifierService->priceDelta($modifiers);
 
                     $catalogPrice = ($variant ? $variant->price() : (float) $item->sale_price) + $modifierDelta;
-                    $unitPrice = $priceEditable && $line['unit_price'] !== null ? (float) $line['unit_price'] : $catalogPrice;
+                    $unitPrice = $line['unit_price'] !== null && ($priceEditable || $item->price_is_from) ? (float) $line['unit_price'] : $catalogPrice;
                     // « À partir de »: the catalogue price is a floor; a discount goes lower.
                     if ($message = \App\Support\FromPrice::violation($item, $variant, $unitPrice, Money::for($tenant))) {
                         throw new \RuntimeException($message);
@@ -8185,6 +8188,7 @@ class LibraireProController extends Controller
             'id' => $item->id,
             'name' => $item->title,
             'price' => (float) $item->sale_price,
+            'price_is_from' => (bool) $item->price_is_from,
             'stock' => $posStock,
             'global_stock' => $item->type === 'service' ? 999999 : (int) $item->stock_quantity,
             'sellable' => $isSellable,

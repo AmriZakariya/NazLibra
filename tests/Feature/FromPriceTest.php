@@ -228,4 +228,31 @@ class FromPriceTest extends TestCase
             ->assertSee(__('booking.from').' '.$money->format(300), false)
             ->assertDontSee(__('booking.from').' '.$money->format(80), false);
     }
+
+    public function test_the_web_pos_asks_for_the_price_even_where_prices_are_locked_and_flags_the_tile(): void
+    {
+        $settings = $this->tenant->settings ?? [];
+        $settings['pos']['editable_price'] = false;
+        $this->tenant->update(['settings' => $settings]);
+        $from = $this->service('Coloration', 300, true);
+        $plain = $this->service('Shampoing', 20, false);
+
+        // The tile tells the till script to ask for the price.
+        $html = $this->actingAs($this->owner)->get(route('pos'))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/data-id="'.$from->id.'"[^>]*data-price-is-from="1"/s', $html);
+        $this->assertMatchesRegularExpression('/data-id="'.$plain->id.'"[^>]*data-price-is-from="0"/s', $html);
+        $this->assertStringContainsString('pos-dialog-error', $html);
+
+        // Locked prices: a plain item keeps its catalogue price, a from-price
+        // item takes the typed one (never under the floor).
+        $before = Sale::count();
+        $cart = json_encode([
+            ['id' => $from->id, 'quantity' => 1, 'price' => 420],
+            ['id' => $plain->id, 'quantity' => 1, 'price' => 1],
+        ]);
+        $this->actingAs($this->owner)->post(route('pos.store'), ['cart' => $cart, 'cash_amount' => 1000])->assertSessionHasNoErrors();
+        $this->assertSame($before + 1, Sale::count());
+        $sale = Sale::latest('id')->first();
+        $this->assertEqualsWithDelta(440.0, (float) $sale->total_amount, 0.001);
+    }
 }
