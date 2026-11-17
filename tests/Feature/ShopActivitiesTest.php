@@ -57,7 +57,8 @@ class ShopActivitiesTest extends TestCase
                 $this->assertNotEquals($bookshopRows, $sheet['rows'], "$mode: not the bookshop's rows");
             }
             foreach (['categories', 'brands', 'variants', 'services'] as $kind) {
-                $this->assertCount(2, ImportExamples::sheet($this->shopAs($mode), $kind)['rows'], "$mode $kind");
+                // The salon trades show more rows: one per way of pricing (length, duration, options, « à partir de »).
+                $this->assertGreaterThanOrEqual(2, count(ImportExamples::sheet($this->shopAs($mode), $kind)['rows']), "$mode $kind");
             }
         }
 

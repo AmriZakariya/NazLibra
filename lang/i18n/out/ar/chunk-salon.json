@@ -1,0 +1,7 @@
+{
+ ", ou avec une durée en minutes": "، أو مع مدة بالدقائق",
+ "Durée (min), Prix à partir de (oui/non), Variantes, Options.": "المدة (دقيقة)، السعر ابتداءً من (نعم/لا)، المتغيرات، الخيارات.",
+ "Prestations (salon) :": "الخدمات (الصالون):",
+ "Variantes :": "المتغيرات:",
+ "Sans prix de vente, le prix le plus bas des variantes devient le prix de l'article. Un même fichier réimporté met à jour sans créer de doublons.": "بدون سعر بيع يصبح أدنى سعر للمتغيرات سعر المنتج. إعادة استيراد الملف نفسه تحدّث دون إنشاء نسخ مكررة."
+}

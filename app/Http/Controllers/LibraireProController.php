@@ -2575,6 +2575,11 @@ class LibraireProController extends Controller
         $updated = 0;
         $skipped = 0;
         $services = 0;
+        // Row-level problems in the Variantes / Options / Durée / À partir de
+        // cells: reported, never fatal.
+        $warnings = [];
+        $offers = app(\App\Services\Catalogue\ImportOffers::class);
+        $rowNumber = 1;
         // Photos are attached after the rows are committed: a failed download
         // must not roll back the catalogue, and a rolled-back row must not
         // leave a photo behind.
@@ -2590,6 +2595,7 @@ class LibraireProController extends Controller
         $scannedBarcodes = [];
         $scannedIsbns    = [];
         $scannedCodes    = [];
+        $scannedTitles   = [];
         foreach ($rows as $row) {
             $bc = trim((string) $this->rowValue($row, ['barcode', 'custom_barcode', 'code_barres', 'code_de_barre'])) ?: null;
             $ib = trim((string) $this->rowValue($row, ['isbn'])) ?: null;
@@ -2597,6 +2603,23 @@ class LibraireProController extends Controller
             if ($bc) $scannedBarcodes[] = $bc;
             if ($ib) $scannedIsbns[]    = $ib;
             if ($ic) $scannedCodes[]    = $ic;
+            if (! $bc && ! $ib && ! $ic) {
+                $t = mb_strtolower(trim((string) $this->rowValue($row, ['title', 'titre', 'name', 'nom', 'item_name', 'nom_article', 'nom_de_l_article'])));
+                if ($t !== '') $scannedTitles[] = $t;
+            }
+        }
+        // A row with no barcode, ISBN or code (every salon service) is
+        // recognised by its name, or importing the same price list twice
+        // would double the catalogue.
+        $byTitle = collect();
+        if ($scannedTitles) {
+            Item::withTrashed()->where('tenant_id', $tenant->id)
+                ->whereIn(DB::raw('LOWER(title)'), array_unique($scannedTitles))
+                ->orderBy('id')->get()
+                ->each(function (Item $i) use ($byTitle): void {
+                    $key = mb_strtolower(trim($i->title));
+                    if (! $byTitle->has($key)) $byTitle->put($key, $i);
+                });
         }
         $byBarcode = $scannedBarcodes
             ? Item::withTrashed()->where('tenant_id', $tenant->id)->whereIn('barcode', array_unique($scannedBarcodes))->get()->keyBy('barcode')
@@ -2687,12 +2710,14 @@ class LibraireProController extends Controller
         // ── Wrap all writes in one transaction ────────────────────────────────────
         DB::transaction(function () use (
             $tenant, $rows, $data, $ledger, $defaultLocation,
-            $byBarcode, $byIsbn, $byCode,
+            $byBarcode, $byIsbn, $byCode, $byTitle,
             $resolveCat, $resolveBrand, $resolveUnit, $resolveTax, $resolveNextCode,
             $defaultMinStock,
             &$ledgerQtyMap, &$created, &$updated, &$skipped, &$services, &$photoJobs,
+            &$warnings, &$rowNumber, $offers,
         ) {
             foreach ($rows as $row) {
+                $rowNumber++;
                 $title = trim((string) $this->rowValue($row, ['title', 'titre', 'name', 'nom', 'item_name', 'nom_article', 'nom_de_l_article']));
                 if ($title === '') { $skipped++; continue; }
 
@@ -2709,11 +2734,53 @@ class LibraireProController extends Controller
 
                 $barcode  = trim((string) $this->rowValue($row, ['barcode', 'custom_barcode', 'code_barres', 'code_de_barre'])) ?: null;
                 $isbn     = trim((string) $this->rowValue($row, ['isbn'])) ?: null;
-                $itemCode = trim((string) $this->rowValue($row, ['item_code', 'code_article'])) ?: $resolveNextCode();
+                $explicitCode = trim((string) $this->rowValue($row, ['item_code', 'code_article']));
+                $byName = (! $barcode && ! $isbn && $explicitCode === '') ? $byTitle->get(mb_strtolower($title)) : null;
+                $itemCode = $explicitCode ?: ($byName?->item_code ?: $resolveNextCode());
 
                 $priceBeforeTax = $this->decimalValue($this->rowValue($row, ['price_before_tax', 'price', 'prix', 'prix_ht']));
                 $purchasePrice  = $this->decimalValue($this->rowValue($row, ['purchase_price', 'purchase_cost', 'cost', 'cost_price', 'prix_achat', 'prix_d_achat', 'prix_dachat', 'prix_achat_ht', 'cout_achat', 'cout']) ?? $priceBeforeTax);
-                $salePrice      = $this->decimalValue($this->rowValue($row, ['sale_price', 'sales_price', 'prix_vente', 'prix_de_vente']) ?? $priceBeforeTax);
+                $salePriceCell  = $this->rowValue($row, ['sale_price', 'sales_price', 'prix_vente', 'prix_de_vente']);
+                $salePrice      = $this->decimalValue($salePriceCell ?? $priceBeforeTax);
+
+                // ── Salon price list: variants, options, duration, « à partir de » ──
+                $rowWarn = function (string $message) use (&$warnings, &$rowNumber, $title): void {
+                    $warnings[] = "ligne {$rowNumber} ({$title}) : {$message}";
+                };
+                $variantCell = trim((string) $this->rowValue($row, ['variantes', 'variants', 'declinaisons', 'tarifs']));
+                $parsedVariants = $variantCell !== '' ? \App\Services\Catalogue\ImportOffers::parseVariants($variantCell) : ['variants' => [], 'errors' => []];
+                foreach ($parsedVariants['errors'] as $problem) {
+                    $rowWarn($problem);
+                }
+                $optionCell = trim((string) $this->rowValue($row, ['options', 'supplements', 'extras', 'complements']));
+                $parsedOptions = $optionCell !== '' ? \App\Services\Catalogue\ImportOffers::parseOptions($optionCell) : ['options' => [], 'errors' => []];
+                foreach ($parsedOptions['errors'] as $problem) {
+                    $rowWarn($problem);
+                }
+                // The article's own price is the cheapest variant when the
+                // row gives none: « Shampoing » with 20/40/60 reads « dès 20 ».
+                $lowest = \App\Services\Catalogue\ImportOffers::lowestPrice($parsedVariants['variants']);
+                if ($lowest !== null && $salePriceCell === null && $this->rowValue($row, ['price_before_tax', 'price', 'prix', 'prix_ht']) === null) {
+                    $salePrice = $lowest;
+                    $priceBeforeTax = $lowest;
+                    $purchasePrice = $this->rowValue($row, ['purchase_price', 'purchase_cost', 'cost', 'cost_price', 'prix_achat', 'prix_d_achat', 'prix_dachat', 'prix_achat_ht', 'cout_achat', 'cout']) === null ? $lowest : $purchasePrice;
+                }
+                $durationCell = $this->rowValue($row, ['duree_min', 'duree', 'duree_minutes', 'duration', 'duration_minutes', 'duree_en_minutes']);
+                $duration = null;
+                if ($durationCell !== null) {
+                    $duration = \App\Services\Catalogue\ImportOffers::duration($durationCell);
+                    if ($type !== 'service') {
+                        $rowWarn('durée ignorée (réservée aux services)');
+                        $duration = null;
+                    } elseif ($duration === null) {
+                        $rowWarn('durée « '.trim((string) $durationCell).' » ignorée (entre 5 et 600 minutes)');
+                    }
+                }
+                $fromCell = $this->rowValue($row, ['prix_a_partir_de', 'a_partir_de', 'prix_des', 'price_is_from', 'from_price', 'starting_at']);
+                $isFrom = $fromCell !== null ? \App\Services\Catalogue\ImportOffers::flag($fromCell) : null;
+                if ($fromCell !== null && $isFrom === null) {
+                    $rowWarn('« Prix à partir de » : « '.trim((string) $fromCell).' » non reconnu (oui/non)');
+                }
 
                 $payload = [
                     'tenant_id'           => $tenant->id,
@@ -2752,6 +2819,12 @@ class LibraireProController extends Controller
                     'min_stock_threshold' => (int) ($this->rowValue($row, ['min_stock_threshold', 'seuil_stock', 'alert_qty', 'quantite_d_alerte']) ?? $defaultMinStock),
                     'location'            => $this->rowValue($row, ['location', 'emplacement']),
                 ];
+                if ($duration !== null) {
+                    $payload['duration_minutes'] = $duration;
+                }
+                if ($isFrom !== null && \Illuminate\Support\Facades\Schema::hasColumn('items', 'price_is_from')) {
+                    $payload['price_is_from'] = $isFrom;
+                }
 
                 $wasCreated = false;
 
@@ -2773,8 +2846,9 @@ class LibraireProController extends Controller
                         if ($isbn)    $byIsbn->put($isbn, $model);
                     }
                 } else {
-                    // No barcode/isbn — match by item_code (includes trashed, avoids unique-key collision)
-                    $existing = $byCode->get($itemCode);
+                    // No barcode/isbn — match by item_code (includes trashed, avoids unique-key collision),
+                    // or by name when the row carries no identifier at all.
+                    $existing = $byName ?? $byCode->get($itemCode);
 
                     if ($existing) {
                         if ($existing->trashed()) $existing->restore();
@@ -2786,7 +2860,17 @@ class LibraireProController extends Controller
                         $wasCreated = true;
                         $created++;
                         $byCode->put($itemCode, $model);
+                        if ($explicitCode === '') $byTitle->put(mb_strtolower($title), $model);
                     }
+                }
+
+                if ($parsedVariants['variants'] !== []) {
+                    foreach ($offers->applyVariants($model, $parsedVariants['variants']) as $problem) {
+                        $rowWarn($problem);
+                    }
+                }
+                if ($parsedOptions['options'] !== []) {
+                    $offers->applyOptions($model, $parsedOptions['options']);
                 }
 
                 $photoJobs[] = [
@@ -2824,6 +2908,9 @@ class LibraireProController extends Controller
         });
 
         $message = "{$created} créée(s), {$updated} mise(s) à jour, {$skipped} ignorée(s).";
+        if ($warnings !== []) {
+            $message .= ' '.count($warnings).' avertissement(s) : '.implode(' ; ', array_slice($warnings, 0, 5)).(count($warnings) > 5 ? ' …' : '').'.';
+        }
         $message .= $this->attachImportPhotos($photos, $photoJobs, $unzipped['photos'] ?? [], $unzipped !== null);
         \App\Services\Catalogue\ItemPhotos::cleanup($unzipped['dir'] ?? null);
         $articles = $created + $updated - $services;
@@ -2831,7 +2918,7 @@ class LibraireProController extends Controller
             $message .= " Dont {$articles} article(s) et {$services} service(s).";
         }
 
-        return back()->with('status', $message);
+        return back()->with('status', $message)->with('import_warnings', $warnings);
     }
 
     /**

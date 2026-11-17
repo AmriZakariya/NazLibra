@@ -1865,6 +1865,8 @@
                             <p><strong>Prix :</strong> <em>Prix d'achat</em> (coût), <em>Prix de vente</em>. Sans prix d'achat, la valorisation du stock et la marge ne sont pas calculées.</p>
                             <p><strong>Recommandé :</strong> Code de barre, ISBN, Catégorie/Type d'élément, Marque, Unité, Stock, Quantité d'alerte, Impôt, Statut.</p>
                             <p><strong>Optionnel :</strong> Auteur, Éditeur, Description, Tags, SKU, Type d'élément (Article / Livre / Service), Image (nom du fichier photo dans le ZIP, ou lien web).</p>
+                            <p><strong>Prestations (salon) :</strong> Durée (min), Prix à partir de (oui/non), Variantes, Options.</p>
+                            <p class="text-xs text-slate-500">Variantes : <code>Court=20; Mi-long=40; Long=60</code>, ou avec une durée en minutes <code>30 min=200@30; 1 h=400@60</code>. Options : <code>Paraffine=+50; Vernis=+20</code>. Sans prix de vente, le prix le plus bas des variantes devient le prix de l'article. Un même fichier réimporté met à jour sans créer de doublons.</p>
                             <p class="text-xs text-slate-500">Les libellés FR/EN et les accents sont détectés automatiquement. Téléchargez l'exemple pour l'ordre et le format des colonnes.</p>
                         </div>
                     </details>

@@ -20,7 +20,9 @@ final class ImportExamples
      * Per activity: categories, brands, variants as [name, description];
      * items as [name, category, brand, unit, stock, alert, cost, price,
      * taxed, tags, description] (the first is the activity's main type, the
-     * second a plain product); services as [name, cost, price, tags, description].
+     * second a plain product); services as [name, cost, price, tags, description]
+     * and, for the trades that price by length or duration, four more cells:
+     * duration in minutes, « à partir de » (oui/empty), variants, options.
      */
     private const DATA = [
         'library' => [
@@ -91,7 +93,12 @@ final class ImportExamples
                 ['Masque cheveux 250 ml', 'PRODUITS', 'L’ORÉAL', 'Pièce', 15, 3, 70, 140, true, 'soin, cheveux', 'Masque nourrissant 250 ml'],
                 ['Huile d’argan 100 ml', 'PRODUITS', 'ARGANE', 'Pièce', 20, 4, 60, 120, true, 'argan, soin', 'Huile d’argan pure 100 ml'],
             ],
-            'services' => [['Brushing', 10, 80, 'coiffure', 'Brushing cheveux mi-longs'], ['Soin visage', 30, 250, 'soin', 'Soin du visage 45 minutes']],
+            'services' => [
+                ['Shampoing', 0, 0, 'coiffure', 'Shampoing et soin selon la longueur des cheveux', 20, '', 'Court=20; Mi-long=40; Long=60', ''],
+                ['Coloration', 0, 300, 'coiffure, couleur', 'Coloration complète, le prix dépend de la longueur', 90, 'oui', '', ''],
+                ['Massage', 0, 0, 'bien-être', 'Massage relaxant, le prix dépend de la durée', '', '', '30 min=200@30; 1 h=400@60', ''],
+                ['Pédicure', 0, 150, 'ongles', 'Pédicure classique, soins en option', 45, '', '', 'Paraffine=+50; Vernis=+20'],
+            ],
         ],
         'barber' => [
             'categories' => [['COUPES', 'Coupes homme'], ['PRODUITS', 'Produits vendus']],
@@ -101,7 +108,10 @@ final class ImportExamples
                 ['Cire coiffante 100 g', 'PRODUITS', 'REUZEL', 'Pièce', 12, 3, 60, 120, true, 'cire, coiffage', 'Cire tenue forte 100 g'],
                 ['Baume après-rasage', 'PRODUITS', 'PROraso', 'Pièce', 10, 2, 50, 95, true, 'rasage', 'Baume apaisant 100 ml'],
             ],
-            'services' => [['Coupe homme', 0, 60, 'coupe', 'Coupe classique ou dégradé'], ['Taille de barbe', 0, 40, 'barbe', 'Taille et contours de barbe']],
+            'services' => [
+                ['Coupe homme', 0, 60, 'coupe', 'Coupe classique ou dégradé', 30, '', 'Adulte=60; Enfant=40', ''],
+                ['Taille de barbe', 0, 40, 'barbe', 'Taille et contours de barbe', 20, 'oui', '', 'Soin à l’huile=+15'],
+            ],
         ],
         'cosmetics' => [
             'categories' => [['PARFUMS', 'Eaux de parfum et de toilette'], ['MAQUILLAGE', 'Teint, yeux, lèvres']],
@@ -257,10 +267,13 @@ final class ImportExamples
         return [
             'title' => 'Liste des services',
             'filename' => 'exemple-import-services.xlsx',
-            'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément", 'Image'],
+            'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément", 'Image', 'Durée (min)', 'Prix à partir de', 'Variantes', 'Options'],
             'rows' => array_map(fn (array $s) => [
-                '', $s[0], 'Services[SERVICE]', 'Service', self::amount($s[1]), self::amount($s[2]),
+                '', $s[0], 'Services[SERVICE]', 'Service', self::amount($s[1]),
+                // A price given by variants is left empty: the cheapest becomes the article's.
+                ($s[7] ?? '') !== '' && (float) $s[2] === 0.0 ? '' : self::amount($s[2]),
                 self::tax($tenant, false), 'Active', $s[3], $s[4], $type, '',
+                (string) ($s[5] ?? ''), (string) ($s[6] ?? ''), (string) ($s[7] ?? ''), (string) ($s[8] ?? ''),
             ], $services),
         ];
     }

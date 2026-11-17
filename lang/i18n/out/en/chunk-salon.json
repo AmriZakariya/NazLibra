@@ -1,0 +1,7 @@
+{
+ ", ou avec une durée en minutes": ", or with a duration in minutes",
+ "Durée (min), Prix à partir de (oui/non), Variantes, Options.": "Duration (min), Price from (yes/no), Variants, Options.",
+ "Prestations (salon) :": "Services (salon):",
+ "Variantes :": "Variants:",
+ "Sans prix de vente, le prix le plus bas des variantes devient le prix de l'article. Un même fichier réimporté met à jour sans créer de doublons.": "Without a sale price, the lowest variant price becomes the item's price. Re-importing the same file updates without creating duplicates."
+}
