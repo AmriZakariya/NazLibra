@@ -109,11 +109,13 @@
                 @csrf
                 <div>
                     <h3 class="font-semibold">Timbre fiscal</h3>
-                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Droit de timbre ajouté au net à payer de chaque nouvelle facture. Les factures déjà émises ne changent pas.</p>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">@if (\App\Support\StampDuty::usesScale($tenant))Droit de timbre sur les factures réglées en espèces : 1 % jusqu'à 30 000, 1,5 % jusqu'à 100 000, 2 % au-delà du total TTC, arrondi au dinar supérieur (minimum 5, rien jusqu'à 300). Les paiements par carte, virement ou chèque en sont exemptés.@else Droit de timbre ajouté au net à payer de chaque nouvelle facture. Les factures déjà émises ne changent pas.@endif</p>
                 </div>
                 <div class="grid gap-4 md:grid-cols-2">
                     <label class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold dark:border-white/10 dark:bg-white/5"><input name="stamp_duty_enabled" value="1" type="checkbox" @checked(old('stamp_duty_enabled', $stampDuty['enabled'])) class="size-4 accent-[var(--brand-primary)]"> Appliquer le timbre fiscal</label>
+                    @unless (\App\Support\StampDuty::usesScale($tenant))
                     <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Montant du timbre</span><input name="stamp_duty_amount" type="number" step="0.01" min="0" value="{{ old('stamp_duty_amount', $stampDuty['amount']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                    @endunless
                 </div>
                 <button class="rounded-lg bg-brand px-5 py-3 text-sm font-semibold text-white shadow-sm">Enregistrer le timbre fiscal</button>
             </form>

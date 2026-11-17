@@ -23,6 +23,9 @@ final class BusinessIds
         'EG' => ['gst_no' => 'N° d’enregistrement fiscal', 'rc' => 'Registre de commerce', 'vat_no' => 'N° de carte fiscale', 'cnss' => 'Assurances sociales', 'pan_no' => 'Autre identifiant'],
         // Tunisia: the matricule fiscal carries the VAT code, and the RNE
         // replaced the registre de commerce in 2019.
+        // Algeria: an invoice must carry the RC, NIF, NIS and article
+        // d'imposition (AI) of the seller.
+        'DZ' => ['rc' => 'Registre de commerce (RC)', 'gst_no' => 'NIF', 'vat_no' => 'NIS', 'pan_no' => 'Article d’imposition (AI)', 'cnss' => 'N° CNAS'],
         'TN' => ['gst_no' => 'Matricule fiscal (MF)', 'rc' => 'Identifiant RNE', 'cnss' => 'N° CNSS', 'vat_no' => 'Code en douane', 'pan_no' => 'Autre identifiant'],
     ];
 
@@ -31,6 +34,7 @@ final class BusinessIds
         'MA' => ['gst_no' => 'ICE', 'rc' => 'RC', 'vat_no' => 'IF', 'cnss' => 'CNSS'],
         'EG' => ['gst_no' => 'N° d’enregistrement fiscal', 'rc' => 'Registre de commerce', 'vat_no' => 'N° de carte fiscale'],
         'TN' => ['gst_no' => 'MF', 'rc' => 'RNE', 'cnss' => 'CNSS'],
+        'DZ' => ['gst_no' => 'NIF', 'rc' => 'RC', 'vat_no' => 'NIS', 'pan_no' => 'AI'],
     ];
 
     /** The identifier a customer or supplier gives, by the shop's country. */
@@ -38,6 +42,7 @@ final class BusinessIds
         'MA' => 'ICE',
         'EG' => 'N° d’enregistrement fiscal',
         'TN' => 'Matricule fiscal',
+        'DZ' => 'NIF',
     ];
 
     private const DEFAULT_SETTINGS = ['gst_no' => 'Identifiant fiscal', 'vat_no' => 'N° TVA', 'rc' => 'Registre de commerce', 'cnss' => 'Sécurité sociale', 'pan_no' => 'Autre identifiant'];

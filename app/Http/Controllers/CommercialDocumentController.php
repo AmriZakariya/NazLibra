@@ -71,7 +71,7 @@ class CommercialDocumentController extends Controller
     public function storeInvoice(Request $request, InvoiceService $service): RedirectResponse
     {
         $tenant = TenantContext::require($request);
-        $invoice = $service->create($tenant, $this->validateInvoicePayload($request));
+        $invoice = $service->create($tenant, $this->validateInvoicePayload($request) + ['paid_in_cash' => $request->boolean('paid_in_cash')]);
 
         return redirect()
             ->route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $invoice->id])
@@ -83,7 +83,7 @@ class CommercialDocumentController extends Controller
         $tenant = TenantContext::require($request);
         abort_unless($invoice->tenant_id === $tenant->id, 404);
 
-        $invoice = $service->update($invoice, $this->validateInvoicePayload($request, true), $request->integer('version') ?: null);
+        $invoice = $service->update($invoice, $this->validateInvoicePayload($request, true) + ['paid_in_cash' => $request->boolean('paid_in_cash')], $request->integer('version') ?: null);
 
         return redirect()
             ->route('module', ['module' => 'invoices', 'section' => 'invoices', 'invoice' => $invoice->id])
@@ -314,6 +314,8 @@ class CommercialDocumentController extends Controller
             'terms' => ['nullable', 'string', 'max:4000'],
             'footer' => ['nullable', 'string', 'max:2000'],
             'customer_reference' => ['nullable', 'string', 'max:160'],
+            // « Réglé en espèces »: only read by shops whose stamp duty is the Algerian scale.
+            'paid_in_cash' => ['nullable', 'boolean'],
             // At least one line must carry a real article or a designation.
             'lines' => ['required', 'array', 'min:1', function (string $attr, $value, callable $fail): void {
                 $meaningful = collect($value)->contains(

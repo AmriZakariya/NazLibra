@@ -221,7 +221,7 @@
             <div class="totals-row"><span>Arrondi</span><strong>{{ $money($document->rounding_total) }}</strong></div>
         @endif
         @if ($isInvoice && (float) $document->stamp_duty > 0)
-            <div class="totals-row"><span>Timbre fiscal</span><strong>{{ $money($document->stamp_duty) }}</strong></div>
+            <div class="totals-row"><span>{{ data_get($document->metadata, 'paid_in_cash') ? 'Timbre fiscal (paiement en espèces)' : 'Timbre fiscal' }}</span><strong>{{ $money($document->stamp_duty) }}</strong></div>
         @endif
         <div class="totals-row grand"><span>Total TTC</span><strong>{{ $money($document->total) }}</strong></div>
         @if ($isInvoice)

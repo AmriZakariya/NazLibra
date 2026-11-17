@@ -138,7 +138,7 @@ class SaleInvoiceController extends Controller
             }
 
             // Fixed when the invoice is first raised: raising it again keeps its stamp.
-            $stamp = $invoice->exists ? (string) $invoice->stamp_duty : \App\Support\StampDuty::amount($tenant);
+            $stamp = $invoice->exists ? (string) $invoice->stamp_duty : \App\Support\StampDuty::forSale($tenant, $sale);
 
             $metadata = $invoice->metadata ?? [];
             if (! isset($metadata['created_by']) && ! $invoice->user_id) {

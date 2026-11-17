@@ -5769,7 +5769,7 @@ class LibraireProController extends Controller
             }
 
             // Fixed when the invoice is first raised: raising it again keeps its stamp.
-            $stamp = $invoice->exists ? (string) $invoice->stamp_duty : \App\Support\StampDuty::amount($tenant);
+            $stamp = $invoice->exists ? (string) $invoice->stamp_duty : \App\Support\StampDuty::forSale($tenant, $sale);
 
             $invoiceMetadata = $invoice->metadata ?? [];
             if (! isset($invoiceMetadata['created_by'])) {

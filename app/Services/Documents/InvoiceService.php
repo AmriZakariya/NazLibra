@@ -31,10 +31,10 @@ class InvoiceService
             $number = $this->numbers->nextInvoice($tenant, $data['serial_prefix'] ?? null);
             // The stamp duty is fixed here, once: a later change of the
             // setting never touches an invoice already issued.
-            $calculation = $this->withStampDuty(
-                $this->calculator->calculate($this->payloadWithSnapshots($tenant, $data)),
-                StampDuty::amount($tenant)
-            );
+            $calculation = $this->calculator->calculate($this->payloadWithSnapshots($tenant, $data));
+            $paidInCash = StampDuty::usesScale($tenant) && ! empty($data['paid_in_cash']);
+            $calculation = $this->withStampDuty($calculation, StampDuty::forInvoice($tenant, $calculation['total'], $paidInCash));
+            $data['metadata'] = $this->metadataWithCash($data['metadata'] ?? null, $tenant, $paidInCash);
             $issueDate = Carbon::parse($data['issue_date'] ?? now())->toDateString();
             $dueDate = ! empty($data['due_date']) ? Carbon::parse($data['due_date'])->toDateString() : null;
             if (! $dueDate) {
@@ -77,11 +77,24 @@ class InvoiceService
             $tenant = $invoice->tenant()->firstOrFail();
             $before = $invoice->only(['status', 'total', 'balance_due', 'customer_id', 'due_date']);
             $customer = $this->customer($tenant, $data + ['customer_id' => $invoice->customer_id]);
-            // An edit keeps the stamp the invoice was issued with.
-            $calculation = $this->withStampDuty(
-                $this->calculator->calculate($this->payloadWithSnapshots($tenant, $data)),
-                (string) ($invoice->stamp_duty ?? '0.00')
-            );
+            $calculation = $this->calculator->calculate($this->payloadWithSnapshots($tenant, $data));
+            if (StampDuty::usesScale($tenant)) {
+                // The scale depends on the total and on cash payment, so an
+                // edit recomputes it. A shop that has since switched the duty
+                // off still recomputes an invoice that was issued with one.
+                $paidInCash = array_key_exists('paid_in_cash', $data)
+                    ? (bool) $data['paid_in_cash']
+                    : (bool) data_get($invoice->metadata, 'paid_in_cash', false);
+                $stamp = StampDuty::settings($tenant)['enabled'] || (float) $invoice->stamp_duty > 0
+                    ? ($paidInCash ? StampDuty::scale($calculation['total']) : '0.00')
+                    : '0.00';
+                $data['metadata'] = $this->metadataWithCash($data['metadata'] ?? $invoice->metadata, $tenant, $paidInCash);
+            } else {
+                // A fixed duty is kept: an edit keeps the stamp the invoice was issued with.
+                $stamp = (string) ($invoice->stamp_duty ?? '0.00');
+                $data['metadata'] ??= $invoice->metadata;
+            }
+            $calculation = $this->withStampDuty($calculation, $stamp);
             $issueDate = ! empty($data['issue_date']) ? Carbon::parse($data['issue_date'])->toDateString() : $invoice->issue_date?->toDateString();
             $dueDate = array_key_exists('due_date', $data)
                 ? (! empty($data['due_date']) ? Carbon::parse($data['due_date'])->toDateString() : null)
@@ -374,6 +387,18 @@ class InvoiceService
         ];
     }
 
+    /** Keeps the « paid in cash » choice in the metadata (scale shops only). */
+    private function metadataWithCash(?array $metadata, Tenant $tenant, bool $paidInCash): ?array
+    {
+        if (! StampDuty::usesScale($tenant)) {
+            return $metadata;
+        }
+        $metadata = $metadata ?? [];
+        $metadata['paid_in_cash'] = $paidInCash;
+
+        return $metadata;
+    }
+
     /** Adds the stamp duty to the net to pay, and keeps it apart for the PDF. */
     private function withStampDuty(array $calculation, string $stamp): array
     {
@@ -476,6 +501,7 @@ class InvoiceService
             'terms' => $invoice->terms,
             'footer' => $invoice->footer,
             'customer_reference' => $invoice->customer_reference,
+            'paid_in_cash' => (bool) data_get($invoice->metadata, 'paid_in_cash', false),
             'lines' => $invoice->items->map(fn ($line) => [
                 'item_id' => $line->item_id,
                 'name' => $line->name,
