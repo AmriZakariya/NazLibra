@@ -220,6 +220,9 @@
         @if ((float) $document->rounding_total != 0.0)
             <div class="totals-row"><span>Arrondi</span><strong>{{ $money($document->rounding_total) }}</strong></div>
         @endif
+        @if ($isInvoice && (float) $document->stamp_duty > 0)
+            <div class="totals-row"><span>Timbre fiscal</span><strong>{{ $money($document->stamp_duty) }}</strong></div>
+        @endif
         <div class="totals-row grand"><span>Total TTC</span><strong>{{ $money($document->total) }}</strong></div>
         @if ($isInvoice)
             <div class="totals-row due"><span>Déjà réglé</span><strong>{{ $money($document->amount_paid) }}</strong></div>

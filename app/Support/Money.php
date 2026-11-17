@@ -46,6 +46,7 @@ final class Money
      */
     public const LOCAL_SYMBOLS = [
         'EGP' => ['ar' => 'ج.م'],
+        'TND' => ['ar' => 'د.ت'],
     ];
 
     /**

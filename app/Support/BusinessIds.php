@@ -21,18 +21,23 @@ final class BusinessIds
     private const SETTINGS = [
         'MA' => ['cnss' => 'CNSS', 'rc' => 'RC', 'gst_no' => 'ICE / GST No', 'vat_no' => 'TVA / VAT No', 'pan_no' => 'PAN / identifiant fiscal'],
         'EG' => ['gst_no' => 'N° d’enregistrement fiscal', 'rc' => 'Registre de commerce', 'vat_no' => 'N° de carte fiscale', 'cnss' => 'Assurances sociales', 'pan_no' => 'Autre identifiant'],
+        // Tunisia: the matricule fiscal carries the VAT code, and the RNE
+        // replaced the registre de commerce in 2019.
+        'TN' => ['gst_no' => 'Matricule fiscal (MF)', 'rc' => 'Identifiant RNE', 'cnss' => 'N° CNSS', 'vat_no' => 'Code en douane', 'pan_no' => 'Autre identifiant'],
     ];
 
     /** country => field => label, as a document prints them, in that order. */
     private const PRINTED = [
         'MA' => ['gst_no' => 'ICE', 'rc' => 'RC', 'vat_no' => 'IF', 'cnss' => 'CNSS'],
         'EG' => ['gst_no' => 'N° d’enregistrement fiscal', 'rc' => 'Registre de commerce', 'vat_no' => 'N° de carte fiscale'],
+        'TN' => ['gst_no' => 'MF', 'rc' => 'RNE', 'cnss' => 'CNSS'],
     ];
 
     /** The identifier a customer or supplier gives, by the shop's country. */
     private const PARTNER = [
         'MA' => 'ICE',
         'EG' => 'N° d’enregistrement fiscal',
+        'TN' => 'Matricule fiscal',
     ];
 
     private const DEFAULT_SETTINGS = ['gst_no' => 'Identifiant fiscal', 'vat_no' => 'N° TVA', 'rc' => 'Registre de commerce', 'cnss' => 'Sécurité sociale', 'pan_no' => 'Autre identifiant'];

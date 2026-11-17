@@ -29,6 +29,7 @@ class AmountInWords
         'USD' => ['dollar', 'dollars', 'cent', 'cents'],
         'XOF' => ['franc CFA', 'francs CFA', 'centime', 'centimes'],
         'DZD' => ['dinar', 'dinars', 'centime', 'centimes'],
+        'TND' => ['dinar', 'dinars', 'millime', 'millimes'],
         'CHF' => ['franc', 'francs', 'centime', 'centimes'],
         'CAD' => ['dollar', 'dollars', 'cent', 'cents'],
     ];
@@ -45,7 +46,7 @@ class AmountInWords
         'SAR' => ['ar' => ['ريال سعودي', 'هللة'], 'en' => ['Saudi riyals', 'halalas']],
         'AED' => ['ar' => ['درهم إماراتي', 'فلس'], 'en' => ['UAE dirhams', 'fils']],
         'DZD' => ['ar' => ['دينار جزائري', 'سنتيم'], 'en' => ['Algerian dinars', 'centimes']],
-        'TND' => ['ar' => ['دينار تونسي', 'مليم'], 'en' => ['Tunisian dinars', 'millimes']],
+        'TND' => ['ar' => ['دينار تونسي', 'مليم'], 'en' => ['Tunisian dinars', 'millimes'], 'es' => ['dinares tunecinos', 'milésimos'], 'pt' => ['dinares tunisinos', 'milésimos'], 'de' => ['tunesische Dinar', 'Millimes'], 'it' => ['dinari tunisini', 'millesimi']],
     ];
 
     /**
@@ -66,9 +67,10 @@ class AmountInWords
 
     private static function spelled(float $amount, string $currency, string $locale): string
     {
-        $cents = (int) round(abs($amount) * 100);
-        $major = intdiv($cents, 100);
-        $minor = $cents % 100;
+        $scale = self::minorScale($currency);
+        $units = (int) round(abs($amount) * $scale);
+        $major = intdiv($units, $scale);
+        $minor = $units % $scale;
         $spell = new \NumberFormatter($locale, \NumberFormatter::SPELLOUT);
         [$majorName, $minorName] = self::NAMES[$currency][$locale] ?? self::NAMES[$currency]['en'] ?? [$currency, ''];
 
@@ -96,11 +98,14 @@ class AmountInWords
     {
         // Through cents, so 0.1 + 0.2 arithmetic upstream cannot turn 145.30
         // into "cent quarante-cinq dirhams et vingt-neuf centimes".
-        $cents = (int) round((float) $amount * 100);
-        $negative = $cents < 0;
-        $cents = abs($cents);
-        $major = intdiv($cents, 100);
-        $minor = $cents % 100;
+        // Millimes for the dinar: 12,345 DT is « douze dinars et trois cent
+        // quarante-cinq millimes », not 35 centimes.
+        $scale = self::minorScale($currency);
+        $units = (int) round((float) $amount * $scale);
+        $negative = $units < 0;
+        $units = abs($units);
+        $major = intdiv($units, $scale);
+        $minor = $units % $scale;
 
         [$one, $many, $minorOne, $minorMany] = self::CURRENCIES[strtoupper($currency)]
             ?? [strtoupper($currency), strtoupper($currency), 'centime', 'centimes'];
@@ -112,6 +117,13 @@ class AmountInWords
         }
 
         return ucfirst(($negative ? 'moins ' : '').$words);
+    }
+
+    /** Minor units per major one: 1000 for TND (millimes), 100 otherwise. */
+    private static function minorScale(string $currency): int
+    {
+        // A plain list, not Countries: this class runs in unit tests with no app.
+        return in_array(strtoupper($currency), ['TND', 'LYD', 'KWD', 'BHD', 'OMR', 'JOD', 'IQD'], true) ? 1000 : 100;
     }
 
     public static function integer(int $number): string

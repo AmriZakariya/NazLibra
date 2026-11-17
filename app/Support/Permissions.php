@@ -326,6 +326,7 @@ class Permissions
             'settings.item-types.update' => 'settings.company',
             'settings.pos.update' => 'settings.pos',
             'settings.documents.update' => 'settings.documents',
+            'settings.stamp-duty.update' => 'settings.documents',
             'settings.messaging.update' => 'settings.messaging',
             'settings.messaging.send' => 'settings.messaging',
             'settings.message-templates.store' => 'settings.messaging',

@@ -9,6 +9,7 @@ use App\Models\InvoicePayment;
 use App\Models\Item;
 use App\Models\Tenant;
 use App\Services\CashRegisterService;
+use App\Support\StampDuty;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -28,7 +29,12 @@ class InvoiceService
         return DB::transaction(function () use ($tenant, $data): Invoice {
             $customer = $this->customer($tenant, $data);
             $number = $this->numbers->nextInvoice($tenant, $data['serial_prefix'] ?? null);
-            $calculation = $this->calculator->calculate($this->payloadWithSnapshots($tenant, $data));
+            // The stamp duty is fixed here, once: a later change of the
+            // setting never touches an invoice already issued.
+            $calculation = $this->withStampDuty(
+                $this->calculator->calculate($this->payloadWithSnapshots($tenant, $data)),
+                StampDuty::amount($tenant)
+            );
             $issueDate = Carbon::parse($data['issue_date'] ?? now())->toDateString();
             $dueDate = ! empty($data['due_date']) ? Carbon::parse($data['due_date'])->toDateString() : null;
             if (! $dueDate) {
@@ -71,7 +77,11 @@ class InvoiceService
             $tenant = $invoice->tenant()->firstOrFail();
             $before = $invoice->only(['status', 'total', 'balance_due', 'customer_id', 'due_date']);
             $customer = $this->customer($tenant, $data + ['customer_id' => $invoice->customer_id]);
-            $calculation = $this->calculator->calculate($this->payloadWithSnapshots($tenant, $data));
+            // An edit keeps the stamp the invoice was issued with.
+            $calculation = $this->withStampDuty(
+                $this->calculator->calculate($this->payloadWithSnapshots($tenant, $data)),
+                (string) ($invoice->stamp_duty ?? '0.00')
+            );
             $issueDate = ! empty($data['issue_date']) ? Carbon::parse($data['issue_date'])->toDateString() : $invoice->issue_date?->toDateString();
             $dueDate = array_key_exists('due_date', $data)
                 ? (! empty($data['due_date']) ? Carbon::parse($data['due_date'])->toDateString() : null)
@@ -353,6 +363,7 @@ class InvoiceService
             'tax_total' => $calculation['tax_total'],
             'fee_total' => $calculation['fee_total'],
             'rounding_total' => $calculation['rounding_total'],
+            'stamp_duty' => $calculation['stamp_duty'],
             'total' => $calculation['total'],
             'customer_message' => $data['customer_message'] ?? null,
             'internal_note' => $data['internal_note'] ?? null,
@@ -361,6 +372,16 @@ class InvoiceService
             'customer_reference' => $data['customer_reference'] ?? null,
             'metadata' => $data['metadata'] ?? null,
         ];
+    }
+
+    /** Adds the stamp duty to the net to pay, and keeps it apart for the PDF. */
+    private function withStampDuty(array $calculation, string $stamp): array
+    {
+        $cents = (int) round((float) $stamp * 100);
+        $calculation['stamp_duty'] = number_format($cents / 100, 2, '.', '');
+        $calculation['total'] = number_format(((int) round((float) $calculation['total'] * 100) + $cents) / 100, 2, '.', '');
+
+        return $calculation;
     }
 
     private function customerSnapshot(?Contact $customer, array $data): array

@@ -101,4 +101,22 @@
             </aside>
         </form>
     </article>
+
+    @if (\App\Support\StampDuty::shown($tenant))
+        @php $stampDuty = \App\Support\StampDuty::settings($tenant); @endphp
+        <article class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+            <form action="{{ route('settings.stamp-duty.update') }}" method="POST" class="space-y-4 p-5">
+                @csrf
+                <div>
+                    <h3 class="font-semibold">Timbre fiscal</h3>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Droit de timbre ajouté au net à payer de chaque nouvelle facture. Les factures déjà émises ne changent pas.</p>
+                </div>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <label class="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold dark:border-white/10 dark:bg-white/5"><input name="stamp_duty_enabled" value="1" type="checkbox" @checked(old('stamp_duty_enabled', $stampDuty['enabled'])) class="size-4 accent-[var(--brand-primary)]"> Appliquer le timbre fiscal</label>
+                    <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Montant du timbre</span><input name="stamp_duty_amount" type="number" step="0.01" min="0" value="{{ old('stamp_duty_amount', $stampDuty['amount']) }}" class="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                </div>
+                <button class="rounded-lg bg-brand px-5 py-3 text-sm font-semibold text-white shadow-sm">Enregistrer le timbre fiscal</button>
+            </form>
+        </article>
+    @endif
 </section>

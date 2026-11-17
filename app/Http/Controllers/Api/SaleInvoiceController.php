@@ -137,6 +137,9 @@ class SaleInvoiceController extends Controller
                 ]);
             }
 
+            // Fixed when the invoice is first raised: raising it again keeps its stamp.
+            $stamp = $invoice->exists ? (string) $invoice->stamp_duty : \App\Support\StampDuty::amount($tenant);
+
             $metadata = $invoice->metadata ?? [];
             if (! isset($metadata['created_by']) && ! $invoice->user_id) {
                 $metadata += [
@@ -162,7 +165,8 @@ class SaleInvoiceController extends Controller
                 'subtotal_amount'  => $sale->subtotal_amount ?? $sale->total_amount,
                 'discount_amount'  => $sale->discount_amount ?? 0,
                 'tax_amount'       => $sale->tax_amount ?? 0,
-                'total_amount'     => $sale->total_amount,
+                'stamp_duty'       => $stamp,
+                'total_amount'     => number_format((float) $sale->total_amount + (float) $stamp, 2, '.', ''),
                 'note'             => $data['note'] ?? $invoice->note,
             ]);
             $invoice->save();
@@ -191,6 +195,7 @@ class SaleInvoiceController extends Controller
             'subtotal_amount'  => (float) $invoice->subtotal_amount,
             'discount_amount'  => (float) $invoice->discount_amount,
             'tax_amount'       => (float) $invoice->tax_amount,
+            'stamp_duty'       => (float) $invoice->stamp_duty,
             'total_amount'     => (float) $invoice->total_amount,
             'note'             => $invoice->note,
             'created_at'       => $invoice->created_at?->toISOString(),

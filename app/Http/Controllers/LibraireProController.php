@@ -3727,6 +3727,33 @@ class LibraireProController extends Controller
         return back()->with('status', 'Modèles PDF enregistrés.');
     }
 
+    /**
+     * Paramètres › Documents › Timbre fiscal. Only the differences from the
+     * country's default are kept; invoices already issued keep their stamp.
+     */
+    public function updateStampDuty(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        abort_unless(\App\Support\StampDuty::shown($tenant), 404);
+
+        $data = $request->validate([
+            'stamp_duty_amount' => ['nullable', 'numeric', 'min:0', 'max:1000000'],
+        ]);
+
+        $enabled = $request->boolean('stamp_duty_enabled');
+        $own = \App\Support\StampDuty::overridesFrom($tenant, $enabled, $data['stamp_duty_amount'] ?? null);
+
+        $settings = $tenant->settings ?? [];
+        if ($own === null) {
+            data_forget($settings, \App\Support\StampDuty::SETTINGS_KEY);
+        } else {
+            data_set($settings, \App\Support\StampDuty::SETTINGS_KEY, $own);
+        }
+        $tenant->forceFill(['settings' => $settings])->save();
+
+        return back()->with('status', 'Timbre fiscal enregistré. Il s’applique aux prochaines factures.');
+    }
+
     public function updateMessagingSettings(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();
@@ -5741,6 +5768,9 @@ class LibraireProController extends Controller
                 ]);
             }
 
+            // Fixed when the invoice is first raised: raising it again keeps its stamp.
+            $stamp = $invoice->exists ? (string) $invoice->stamp_duty : \App\Support\StampDuty::amount($tenant);
+
             $invoiceMetadata = $invoice->metadata ?? [];
             if (! isset($invoiceMetadata['created_by'])) {
                 $invoiceMetadata['created_by'] = $invoice->user_id ?: auth()->id();
@@ -5757,7 +5787,8 @@ class LibraireProController extends Controller
                 'subtotal_amount' => $sale->subtotal_amount,
                 'discount_amount' => $sale->discount_amount,
                 'tax_amount' => $sale->tax_amount,
-                'total_amount' => $sale->total_amount,
+                'stamp_duty' => $stamp,
+                'total_amount' => number_format((float) $sale->total_amount + (float) $stamp, 2, '.', ''),
                 'note' => $data['invoice_note'] ?? $invoice->note,
                 'metadata' => $invoiceMetadata,
             ]);
@@ -5876,8 +5907,10 @@ class LibraireProController extends Controller
                 'subtotal' => (float) $invoice->subtotal_amount,
                 'discount' => (float) $invoice->discount_amount,
                 'tax' => (float) $invoice->tax_amount,
+                'stamp_duty' => (float) $invoice->stamp_duty,
                 'paid' => $paid,
-                'due' => max(0, (float) $invoice->total_amount - $paid),
+                // The stamp is collected with the sale: it is owed only while the sale itself is.
+                'due' => $this->saleInvoiceDue($invoice, $sale, $paid),
                 'total' => (float) $invoice->total_amount,
             ],
             'note' => $invoice->note,
@@ -9757,6 +9790,13 @@ class LibraireProController extends Controller
         }
 
         return $paid > 0.001 ? 'partial' : 'unpaid';
+    }
+
+    private function saleInvoiceDue(SaleInvoice $invoice, Sale $sale, float $paid): float
+    {
+        $saleDue = max(0, (float) $sale->total_amount - $paid);
+
+        return $saleDue > 0.001 ? $saleDue + (float) $invoice->stamp_duty : 0.0;
     }
 
     private function syncSaleInvoiceStatus(?Sale $sale): void

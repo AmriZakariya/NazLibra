@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['tenant_id', 'sale_id', 'contact_id', 'user_id', 'number', 'status', 'issued_at', 'due_date', 'subtotal_amount', 'discount_amount', 'tax_amount', 'total_amount', 'note', 'metadata'])]
+#[Fillable(['tenant_id', 'sale_id', 'contact_id', 'user_id', 'number', 'status', 'issued_at', 'due_date', 'subtotal_amount', 'discount_amount', 'tax_amount', 'stamp_duty', 'total_amount', 'note', 'metadata'])]
 class SaleInvoice extends Model
 {
     use SoftDeletes;
@@ -17,6 +17,7 @@ class SaleInvoice extends Model
         return [
             'issued_at' => 'datetime',
             'due_date' => 'date',
+            'stamp_duty' => 'decimal:2',
             'metadata' => 'array',
         ];
     }

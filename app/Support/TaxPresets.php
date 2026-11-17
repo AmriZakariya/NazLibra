@@ -18,7 +18,7 @@ final class TaxPresets
         'MA' => [[20, true], [7, false]],
         'EG' => [[14, true], [5, false]],
         'DZ' => [[19, true], [9, false]],
-        'TN' => [[19, true], [7, false]],
+        'TN' => [[19, true], [13, false], [7, false]],
         'FR' => [[20, true], [10, false], [5.5, false]],
         'BE' => [[21, true], [6, false]],
         'SN' => [[18, true]],

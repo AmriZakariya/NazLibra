@@ -264,6 +264,9 @@
         @if (($document['totals']['tax'] ?? 0) > 0)
             <div class="totals-row"><span>TVA incluse</span><strong>{{ $money($document['totals']['tax']) }}</strong></div>
         @endif
+        @if (($document['totals']['stamp_duty'] ?? 0) > 0)
+            <div class="totals-row"><span>Timbre fiscal</span><strong>{{ $money($document['totals']['stamp_duty']) }}</strong></div>
+        @endif
         @if ($document['type'] !== 'purchase')
             <div class="totals-row"><span>Payé</span><strong>{{ $money($document['totals']['paid']) }}</strong></div>
             <div class="totals-row"><span>Reste</span><strong>{{ $money($document['totals']['due']) }}</strong></div>

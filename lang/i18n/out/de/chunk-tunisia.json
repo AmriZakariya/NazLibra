@@ -1,0 +1,15 @@
+{
+ "Appliquer le timbre fiscal": "Stempelsteuer anwenden",
+ "Code en douane": "Zollnummer",
+ "Droit de timbre ajouté au net à payer de chaque nouvelle facture. Les factures déjà émises ne changent pas.": "Stempelsteuer, die jeder neuen Rechnung zum Zahlbetrag hinzugefügt wird. Bereits ausgestellte Rechnungen ändern sich nicht.",
+ "Enregistrer le timbre fiscal": "Stempelsteuer speichern",
+ "Identifiant RNE": "RNE-Kennung",
+ "MF": "MF",
+ "Matricule fiscal (MF)": "Steuernummer (MF)",
+ "Montant du timbre": "Stempelbetrag",
+ "N° CNSS": "CNSS-Nr.",
+ "RNE": "RNE",
+ "Timbre fiscal": "Stempelsteuer",
+ "Timbre fiscal enregistré. Il s’applique aux prochaines factures.": "Stempelsteuer gespeichert. Sie gilt für die nächsten Rechnungen.",
+ "Matricule fiscal": "Steuernummer"
+}

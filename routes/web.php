@@ -441,6 +441,7 @@ Route::post('/parametres/groupes-impression', [LibraireProController::class, 'st
 Route::put('/parametres/groupes-impression/{group}', [LibraireProController::class, 'updatePrinterGroup'])->name('settings.printer-groups.update');
 Route::delete('/parametres/groupes-impression/{group}', [LibraireProController::class, 'destroyPrinterGroup'])->name('settings.printer-groups.destroy');
 Route::post('/parametres/documents-pdf', [LibraireProController::class, 'updateDocumentSettings'])->name('settings.documents.update');
+Route::post('/parametres/timbre-fiscal', [LibraireProController::class, 'updateStampDuty'])->name('settings.stamp-duty.update');
 Route::post('/parametres/messagerie', [LibraireProController::class, 'updateMessagingSettings'])->name('settings.messaging.update');
 Route::post('/parametres/messagerie/envoyer', [LibraireProController::class, 'sendManualMessage'])->name('settings.messaging.send');
 Route::post('/parametres/messagerie/modeles', [LibraireProController::class, 'storeMessageTemplate'])->name('settings.message-templates.store');
