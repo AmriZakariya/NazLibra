@@ -342,7 +342,7 @@ class OnlineStoreController extends Controller
 
     private function nextOnlineOrderNumber(Tenant $tenant): string
     {
-        $max = OnlineOrder::where('tenant_id', $tenant->id)
+        $max = OnlineOrder::withTrashed()->where('tenant_id', $tenant->id)
             ->where('number', 'like', 'PRE%')
             ->pluck('number')
             ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))

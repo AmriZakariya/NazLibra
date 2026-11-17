@@ -119,7 +119,7 @@ class CashRegisterController extends Controller
                 return $existing;
             }
 
-            $max = CashRegisterSession::where('tenant_id', $tenant->id)
+            $max = CashRegisterSession::withTrashed()->where('tenant_id', $tenant->id)
                 ->where('number', 'like', 'CAI%')
                 ->pluck('number')
                 ->map(fn ($n) => (int) preg_replace('/\D+/', '', (string) $n))

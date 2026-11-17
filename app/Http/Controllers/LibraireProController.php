@@ -8784,7 +8784,7 @@ class LibraireProController extends Controller
 
     private function nextOnlineOrderNumber(Tenant $tenant): string
     {
-        $max = OnlineOrder::where('tenant_id', $tenant->id)
+        $max = OnlineOrder::withTrashed()->where('tenant_id', $tenant->id)
             ->where('number', 'like', 'PRE%')
             ->pluck('number')
             ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
@@ -8839,7 +8839,7 @@ class LibraireProController extends Controller
 
     private function nextPurchaseNumber(Tenant $tenant): string
     {
-        $max = Purchase::where('tenant_id', $tenant->id)
+        $max = Purchase::withTrashed()->where('tenant_id', $tenant->id)
             ->where('number', 'like', 'ACH%')
             ->pluck('number')
             ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
@@ -8850,7 +8850,7 @@ class LibraireProController extends Controller
 
     private function nextPurchaseReturnNumber(Tenant $tenant): string
     {
-        $max = PurchaseReturn::where('tenant_id', $tenant->id)
+        $max = PurchaseReturn::withTrashed()->where('tenant_id', $tenant->id)
             ->where('number', 'like', 'RAC%')
             ->pluck('number')
             ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
@@ -8861,7 +8861,7 @@ class LibraireProController extends Controller
 
     private function nextPurchasePaymentNumber(Tenant $tenant): string
     {
-        $max = PurchasePayment::where('tenant_id', $tenant->id)
+        $max = PurchasePayment::withTrashed()->where('tenant_id', $tenant->id)
             ->where('number', 'like', 'PAF%')
             ->pluck('number')
             ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
@@ -8916,7 +8916,7 @@ class LibraireProController extends Controller
 
     private function nextCashRegisterSessionNumber(Tenant $tenant): string
     {
-        $max = CashRegisterSession::where('tenant_id', $tenant->id)
+        $max = CashRegisterSession::withTrashed()->where('tenant_id', $tenant->id)
             ->where('number', 'like', 'CR%')
             ->pluck('number')
             ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))
@@ -8927,7 +8927,7 @@ class LibraireProController extends Controller
 
     private function nextCashRegisterMovementNumber(Tenant $tenant): string
     {
-        $max = CashRegisterMovement::where('tenant_id', $tenant->id)
+        $max = CashRegisterMovement::withTrashed()->where('tenant_id', $tenant->id)
             ->where('number', 'like', 'CRM%')
             ->pluck('number')
             ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))

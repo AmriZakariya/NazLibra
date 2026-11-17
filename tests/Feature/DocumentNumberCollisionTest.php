@@ -112,6 +112,24 @@ class DocumentNumberCollisionTest extends TestCase
         $this->assertSame('RTN00003', $numbers->nextIn($this->tenant, 'return', null, SaleReturn::class)['number']);
     }
 
+    /** The same 500 at « Ouverture de caisse »: CAI00001 was held by a trashed session. */
+    public function test_opening_a_drawer_skips_the_number_of_a_deleted_session(): void
+    {
+        $token = $this->token();
+        $first = $this->withToken($token)->postJson('/api/v1/cash-register/open', ['opening_amount' => 0])
+            ->assertSuccessful();
+        $session = \App\Models\CashRegisterSession::where('tenant_id', $this->tenant->id)->latest('id')->firstOrFail();
+        $session->delete();
+
+        $this->withToken($token)->postJson('/api/v1/cash-register/open', ['opening_amount' => 0])
+            ->assertSuccessful();
+
+        $this->assertNotSame(
+            $session->number,
+            \App\Models\CashRegisterSession::where('tenant_id', $this->tenant->id)->latest('id')->value('number'),
+        );
+    }
+
     public function test_the_demo_cleanup_takes_the_returns_with_the_sales(): void
     {
         $token = $this->token();

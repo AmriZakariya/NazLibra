@@ -123,7 +123,7 @@ class CashRegisterService
 
     private function nextMovementNumber(Tenant $tenant): string
     {
-        $max = CashRegisterMovement::where('tenant_id', $tenant->id)
+        $max = CashRegisterMovement::withTrashed()->where('tenant_id', $tenant->id)
             ->where('number', 'like', 'CRM%')
             ->pluck('number')
             ->map(fn ($number) => (int) preg_replace('/\D+/', '', (string) $number))

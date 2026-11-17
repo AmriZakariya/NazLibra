@@ -162,7 +162,7 @@ class TicketController extends Controller
             ]);
         } else {
             // Generate ticket number.
-            $max = PosTicket::where('tenant_id', $tenant->id)
+            $max = PosTicket::withTrashed()->where('tenant_id', $tenant->id)
                 ->where('number', 'like', 'ATT%')
                 ->pluck('number')
                 ->map(fn ($n) => (int) preg_replace('/\D+/', '', (string) $n))
