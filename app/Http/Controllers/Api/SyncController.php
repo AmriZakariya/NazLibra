@@ -205,7 +205,7 @@ class SyncController extends Controller
             ->get([
                 'id', 'item_id', 'name', 'barcode', 'sku',
                 'sale_price', 'sale_price_override', 'combination_key',
-                'is_active', 'sort_order', 'updated_at',
+                'duration_minutes', 'is_active', 'sort_order', 'updated_at',
             ])
             ->map(fn (ItemVariant $variant): array => [
                 'id' => $variant->id,
@@ -216,6 +216,8 @@ class SyncController extends Controller
                 // Resolved here so the till never has to know the
                 // inherit-from-the-article rule.
                 'sale_price' => $variant->price(),
+                // Null: the till and the agenda fall back to the article's.
+                'duration_minutes' => $variant->duration_minutes,
                 'is_active' => (bool) $variant->is_active,
                 'sort_order' => (int) $variant->sort_order,
                 'updated_at' => $variant->updated_at?->toISOString(),

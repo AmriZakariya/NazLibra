@@ -150,9 +150,20 @@
             </label>
             <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Prestation</span>
                 {{-- Picking a service fills in its duration. --}}
-                <select name="item_id" class="{{ $input }}" onchange="const d = this.selectedOptions[0]?.dataset.duration; if (d) this.form.duration_minutes.value = d;">
+                <select name="item_id" class="{{ $input }}" onchange="window.apptPickService(this)">
                     <option value="">—</option>
                     @foreach ($services as $service)<option value="{{ $service->id }}" data-duration="{{ $service->duration_minutes }}">{{ $service->title }} · @if ($service->price_is_from){{ __('booking.from') }} @endif{{ $money($service->sale_price) }}@if ($service->duration_minutes) · {{ $service->duration_minutes }} min @endif</option>@endforeach
+                </select>
+            </label>
+            {{-- A service with several prices or lengths is booked as one of them; its length fills in. --}}
+            <label class="block space-y-1.5" data-variant-field hidden><span class="text-xs font-semibold uppercase text-slate-500">Choix</span>
+                <select name="variant_id" class="{{ $input }}" onchange="window.apptPickVariant(this)">
+                    <option value="">—</option>
+                    @foreach ($services as $service)
+                        @foreach ($service->variants as $variant)
+                            <option value="{{ $variant->id }}" data-item="{{ $service->id }}" data-duration="{{ $variant->duration_minutes ?: $service->duration_minutes }}" hidden disabled>{{ $variant->name }} · {{ $money($variant->price()) }}@if ($variant->duration_minutes ?: $service->duration_minutes) · {{ $variant->duration_minutes ?: $service->duration_minutes }} min @endif</option>
+                        @endforeach
+                    @endforeach
                 </select>
             </label>
             <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Client existant</span>
@@ -172,6 +183,22 @@
             </div>
         </form>
     </dialog>
+    <script>
+        window.apptPickService = (select) => {
+            const form = select.form;
+            const variants = [...form.querySelectorAll('select[name=variant_id] option[data-item]')];
+            form.querySelector('[data-variant-field]').hidden = !variants.some((o) => o.dataset.item === select.value);
+            variants.forEach((o) => { o.hidden = o.disabled = o.dataset.item !== select.value; });
+            form.variant_id.value = '';
+            const minutes = select.selectedOptions[0]?.dataset.duration;
+            if (minutes) form.duration_minutes.value = minutes;
+        };
+        window.apptPickVariant = (select) => {
+            const form = select.form;
+            const minutes = select.selectedOptions[0]?.dataset.duration || form.item_id.selectedOptions[0]?.dataset.duration;
+            if (minutes) form.duration_minutes.value = minutes;
+        };
+    </script>
     @php
         $days = [1 => 'Lundi', 2 => 'Mardi', 3 => 'Mercredi', 4 => 'Jeudi', 5 => 'Vendredi', 6 => 'Samedi', 7 => 'Dimanche'];
         $bookingUrl = route('booking.show');

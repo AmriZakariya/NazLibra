@@ -315,6 +315,7 @@ Route::post('/catalogue/taxes', [LibraireProController::class, 'storeTax'])->nam
 Route::put('/catalogue/taxes/{tax}', [LibraireProController::class, 'updateTax'])->name('catalog.taxes.update');
 Route::delete('/catalogue/taxes/{tax}', [LibraireProController::class, 'destroyTax'])->name('catalog.taxes.destroy');
 Route::post('/catalogue/variantes', [LibraireProController::class, 'storeVariant'])->name('catalog.variants.store');
+Route::put('/catalogue/variantes/{variant}', [LibraireProController::class, 'updateVariant'])->name('catalog.variants.update');
 
 // Options (axes) an article varies on, and building its matrix from them.
 Route::post('/catalogue/options', [ProductOptionController::class, 'storeType'])->name('catalog.options.store');

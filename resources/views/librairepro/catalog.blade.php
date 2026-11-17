@@ -1488,8 +1488,16 @@
                                     <div class="rounded-xl border border-slate-200 p-4 text-sm dark:border-white/10">
                                         <div class="flex items-start justify-between gap-3"><strong>{{ $variant->name }}</strong><x-status-pill tone="neutral">{{ $variant->stock_quantity }} unités</x-status-pill></div>
                                         <p class="mt-2 text-xs text-slate-500">{{ collect($variant->attributes)->filter()->map(fn($value, $key) => $key.': '.$value)->implode(' · ') ?: 'Sans attribut' }}</p>
-                                        <p class="mt-3 font-semibold">{{ $money($variant->sale_price) }} <span class="text-xs font-normal text-slate-500">achat {{ $money($variant->purchase_price) }}</span></p>
+                                        <p class="mt-3 font-semibold">{{ $money($variant->price()) }} <span class="text-xs font-normal text-slate-500">achat {{ $money($variant->purchase_price) }}</span>@if ($variant->duration_minutes) <span class="text-xs font-normal text-slate-500">· {{ $variant->duration_minutes }} min</span>@endif</p>
                                         <p class="mt-1 text-xs text-slate-500">{{ $variant->barcode ?? 'Sans code-barres' }}</p>
+                                        <form method="POST" action="{{ route('catalog.variants.update', $variant) }}" class="mt-3 grid grid-cols-[1fr_5.5rem_4.5rem_auto] items-end gap-2 border-t border-slate-100 pt-3 dark:border-white/10">
+                                            @csrf
+                                            @method('PUT')
+                                            <label class="block"><span class="text-[11px] font-semibold uppercase text-slate-400">{{ $tr('Nom') }}</span><input name="name" required value="{{ $variant->name }}" class="h-9 w-full rounded-lg border border-slate-200 px-2 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                            <label class="block"><span class="text-[11px] font-semibold uppercase text-slate-400">{{ $tr('Prix') }}</span><input name="sale_price" required type="number" min="0" step="0.01" value="{{ $variant->price() }}" class="h-9 w-full rounded-lg border border-slate-200 px-2 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                            <label class="block"><span class="text-[11px] font-semibold uppercase text-slate-400">{{ $tr('Min') }}</span><input name="duration_minutes" type="number" min="5" max="600" step="5" value="{{ $variant->duration_minutes }}" placeholder="—" class="h-9 w-full rounded-lg border border-slate-200 px-2 text-sm dark:border-white/10 dark:bg-slate-900"></label>
+                                            <button class="h-9 rounded-lg bg-brand px-3 text-xs font-semibold text-white">{{ $tr('Enregistrer') }}</button>
+                                        </form>
                                     </div>
                                 @endforeach
                             </div>
@@ -2514,6 +2522,11 @@
                             <input name="stock_quantity" required min="0" type="number" step="1" value="{{ old('stock_quantity', 0) }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900">
                         </label>
                         <label class="space-y-2">
+                            <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $tr('Durée (min)') }}</span>
+                            <input name="duration_minutes" min="5" max="600" step="5" type="number" inputmode="numeric" value="{{ old('duration_minutes') }}" placeholder="30" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900">
+                            <span class="block text-xs text-slate-400">{{ $tr('Services : pour l’agenda et la réservation en ligne.') }}</span>
+                        </label>
+                        <label class="space-y-2">
                             <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ $tr('Quantité d’alerte') }}</span>
                             <input name="min_stock_threshold" min="0" type="number" step="1" value="{{ old('min_stock_threshold', 0) }}" class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900">
                         </label>
@@ -2571,11 +2584,12 @@
                             <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                                 @forelse ($item->variants as $variant)
                                     <details class="rounded-lg bg-slate-50 p-3 text-sm dark:bg-white/5">
-                                        <summary class="cursor-pointer list-none font-semibold">{{ $variant->name }} · {{ $money($variant->sale_price) }}</summary>
+                                        <summary class="cursor-pointer list-none font-semibold">{{ $variant->name }} · {{ $money($variant->price()) }}</summary>
                                         <div class="mt-3 space-y-1 text-xs text-slate-500">
                                             <p>Code-barres: {{ $variant->barcode ?? 'Sans code' }}</p>
                                             <p>Stock: {{ $variant->stock_quantity }}</p>
                                             <p>Achat: {{ $money($variant->purchase_price) }}</p>
+                                            @if ($variant->duration_minutes)<p>Durée : {{ $variant->duration_minutes }} min</p>@endif
                                             <p>Attributs: {{ collect($variant->attributes)->filter()->map(fn($value, $key) => $key.': '.$value)->implode(' · ') ?: 'Sans attribut' }}</p>
                                         </div>
                                     </details>

@@ -6,5 +6,10 @@
  "Sans prix de vente, le prix le plus bas des variantes devient le prix de l'article. Un même fichier réimporté met à jour sans créer de doublons.": "Without a sale price, the lowest variant price becomes the item's price. Re-importing the same file updates without creating duplicates.",
  "Le prix de vente est un minimum : la caisse demande le montant et refuse un prix plus bas (une remise permet de descendre).": "The sale price is a minimum: the till asks for the amount and refuses a lower price (a discount lets you go lower).",
  "Prix « à partir de »": "“From” price",
- "dès": "from"
+ "dès": "from",
+ "Cette variante n’existe pas pour cette prestation.": "This option does not exist for this service.",
+ "Choix": "Option",
+ "Durée : {0} min": "Duration: {0} min",
+ "Min": "Min",
+ "Services : pour l’agenda et la réservation en ligne.": "Services: for the agenda and online booking."
 }

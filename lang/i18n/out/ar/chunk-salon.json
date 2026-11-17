@@ -6,5 +6,10 @@
  "Sans prix de vente, le prix le plus bas des variantes devient le prix de l'article. Un même fichier réimporté met à jour sans créer de doublons.": "بدون سعر بيع يصبح أدنى سعر للمتغيرات سعر المنتج. إعادة استيراد الملف نفسه تحدّث دون إنشاء نسخ مكررة.",
  "Le prix de vente est un minimum : la caisse demande le montant et refuse un prix plus bas (une remise permet de descendre).": "سعر البيع هو حدّ أدنى: تطلب الصندوق المبلغ وترفض سعراً أقل (يمكن النزول بتخفيض).",
  "Prix « à partir de »": "سعر «ابتداءً من»",
- "dès": "ابتداءً من"
+ "dès": "ابتداءً من",
+ "Cette variante n’existe pas pour cette prestation.": "هذا الخيار غير موجود لهذه الخدمة.",
+ "Choix": "الخيار",
+ "Durée : {0} min": "المدة: {0} دقيقة",
+ "Min": "دقيقة",
+ "Services : pour l’agenda et la réservation en ligne.": "الخدمات: للأجندة والحجز عبر الإنترنت."
 }

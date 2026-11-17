@@ -48,13 +48,15 @@ class BookingController extends Controller
             'date' => ['required', 'date_format:Y-m-d'],
             'staff' => ['nullable', 'integer'],
             'item' => ['nullable', 'integer'],
+            'variant' => ['nullable', 'integer'],
         ]);
         $service = isset($data['item']) ? OnlineBooking::services($tenant)->firstWhere('id', (int) $data['item']) : null;
+        $variant = OnlineBooking::variantOf($service, isset($data['variant']) ? (int) $data['variant'] : null);
 
         return response()->json([
             'slots' => OnlineBooking::slots(
                 $tenant, $data['date'], isset($data['staff']) ? (int) $data['staff'] : null,
-                null, OnlineBooking::durationOf($tenant, $service),
+                null, OnlineBooking::durationOf($tenant, $service, $variant),
             ),
         ]);
     }
@@ -76,6 +78,7 @@ class BookingController extends Controller
 
         $data = $request->validate([
             'item_id' => ['required', 'integer'],
+            'variant_id' => ['nullable', 'integer'],
             'staff_user_id' => ['nullable', 'integer'],
             'date' => ['required', 'date_format:Y-m-d'],
             'time' => ['required', 'date_format:H:i'],

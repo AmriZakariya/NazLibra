@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Appointment;
 use App\Models\Contact;
 use App\Models\Item;
+use App\Models\ItemVariant;
 use App\Models\Tenant;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -34,11 +35,25 @@ class Appointments
             'customer_name' => ['nullable', 'string', 'max:160'],
             'customer_phone' => ['nullable', 'string', 'max:40'],
             'item_id' => ['nullable', 'integer'],
+            'variant_id' => ['nullable', 'integer'],
             'service_name' => ['nullable', 'string', 'max:190'],
             'note' => ['nullable', 'string', 'max:1000'],
             'status' => ['nullable', Rule::in(Appointment::STATUSES)],
             'location_id' => ['nullable', 'integer'],
         ];
+    }
+
+    /** What an appointment lasts when nobody typed a length. */
+    public const DEFAULT_MINUTES = 30;
+
+    /**
+     * How long a booking lasts: what was typed, else the chosen variant's own
+     * length, else the service's, else the default. Pure, so every path (web,
+     * app, public page) answers the same.
+     */
+    public static function minutesFor(?int $typed, ?ItemVariant $variant, ?Item $item, int $default = self::DEFAULT_MINUTES): int
+    {
+        return $typed ?: ($variant?->duration_minutes ?: ($item?->duration_minutes ?: $default));
     }
 
     /**
@@ -73,23 +88,45 @@ class Appointments
             }
         }
 
-        if (array_key_exists('item_id', $data)) {
-            $item = $data['item_id'] ? Item::where('tenant_id', $tenant->id)->find($data['item_id']) : null;
-            if ($data['item_id'] && ! $item) {
+        if (array_key_exists('item_id', $data) || array_key_exists('variant_id', $data)) {
+            $itemId = array_key_exists('item_id', $data) ? $data['item_id'] : $appointment->item_id;
+            $item = $itemId ? Item::where('tenant_id', $tenant->id)->find($itemId) : null;
+            if ($itemId && ! $item) {
                 throw ValidationException::withMessages(['item_id' => 'Prestation introuvable.']);
             }
-            $appointment->item_id = $item?->id;
-            if ($item && empty($data['service_name'])) {
-                $appointment->service_name = $item->title;
+
+            // The size / length chosen on the service (« 1 h », « Long »). It
+            // must be one of THIS service's, or its price and length would
+            // be another service's.
+            $variantId = array_key_exists('variant_id', $data)
+                ? $data['variant_id']
+                : ($item?->id === $appointment->item_id ? $appointment->variant_id : null);
+            $variant = $variantId && $item
+                ? ItemVariant::where('tenant_id', $tenant->id)->where('item_id', $item->id)->find($variantId)
+                : null;
+            if ($variantId && ! $variant) {
+                throw ValidationException::withMessages(['variant_id' => 'Cette variante n’existe pas pour cette prestation.']);
             }
-            // The service's own length, unless the booking says otherwise.
-            if ($item?->duration_minutes && empty($data['duration_minutes'])) {
-                $appointment->duration_minutes = $item->duration_minutes;
+
+            $appointment->item_id = $item?->id;
+            $appointment->variant_id = $variant?->id;
+            if ($item && empty($data['service_name'])) {
+                $appointment->service_name = $variant ? $item->title.' — '.$variant->name : $item->title;
+            }
+            // The variant's own length, else the service's, unless the booking
+            // says otherwise.
+            $typed = ! empty($data['duration_minutes']) ? (int) $data['duration_minutes'] : null;
+            if ($typed === null && ($variant?->duration_minutes || $item?->duration_minutes)) {
+                $appointment->duration_minutes = self::minutesFor(null, $variant, $item);
             }
         }
 
         foreach (['customer_name', 'customer_phone', 'service_name', 'note', 'duration_minutes', 'location_id'] as $field) {
-            if (array_key_exists($field, $data) && ! ($field === 'customer_name' && $data[$field] === null && $appointment->contact_id)) {
+            // A blank length leaves what the service / variant gave; a blank
+            // name leaves the contact's.
+            if (array_key_exists($field, $data)
+                && ! ($field === 'customer_name' && $data[$field] === null && $appointment->contact_id)
+                && ! ($field === 'duration_minutes' && $data[$field] === null && $appointment->duration_minutes)) {
                 $appointment->{$field} = $data[$field];
             }
         }
@@ -101,7 +138,7 @@ class Appointments
         if (! empty($data['status'])) {
             $appointment->status = $data['status'];
         }
-        $appointment->duration_minutes ??= 30;
+        $appointment->duration_minutes ??= self::DEFAULT_MINUTES;
 
         if (! $appointment->customer_name && ! $appointment->contact_id) {
             throw ValidationException::withMessages(['customer_name' => 'Indiquez le nom du client.']);
@@ -207,6 +244,7 @@ class Appointments
             'customer_phone' => $a->customer_phone,
             'customer_notes' => $a->contact?->notes,
             'item_id' => $a->item_id,
+            'variant_id' => $a->variant_id,
             'service_name' => $a->service_name,
             'note' => $a->note,
             'sale_id' => $a->sale_id,

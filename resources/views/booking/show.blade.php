@@ -130,14 +130,38 @@
                 <h2>{{ __('booking.step_service') }}</h2>
                 <div class="choices">
                     @foreach ($services as $service)
+                        @php
+                            // Several prices or lengths: the page shows the lowest, « dès », and asks which below.
+                            $variantPrices = $service->variants->map(fn ($v) => $v->price());
+                            $shownPrice = $variantPrices->isNotEmpty() ? $variantPrices->min() : $service->sale_price;
+                            $shownFrom = (bool) $service->price_is_from || $variantPrices->unique()->count() > 1;
+                        @endphp
                         <label class="choice">
                             <input type="radio" name="item_id" value="{{ $service->id }}" data-label="{{ $service->title }}" @checked((string) old('item_id', $services->count() === 1 ? $service->id : '') === (string) $service->id) required>
-                            <span><b>{{ $service->title }}</b><small>{{ __('booking.minutes', ['count' => $service->duration_minutes ?: $duration]) }}</small></span>
-                            <span class="price">{{ \App\Support\FromPrice::label($shopMoney, $service->sale_price, (bool) $service->price_is_from, __('booking.from')) }}</span>
+                            <span><b>{{ $service->title }}</b>@if ($service->variants->isEmpty())<small>{{ __('booking.minutes', ['count' => $service->duration_minutes ?: $duration]) }}</small>@endif</span>
+                            <span class="price">{{ \App\Support\FromPrice::label($shopMoney, $shownPrice, $shownFrom, __('booking.from')) }}</span>
                         </label>
                     @endforeach
                 </div>
             </section>
+
+            {{-- A service with several prices or lengths is booked as one of them. --}}
+            @foreach ($services as $service)
+                @if ($service->variants->isNotEmpty())
+                    <section data-variants-for="{{ $service->id }}" hidden>
+                        <h2>{{ __('booking.step_variant') }}</h2>
+                        <div class="choices">
+                            @foreach ($service->variants as $variant)
+                                <label class="choice">
+                                    <input type="radio" name="variant_id" value="{{ $variant->id }}" data-label="{{ $variant->name }}" @checked((string) old('variant_id') === (string) $variant->id) disabled>
+                                    <span><b>{{ $variant->name }}</b><small>{{ __('booking.minutes', ['count' => \App\Support\OnlineBooking::durationOf($tenant, $service, $variant)]) }}</small></span>
+                                    <span class="price">{{ $shopMoney->format($variant->price()) }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    </section>
+                @endif
+            @endforeach
 
             @if ($staff->count() > 1)
                 <section>
@@ -213,20 +237,34 @@
     let request = 0;
 
     const picked = (name) => form.querySelector(`input[name="${name}"]:checked`);
+    const pickedVariant = () => form.querySelector('input[name="variant_id"]:checked:not(:disabled)');
+    // Only the chosen service's variants are offered, and only they are sent.
+    function syncVariants() {
+        const service = picked('item_id');
+        for (const section of form.querySelectorAll('[data-variants-for]')) {
+            const show = !!service && section.dataset.variantsFor === service.value;
+            section.hidden = !show;
+            for (const input of section.querySelectorAll('input')) {
+                input.disabled = !show;
+                if (!show) input.checked = false;
+            }
+        }
+    }
+    const needsVariant = () => { const s = picked('item_id'); return !!s && !!form.querySelector(`[data-variants-for="${s.value}"]`); };
     const staffValue = () => picked('staff_user_id')?.value ?? form.querySelector('input[type=hidden][name="staff_user_id"]')?.value ?? '';
 
     function refreshSummary() {
-        const service = picked('item_id'), day = picked('date'), time = picked('time');
+        const service = picked('item_id'), day = picked('date'), time = picked('time'), variant = pickedVariant();
         const name = form.customer_name.value.trim(), phone = form.customer_phone.value.trim();
         if (service && day && time) {
             summary.innerHTML = '';
             const b = document.createElement('b');
             b.textContent = `${day.dataset.label} · ${time.value}`;
-            summary.append(b, document.createTextNode(` · ${service.dataset.label}`));
+            summary.append(b, document.createTextNode(` · ${service.dataset.label}${variant ? ' — ' + variant.dataset.label : ''}`));
         } else {
             summary.textContent = text.empty;
         }
-        submit.disabled = !(service && day && time && name && phone.replace(/\D/g, '').length >= 8);
+        submit.disabled = !(service && (!needsVariant() || variant) && day && time && name && phone.replace(/\D/g, '').length >= 8);
     }
 
     async function loadSlots() {
@@ -240,6 +278,7 @@
             url.searchParams.set('date', day.value);
             if (staffValue()) url.searchParams.set('staff', staffValue());
             if (picked('item_id')) url.searchParams.set('item', picked('item_id').value);
+            if (pickedVariant()) url.searchParams.set('variant', pickedVariant().value);
             const res = await fetch(url, { headers: { Accept: 'application/json' } });
             if (!res.ok) throw new Error(res.status);
             const { slots: times } = await res.json();
@@ -262,11 +301,13 @@
     form.addEventListener('change', (e) => {
         if (e.target.name === 'time') wanted = e.target.value;
         // A longer service fits in fewer slots: the times depend on it too.
-        if (['date', 'staff_user_id', 'item_id'].includes(e.target.name)) loadSlots();
+        if (e.target.name === 'item_id') syncVariants();
+        if (['date', 'staff_user_id', 'item_id', 'variant_id'].includes(e.target.name)) loadSlots();
         else refreshSummary();
     });
     form.addEventListener('input', refreshSummary);
     form.addEventListener('submit', () => { submit.disabled = true; });
+    syncVariants();
     loadSlots();
 })();
 </script>

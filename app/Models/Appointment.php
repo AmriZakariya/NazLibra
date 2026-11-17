@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 #[Fillable([
     'tenant_id', 'location_id', 'contact_id', 'customer_name', 'customer_phone',
-    'staff_user_id', 'item_id', 'service_name', 'starts_at', 'duration_minutes',
+    'staff_user_id', 'item_id', 'variant_id', 'service_name', 'starts_at', 'duration_minutes',
     'status', 'note', 'sale_id', 'created_by_user_id', 'reminded_at',
 ])]
 class Appointment extends Model
@@ -50,6 +50,11 @@ class Appointment extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ItemVariant::class, 'variant_id');
     }
 
     public function sale(): BelongsTo

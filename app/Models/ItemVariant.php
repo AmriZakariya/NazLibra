@@ -32,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'sale_price_override',
     'purchase_price_override',
     'combination_key',
+    'duration_minutes',
 ])]
 class ItemVariant extends Model
 {
@@ -45,6 +46,15 @@ class ItemVariant extends Model
     public function price(): float
     {
         return (float) ($this->sale_price_override ?? $this->item?->sale_price ?? $this->sale_price);
+    }
+
+    /**
+     * How long this variant takes: its own, else the article's, else null
+     * (the shop's default applies where an appointment is made).
+     */
+    public function minutes(): ?int
+    {
+        return $this->duration_minutes ?: ($this->item?->duration_minutes ?: null);
     }
 
     public function cost(): float
@@ -77,6 +87,7 @@ class ItemVariant extends Model
             'stock_quantity' => 'integer',
             'min_stock_threshold' => 'integer',
             'sort_order' => 'integer',
+            'duration_minutes' => 'integer',
         ];
     }
 

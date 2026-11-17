@@ -9,7 +9,6 @@ use App\Models\ModifierGroup;
 use App\Models\OptionType;
 use App\Models\OptionValue;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
@@ -235,7 +234,6 @@ class ImportOffers
                 $byName = $item->variants()->get()->keyBy(fn (ItemVariant $v) => mb_strtolower(trim($v->name)));
             }
 
-            $hasDuration = Schema::hasColumn('item_variants', 'duration_minutes');
             $order = 0;
             foreach ($wanted as $entry) {
                 $variant = $byName->get(mb_strtolower($entry['name']));
@@ -250,7 +248,7 @@ class ImportOffers
                     'is_active' => true,
                     'status' => 'active',
                 ];
-                if ($hasDuration && $entry['duration'] !== null) {
+                if ($entry['duration'] !== null) {
                     $changes['duration_minutes'] = $entry['duration'];
                 }
                 $variant->forceFill($changes)->save();

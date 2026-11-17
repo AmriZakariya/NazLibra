@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Appointment;
 use App\Models\Item;
+use App\Models\ItemVariant;
 use App\Models\Tenant;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -114,7 +115,16 @@ class OnlineBooking
             ->where('type', 'service')
             ->whereNotIn('status', ['archived', 'inactive'])
             ->orderBy('title')
+            // What the client picks among, when a service has several prices
+            // or lengths: « Court / Mi-long / Long », « 30 min / 1 h ».
+            ->with(['variants' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')->orderBy('id')])
             ->get(['id', 'title', 'sale_price', 'duration_minutes', 'price_is_from']);
+    }
+
+    /** The active variant [id] of [service], or null. */
+    public static function variantOf(?Item $service, ?int $id): ?ItemVariant
+    {
+        return $service && $id ? $service->variants->firstWhere('id', $id) : null;
     }
 
     /** @return list<string>  the days a client may pick, Y-m-d in the shop's day */
@@ -134,10 +144,13 @@ class OnlineBooking
         return $days;
     }
 
-    /** How long [service] takes: its own duration, else the shop's slot length. */
-    public static function durationOf(Tenant $tenant, ?Item $service): int
+    /**
+     * How long [service] takes: the chosen variant's own length, else the
+     * service's, else the shop's slot length.
+     */
+    public static function durationOf(Tenant $tenant, ?Item $service, ?ItemVariant $variant = null): int
     {
-        return $service?->duration_minutes ?: self::settings($tenant)['duration'];
+        return Appointments::minutesFor(null, $variant, $service, self::settings($tenant)['duration']);
     }
 
     /**
@@ -192,7 +205,7 @@ class OnlineBooking
      * Records a client's request. The slot is checked again here: the page
      * may have been open while someone else took it.
      *
-     * @param  array{item_id: int, staff_user_id: ?int, date: string, time: string, customer_name: string, customer_phone: string, note: ?string}  $data
+     * @param  array{item_id: int, variant_id?: ?int, staff_user_id: ?int, date: string, time: string, customer_name: string, customer_phone: string, note: ?string}  $data
      */
     public static function request(Tenant $tenant, array $data, ?CarbonImmutable $now = null): Appointment
     {
@@ -201,8 +214,13 @@ class OnlineBooking
         if (! $service) {
             throw ValidationException::withMessages(['item_id' => __('booking.error_service')]);
         }
+        // A service with several prices or lengths is booked as one of them.
+        $variant = self::variantOf($service, isset($data['variant_id']) ? (int) $data['variant_id'] : null);
+        if ($service->variants->isNotEmpty() && ! $variant) {
+            throw ValidationException::withMessages(['variant_id' => __('booking.error_variant')]);
+        }
         $staffId = $data['staff_user_id'] ? (int) $data['staff_user_id'] : null;
-        $duration = self::durationOf($tenant, $service);
+        $duration = self::durationOf($tenant, $service, $variant);
         if (! in_array($data['time'], self::slots($tenant, $data['date'], $staffId, $now, $duration), true)) {
             throw ValidationException::withMessages(['time' => __('booking.error_slot_taken')]);
         }
@@ -221,7 +239,8 @@ class OnlineBooking
             'tenant_id' => $tenant->id,
             'staff_user_id' => $staffId,
             'item_id' => $service->id,
-            'service_name' => $service->title,
+            'variant_id' => $variant?->id,
+            'service_name' => $variant ? $service->title.' — '.$variant->name : $service->title,
             'customer_name' => $data['customer_name'],
             'customer_phone' => $data['customer_phone'],
             'note' => $data['note'] ?? null,

@@ -2506,6 +2506,8 @@ class LibraireProController extends Controller
             'sale_price' => ['required', 'numeric', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
             'min_stock_threshold' => ['nullable', 'integer', 'min:0'],
+            // Services only: how long this variant takes (« 30 min » / « 1 h »).
+            'duration_minutes' => ['nullable', 'integer', 'min:5', 'max:600'],
         ]);
 
         abort_unless(Item::where('tenant_id', $tenant->id)->where('id', $data['item_id'])->exists(), 403);
@@ -2519,14 +2521,40 @@ class LibraireProController extends Controller
                 'taille' => $data['size'] ?? null,
                 'couleur' => $data['color'] ?? null,
             ]),
-            'barcode' => $data['barcode'] ?: null,
+            'barcode' => ($data['barcode'] ?? null) ?: null,
             'purchase_price' => $data['purchase_price'],
             'sale_price' => $data['sale_price'],
+            // The price typed here IS this variant's price: without an
+            // override the till would still sell the article's own.
+            'sale_price_override' => $data['sale_price'],
+            'duration_minutes' => $data['duration_minutes'] ?? null,
             'stock_quantity' => $data['stock_quantity'],
             'min_stock_threshold' => (int) ($data['min_stock_threshold'] ?? 0),
         ]);
+        $item = Item::find($data['item_id']);
+        app(\App\Services\Catalogue\VariantService::class)->refreshCount($item);
 
         return back()->with('status', 'Variante ajoutée.');
+    }
+
+    /** Price, length and name of a variant, from the article's page. */
+    public function updateVariant(Request $request, ItemVariant $variant): RedirectResponse
+    {
+        abort_unless((int) $variant->tenant_id === (int) $this->tenant()->id, 404);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'sale_price' => ['required', 'numeric', 'min:0', 'max:999999999'],
+            'duration_minutes' => ['nullable', 'integer', 'min:5', 'max:600'],
+        ]);
+
+        $variant->update([
+            'name' => $data['name'],
+            'sale_price' => round((float) $data['sale_price'], 2),
+            'sale_price_override' => round((float) $data['sale_price'], 2),
+            'duration_minutes' => $data['duration_minutes'] ?? null,
+        ]);
+
+        return back()->with('status', 'Variante mise à jour.');
     }
 
     public function importItems(Request $request): RedirectResponse

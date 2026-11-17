@@ -6,5 +6,10 @@
  "Sans prix de vente, le prix le plus bas des variantes devient le prix de l'article. Un même fichier réimporté met à jour sans créer de doublons.": "Sem preço de venda, o preço mais baixo das variantes passa a ser o do artigo. Reimportar o mesmo ficheiro atualiza sem criar duplicados.",
  "Le prix de vente est un minimum : la caisse demande le montant et refuse un prix plus bas (une remise permet de descendre).": "O preço de venda é um mínimo: a caixa pede o valor e recusa um preço mais baixo (um desconto permite baixar).",
  "Prix « à partir de »": "Preço «a partir de»",
- "dès": "a partir de"
+ "dès": "a partir de",
+ "Cette variante n’existe pas pour cette prestation.": "Esta opção não existe para este serviço.",
+ "Choix": "Opção",
+ "Durée : {0} min": "Duração: {0} min",
+ "Min": "Min",
+ "Services : pour l’agenda et la réservation en ligne.": "Serviços: para a agenda e a reserva online."
 }
