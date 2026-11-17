@@ -13,6 +13,25 @@ use App\Models\ItemVariant;
  */
 final class FromPrice
 {
+    /**
+     * First app version that knows « à partir de » and opens the price pad
+     * itself. Older builds cannot ask for the price, so refusing their line
+     * would leave an offline sale stuck in the outbox with a 422 for good:
+     * the mobile API accepts it below the floor, and says so in the journal.
+     */
+    public const FIRST_APP_VERSION_KNOWING_THE_FLAG = '1.0.17';
+
+    /** Whether the floor is enforced for this request: a web call, or an app new enough to know it. A missing or unreadable version counts as old. */
+    public static function enforcedFor(\Illuminate\Http\Request $request): bool
+    {
+        $version = \App\Support\RequestSnapshot::appClient($request)['version'];
+        if ($version === null || ! preg_match('/^(\d+(?:\.\d+){0,3})/', $version, $m)) {
+            return false;
+        }
+
+        return version_compare($m[1], self::FIRST_APP_VERSION_KNOWING_THE_FLAG, '>=');
+    }
+
     /** Anything closer than half a cent is rounding, not a lower price. */
     private const TOLERANCE = 0.005;
 

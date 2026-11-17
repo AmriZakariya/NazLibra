@@ -52,13 +52,15 @@ class FromPriceTest extends TestCase
         ]);
     }
 
-    private function sell(array $line, array $extra = []): \Illuminate\Testing\TestResponse
+    private function sell(array $line, array $extra = [], ?string $appVersion = '1.0.17'): \Illuminate\Testing\TestResponse
     {
         $token = $this->postJson('/api/v1/auth/login', [
             'email' => $this->owner->email, 'password' => 'password', 'device_name' => 'till-'.Str::uuid(),
         ])->json('token');
 
-        return $this->withToken($token)->postJson('/api/v1/pos/sales', $extra + [
+        $headers = $appVersion === null ? [] : ['X-App-Version' => $appVersion];
+
+        return $this->withToken($token)->withHeaders($headers)->postJson('/api/v1/pos/sales', $extra + [
             'idempotency_key' => Str::uuid()->toString(),
             'location_id' => $this->location->id,
             'items' => [$line + ['quantity' => 1]],
@@ -254,5 +256,42 @@ class FromPriceTest extends TestCase
         $this->assertSame($before + 1, Sale::count());
         $sale = Sale::latest('id')->first();
         $this->assertEqualsWithDelta(440.0, (float) $sale->total_amount, 0.001);
+    }
+
+    public function test_an_app_older_than_the_flag_is_accepted_below_the_floor_and_logged(): void
+    {
+        $item = $this->service('Coloration', 300, true);
+
+        foreach (['1.0.16' => '1.0.16', 'none' => null, 'garbage' => 'abc'] as $label => $version) {
+            $response = $this->sell(['item_id' => $item->id, 'unit_price' => 250], [], $version)->assertCreated();
+            $sale = Sale::where('number', $response->json('sale.number'))->firstOrFail();
+            $marker = $sale->metadata['below_from_price'][0] ?? null;
+            $this->assertNotNull($marker, $label);
+            $this->assertEquals(250, $marker['unit_price']);
+            $this->assertEquals(300, $marker['minimum']);
+            $this->assertEquals($item->id, $marker['item_id']);
+            $log = \DB::table('audit_logs')->where('action', 'api.price_below_from')->where('subject_id', $sale->id)->first();
+            $this->assertNotNull($log, $label);
+            $this->assertStringContainsString('trop ancienne', $log->outcome_message);
+        }
+        $this->assertSame(3, \DB::table('audit_logs')->where('action', 'api.price_below_from')->count());
+    }
+
+    public function test_an_app_that_knows_the_flag_is_still_refused_and_the_user_agent_counts(): void
+    {
+        $item = $this->service('Coloration', 300, true);
+
+        $this->sell(['item_id' => $item->id, 'unit_price' => 250], [], '1.0.17')->assertStatus(422);
+        $this->sell(['item_id' => $item->id, 'unit_price' => 250], [], '1.1.0+3')->assertStatus(422);
+        $this->assertSame(0, \DB::table('audit_logs')->where('action', 'api.price_below_from')->count());
+
+        $this->flushHeaders();
+        $token = $this->postJson('/api/v1/auth/login', ['email' => $this->owner->email, 'password' => 'password', 'device_name' => 'ua-'.Str::uuid()])->json('token');
+        $this->withToken($token)->withHeaders(['User-Agent' => 'CastlitPOS/1.0.16 (Android 8.1)'])->postJson('/api/v1/pos/sales', [
+            'idempotency_key' => Str::uuid()->toString(), 'location_id' => $this->location->id,
+            'items' => [['item_id' => $item->id, 'quantity' => 1, 'unit_price' => 100]],
+            'payments' => ['cash' => 5000],
+        ])->assertCreated();
+        $this->assertTrue(FromPrice::FIRST_APP_VERSION_KNOWING_THE_FLAG === '1.0.17');
     }
 }

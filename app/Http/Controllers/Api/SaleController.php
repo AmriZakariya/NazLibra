@@ -268,6 +268,7 @@ class SaleController extends Controller
         $subtotal   = 0.0;
         $totalCogs  = 0.0;
 
+        $belowFrom = [];
         foreach ($data['items'] as $line) {
             $isCustom = empty($line['item_id']);
 
@@ -334,7 +335,19 @@ class SaleController extends Controller
             // « À partir de »: the catalogue price is a floor. Authoritative
             // here whatever the till did; a discount is the way to go lower.
             if ($message = \App\Support\FromPrice::violation($item, $variant, $unitPrice, \App\Support\Money::for($tenant))) {
-                throw ValidationException::withMessages(['items' => $message]);
+                if (\App\Support\FromPrice::enforcedFor($request)) {
+                    throw ValidationException::withMessages(['items' => $message]);
+                }
+                // An app too old to know the flag: its sale (maybe made offline
+                // hours ago) is accepted rather than stuck on a 422; it is
+                // marked on the sale and written to the journal.
+                $belowFrom[] = [
+                    'item_id' => $item->id,
+                    'variant_id' => $variant?->id,
+                    'name' => $variant ? $item->title.' — '.$variant->name : $item->title,
+                    'unit_price' => $unitPrice,
+                    'minimum' => \App\Support\FromPrice::minimum($item, $variant),
+                ];
             }
             $lineTotal  = round($unitPrice * (int) $line['quantity'], 2);
 
@@ -518,7 +531,7 @@ class SaleController extends Controller
             $subtotal, $discount, $loyaltyDiscount, $total, $paid, $data,
             $discountFactor, $taxTotal, $totalCogs, $allowOversell, $action, $soldAt,
             $pointsToRedeem, $loyaltyCfg, $loyaltyEnabled, $sourceOnlineOrder,
-            $tip, $tipUserId, $tipMethod, $tipCash,
+            $tip, $tipUserId, $tipMethod, $tipCash, $belowFrom,
             &$saleNumber
         ): Sale {
             // Decrement advance balance atomically before the rest.
@@ -622,6 +635,7 @@ class SaleController extends Controller
                             'note'         => $l['note'],
                         ];
                     })->values()->all(),
+                    'below_from_price' => $belowFrom ?: null,
                     'note' => $data['note'] ?? null,
                     'discount' => ['type' => $data['discount']['type'] ?? 'fixed', 'value' => $data['discount']['value'] ?? 0, 'amount' => $discount],
                     'loyalty' => $pointsToRedeem > 0 ? [
@@ -828,7 +842,40 @@ class SaleController extends Controller
             }
         } while (true);
 
+        if ($belowFrom !== []) {
+            $this->journalBelowFromPrice($request, $tenant, $action, $sale, $belowFrom);
+        }
+
         return $this->saleResponse($sale, $data['items'], $tenant->id, $locationId);
+    }
+
+    /** One journal entry per sale accepted under a « à partir de » floor because the app is too old to know it. */
+    private function journalBelowFromPrice(Request $request, Tenant $tenant, ApiActionContext $action, Sale $sale, array $lines): void
+    {
+        $app = \App\Support\RequestSnapshot::appClient($request);
+        $money = \App\Support\Money::for($tenant);
+        $details = collect($lines)->map(fn ($l) => $l['name'].' : '.$money->format($l['unit_price']).' (minimum '.$money->format($l['minimum']).')')->join(' ; ');
+
+        \App\Support\ActivityRecorder::write([
+            'tenant_id' => $tenant->id,
+            'user_id' => $action->actor->id,
+            'kind' => \App\Support\ActivityRecorder::ACTION,
+            'outcome' => \App\Support\ActivityRecorder::OK,
+            'outcome_message' => 'Prix accepté sous le minimum « à partir de » : application trop ancienne ('.($app['version'] ?? 'version inconnue').').',
+            'action' => 'api.price_below_from',
+            'friendly_action' => 'Prix sous le minimum accepté (ancienne application)',
+            'subject_type' => Sale::class,
+            'subject_id' => $sale->id,
+            'subject_name_snapshot' => $sale->number,
+            'virtual_device_id' => $action->virtualDevice?->id,
+            'app_version' => $app['version'],
+            'properties' => [
+                'sale_number' => $sale->number,
+                'app_version' => $app['version'],
+                'lines' => $lines,
+                'result' => $details,
+            ],
+        ]);
     }
 
     /** GET /api/v1/pos/sales */
