@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Support\LoginThrottle;
 use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Models\User;
@@ -84,13 +85,23 @@ class AuthController extends Controller
             'tenant_slug' => ['nullable', 'string'],
         ]);
 
+        if ($wait = LoginThrottle::wait($request, $data['email'])) {
+            return response()->json([
+                'ok' => false, 'message' => LoginThrottle::MESSAGE, 'retry_after' => $wait,
+            ], 429)->header('Retry-After', (string) $wait);
+        }
+
         $user = User::where('email', $data['email'])->first();
 
         if (! $user || ! Hash::check($data['password'], $user->password)) {
+            LoginThrottle::failed($request, $data['email']);
+
             throw ValidationException::withMessages([
                 'email' => ['Identifiants incorrects.'],
             ]);
         }
+
+        LoginThrottle::succeeded($request, $data['email']);
 
         if (! $user->is_active) {
             return response()->json(['ok' => false, 'message' => 'Compte désactivé.'], 403);

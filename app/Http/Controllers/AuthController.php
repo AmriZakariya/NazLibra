@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\LoginThrottle;
 use App\Models\Tenant;
 use App\Models\AuditLog;
 use App\Models\Role;
@@ -121,11 +122,19 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        if (LoginThrottle::wait($request, $credentials['email'])) {
+            throw ValidationException::withMessages(['email' => LoginThrottle::MESSAGE]);
+        }
+
         if (! Auth::attempt($credentials + ['is_active' => true], $request->boolean('remember'))) {
+            LoginThrottle::failed($request, $credentials['email']);
+
             throw ValidationException::withMessages([
                 'email' => 'Identifiants invalides ou compte désactivé.',
             ]);
         }
+
+        LoginThrottle::succeeded($request, $credentials['email']);
 
         $user = $request->user();
 
