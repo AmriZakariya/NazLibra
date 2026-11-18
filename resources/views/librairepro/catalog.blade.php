@@ -1299,6 +1299,9 @@
             };
         @endphp
         <section class="mt-6 flex flex-col gap-4">
+            @if ($typeTotal === 0 && ! $hasFilters)
+                @include('librairepro.partials.starter-catalogue')
+            @endif
             <article class="catalog-filters" data-catalog-filters>
                 <form action="{{ route('catalog') }}" data-catalog-filter-form>
                     <input type="hidden" name="panel" value="articles">
@@ -1845,6 +1848,7 @@
                     $selectedImportKind = request('kind', 'items');
                 @endphp
                 <div class="p-5">
+                    <div class="mb-4">@include('librairepro.partials.starter-catalogue')</div>
                     <form action="{{ route('catalog.import') }}" method="POST" enctype="multipart/form-data" class="app-action-form rounded-2xl border border-dashed border-slate-300 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
                         @csrf
                         <select name="kind" data-import-kind-select class="h-11 rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900"><option value="items" @selected($selectedImportKind === 'items')>Articles</option><option value="services" @selected($selectedImportKind === 'services')>Services</option><option value="categories" @selected($selectedImportKind === 'categories')>Catégories</option><option value="brands" @selected($selectedImportKind === 'brands')>Marques / éditeurs</option><option value="variants" @selected($selectedImportKind === 'variants')>Variantes</option></select>

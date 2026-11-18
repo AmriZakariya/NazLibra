@@ -212,6 +212,8 @@ class Permissions
             'catalog.modifiers.update' => 'items.edit',
             'catalog.modifiers.destroy' => 'items.delete',
             'catalog.import' => 'items.import',
+            // The starter salon catalogue adds articles, like creating them.
+            'catalog.starter.apply' => 'items.create',
             // Matching names is read-only, but it sits behind the same right as
             // the upload it prepares.
             'catalog.photos.match' => 'items.edit',

@@ -334,6 +334,7 @@ Route::post('/catalogue/options-ligne/{modifierGroup}/choix', [ModifierControlle
 Route::put('/catalogue/options-ligne/choix/{modifier}', [ModifierController::class, 'updateModifier'])->name('catalog.modifiers.update');
 Route::delete('/catalogue/options-ligne/choix/{modifier}', [ModifierController::class, 'destroyModifier'])->name('catalog.modifiers.destroy');
 Route::post('/catalogue/import', [LibraireProController::class, 'importItems'])->name('catalog.import');
+Route::post('/catalogue/catalogue-type-salon', [LibraireProController::class, 'applyStarterCatalogue'])->name('catalog.starter.apply');
 Route::get('/catalogue/import/exemple/{kind}', [LibraireProController::class, 'importExample'])->name('catalog.import.example');
 Route::post('/catalogue/photos/correspondances', [LibraireProController::class, 'photoMatches'])->name('catalog.photos.match');
 Route::post('/catalogue/photos', [LibraireProController::class, 'storePhotos'])->name('catalog.photos.store');

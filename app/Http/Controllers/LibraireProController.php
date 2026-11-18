@@ -2581,6 +2581,41 @@ class LibraireProController extends Controller
         return back()->with('status', 'Variante mise à jour.');
     }
 
+    /**
+     * « Catalogue type salon » : the starter services, categories, variants,
+     * options and photos, run through the same import as a shop's own sheet.
+     */
+    public function applyStarterCatalogue(Request $request): RedirectResponse
+    {
+        $tenant = $this->tenant();
+        $starter = app(\App\Services\Catalogue\StarterCatalogue::class);
+        abort_unless(\App\Services\Catalogue\StarterCatalogue::availableFor($tenant), 404);
+
+        $titles = collect($starter->data()['services'])->pluck('title');
+        $before = $starter->existingTitles($tenant);
+        $upload = $starter->buildUpload($before);
+
+        try {
+            $import = $this->importItems(Request::create('/catalogue/import', 'POST', ['kind' => 'services'], [], ['catalog_file' => $upload]));
+        } finally {
+            \App\Services\Catalogue\StarterCatalogue::cleanup($upload);
+        }
+        $starter->describeCategories($tenant);
+
+        $after = $starter->existingTitles($tenant);
+        $created = $titles->filter(fn (string $t) => ! array_key_exists(mb_strtolower($t), $before))->count();
+        $updated = $titles->count() - $created;
+        $photos = $titles->filter(fn (string $t) => ($after[mb_strtolower($t)] ?? false) && ! ($before[mb_strtolower($t)] ?? false))->count();
+        $categories = count($starter->data()['categories']);
+
+        $plural = fn (int $n, string $one, string $many): string => $n.' '.($n > 1 ? $many : $one);
+        $message = $plural($created, 'prestation créée', 'prestations créées')
+            .($updated > 0 ? ', '.$plural($updated, 'mise à jour', 'mises à jour') : '')
+            .', '.$plural($categories, 'catégorie', 'catégories').', '.$plural($photos, 'photo', 'photos').'.';
+
+        return $import->with('status', $message);
+    }
+
     public function importItems(Request $request): RedirectResponse
     {
         $tenant = $this->tenant();

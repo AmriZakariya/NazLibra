@@ -1,0 +1,8 @@
+{
+ "Ajoutez en un clic les prestations courantes d’un salon, avec catégories, prix, durées, variantes, options et photos. Vous pourrez ensuite tout ajuster.": "Add a salon's usual services in one click, with categories, prices, durations, variants, options and photos. You can then adjust everything.",
+ "Catalogue type salon (Maroc)": "Standard salon catalogue (Morocco)",
+ "Confirmer l’ajout du catalogue type": "Confirm adding the standard catalogue",
+ "Les prestations déjà présentes (même nom) sont mises à jour avec les prix d’origine, jamais dupliquées. Vos photos existantes sont conservées.": "Services already there (same name) are updated with the original prices, never duplicated. Your existing photos are kept.",
+ "Voir le catalogue type": "View the standard catalogue",
+ "{0} prestations dans {1} catégories": "{0} services in {1} categories"
+}
