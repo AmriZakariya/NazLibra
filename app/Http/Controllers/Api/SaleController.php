@@ -298,6 +298,7 @@ class SaleController extends Controller
 
         $reservedCodes = [];
         $belowFrom = [];
+        $archivedVariants = [];
         foreach ($data['items'] as $line) {
             $kind = $line['kind'] ?? null;
 
@@ -390,9 +391,19 @@ class SaleController extends Controller
             // must arrive with one, or the sale deducts a pile that does not
             // exist and nobody can say afterwards what left the shelf.
             $variantId = (int) ($line['variant_id'] ?? 0) ?: null;
+            // An archived variant is still accepted: a till offline when it
+            // was removed sold it in good faith, and refusing the sync would
+            // leave that sale stuck in its outbox. Marked and journaled below.
             $variant = $variantId
-                ? $item->variants()->whereKey($variantId)->where('is_active', true)->first()
+                ? $item->variants()->whereKey($variantId)->first()
                 : null;
+            if ($variant && ! $variant->is_active) {
+                $archivedVariants[] = [
+                    'item_id' => $item->id,
+                    'variant_id' => $variant->id,
+                    'name' => $item->title.' — '.$variant->name,
+                ];
+            }
 
             if ($variantId !== null && ! $variant) {
                 throw ValidationException::withMessages([
@@ -672,7 +683,7 @@ class SaleController extends Controller
             $discountFactor, $taxTotal, $totalCogs, $allowOversell, $action, $soldAt,
             $pointsToRedeem, $loyaltyCfg, $loyaltyEnabled, $sourceOnlineOrder,
             $tip, $tipUserId, $tipMethod, $tipCash,
-            $nonRevenue, $giftCardCode, $belowFrom,
+            $nonRevenue, $giftCardCode, $belowFrom, $archivedVariants,
             &$saleNumber
         ): Sale {
             // Decrement advance balance atomically before the rest.
@@ -779,6 +790,7 @@ class SaleController extends Controller
                         ];
                     })->values()->all(),
                     'below_from_price' => $belowFrom ?: null,
+                    'archived_variants' => $archivedVariants ?: null,
                     'note' => $data['note'] ?? null,
                     'discount' => ['type' => $data['discount']['type'] ?? 'fixed', 'value' => $data['discount']['value'] ?? 0, 'amount' => $discount],
                     'loyalty' => $pointsToRedeem > 0 ? [
@@ -1013,8 +1025,37 @@ class SaleController extends Controller
         if ($belowFrom !== []) {
             $this->journalBelowFromPrice($request, $tenant, $action, $sale, $belowFrom);
         }
+        if ($archivedVariants !== []) {
+            $this->journalArchivedVariants($request, $tenant, $action, $sale, $archivedVariants);
+        }
 
         return $this->saleResponse($sale, $data['items'], $tenant->id, $locationId);
+    }
+
+    /** One journal entry per sale that sold a variant archived since the till last synced. */
+    private function journalArchivedVariants(Request $request, Tenant $tenant, ApiActionContext $action, Sale $sale, array $lines): void
+    {
+        $app = \App\Support\RequestSnapshot::appClient($request);
+
+        \App\Support\ActivityRecorder::write([
+            'tenant_id' => $tenant->id,
+            'user_id' => $action->actor->id,
+            'kind' => \App\Support\ActivityRecorder::ACTION,
+            'outcome' => \App\Support\ActivityRecorder::OK,
+            'outcome_message' => 'Vente acceptée avec une déclinaison archivée : '.collect($lines)->pluck('name')->join(', ').'.',
+            'action' => 'api.archived_variant_sold',
+            'friendly_action' => 'Déclinaison archivée vendue',
+            'subject_type' => Sale::class,
+            'subject_id' => $sale->id,
+            'subject_name_snapshot' => $sale->number,
+            'virtual_device_id' => $action->virtualDevice?->id,
+            'app_version' => $app['version'],
+            'properties' => [
+                'sale_number' => $sale->number,
+                'app_version' => $app['version'],
+                'lines' => $lines,
+            ],
+        ]);
     }
 
     /** One journal entry per sale accepted under a « à partir de » floor because the app is too old to know it. */

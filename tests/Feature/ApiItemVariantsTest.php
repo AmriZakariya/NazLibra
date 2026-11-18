@@ -139,6 +139,32 @@ class ApiItemVariantsTest extends TestCase
         $this->assertSame(0, $item->fresh()->variant_count);
     }
 
+    /** A till offline while the variant was removed sold it in good faith: accepted, marked, journaled — never stuck in its outbox. */
+    public function test_an_offline_sale_of_a_since_archived_variant_is_accepted_and_journaled(): void
+    {
+        $item = $this->item('service');
+        $this->variant($item, '1 h', 200, 60);
+        $gone = $this->variant($item, '2 h', 350, 120);
+        $this->putVariants($item, ['remove' => [$gone->id]])->assertOk();
+        $this->assertFalse($gone->fresh()->is_active);
+
+        $this->app['auth']->forgetGuards();
+        $saleId = $this->withToken($this->token)
+            ->withHeader('X-Tenant-Slug', $this->tenant->slug)
+            ->withHeader('X-Location-Id', (string) $this->location->id)
+            ->postJson('/api/v1/pos/sales', [
+                'idempotency_key' => (string) \Illuminate\Support\Str::uuid(),
+                'location_id' => $this->location->id,
+                'items' => [['item_id' => $item->id, 'variant_id' => $gone->id, 'quantity' => 1]],
+                'payments' => ['cash' => 350, 'card' => 0, 'transfer' => 0, 'advance' => 0],
+            ])->assertCreated()->json('sale.id');
+
+        $sale = Sale::findOrFail($saleId);
+        $this->assertSame($gone->id, (int) $sale->items()->value('variant_id'));
+        $this->assertSame($gone->id, data_get($sale->metadata, 'archived_variants.0.variant_id'));
+        $this->assertDatabaseHas('audit_logs', ['action' => 'api.archived_variant_sold', 'subject_id' => $sale->id]);
+    }
+
     public function test_names_must_be_unique_per_item_and_a_name_can_be_reused_after_removal(): void
     {
         $item = $this->item('service');
