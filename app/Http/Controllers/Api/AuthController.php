@@ -62,6 +62,7 @@ class AuthController extends Controller
                             new OA\Property(property: 'currency', type: 'string'),
                             new OA\Property(property: 'locale', type: 'string'),
                             new OA\Property(property: 'timezone', type: 'string'),
+                        new OA\Property(property: 'timezone_rules', type: 'object', description: 'Offsets this server applies (name, generated_at, valid_until, offsets[])'),
                         ]),
                         new OA\Property(property: 'location', type: 'object', nullable: true, properties: [
                             new OA\Property(property: 'id', type: 'integer'),
@@ -152,6 +153,7 @@ class AuthController extends Controller
                 'currency' => $tenant->currency ?? 'MAD',
                 'locale'   => $tenant->locale ?? 'fr',
                 'timezone' => $tenant->timezone ?? 'Africa/Casablanca',
+                'timezone_rules' => \App\Support\TenantClock::rules($tenant),
             ],
             'location'   => $location ? ['id' => $location->id, 'name' => $location->name] : null,
             'device_id'  => null,
@@ -219,6 +221,7 @@ class AuthController extends Controller
                         new OA\Property(property: 'currency', type: 'string'),
                         new OA\Property(property: 'locale', type: 'string'),
                         new OA\Property(property: 'timezone', type: 'string'),
+                        new OA\Property(property: 'timezone_rules', type: 'object', description: 'Offsets this server applies (name, generated_at, valid_until, offsets[])'),
                     ]),
                     new OA\Property(property: 'location', type: 'object', nullable: true, properties: [
                         new OA\Property(property: 'id', type: 'integer'),
@@ -254,6 +257,7 @@ class AuthController extends Controller
                 'currency' => $tenant->currency ?? 'MAD',
                 'locale'   => $tenant->locale ?? 'fr',
                 'timezone' => $tenant->timezone ?? 'Africa/Casablanca',
+                'timezone_rules' => \App\Support\TenantClock::rules($tenant),
             ],
             'location'   => $location ? ['id' => $location->id, 'name' => $location->name] : null,
             'abilities'  => $meAbilities,

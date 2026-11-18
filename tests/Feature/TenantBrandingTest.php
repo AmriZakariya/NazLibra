@@ -42,6 +42,22 @@ class TenantBrandingTest extends TestCase
             ->json('branding');
     }
 
+    public function test_settings_carry_the_shops_timezone_rules(): void
+    {
+        $this->tenant->update(['timezone' => 'Africa/Casablanca']);
+
+        $rules = $this->withToken($this->user->createToken('t')->plainTextToken)
+            ->withHeader('X-Tenant-Slug', $this->tenant->slug)
+            ->getJson('/api/v1/sync/settings')
+            ->assertOk()
+            ->json('timezone_rules');
+
+        $this->assertSame('Africa/Casablanca', $rules['name']);
+        $this->assertNotEmpty($rules['offsets']);
+        $this->assertArrayHasKey('offset_seconds', $rules['offsets'][0]);
+        $this->assertStringEndsWith('Z', $rules['generated_at']);
+    }
+
     public function test_a_shop_with_no_branding_gets_nulls_not_a_missing_key(): void
     {
         // Null means "keep your own palette". A missing key would make the

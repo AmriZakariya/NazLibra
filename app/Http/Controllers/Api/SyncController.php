@@ -529,6 +529,7 @@ class SyncController extends Controller
                     new OA\Property(property: 'ok', type: 'boolean'),
                     new OA\Property(property: 'sync_at', type: 'string', format: 'date-time'),
                     new OA\Property(property: 'timezone', type: 'string', example: 'Africa/Casablanca'),
+                    new OA\Property(property: 'timezone_rules', type: 'object', description: 'Offsets in force from ~30 days ago to valid_until: name, generated_at, valid_until, offsets[{from, offset_seconds, abbr, is_dst}]'),
                     new OA\Property(property: 'currency', type: 'string', example: 'MAD'),
                     new OA\Property(property: 'locale', type: 'string', example: 'fr'),
                     new OA\Property(property: 'tenant_name', type: 'string'),
@@ -563,6 +564,9 @@ class SyncController extends Controller
             'tenant_id'               => $tenant->id,
             'location_id'             => $location?->id,
             'timezone'                => $tenant->timezone ?? 'Africa/Casablanca',
+            // The offsets this server applies, so the till shows the same
+            // hour as the back office whatever its bundled tz data says.
+            'timezone_rules'          => \App\Support\TenantClock::rules($tenant),
             'currency'                => $tenant->currency ?? 'MAD',
             'locale'                  => $tenant->locale   ?? 'fr',
             'tenant_name'             => $tenant->name,

@@ -45,6 +45,45 @@ class TenantClock
         return 'UTC'.$sign.str_pad((string) $hours, 2, '0', STR_PAD_LEFT).':'.str_pad((string) $minutes, 2, '0', STR_PAD_LEFT);
     }
 
+    /**
+     * The shop's timezone rules as this server's tz database knows them, for
+     * the app to follow instead of its own bundled copy (whose rules for a
+     * country like Morocco can disagree). Offsets in force from ~30 days
+     * before `$at` to ~400 days after it; the first entry starts the range,
+     * `valid_until` ends it, and the app falls back to its own data outside.
+     *
+     * @return array{name: string, generated_at: string, valid_until: string, offsets: list<array{from: string, offset_seconds: int, abbr: string, is_dst: bool}>}
+     */
+    public static function rules(Tenant|string|null $tenant = null, ?CarbonInterface $at = null): array
+    {
+        $name = self::timezone($tenant);
+        $now = ($at ? Carbon::instance($at) : Carbon::now())->utc();
+        $start = $now->copy()->subDays(30);
+        $end = $now->copy()->addDays(400);
+        $zone = new DateTimeZone($name);
+
+        $offsets = [];
+        foreach ($zone->getTransitions($start->getTimestamp(), $end->getTimestamp()) ?: [] as $row) {
+            // The first row is the state in force at $start itself.
+            $from = $row['ts'] <= $start->getTimestamp()
+                ? $start
+                : Carbon::createFromTimestampUTC($row['ts']);
+            $offsets[] = [
+                'from'           => $from->format('Y-m-d\TH:i:s\Z'),
+                'offset_seconds' => (int) $row['offset'],
+                'abbr'           => (string) $row['abbr'],
+                'is_dst'         => (bool) $row['isdst'],
+            ];
+        }
+
+        return [
+            'name'         => $name,
+            'generated_at' => $now->format('Y-m-d\TH:i:s\Z'),
+            'valid_until'  => $end->format('Y-m-d\TH:i:s\Z'),
+            'offsets'      => $offsets,
+        ];
+    }
+
     public static function label(Tenant|string|null $tenant = null): string
     {
         return self::timezone($tenant).' · '.self::offset($tenant);
