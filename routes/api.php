@@ -219,6 +219,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('items/{item}',         [ItemController::class, 'show']);
         Route::put('items/{item}',         [ItemController::class, 'update']);
         Route::post('items/{item}/images', [ItemController::class, 'uploadImage']);
+        // Déclinaisons: edit/add (items.edit) and remove (items.delete, checked inside).
+        Route::put('items/{item}/variants', [ItemController::class, 'syncVariants'])->middleware('api.action:items.edit');
 
         // ── Inventory adjustments ─────────────────────────────────────────────
         Route::post('inventory/adjustments', [AdjustmentController::class, 'store'])->middleware('api.action:stock.adjust');

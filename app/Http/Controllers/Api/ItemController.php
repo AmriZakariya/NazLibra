@@ -313,6 +313,60 @@ class ItemController extends Controller
         return response()->json(['ok' => true, 'item' => $item->fresh()->load('tax')]);
     }
 
+    /**
+     * PUT /api/v1/items/{item}/variants — the till's edit of an article's
+     * variants (« Déclinaisons »): updates, additions and removals together.
+     *
+     * Removing needs the delete right, adding and editing the edit right (the
+     * route carries the latter). A removed variant is archived, never deleted.
+     */
+    public function syncVariants(Request $request, Item $item, \App\Services\Catalogue\VariantService $variants): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant = $request->attributes->get('api_tenant');
+
+        if ($item->tenant_id !== $tenant->id) {
+            return response()->json(['ok' => false, 'message' => 'Article introuvable.'], 404);
+        }
+
+        $data = $request->validate([
+            'variants'                     => ['sometimes', 'array', 'max:'.\App\Services\Catalogue\VariantService::MAX_COMBINATIONS],
+            'variants.*.id'                => ['nullable', 'integer'],
+            'variants.*.local_id'          => ['nullable', 'string', 'max:64'],
+            'variants.*.name'              => ['required', 'string', 'max:255'],
+            'variants.*.sale_price'        => ['required', 'numeric', 'min:0', 'max:999999999'],
+            'variants.*.duration_minutes'  => ['nullable', 'integer', 'min:5', 'max:600'],
+            'variants.*.barcode'           => ['nullable', 'string', 'max:120'],
+            'variants.*.sku'               => ['nullable', 'string', 'max:100'],
+            'remove'                       => ['sometimes', 'array'],
+            'remove.*'                     => ['integer'],
+        ]);
+
+        if (! empty($data['remove']) && ! $request->user()->tokenCan('items.delete')) {
+            return response()->json(['ok' => false, 'error' => 'ability_denied', 'message' => 'Action non autorisée pour cet opérateur.'], 403);
+        }
+
+        $result = $variants->sync($item, $data['variants'] ?? [], $data['remove'] ?? []);
+
+        return response()->json([
+            'ok' => true,
+            'variants' => $result['variants']->map(fn (\App\Models\ItemVariant $v): array => [
+                'id' => $v->id,
+                'item_id' => $v->item_id,
+                'name' => $v->name,
+                'barcode' => $v->barcode,
+                'sku' => $v->sku,
+                'sale_price' => $v->price(),
+                'duration_minutes' => $v->duration_minutes,
+                'is_active' => true,
+                'sort_order' => (int) $v->sort_order,
+                'updated_at' => $v->updated_at?->toISOString(),
+            ])->values(),
+            'removed' => $result['removed'],
+            'ids' => (object) $result['map'],
+        ]);
+    }
+
     /** GET /api/v1/items/{item} — single item detail with stock at location. */
     #[OA\Get(
         path: '/api/v1/items/{item}',
