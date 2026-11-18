@@ -157,6 +157,35 @@ class ImportSalonPriceListTest extends TestCase
         $this->assertSame(1, Item::where('tenant_id', $this->tenant->id)->where('title', 'Épilation totale')->count());
     }
 
+    /** A salon service has no code: its photo in the ZIP is named after it, accents spelled the Mac way. */
+    public function test_a_zip_photo_named_after_the_service_is_attached(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $dir = sys_get_temp_dir().'/salon-zip-'.uniqid();
+        mkdir($dir);
+        file_put_contents("{$dir}/prestations.csv", self::HEAD."Épilation totale,300,90,,,\nMassage,,,,30 min=200@30,\n");
+        $jpeg = imagecreatetruecolor(20, 20);
+        imagejpeg($jpeg, "{$dir}/photo.jpg");
+        $zipPath = "{$dir}/import.zip";
+        $zip = new \ZipArchive();
+        $zip->open($zipPath, \ZipArchive::CREATE);
+        $zip->addFile("{$dir}/prestations.csv", 'prestations.csv');
+        $zip->addFile("{$dir}/photo.jpg", \Normalizer::normalize('Épilation totale.jpg', \Normalizer::FORM_D));
+        $zip->addFile("{$dir}/photo.jpg", 'massage.JPG');
+        $zip->close();
+
+        $this->actingAs($this->owner)->post(route('catalog.import'), [
+            'kind' => 'services',
+            'catalog_file' => new UploadedFile($zipPath, 'import.zip', null, null, true),
+        ])->assertSessionHasNoErrors();
+
+        foreach (['Épilation totale', 'Massage'] as $title) {
+            $images = Item::where('tenant_id', $this->tenant->id)->where('title', $title)->sole()->images;
+            $this->assertNotEmpty($images, "{$title} got its photo");
+            \Illuminate\Support\Facades\Storage::disk('public')->assertExists($images[0]);
+        }
+    }
+
     public function test_bad_cells_are_warnings_not_a_failed_import(): void
     {
         $response = $this->importCsv(self::HEAD

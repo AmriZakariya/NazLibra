@@ -2935,7 +2935,9 @@ class LibraireProController extends Controller
                 $photoJobs[] = [
                     'item_id' => $model->id,
                     'image' => trim((string) $this->rowValue($row, ['image', 'images', 'photo', 'photos', 'image_url', 'url_image', 'url_de_l_image', 'lien_image', 'lien_photo', 'photo_url', 'url_photo'])),
-                    'codes' => array_values(array_filter([$barcode, $isbn, $model->item_code])),
+                    // The name last: a salon service has no barcode or code,
+                    // and « Massage relaxant.jpg » in the ZIP is its photo.
+                    'codes' => array_values(array_filter([$barcode, $isbn, $model->item_code, $model->title])),
                 ];
 
                 if ($model->type !== 'service' && $stock > 0 && $defaultLocation) {
@@ -2982,18 +2984,22 @@ class LibraireProController extends Controller
 
     /**
      * Attach the photos an import named: a link, a file in the ZIP, or —
-     * with no Image column — a photo in the ZIP named after the barcode or
-     * item code. Returns what to add to the import message.
+     * with no Image column — a photo in the ZIP named after the barcode, the
+     * item code or the article's name. Returns what to add to the import message.
      *
      * @param  list<array{item_id: int, image: string, codes: list<string>}>  $jobs
      * @param  array<string, string>  $zipPhotos  lower-cased file name => extracted path
      */
     private function attachImportPhotos(\App\Services\Catalogue\ItemPhotos $photos, array $jobs, array $zipPhotos, bool $fromZip): string
     {
+        // One spelling for « é »: a ZIP made on a Mac stores names decomposed
+        // (e + accent), a sheet typed anywhere else composed.
+        $key = fn (string $value): string => mb_strtolower(class_exists(\Normalizer::class) ? (\Normalizer::normalize($value, \Normalizer::FORM_C) ?: $value) : $value);
+        $zipPhotos = collect($zipPhotos)->mapWithKeys(fn ($path, $name) => [$key((string) $name) => $path])->all();
         $zipByKey = [];
         foreach ($zipPhotos as $name => $path) {
-            foreach (\App\Services\Catalogue\ItemPhotos::keysFor($name) as $key) {
-                $zipByKey[mb_strtolower($key)] ??= $path;
+            foreach (\App\Services\Catalogue\ItemPhotos::keysFor($name) as $k) {
+                $zipByKey[$key($k)] ??= $path;
             }
         }
 
@@ -3014,14 +3020,14 @@ class LibraireProController extends Controller
                 if ($job['image'] !== '' && \App\Services\Catalogue\ItemPhotos::isUrl($job['image'])) {
                     $source = $temp = $photos->download($job['image']);
                 } elseif ($job['image'] !== '') {
-                    $name = mb_strtolower(basename(str_replace('\\', '/', $job['image'])));
-                    $source = $zipPhotos[$name] ?? $zipByKey[mb_strtolower(pathinfo($name, PATHINFO_FILENAME))] ?? null;
+                    $name = $key(basename(str_replace('\\', '/', $job['image'])));
+                    $source = $zipPhotos[$name] ?? $zipByKey[$key(pathinfo($name, PATHINFO_FILENAME))] ?? null;
                     if ($source === null) {
                         throw new \InvalidArgumentException($fromZip ? 'absente du ZIP' : 'importez un ZIP avec les photos');
                     }
                 } else {
                     foreach ($job['codes'] as $code) {
-                        $source ??= $zipByKey[mb_strtolower($code)] ?? null;
+                        $source ??= $zipByKey[$key((string) $code)] ?? null;
                     }
                     if ($source === null) {
                         continue; // no photo for this row, and none was asked for
