@@ -2657,7 +2657,7 @@ class LibraireProController extends Controller
             if ($ib) $scannedIsbns[]    = $ib;
             if ($ic) $scannedCodes[]    = $ic;
             if (! $bc && ! $ib && ! $ic) {
-                $t = mb_strtolower(trim((string) $this->rowValue($row, ['title', 'titre', 'name', 'nom', 'item_name', 'nom_article', 'nom_de_l_article'])));
+                $t = trim((string) $this->rowValue($row, ['title', 'titre', 'name', 'nom', 'item_name', 'nom_article', 'nom_de_l_article']));
                 if ($t !== '') $scannedTitles[] = $t;
             }
         }
@@ -2666,8 +2666,14 @@ class LibraireProController extends Controller
         // would double the catalogue.
         $byTitle = collect();
         if ($scannedTitles) {
+            // The title as typed AND lowercased: SQLite's LOWER() folds ASCII
+            // only, so « Épilation totale » never matched its lowercased self
+            // there and a second import duplicated it. The final comparison
+            // is done in PHP with mb_strtolower.
+            $rawTitles = array_values(array_unique($scannedTitles));
+            $lowerTitles = array_values(array_unique(array_map('mb_strtolower', $rawTitles)));
             Item::withTrashed()->where('tenant_id', $tenant->id)
-                ->whereIn(DB::raw('LOWER(title)'), array_unique($scannedTitles))
+                ->where(fn ($q) => $q->whereIn('title', $rawTitles)->orWhereIn(DB::raw('LOWER(title)'), $lowerTitles))
                 ->orderBy('id')->get()
                 ->each(function (Item $i) use ($byTitle): void {
                     $key = mb_strtolower(trim($i->title));

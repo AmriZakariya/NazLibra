@@ -146,6 +146,17 @@ class ImportSalonPriceListTest extends TestCase
         $this->assertSame(1, Modifier::where('name', 'Vernis')->count(), 'the option left out of the cell is left alone');
     }
 
+    /** SQLite's LOWER() leaves « É » alone, so this one was duplicated on every re-import. */
+    public function test_a_name_starting_with_an_accented_capital_is_recognised_on_reimport(): void
+    {
+        $csv = self::HEAD."Épilation totale,300,90,,,\n";
+
+        $this->importCsv($csv);
+        $this->importCsv($csv);
+
+        $this->assertSame(1, Item::where('tenant_id', $this->tenant->id)->where('title', 'Épilation totale')->count());
+    }
+
     public function test_bad_cells_are_warnings_not_a_failed_import(): void
     {
         $response = $this->importCsv(self::HEAD
