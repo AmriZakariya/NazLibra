@@ -16,6 +16,8 @@
         $typeConfig[$item->type] = ['label' => \App\Support\ItemTypes::label($typesTenant, $item->type), 'hint' => '', 'fields' => null];
     }
     $typeOptions = $typeConfig;
+    // Which of the bookshop's fields this shop asks for (ISBN, Marque, barcode…).
+    $show = \App\Support\ItemFieldVisibility::forTenant($typesTenant, $typeValue);
     $hasBookFieldProfile = collect($typeOptions)->contains(fn ($option) => ($option['fields'] ?? null) === 'book');
     $storeOptions = collect($stores ?? [])->filter(fn ($store) => data_get($store, 'is_active', true));
     $defaultStoreName = data_get($currentStore ?? [], 'name', 'Magasin principal');
@@ -118,10 +120,20 @@
 {{-- ══ CODES & RÉFÉRENCES ══════════════════════════════════════════════════════ --}}
 <div class="{{ $section }}">Codes &amp; références</div>
 
+@if ($show['isbn'])
 <label class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">ISBN</span>
     <input name="isbn" value="{{ old('isbn', $item?->isbn) }}" class="{{ $input }}" placeholder="978...">
 </label>
+@endif
+
+{{-- Outside a bookshop the author field is the product's Marque. In a bookshop it is the Auteur of the « Fiche livre » below. --}}
+@if ($show['author'] && ! $hasBookFieldProfile)
+<label class="block">
+    <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr($show['author_label']) }}</span>
+    <input name="author" value="{{ old('author', $item?->author) }}" class="{{ $input }}">
+</label>
+@endif
 
 <div class="block">
     <span class="text-xs font-semibold uppercase text-slate-500">Code-barres (EAN)</span>

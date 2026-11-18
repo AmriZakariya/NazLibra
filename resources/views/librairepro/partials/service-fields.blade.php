@@ -66,13 +66,7 @@
     </select>
 </label>
 
-<label class="block">
-    <span class="text-xs font-semibold uppercase text-slate-500">Code à barre</span>
-    <div class="mt-1 flex gap-2">
-        <input name="barcode" value="{{ old('barcode', $item?->barcode) }}" class="barcode-input h-11 min-w-0 flex-1 rounded-lg border border-slate-200 px-3 text-sm shadow-sm transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 dark:border-white/10 dark:bg-slate-900" placeholder="{{ $tr('Code scanner optionnel') }}">
-        <button class="barcode-scan-btn h-11 shrink-0 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:border-brand hover:text-brand dark:border-white/10 dark:bg-slate-900 dark:text-slate-200" type="button">Scanner</button>
-    </div>
-</label>
+{{-- A service has no barcode, SKU, ISBN or author: not asked for here, and a value already saved is kept. --}}
 
 {{-- ══ TARIFICATION ══════════════════════════════════════════════════════════════ --}}
 <div class="{{ $section }}">Tarification</div>

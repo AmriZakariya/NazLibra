@@ -1374,7 +1374,17 @@
 
             @if ($editItem)
                 @php
-                    $editItemCode = $editItem->barcode ?: ($editItem->isbn ?: ($editItem->sku ?: $editItem->item_code));
+                    $editShow = \App\Support\ItemFieldVisibility::forTenant($tenant ?? null, $editItem->type, $editItem->variants->isNotEmpty());
+                    // A service is identified by its code alone; a product by the codes its shop uses.
+                    $editItemCode = $editItem->item_code;
+                    if ($editShow['barcode'] || $editShow['isbn']) {
+                        $editItemCode = ($editShow['barcode'] ? $editItem->barcode : null) ?: (($editShow['isbn'] ? $editItem->isbn : null) ?: (($editShow['sku'] ? $editItem->sku : null) ?: $editItem->item_code));
+                    }
+                    $editItemCodeLine = collect([
+                        $editItem->item_code ?? 'Sans code',
+                        $editShow['barcode'] ? (($editItem->barcode ?: ($editShow['isbn'] ? $editItem->isbn : null)) ?? 'Sans code-barres') : null,
+                        $editItem->category?->name ?? 'Sans catégorie',
+                    ])->filter()->implode(' · ');
                     $editItemSearch = $editItemCode ?: $editItem->title;
                     $editItemIsService = $editItem->type === 'service';
                     $editItemQuickActions = [
@@ -1415,7 +1425,7 @@
                     <div class="flex flex-col gap-3 border-b border-slate-200 pb-4 dark:border-white/10 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                             <h2 class="text-base font-semibold">Détail / modifier: {{ $editItem->title }}</h2>
-                            <p class="mt-1 text-sm text-slate-500">{{ $editItem->item_code ?? 'Sans code' }} · {{ $editItem->barcode ?? $editItem->isbn ?? 'Sans code-barres' }} · {{ $editItem->category?->name ?? 'Sans catégorie' }}</p>
+                            <p class="mt-1 text-sm text-slate-500">{{ $editItemCodeLine }}</p>
                         </div>
                         <div class="app-action-row">
                             <x-status-pill :tone="$editItem->type === 'service' ? 'info' : 'primary'">{{ $editItem->type === 'service' ? 'Service' : 'Article' }}</x-status-pill>

@@ -61,6 +61,7 @@ use App\Services\Documents\InvoiceService;
 use App\Support\AppModules;
 use App\Support\BusinessMode;
 use App\Support\Countries;
+use App\Support\ItemFieldVisibility;
 use App\Support\ItemTypes;
 use App\Support\Locale;
 use App\Support\Money;
@@ -11172,6 +11173,16 @@ class LibraireProController extends Controller
 
         foreach (['isbn', 'barcode', 'brand_id', 'category_id', 'unit_id', 'tax_id', 'sku', 'custom_barcode1', 'sac', 'hsn'] as $nullable) {
             $data[$nullable] = ($data[$nullable] ?? null) ?: null;
+        }
+
+        // A field this shop and type do not ask for is not the form's to
+        // decide: an article already saved keeps what it holds (a service has
+        // no barcode field, so it must not read as « barcode cleared »).
+        $show = ItemFieldVisibility::forTenant($tenant, $data['type'] ?? $item?->type, $item?->variants()->exists() ?? false);
+        foreach (['isbn', 'barcode', 'sku', 'author'] as $field) {
+            if (! $show[$field]) {
+                unset($data[$field]);
+            }
         }
 
         // Always regenerate if blank; also regenerate if the submitted code is already taken
