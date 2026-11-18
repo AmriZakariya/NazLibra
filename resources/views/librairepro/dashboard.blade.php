@@ -96,6 +96,7 @@
 
     <section class="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         @foreach ($reportCards as $report)
+            @continue(isset($report['module']) && ! \App\Support\AppModules::enabled($tenant, $report['module']))
             {{-- A zero is no news: grey, not the red or orange of a real amount. --}}
             <a href="{{ $report['href'] }}" class="dashboard-report-card is-{{ preg_match('/[1-9]/', (string) $report['value']) ? $report['tone'] : 'neutral' }}">
                 <span>
@@ -199,7 +200,7 @@
                             @forelse ($paymentBreakdown as $payment)
                                 <div>
                                     <div class="flex justify-between gap-3 text-sm">
-                                        <span class="font-semibold">{{ ucfirst($payment->method) }}</span>
+                                        <span class="font-semibold">{{ $payment->method === 'gift_card' ? $tr('Carte cadeau') : ucfirst($payment->method) }}</span>
                                         <span class="text-slate-500">{{ $money($payment->total) }}</span>
                                     </div>
                                     <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">

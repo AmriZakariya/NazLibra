@@ -1,4 +1,12 @@
 @php
+    $giftCardsOn = \App\Support\AppModules::enabled($tenant, 'gift_cards');
+    $packagesOn = \App\Support\AppModules::enabled($tenant, 'packages');
+    $packageOffers = $packagesOn
+        ? \App\Models\ServicePackage::where('tenant_id', $tenant->id)->where('is_active', true)->orderBy('name')->get(['id', 'name', 'price', 'sessions'])
+            ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'price' => (float) $p->price, 'sessions' => $p->sessions])->values()->all()
+        : [];
+@endphp
+@php
     $shopMoney = \App\Support\Money::for($tenant);
     // Stored in UTC; the shop reads its own clock.
     $tzDate = fn ($date, string $fmt = 'd/m/Y H:i'): string => \App\Support\TenantClock::format($date, $tenant, $fmt);
@@ -30,7 +38,7 @@
 @endphp
 
 <x-layouts.app :tenant="$tenant" :active="$active" title="Caisse">
-    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? $sourceCart ?? [])' data-staff='@json($posStaff->pluck('name', 'id'))' data-discount-rules='@json($posDiscountRules)' data-pos-search-url="{{ route('pos.search') }}" data-coupon-preview-url="{{ route('pos.coupons.preview') }}" data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}" data-show-out-of-stock="{{ $showOutOfStock ? '1' : '0' }}">
+    <section class="pos-screen grid gap-4 2xl:grid-cols-[minmax(0,1fr)_520px] xl:grid-cols-[minmax(0,1fr)_500px]" data-resume-cart='@json($resumeTicket?->cart ?? $sourceCart ?? [])' data-staff='@json($posStaff->pluck('name', 'id'))' data-discount-rules='@json($posDiscountRules)' data-pos-search-url="{{ route('pos.search') }}" @if ($giftCardsOn) data-gift-card-lookup-url="{{ route('gift-cards.lookup') }}" @endif @if ($packagesOn) data-packages-contact-url="{{ route('packages.contact', ['contact' => '__ID__']) }}" data-package-offers='@json($packageOffers)' @endif data-coupon-preview-url="{{ route('pos.coupons.preview') }}" data-price-editable="{{ $priceEditable ? '1' : '0' }}" data-allow-oversell="{{ $allowOversell ? '1' : '0' }}" data-show-out-of-stock="{{ $showOutOfStock ? '1' : '0' }}">
         <div class="min-w-0 space-y-5">
             @if ($lastSale)
                 @php
@@ -659,6 +667,23 @@
                         <label class="pos-money-field block rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10"><span class="text-[11px] font-bold uppercase text-slate-500">{{ $tr('Avance') }}</span><input name="advance_amount" min="0" step="0.01" type="number" class="pos-payment h-8 w-full border-0 px-0 text-base font-bold" placeholder="0"></label>
                     </div>
 
+                    @if ($giftCardsOn)
+                        {{-- A card's balance lives on the server: look the code up, then apply up to what is due. --}}
+                        <div class="mt-1.5 grid grid-cols-[1.4fr_1fr_auto] items-end gap-1.5 rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10" data-pos-gift-card>
+                            <label class="block"><span class="text-[11px] font-bold uppercase text-slate-500">{{ $tr('Carte cadeau') }}</span><input form="pos-checkout-form" name="gift_card_code" class="pos-gift-card-code h-8 w-full border-0 bg-transparent px-0 font-mono text-base font-bold uppercase" placeholder="ABCD-EFGH" autocomplete="off"></label>
+                            <label class="pos-money-field block"><span class="text-[11px] font-bold uppercase text-slate-500">{{ $tr('Montant') }}</span><input name="gift_card_amount" min="0" step="0.01" type="number" class="pos-payment pos-gift-card-amount h-8 w-full border-0 px-0 text-base font-bold" placeholder="0"></label>
+                            <button type="button" class="pos-gift-card-check h-8 rounded-lg border border-slate-200 px-2 text-xs font-semibold dark:border-white/10">{{ $tr('Vérifier') }}</button>
+                            <p class="pos-gift-card-status col-span-3 text-xs text-slate-500"></p>
+                        </div>
+                    @endif
+
+                    @if ($giftCardsOn || $packagesOn)
+                        <div class="mt-1.5 grid grid-cols-2 gap-1.5">
+                            @if ($giftCardsOn)<button type="button" class="pos-sell-gift-card rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold dark:border-white/10">{{ $tr('Vendre une carte cadeau') }}</button>@endif
+                            @if ($packagesOn)<button type="button" class="pos-sell-package rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold dark:border-white/10">{{ $tr('Vendre un forfait') }}</button>@endif
+                        </div>
+                    @endif
+
                     @if ($posTips)
                         {{-- Paid on top of the total, never revenue, never change. --}}
                         <div class="mt-2 grid {{ $posStaff->count() > 1 ? 'grid-cols-[1fr_1.3fr]' : 'grid-cols-1' }} gap-1.5">
@@ -724,6 +749,10 @@
                         <input class="pos-dialog-price mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-900" type="number" min="0" step="0.01" @disabled(! $priceEditable)>
                     </label>
                 </div>
+                <label class="pos-dialog-package hidden">
+                    <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Forfait') }}</span>
+                    <select class="mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900"></select>
+                </label>
                 <p class="pos-dialog-error hidden rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300" role="alert"></p>
                 @unless ($priceEditable)
                     <p class="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-white/5">Le prix est verrouillé par les paramètres de caisse. Activez “Prix modifiable” dans Paramètres pour autoriser les changements au comptoir.</p>
@@ -747,6 +776,34 @@
                 </div>
             </div>
         </dialog>
+
+        @if ($giftCardsOn || $packagesOn)
+            <dialog class="app-dialog pos-liability-dialog w-[min(460px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+                <div class="grid gap-4 p-5">
+                    <div data-liability="gift_card" class="grid gap-3">
+                        <h2 class="text-lg font-semibold">{{ $tr('Vendre une carte cadeau') }}</h2>
+                        <p class="text-xs text-slate-500">{{ $tr('Le montant est encaissé mais n’est pas du chiffre d’affaires : il le devient quand la carte est utilisée.') }}</p>
+                        <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Montant') }}</span><input type="number" min="1" step="0.01" class="pos-liability-amount mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm font-semibold dark:border-white/10 dark:bg-slate-900"></label>
+                        <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Bénéficiaire (facultatif)') }}</span><input class="pos-liability-recipient mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" maxlength="160"></label>
+                        <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Téléphone du bénéficiaire (facultatif)') }}</span><input class="pos-liability-phone mt-1 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm dark:border-white/10 dark:bg-slate-900" maxlength="40"></label>
+                    </div>
+                    <div data-liability="package" class="grid gap-3" style="display:none">
+                        <h2 class="text-lg font-semibold">{{ $tr('Vendre un forfait') }}</h2>
+                        <label class="block"><span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Forfait') }}</span>
+                            <select class="pos-liability-offer mt-1 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-slate-900">
+                                <option value="">—</option>
+                                @foreach ($packageOffers as $offer)<option value="{{ $offer['id'] }}">{{ $offer['name'] }} · {{ $offer['sessions'] }} {{ $tr('séances') }} · {{ \App\Support\Money::for($tenant)->format($offer['price']) }}</option>@endforeach
+                            </select>
+                        </label>
+                    </div>
+                    <p class="pos-liability-error hidden rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700" role="alert"></p>
+                    <div class="grid gap-2 sm:grid-cols-[1fr_1.4fr]">
+                        <button class="dialog-close rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold dark:border-white/10" type="button">{{ $tr('Annuler') }}</button>
+                        <button class="pos-liability-save rounded-lg bg-brand px-4 py-3 text-sm font-bold text-white" type="button">{{ $tr('Ajouter au ticket') }}</button>
+                    </div>
+                </div>
+            </dialog>
+        @endif
 
         <dialog class="app-dialog pos-stock-dialog w-[min(520px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
             <div class="border-b border-slate-200 p-5 dark:border-white/10">

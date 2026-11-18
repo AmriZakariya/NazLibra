@@ -21,6 +21,14 @@ use App\Services\Inventory\InventoryLedgerService;
 use App\Services\Inventory\InventoryMovementType;
 use App\Services\Inventory\InventoryService;
 use App\Services\LoyaltyService;
+use App\Exceptions\LiabilityException;
+use App\Models\GiftCard;
+use App\Models\GiftCardTransaction;
+use App\Models\ServicePackage;
+use App\Services\GiftCards\GiftCardService;
+use App\Services\Packages\PackageService;
+use App\Support\AppModules;
+use App\Support\Liabilities;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
@@ -46,6 +54,8 @@ class SaleController extends Controller
         private readonly DocumentNumberGenerator $numbers,
         private readonly LoyaltyService $loyalty,
         private readonly \App\Services\Catalogue\ModifierService $modifiers,
+        private readonly GiftCardService $giftCards,
+        private readonly PackageService $packages,
     ) {}
 
     /**
@@ -168,6 +178,15 @@ class SaleController extends Controller
             // Who did the line (the barber on a haircut); null on a shop
             // that does not track it.
             'items.*.staff_user_id'    => ['nullable', 'integer'],
+            // A gift card or a package SOLD on this line (not revenue: a
+            // liability), or a package SESSION used (priced 0). The till may
+            // be offline, so it prints its own gift-card code and sends it.
+            'items.*.kind'             => ['nullable', 'in:gift_card,package,package_use'],
+            'items.*.gift_card_code'   => ['nullable', 'string', 'max:20'],
+            'items.*.recipient_name'   => ['nullable', 'string', 'max:160'],
+            'items.*.recipient_phone'  => ['nullable', 'string', 'max:40'],
+            'items.*.package_id'       => ['nullable', 'integer'],
+            'items.*.customer_package_id' => ['nullable', 'integer'],
             // A tip for one person, on top of the total and not part of it.
             'tip'                      => ['nullable', 'numeric', 'min:0', 'max:100000'],
             'tip_user_id'              => ['nullable', 'integer'],
@@ -178,6 +197,9 @@ class SaleController extends Controller
             'payments.card'           => ['nullable', 'numeric', 'min:0'],
             'payments.transfer'       => ['nullable', 'numeric', 'min:0'],
             'payments.advance'        => ['nullable', 'numeric', 'min:0'],
+            // Spent from a gift card: needs `gift_card_code` and the server.
+            'payments.gift_card'      => ['nullable', 'numeric', 'min:0'],
+            'gift_card_code'          => ['nullable', 'string', 'max:20'],
             'discount'                => ['nullable', 'array'],
             'discount.type'           => ['nullable', 'in:percent,fixed'],
             'discount.value'          => ['nullable', 'numeric', 'min:0'],
@@ -217,6 +239,9 @@ class SaleController extends Controller
 
         // Validate: each line must have item_id OR custom_name.
         foreach ($data['items'] as $idx => $line) {
+            if (in_array($line['kind'] ?? null, [Liabilities::GIFT_CARD, Liabilities::PACKAGE], true)) {
+                continue;
+            }
             if (empty($line['item_id']) && empty($line['custom_name'])) {
                 return response()->json([
                     'ok'      => false,
@@ -256,7 +281,10 @@ class SaleController extends Controller
 
         $tip = round(max(0, (float) ($data['tip'] ?? 0)), 2);
 
+        // The gift card comes first: it covers the total before anything else,
+        // so what is paid beyond it (a tip) never comes off a card.
         $payments = [
+            'gift_card' => round(max(0, (float) ($data['payments']['gift_card'] ?? 0)), 2),
             'cash'     => max(0, (float) ($data['payments']['cash'] ?? 0)),
             'card'     => max(0, (float) ($data['payments']['card'] ?? 0)),
             'transfer' => max(0, (float) ($data['payments']['transfer'] ?? 0)),
@@ -268,8 +296,68 @@ class SaleController extends Controller
         $subtotal   = 0.0;
         $totalCogs  = 0.0;
 
+        $reservedCodes = [];
         $belowFrom = [];
         foreach ($data['items'] as $line) {
+            $kind = $line['kind'] ?? null;
+
+            // A gift card sold: a custom line that is a liability, not revenue.
+            if ($kind === Liabilities::GIFT_CARD) {
+                if (! AppModules::enabled($tenant, 'gift_cards')) {
+                    throw ValidationException::withMessages(['items' => 'Les cartes cadeaux ne sont pas activées dans cette boutique.']);
+                }
+                $amount = round((float) ($line['unit_price'] ?? 0), 2);
+                if ($amount <= 0 || $amount > GiftCardService::MAX_AMOUNT || (int) $line['quantity'] !== 1) {
+                    throw ValidationException::withMessages(['items' => 'Une carte cadeau se vend à l’unité, pour un montant positif.']);
+                }
+                $code = $this->giftCards->codeFor($tenant->id, $line['gift_card_code'] ?? null);
+                while (in_array($code, $reservedCodes, true)) {
+                    $code = $this->giftCards->generateCode($tenant->id);
+                }
+                $reservedCodes[] = $code;
+                $subtotal += $amount;
+                $saleLines[] = [
+                    'item' => null, 'variant' => null, 'modifiers' => collect(),
+                    'kind' => $kind,
+                    'custom_name' => 'Carte cadeau '.GiftCardService::display($code),
+                    'gift_card_code' => $code,
+                    'recipient_name' => $line['recipient_name'] ?? null,
+                    'recipient_phone' => $line['recipient_phone'] ?? null,
+                    'quantity' => 1, 'unit_price' => $amount, 'total_price' => $amount,
+                    'note' => $line['note'] ?? null,
+                    'staff_user_id' => $staffOf($line['staff_user_id'] ?? null),
+                    'avg_cost' => 0.0, 'line_cogs' => 0.0, 'tax_rate' => 0.0,
+                ];
+                continue;
+            }
+
+            // A package sold to the customer on the ticket.
+            if ($kind === Liabilities::PACKAGE) {
+                if (! AppModules::enabled($tenant, 'packages')) {
+                    throw ValidationException::withMessages(['items' => 'Les forfaits ne sont pas activés dans cette boutique.']);
+                }
+                if (! $contact) {
+                    throw ValidationException::withMessages(['items' => 'Sélectionnez un client pour vendre un forfait.']);
+                }
+                $definition = ServicePackage::where('tenant_id', $tenant->id)->where('is_active', true)
+                    ->whereKey((int) ($line['package_id'] ?? 0))->first();
+                if (! $definition || (int) $line['quantity'] !== 1) {
+                    throw ValidationException::withMessages(['items' => 'Forfait introuvable ou indisponible.']);
+                }
+                $price = round((float) $definition->price, 2);
+                $subtotal += $price;
+                $saleLines[] = [
+                    'item' => null, 'variant' => null, 'modifiers' => collect(),
+                    'kind' => $kind, 'package' => $definition,
+                    'custom_name' => $definition->name,
+                    'quantity' => 1, 'unit_price' => $price, 'total_price' => $price,
+                    'note' => $line['note'] ?? null,
+                    'staff_user_id' => $staffOf($line['staff_user_id'] ?? null),
+                    'avg_cost' => 0.0, 'line_cogs' => 0.0, 'tax_rate' => 0.0,
+                ];
+                continue;
+            }
+
             $isCustom = empty($line['item_id']);
 
             if ($isCustom) {
@@ -279,6 +367,7 @@ class SaleController extends Controller
                 $subtotal += $lineTotal;
 
                 $saleLines[] = [
+                    'kind'        => null,
                     'item'        => null,
                     'variant'     => null,
                     'modifiers'   => collect(),
@@ -332,9 +421,26 @@ class SaleController extends Controller
                 ? (float) $line['unit_price']
                 : ($variant ? $variant->price() : (float) $item->sale_price)
                     + $this->modifiers->priceDelta($modifiers);
+            // A package session pays the line: priced 0, and checked here
+            // (and again, locked, when the sale is saved).
+            $customerPackageId = null;
+            if ($kind === Liabilities::PACKAGE_USE) {
+                if (! $contact) {
+                    throw ValidationException::withMessages(['items' => 'Sélectionnez le client du forfait.']);
+                }
+                if ($item->type !== ItemType::Service->value) {
+                    throw ValidationException::withMessages(['items' => 'Un forfait ne couvre qu’un service.']);
+                }
+                $customerPackageId = (int) ($line['customer_package_id'] ?? 0);
+                $owned = $this->packages->find($tenant, $customerPackageId);
+                if ($refusal = $this->packages->refusal($tenant, $owned, (int) $line['quantity'], (int) $contact->id, (int) $item->id, $variant?->id)) {
+                    throw ValidationException::withMessages(['items' => $refusal->getMessage()]);
+                }
+                $unitPrice = 0.0;
+            }
             // « À partir de »: the catalogue price is a floor. Authoritative
             // here whatever the till did; a discount is the way to go lower.
-            if ($message = \App\Support\FromPrice::violation($item, $variant, $unitPrice, \App\Support\Money::for($tenant))) {
+            elseif ($message = \App\Support\FromPrice::violation($item, $variant, $unitPrice, \App\Support\Money::for($tenant))) {
                 if (\App\Support\FromPrice::enforcedFor($request)) {
                     throw ValidationException::withMessages(['items' => $message]);
                 }
@@ -364,6 +470,8 @@ class SaleController extends Controller
             $totalCogs += $lineCogs;
 
             $saleLines[] = [
+                'kind'        => $kind === Liabilities::PACKAGE_USE ? $kind : null,
+                'customer_package_id' => $customerPackageId,
                 'item'        => $item,
                 'variant'     => $variant,
                 'modifiers'   => $modifiers,
@@ -423,6 +531,38 @@ class SaleController extends Controller
         }
 
         $total = max(0, round($afterDiscount - $loyaltyDiscount, 2));
+
+        // A card or a package sold is a liability: it is kept out of revenue
+        // whole, which a discount spread over the ticket would blur.
+        $nonRevenue = round((float) collect($saleLines)
+            ->filter(fn ($l) => in_array($l['kind'] ?? null, Liabilities::KINDS, true))
+            ->sum('total_price'), 2);
+        if ($nonRevenue > 0 && ($discount > 0 || $loyaltyDiscount > 0)) {
+            throw ValidationException::withMessages([
+                'discount' => 'Aucune remise ni point de fidélité sur une carte cadeau ou un forfait : retirez-la du ticket ou la remise.',
+            ]);
+        }
+
+        // Paying with a gift card needs the card, and the server: the balance
+        // lives here, so a till that is offline cannot accept one.
+        $giftCardCode = null;
+        if ($payments['gift_card'] > 0.004) {
+            if (! AppModules::enabled($tenant, 'gift_cards')) {
+                return response()->json(['ok' => false, 'error' => 'gift_cards_disabled', 'message' => 'Les cartes cadeaux ne sont pas activées dans cette boutique.'], 422);
+            }
+            $giftCardCode = GiftCardService::normalize($data['gift_card_code'] ?? null);
+            $card = $this->giftCards->find($tenant, $giftCardCode);
+            if ($refusal = $this->giftCards->refusal($tenant, $card, $payments['gift_card'])) {
+                return response()->json(['ok' => false, 'error' => 'gift_card_'.$refusal->reason, 'message' => $refusal->getMessage()], 422);
+            }
+            if ($payments['gift_card'] - 0.004 > $total) {
+                return response()->json(['ok' => false, 'error' => 'gift_card_over_total', 'message' => 'Le montant prélevé sur la carte dépasse le total à payer.'], 422);
+            }
+            if (collect($saleLines)->contains(fn ($l) => ($l['kind'] ?? null) === Liabilities::GIFT_CARD)) {
+                return response()->json(['ok' => false, 'error' => 'gift_card_for_gift_card', 'message' => 'Une carte cadeau ne peut pas payer l’achat d’une autre carte cadeau.'], 422);
+            }
+        }
+
         $discountFactor = $subtotal > 0 ? min(1.0, max(0.0, $total / $subtotal)) : 1.0;
         $taxTotal = 0.0;
         foreach ($saleLines as $line) {
@@ -531,7 +671,8 @@ class SaleController extends Controller
             $subtotal, $discount, $loyaltyDiscount, $total, $paid, $data,
             $discountFactor, $taxTotal, $totalCogs, $allowOversell, $action, $soldAt,
             $pointsToRedeem, $loyaltyCfg, $loyaltyEnabled, $sourceOnlineOrder,
-            $tip, $tipUserId, $tipMethod, $tipCash, $belowFrom,
+            $tip, $tipUserId, $tipMethod, $tipCash,
+            $nonRevenue, $giftCardCode, $belowFrom,
             &$saleNumber
         ): Sale {
             // Decrement advance balance atomically before the rest.
@@ -569,7 +710,7 @@ class SaleController extends Controller
 
             // Points earned are calculated on the final total (after loyalty discount).
             $pointsEarned = ($loyaltyEnabled && $contact)
-                ? $this->loyalty->pointsForAmount($total, $loyaltyCfg)
+                ? $this->loyalty->pointsForAmount(max(0, $total - $nonRevenue), $loyaltyCfg)
                 : 0.0;
 
             $sale = Sale::create([
@@ -593,6 +734,7 @@ class SaleController extends Controller
                 'tip_amount'      => $tip,
                 'tip_user_id'     => $tipUserId,
                 'tip_method'      => $tipMethod,
+                'non_revenue_amount' => $nonRevenue,
                 'idempotency_key'        => $data['idempotency_key'],
                 'source_online_order_id' => $sourceOnlineOrder?->id,
                 'metadata'               => [
@@ -631,6 +773,7 @@ class SaleController extends Controller
                             'average_cost' => $l['avg_cost'],
                             'cogs'         => $l['line_cogs'],
                             'tax_rate'     => $rate,
+                            'kind'         => $l['kind'] ?? null,
                             'tax_amount'   => round($lineTax, 2),
                             'note'         => $l['note'],
                         ];
@@ -659,7 +802,22 @@ class SaleController extends Controller
                     'unit_cost'  => $line['avg_cost'],
                     'total_cost' => $line['line_cogs'],
                     'staff_user_id' => $line['staff_user_id'] ?? null,
+                    'kind'       => $line['kind'] ?? null,
+                    'customer_package_id' => $line['customer_package_id'] ?? null,
                 ]);
+
+                // What a liability line creates or consumes — in this same
+                // transaction, so a retried sale never issues a second card.
+                if (($line['kind'] ?? null) === Liabilities::GIFT_CARD) {
+                    $this->giftCards->issue($tenant, $sale, $saleItem, (float) $line['total_price'], $line['gift_card_code'], [
+                        'recipient_name' => $line['recipient_name'] ?? null,
+                        'recipient_phone' => $line['recipient_phone'] ?? null,
+                    ], $action->actor->id);
+                } elseif (($line['kind'] ?? null) === Liabilities::PACKAGE) {
+                    $this->packages->sell($tenant, $sale, $saleItem, $line['package'], $action->actor->id);
+                } elseif (($line['kind'] ?? null) === Liabilities::PACKAGE_USE) {
+                    $this->packages->consume($tenant, (int) $line['customer_package_id'], (int) $line['quantity'], $sale, $saleItem, $action->actor->id);
+                }
 
                 // Snapshotted name and price, and any linked stock consumed.
                 $this->modifiers->attach(
@@ -770,6 +928,12 @@ class SaleController extends Controller
                 $remaining -= $allocated;
             }
 
+            // The gift card is debited last of the money steps, still inside
+            // the transaction: a refusal here rolls the whole sale back.
+            if ($giftCardCode !== null && $payments['gift_card'] > 0.004) {
+                $this->giftCards->redeem($tenant, $giftCardCode, min($payments['gift_card'], $total), $sale, $action->actor->id);
+            }
+
             // Loyalty point transactions — both redeem and earn recorded after sale exists.
             if ($loyaltyEnabled && $contact) {
                 if ($pointsToRedeem > 0) {
@@ -813,6 +977,10 @@ class SaleController extends Controller
             try {
                 $sale = DB::transaction($transactionFn);
                 break;
+            } catch (LiabilityException $refused) {
+                // A card or a package said no at the moment of saving (spent
+                // by another till since the check): nothing was saved.
+                return response()->json(['ok' => false, 'error' => 'liability_'.$refused->reason, 'message' => $refused->getMessage()], 422);
             } catch (QueryException $exception) {
                 $existing = Sale::where('tenant_id', $tenant->id)
                     ->where('idempotency_key', $data['idempotency_key'])
@@ -1113,7 +1281,7 @@ class SaleController extends Controller
      */
     private function saleResponse(Sale $sale, array $requestedLines, int $tenantId, int $locationId, bool $alreadyExisted = false): JsonResponse
     {
-        $sale->load(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost,staff_user_id', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name']);
+        $sale->load(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost,staff_user_id,kind,customer_package_id', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name']);
 
         // Post-sale stock snapshot so the client updates local stock immediately.
         $itemIds    = collect($requestedLines)->pluck('item_id')->filter()->unique()->all();
@@ -1130,6 +1298,22 @@ class SaleController extends Controller
             'ok'              => true,
             'already_existed' => $alreadyExisted,
             'sale'            => SaleResource::make($sale),
+            // The cards this sale created (the code to print) and the cards
+            // it spent, read back from the books so a replayed sale answers
+            // the same way as the first one.
+            'gift_cards'      => GiftCard::where('sale_id', $sale->id)->orderBy('id')->get()->map(fn (GiftCard $c) => [
+                'sale_item_id' => $c->sale_item_id,
+                'code' => $c->code,
+                'display_code' => $c->displayCode(),
+                'amount' => (float) $c->initial_amount,
+                'expires_at' => $c->expires_at?->toDateString(),
+            ])->values(),
+            'gift_card_redeemed' => GiftCardTransaction::where('sale_id', $sale->id)->where('type', GiftCardTransaction::REDEEM)
+                ->with('card:id,code')->get()->map(fn ($t) => [
+                    'code' => $t->card?->code,
+                    'amount' => abs((float) $t->amount),
+                    'balance_after' => (float) $t->balance_after,
+                ])->values(),
             // An object even when empty: a sale of services only (a haircut)
             // moves no stock, and an empty collection encodes as [] — which
             // the till could not read, so it re-sent the sale forever.

@@ -48,8 +48,10 @@ class StatisticsController extends Controller
             ->whereBetween('sales.sold_at', [$fromDt, $toDt])
             ->selectRaw('
                 COUNT(DISTINCT sales.id)   AS sale_count,
-                SUM(sale_items.quantity)   AS items_sold,
-                SUM(sale_items.total_price) AS gross_revenue,
+                SUM('.\App\Support\Liabilities::revenueSql('sale_items.kind', 'sale_items.quantity').') AS items_sold,
+                SUM('.\App\Support\Liabilities::revenueSql().') AS gross_revenue,
+                SUM('.\App\Support\Liabilities::kindSql('gift_card').') AS gift_cards_sold,
+                SUM('.\App\Support\Liabilities::kindSql('package').') AS packages_sold,
                 SUM(sale_items.total_cost)  AS cogs
             ')
             ->first();
@@ -77,7 +79,7 @@ class StatisticsController extends Controller
             ->whereBetween('sale_returns.returned_at', [$fromDt, $toDt])
             ->selectRaw('
                 COUNT(*) AS cnt,
-                COALESCE(SUM(sale_returns.total_amount), 0) AS total,
+                COALESCE(SUM(sale_returns.total_amount - COALESCE(sale_returns.non_revenue_amount, 0)), 0) AS total,
                 COALESCE(SUM(
                     CASE
                         WHEN sales.total_amount > 0
@@ -125,6 +127,8 @@ class StatisticsController extends Controller
                 'avg_ticket'      => $saleCount > 0 ? round($net / $saleCount, 2) : 0.0,
                 'cancel_count'    => (int) ($cancelRow->cnt ?? 0),
                 'cancel_amount'   => round((float) ($cancelRow->amount ?? 0), 2),
+                'gift_cards_sold' => round((float) ($salesLine->gift_cards_sold ?? 0), 2),
+                'packages_sold'   => round((float) ($salesLine->packages_sold ?? 0), 2),
             ],
         ]);
     }
@@ -179,6 +183,7 @@ class StatisticsController extends Controller
             ->whereNull('sales.deleted_at')
             ->whereIn('sales.status', ['paid', 'completed', 'refunded', 'partial_refund'])
             ->whereBetween('sales.sold_at', [$fromDt, $toDt])
+            ->whereRaw("COALESCE(sale_items.kind, '') NOT IN ('gift_card', 'package')")
             ->selectRaw('
                 sale_items.item_id,
                 sale_items.name,
@@ -230,7 +235,7 @@ class StatisticsController extends Controller
                 sales.user_id,
                 COALESCE(sales.actor_name_snapshot, users.name, 'Opérateur inconnu') AS operator_name,
                 COUNT(*) AS sale_count,
-                SUM(sales.total_amount)    AS revenue,
+                SUM(sales.total_amount - COALESCE(sales.non_revenue_amount, 0)) AS revenue,
                 SUM(sales.discount_amount) AS discount_total
             ")
             ->groupBy('sales.user_id', 'sales.actor_name_snapshot', 'users.name')
@@ -270,6 +275,7 @@ class StatisticsController extends Controller
             ->whereNull('sales.deleted_at')
             ->whereIn('sales.status', ['paid', 'completed', 'refunded', 'partial_refund'])
             ->whereBetween('sales.sold_at', [$fromDt, $toDt])
+            ->whereRaw("COALESCE(sale_items.kind, '') NOT IN ('gift_card', 'package')")
             ->selectRaw("
                 categories.id                                       AS category_id,
                 COALESCE(categories.name, 'Sans catégorie')        AS category_name,
@@ -318,7 +324,7 @@ class StatisticsController extends Controller
             ->whereNull('deleted_at')
             ->whereIn('status', ['paid', 'completed', 'refunded', 'partial_refund'])
             ->whereBetween('sold_at', [$fromDt, $toDt])
-            ->selectRaw("$hourExpr AS hr, COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS revenue")
+            ->selectRaw("$hourExpr AS hr, COUNT(*) AS cnt, COALESCE(SUM(total_amount - COALESCE(non_revenue_amount, 0)), 0) AS revenue")
             ->groupBy('hr')
             ->orderBy('hr')
             ->get();

@@ -468,6 +468,20 @@ Route::post('/rendez-vous', [\App\Http\Controllers\AppointmentWebController::cla
 Route::put('/rendez-vous/{appointment}', [\App\Http\Controllers\AppointmentWebController::class, 'update'])->name('appointments.update');
 Route::post('/rendez-vous/reservation-en-ligne', [\App\Http\Controllers\AppointmentWebController::class, 'saveBooking'])->name('appointments.booking');
 Route::patch('/rendez-vous/{appointment}/statut', [\App\Http\Controllers\AppointmentWebController::class, 'status'])->name('appointments.status');
+// Gift cards and prepaid packages.
+Route::get('/cartes-cadeaux', [\App\Http\Controllers\GiftCardWebController::class, 'index'])->name('gift-cards');
+Route::get('/cartes-cadeaux/verifier', [\App\Http\Controllers\GiftCardWebController::class, 'lookup'])->name('gift-cards.lookup');
+Route::post('/cartes-cadeaux/reglages', [\App\Http\Controllers\GiftCardWebController::class, 'settings'])->name('gift-cards.settings');
+Route::get('/cartes-cadeaux/{giftCard}', [\App\Http\Controllers\GiftCardWebController::class, 'show'])->name('gift-cards.show');
+Route::post('/cartes-cadeaux/{giftCard}/annuler', [\App\Http\Controllers\GiftCardWebController::class, 'cancel'])->name('gift-cards.cancel');
+Route::post('/cartes-cadeaux/{giftCard}/ajuster', [\App\Http\Controllers\GiftCardWebController::class, 'adjust'])->name('gift-cards.adjust');
+Route::get('/forfaits', [\App\Http\Controllers\PackageWebController::class, 'index'])->name('packages');
+Route::post('/forfaits', [\App\Http\Controllers\PackageWebController::class, 'store'])->name('packages.store');
+Route::get('/forfaits/client/{contact}', [\App\Http\Controllers\PackageWebController::class, 'forContact'])->name('packages.contact');
+Route::put('/forfaits/{package}', [\App\Http\Controllers\PackageWebController::class, 'update'])->name('packages.update');
+Route::delete('/forfaits/{package}', [\App\Http\Controllers\PackageWebController::class, 'destroy'])->name('packages.destroy');
+Route::post('/forfaits-clients/{customerPackage}/annuler', [\App\Http\Controllers\PackageWebController::class, 'cancel'])->name('customer-packages.cancel');
+Route::post('/forfaits-clients/{customerPackage}/ajuster', [\App\Http\Controllers\PackageWebController::class, 'adjust'])->name('customer-packages.adjust');
 Route::post('/pourboires/{user}/versements', [\App\Http\Controllers\AppointmentWebController::class, 'payTips'])->name('tips.payouts.store');
 
 // Virtual devices: selection & heartbeat (no device.selected middleware)

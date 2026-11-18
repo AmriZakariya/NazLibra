@@ -3515,6 +3515,20 @@
                 </form>
                 <aside class="space-y-4">
                     <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">{{ $contactKind === 'supplier' ? 'Résumé fournisseurs' : 'Résumé contacts' }}</h3><dl class="mt-4 space-y-3 text-sm">@if ($contactKind === 'supplier')<div class="flex justify-between"><dt class="text-slate-500">Fournisseurs</dt><dd class="font-semibold">{{ $contactStats['suppliers'] }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Achat dû</dt><dd class="font-semibold text-rose-600">{{ $money($contactStats['supplier_purchases']) }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Retours achat</dt><dd class="font-semibold text-emerald-600">{{ $money($contactStats['supplier_returns']) }}</dd></div>@else<div class="flex justify-between"><dt class="text-slate-500">Clients</dt><dd class="font-semibold">{{ $contactStats['clients'] }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Fournisseurs</dt><dd class="font-semibold">{{ $contactStats['suppliers'] }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Créances</dt><dd class="font-semibold text-rose-600">{{ $money($contactStats['receivable']) }}</dd></div><div class="flex justify-between"><dt class="text-slate-500">Avances</dt><dd class="font-semibold text-emerald-600">{{ $money($contactStats['advances']) }}</dd></div>@endif</dl></article>
+                    @if ($editContact && $contactKind !== 'supplier' && \App\Support\AppModules::enabled($tenant, 'packages'))
+                        @php
+                            $contactPackages = \App\Models\CustomerPackage::where('tenant_id', $tenant->id)->where('contact_id', $editContact->id)
+                                ->whereIn('status', ['active', 'used', 'expired'])->latest('id')->limit(10)->get();
+                        @endphp
+                        <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]" data-contact-packages>
+                            <div class="flex items-center justify-between gap-3"><h3 class="font-semibold">Forfaits</h3><a href="{{ route('packages', ['q' => $editContact->name, 'status' => 'all']) }}" class="text-xs font-semibold text-brand">Gérer</a></div>
+                            @forelse ($contactPackages as $contactPackage)
+                                <p class="mt-2 text-sm"><span class="font-semibold">{{ $contactPackage->name }}</span> · {{ $contactPackage->sessions_remaining }}/{{ $contactPackage->sessions_total }} séances @if ($contactPackage->expires_at) <span class="text-slate-500">· jusqu’au {{ $contactPackage->expires_at->format('d/m/Y') }}</span>@endif</p>
+                            @empty
+                                <p class="mt-2 text-sm text-slate-500">Aucun forfait.</p>
+                            @endforelse
+                        </article>
+                    @endif
                     <article class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><h3 class="font-semibold">Champs importés</h3><p class="mt-2 text-sm text-slate-500">{{ $contactKind === 'supplier' ? "La fiche fournisseur reprend les champs de l'ancien écran: ID fournisseur, mobile, email, ICE/GST, taxe, solde précédent et adresse." : "La fiche garde les champs utiles de l'ancien écran: crédit, solde initial, adresse livraison, ICE/GST, niveau de prix et pièce jointe." }}</p></article>
                 </aside>
             </section>
@@ -3900,6 +3914,15 @@
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Dépenses</span><p class="mt-2 text-2xl font-semibold text-rose-600">{{ $money($summary['expenses']) }}</p><p class="mt-1 text-xs text-slate-500">Période filtrée</p></article>
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Profit net</span><p class="mt-2 text-2xl font-semibold {{ $summary['net_profit'] >= 0 ? 'text-emerald-600' : 'text-rose-600' }}">{{ $money($summary['net_profit']) }}</p><p class="mt-1 text-xs text-slate-500">Marge brute {{ $money($summary['gross_profit']) }}</p></article>
             </div>
+
+            @if (($summary['gift_cards_sold'] ?? 0) > 0 || ($summary['gift_cards_redeemed'] ?? 0) > 0 || ($summary['packages_sold'] ?? 0) > 0)
+                {{-- Not revenue and not cash: shown apart so the totals above stay right. --}}
+                <div class="grid gap-3 md:grid-cols-3 report-liabilities">
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Cartes cadeaux vendues</span><p class="mt-2 text-xl font-semibold">{{ $money($summary['gift_cards_sold']) }}</p><p class="mt-1 text-xs text-slate-500">Encaissé, pas du chiffre d’affaires</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Cartes cadeaux utilisées</span><p class="mt-2 text-xl font-semibold">{{ $money($summary['gift_cards_redeemed']) }}</p><p class="mt-1 text-xs text-slate-500">Chiffre d’affaires, pas d’encaissement</p></article>
+                    <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]"><span class="text-xs font-semibold uppercase text-slate-500">Forfaits vendus</span><p class="mt-2 text-xl font-semibold">{{ $money($summary['packages_sold']) }}</p><p class="mt-1 text-xs text-slate-500">Encaissé, pas du chiffre d’affaires</p></article>
+                </div>
+            @endif
 
             @if ($reportSection === 'profit-loss')
                 <article class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[0.03]">

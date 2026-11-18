@@ -222,12 +222,19 @@ class LibraireProController extends Controller
             ->where('tenant_id', $tenant->id)
             ->whereBetween('quoted_at', [$from, $to]);
 
-        $periodRevenue = (float) (clone $salesQuery)->sum('total_amount');
-        $previousRevenue = (float) (clone $previousSalesQuery)->sum('total_amount');
-        $periodPayments = (float) (clone $paymentsQuery)->sum('amount');
+        // Revenue leaves out what is a liability (a gift card or a package
+        // sold, sales.non_revenue_amount); a card spent is a payment, but not
+        // cash coming in.
+        $revenueSql = 'COALESCE(SUM(total_amount - COALESCE(non_revenue_amount, 0)), 0)';
+        $periodRevenue = (float) (clone $salesQuery)->selectRaw("$revenueSql as v")->value('v');
+        $previousRevenue = (float) (clone $previousSalesQuery)->selectRaw("$revenueSql as v")->value('v');
+        $periodPayments = (float) (clone $paymentsQuery)->where('method', '!=', \App\Support\Liabilities::GIFT_CARD_PAYMENT)->sum('amount');
+        $giftCardsSold = (float) $this->liabilityLineSum($tenant->id, $from, $to, 'gift_card');
+        $packagesSold = (float) $this->liabilityLineSum($tenant->id, $from, $to, 'package');
+        $giftCardsRedeemed = (float) (clone $paymentsQuery)->where('method', \App\Support\Liabilities::GIFT_CARD_PAYMENT)->sum('amount');
         $periodPurchases = (float) (clone $purchasesQuery)->sum('total_amount');
         $periodExpenses = (float) (clone $expensesQuery)->sum('amount');
-        $periodSaleReturns = (float) (clone $saleReturnsQuery)->sum('total_amount');
+        $periodSaleReturns = (float) (clone $saleReturnsQuery)->selectRaw('COALESCE(SUM(total_amount - COALESCE(non_revenue_amount, 0)), 0) as v')->value('v');
         $periodPurchaseReturns = (float) (clone $purchaseReturnsQuery)->sum('total_amount');
         $dailyItems = DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
@@ -247,7 +254,7 @@ class LibraireProController extends Controller
             : ($periodRevenue > 0 ? 100 : 0);
 
         $trendRows = $tenant->sales()
-            ->selectRaw('date(sold_at) as day, sum(total_amount) as total')
+            ->selectRaw('date(sold_at) as day, sum(total_amount - COALESCE(non_revenue_amount, 0)) as total')
             ->whereBetween('sold_at', [$trendStart, $to])
             ->groupBy('day')
             ->orderBy('day')
@@ -269,6 +276,7 @@ class LibraireProController extends Controller
             ->leftJoin('categories', 'items.category_id', '=', 'categories.id')
             ->where('sales.tenant_id', $tenant->id)
             ->whereBetween('sales.sold_at', [$from, $to])
+            ->whereRaw("COALESCE(sale_items.kind, '') NOT IN ('gift_card', 'package')")
             ->selectRaw("coalesce(categories.name, 'Sans catégorie') as category_name, sum(sale_items.quantity) as quantity, sum(sale_items.total_price) as revenue")
             ->groupByRaw("coalesce(categories.name, 'Sans catégorie')")
             ->orderByDesc('revenue')
@@ -283,7 +291,7 @@ class LibraireProController extends Controller
         $hourlyHeatmap = DB::table('sales')
             ->where('tenant_id', $tenant->id)
             ->whereBetween('sold_at', [$from, $to])
-            ->selectRaw("cast(strftime('%H', sold_at) as integer) as hour, count(*) as tickets, sum(total_amount) as total")
+            ->selectRaw("cast(strftime('%H', sold_at) as integer) as hour, count(*) as tickets, sum(total_amount - COALESCE(non_revenue_amount, 0)) as total")
             ->groupBy('hour')
             ->orderBy('hour')
             ->get()
@@ -360,6 +368,10 @@ class LibraireProController extends Controller
                 ['label' => 'Ventes brutes', 'value' => $this->money($periodRevenue), 'href' => route('module', ['module' => 'sales', 'section' => 'list', 'from' => $from->toDateString(), 'to' => $to->toDateString()]), 'tone' => 'primary', 'hint' => 'CA encaissé ou facturé'],
                 ['label' => 'Retours vente', 'value' => $this->money($periodSaleReturns), 'href' => route('module', ['module' => 'sales', 'section' => 'returns', 'from' => $from->toDateString(), 'to' => $to->toDateString()]), 'tone' => 'danger', 'hint' => 'Avoirs et remboursements'],
                 ['label' => 'Paiements reçus', 'value' => $this->money($periodPayments), 'href' => route('module', ['module' => 'sales', 'section' => 'payments', 'from' => $from->toDateString(), 'to' => $to->toDateString()]), 'tone' => 'success', 'hint' => 'Espèces, carte, virement'],
+                // Not revenue (money owed to customers) and not cash in: kept apart so the totals above stay right.
+                ['label' => 'Cartes cadeaux vendues', 'value' => $this->money($giftCardsSold), 'href' => route('gift-cards'), 'tone' => 'info', 'hint' => 'Encaissé, pas du chiffre d’affaires', 'module' => 'gift_cards'],
+                ['label' => 'Cartes cadeaux utilisées', 'value' => $this->money($giftCardsRedeemed), 'href' => route('gift-cards'), 'tone' => 'info', 'hint' => 'Chiffre d’affaires, pas d’encaissement', 'module' => 'gift_cards'],
+                ['label' => 'Forfaits vendus', 'value' => $this->money($packagesSold), 'href' => route('packages'), 'tone' => 'info', 'hint' => 'Encaissé, pas du chiffre d’affaires', 'module' => 'packages'],
                 ['label' => 'Achats', 'value' => $this->money($periodPurchases), 'href' => route('module', ['module' => 'purchases', 'section' => 'list']), 'tone' => 'warning', 'hint' => 'Commandes fournisseur'],
                 ['label' => 'Retours achat', 'value' => $this->money($periodPurchaseReturns), 'href' => route('module', ['module' => 'purchases', 'section' => 'returns']), 'tone' => 'warning', 'hint' => 'Retours fournisseurs'],
                 ['label' => 'Dépenses', 'value' => $this->money($periodExpenses), 'href' => route('module', ['module' => 'finance', 'section' => 'expenses']), 'tone' => 'danger', 'hint' => 'Charges de la période'],
@@ -415,6 +427,18 @@ class LibraireProController extends Controller
                 ['label' => 'Avances clients', 'value' => CustomerAdvance::where('tenant_id', $tenant->id)->whereDate('paid_at', $today)->count(), 'href' => route('module', ['module' => 'finance', 'section' => 'advances'])],
             ]),
         ]);
+    }
+
+    /** What the sale lines of one liability kind (gift card, package) add up to over a period. */
+    private function liabilityLineSum(int $tenantId, $from, $to, string $kind): float
+    {
+        return (float) DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->where('sales.tenant_id', $tenantId)
+            ->whereNull('sales.deleted_at')
+            ->whereBetween('sales.sold_at', [$from, $to])
+            ->where('sale_items.kind', $kind)
+            ->sum('sale_items.total_price');
     }
 
     public function functionalityGuide(): View
@@ -4864,6 +4888,9 @@ class LibraireProController extends Controller
             'card_amount' => ['nullable', 'numeric', 'min:0'],
             'transfer_amount' => ['nullable', 'numeric', 'min:0'],
             'advance_amount' => ['nullable', 'numeric', 'min:0'],
+            // A gift card spent at checkout (code + the amount taken from it).
+            'gift_card_amount' => ['nullable', 'numeric', 'min:0'],
+            'gift_card_code' => ['nullable', 'string', 'max:20'],
             'receipt_channel' => ['nullable', 'in:print,email,whatsapp,none'],
             'note' => ['nullable', 'string', 'max:500'],
             'ticket_id' => ['nullable', 'integer', Rule::exists('pos_tickets', 'id')->where('tenant_id', $tenant->id)->where('status', 'held')],
@@ -4904,7 +4931,15 @@ class LibraireProController extends Controller
                 ? round(max(0, (float) $line['price']), 2)
                 : null;
 
+            $kind = in_array($line['kind'] ?? null, ['gift_card', 'package', 'package_use'], true) ? $line['kind'] : null;
+
             return [
+                'kind' => $kind,
+                'gift_card_code' => $line['gift_card_code'] ?? null,
+                'recipient_name' => $line['recipient_name'] ?? null,
+                'recipient_phone' => $line['recipient_phone'] ?? null,
+                'package_id' => (int) ($line['package_id'] ?? 0) ?: null,
+                'customer_package_id' => (int) ($line['customer_package_id'] ?? 0) ?: null,
                 'item_id' => (int) ($line['id'] ?? 0),
                 // Which sub-product, when the article has any. Without it the
                 // sale deducts the article's own pile and the shop never
@@ -4919,7 +4954,7 @@ class LibraireProController extends Controller
                 'note' => mb_substr(trim((string) ($line['note'] ?? '')), 0, 160),
                 'staff_user_id' => (int) ($line['staff_user_id'] ?? 0) ?: null,
             ];
-        })->filter(fn ($line) => $line['item_id'] > 0)
+        })->filter(fn ($line) => $line['item_id'] > 0 || in_array($line['kind'], ['gift_card', 'package'], true))
             ->values();
 
         if ($lineItems->isEmpty()) {
@@ -4928,6 +4963,7 @@ class LibraireProController extends Controller
 
         $discountInput = $this->normalizedDiscountInput($data);
         $payments = [
+            'gift_card' => round((float) ($data['gift_card_amount'] ?? 0), 2),
             'cash' => round((float) ($data['cash_amount'] ?? 0), 2),
             'card' => round((float) ($data['card_amount'] ?? 0), 2),
             'transfer' => round((float) ($data['transfer_amount'] ?? 0), 2),
@@ -4986,9 +5022,13 @@ class LibraireProController extends Controller
                     ]);
                 }
 
+                $giftCards = app(\App\Services\GiftCards\GiftCardService::class);
+                $packages = app(\App\Services\Packages\PackageService::class);
+                $reservedCodes = [];
+
                 $items = Item::query()
                     ->where('tenant_id', $tenant->id)
-                    ->whereIn('id', $lineItems->pluck('item_id'))
+                    ->whereIn('id', $lineItems->pluck('item_id')->filter())
                     ->lockForUpdate()
                     ->get()
                     ->keyBy('id');
@@ -4997,6 +5037,51 @@ class LibraireProController extends Controller
                 $saleLines = [];
 
                 foreach ($lineItems as $line) {
+                    // A gift card or a package SOLD on this ticket: a liability
+                    // line, not revenue (same rules as Api\SaleController).
+                    if ($line['kind'] === 'gift_card') {
+                        if (! \App\Support\AppModules::enabled($tenant, 'gift_cards')) {
+                            throw new \RuntimeException('Les cartes cadeaux ne sont pas activées dans cette boutique.');
+                        }
+                        $amount = round((float) ($line['unit_price'] ?? 0), 2);
+                        if ($amount <= 0 || $amount > \App\Services\GiftCards\GiftCardService::MAX_AMOUNT || (int) $line['quantity'] !== 1) {
+                            throw new \RuntimeException('Une carte cadeau se vend à l’unité, pour un montant positif.');
+                        }
+                        $code = $giftCards->codeFor($tenant->id, $line['gift_card_code']);
+                        while (in_array($code, $reservedCodes, true)) {
+                            $code = $giftCards->generateCode($tenant->id);
+                        }
+                        $reservedCodes[] = $code;
+                        $subtotal += $amount;
+                        $saleLines[] = ['kind' => 'gift_card', 'item' => null, 'variant' => null, 'modifiers' => collect(),
+                            'name' => 'Carte cadeau '.\App\Services\GiftCards\GiftCardService::display($code),
+                            'gift_card_code' => $code, 'recipient_name' => $line['recipient_name'], 'recipient_phone' => $line['recipient_phone'],
+                            'quantity' => 1, 'unit_price' => $amount, 'catalog_price' => $amount, 'total_price' => $amount,
+                            'note' => $line['note'], 'staff_user_id' => $line['staff_user_id'] ?? null,
+                            'price_overridden' => false, 'average_cost' => 0.0, 'cogs' => 0.0];
+                        continue;
+                    }
+                    if ($line['kind'] === 'package') {
+                        if (! \App\Support\AppModules::enabled($tenant, 'packages')) {
+                            throw new \RuntimeException('Les forfaits ne sont pas activés dans cette boutique.');
+                        }
+                        if (! $contact) {
+                            throw new \RuntimeException('Sélectionnez un client pour vendre un forfait.');
+                        }
+                        $definition = \App\Models\ServicePackage::where('tenant_id', $tenant->id)->where('is_active', true)->whereKey((int) $line['package_id'])->first();
+                        if (! $definition || (int) $line['quantity'] !== 1) {
+                            throw new \RuntimeException('Forfait introuvable ou indisponible.');
+                        }
+                        $price = round((float) $definition->price, 2);
+                        $subtotal += $price;
+                        $saleLines[] = ['kind' => 'package', 'package' => $definition, 'item' => null, 'variant' => null, 'modifiers' => collect(),
+                            'name' => $definition->name,
+                            'quantity' => 1, 'unit_price' => $price, 'catalog_price' => $price, 'total_price' => $price,
+                            'note' => $line['note'], 'staff_user_id' => $line['staff_user_id'] ?? null,
+                            'price_overridden' => false, 'average_cost' => 0.0, 'cogs' => 0.0];
+                        continue;
+                    }
+
                     $item = $items->get($line['item_id']);
                     if (! $item || $item->status !== 'active') {
                         throw new \RuntimeException('Un article du panier est indisponible.');
@@ -5021,14 +5106,30 @@ class LibraireProController extends Controller
 
                     $catalogPrice = ($variant ? $variant->price() : (float) $item->sale_price) + $modifierDelta;
                     $unitPrice = $line['unit_price'] !== null && ($priceEditable || $item->price_is_from) ? (float) $line['unit_price'] : $catalogPrice;
+                    if ($line['kind'] === 'package_use') {
+                        // A package session pays the line: priced 0.
+                        if (! $contact) {
+                            throw new \RuntimeException('Sélectionnez le client du forfait.');
+                        }
+                        if ($item->type !== 'service') {
+                            throw new \RuntimeException('Un forfait ne couvre qu’un service.');
+                        }
+                        $owned = $packages->find($tenant, (int) $line['customer_package_id']);
+                        if ($refusal = $packages->refusal($tenant, $owned, (int) $line['quantity'], (int) $contact->id, (int) $item->id, $variant?->id)) {
+                            throw new \RuntimeException($refusal->getMessage());
+                        }
+                        $unitPrice = 0.0;
+                    }
                     // « À partir de »: the catalogue price is a floor; a discount goes lower.
-                    if ($message = \App\Support\FromPrice::violation($item, $variant, $unitPrice, Money::for($tenant))) {
+                    elseif ($message = \App\Support\FromPrice::violation($item, $variant, $unitPrice, Money::for($tenant))) {
                         throw new \RuntimeException($message);
                     }
                     $lineTotal = round($unitPrice * $line['quantity'], 2);
                     $averageCost = $item->type !== 'service' ? $this->locationAverageCost($tenant->id, $item->id, $variant?->id, $saleLocationId) : 0.0;
                     $subtotal += $lineTotal;
                     $saleLines[] = [
+                        'kind' => $line['kind'] === 'package_use' ? 'package_use' : null,
+                        'customer_package_id' => $line['kind'] === 'package_use' ? $line['customer_package_id'] : null,
                         'item' => $item,
                         'variant' => $variant,
                         'modifiers' => $modifiers,
@@ -5049,12 +5150,38 @@ class LibraireProController extends Controller
                 $couponDetail = $this->couponDiscountForSubtotal($tenant, $data['coupon_code'] ?? null, $subtotal, $contact);
                 $afterCoupon = max(0, $subtotal - $couponDetail['amount']);
                 $ruleDetail = $this->discountRuleDiscountForCart($tenant, (int) ($data['discount_rule_id'] ?? 0), $lineItems, collect($items)->all(), $selectedPaymentMethods, $afterCoupon);
+                $nonRevenue = round((float) collect($saleLines)->filter(fn ($l) => in_array($l['kind'] ?? null, ['gift_card', 'package'], true))->sum('total_price'), 2);
                 $manualDiscountDetail = $ruleDetail['valid']
                     ? $this->discountForSubtotal($afterCoupon, 'fixed', 0)
                     : $this->discountForSubtotal($afterCoupon, $discountInput['type'], $discountInput['value']);
                 $discount = min($subtotal, round($couponDetail['amount'] + $ruleDetail['amount'] + $manualDiscountDetail['amount'], 2));
                 $total = max(0, round($subtotal - $discount, 2));
                 $paid = round(array_sum($payments), 2);
+
+                // A card or a package sold is kept out of revenue whole; a
+                // discount spread over the ticket would blur that.
+                if ($nonRevenue > 0 && $discount > 0.001) {
+                    throw new \RuntimeException('Aucune remise sur une carte cadeau ou un forfait : retirez-la du ticket ou la remise.');
+                }
+
+                // Paying with a gift card: the card is checked here and
+                // debited under lock once the sale exists.
+                $giftCardCode = null;
+                if (($payments['gift_card'] ?? 0) > 0.004) {
+                    if (! \App\Support\AppModules::enabled($tenant, 'gift_cards')) {
+                        throw new \RuntimeException('Les cartes cadeaux ne sont pas activées dans cette boutique.');
+                    }
+                    $giftCardCode = \App\Services\GiftCards\GiftCardService::normalize($data['gift_card_code'] ?? null);
+                    if ($refusal = $giftCards->refusal($tenant, $giftCards->find($tenant, $giftCardCode), $payments['gift_card'])) {
+                        throw $refusal;
+                    }
+                    if ($payments['gift_card'] - 0.004 > $total) {
+                        throw new \RuntimeException('Le montant prélevé sur la carte dépasse le total à payer.');
+                    }
+                    if (collect($saleLines)->contains(fn ($l) => ($l['kind'] ?? null) === 'gift_card')) {
+                        throw new \RuntimeException('Une carte cadeau ne peut pas payer l’achat d’une autre carte cadeau.');
+                    }
+                }
 
                 // Who did each line, and the tip on top: see Api\SaleController.
                 $staffIds = $tenant->users()->pluck('users.id')->map(fn ($id) => (int) $id)->all();
@@ -5107,7 +5234,9 @@ class LibraireProController extends Controller
                     'payment_method' => $paymentMethod,
                     'subtotal_amount' => $subtotal,
                     'discount_amount' => $discount,
-                    'tax_amount' => round($total * 0.2 / 1.2, 2),
+                    // No VAT on a card or package sold: only the rest of the ticket carries it.
+                    'tax_amount' => round(max(0, $total - $nonRevenue) * 0.2 / 1.2, 2),
+                    'non_revenue_amount' => $nonRevenue,
                     'total_amount' => $total,
                     'sold_at' => $soldAt,
                     'idempotency_key' => $idempotencyKey,
@@ -5132,8 +5261,9 @@ class LibraireProController extends Controller
                             'tip_cash' => $tipCash,
                         ],
                         'line_adjustments' => collect($saleLines)->map(fn (array $line) => [
-                            'item_id' => $line['item']->id,
-                            'name' => $line['item']->title,
+                            'item_id' => $line['item']?->id,
+                            'kind' => $line['kind'] ?? null,
+                            'name' => $line['item']?->title ?? $line['name'],
                             'quantity' => $line['quantity'],
                             'catalog_price' => $line['catalog_price'],
                             'unit_price' => $line['unit_price'],
@@ -5160,11 +5290,13 @@ class LibraireProController extends Controller
 
                 foreach ($saleLines as $line) {
                     $saleLine = $sale->items()->create([
-                        'item_id'    => $line['item']->id,
+                        'item_id'    => $line['item']?->id,
+                        'kind'       => $line['kind'] ?? null,
+                        'customer_package_id' => $line['customer_package_id'] ?? null,
                         'variant_id' => $line['variant']?->id,
-                        'name'       => $line['variant']
+                        'name'       => ! $line['item'] ? $line['name'] : ($line['variant']
                             ? $line['item']->title.' — '.$line['variant']->name
-                            : $line['item']->title,
+                            : $line['item']->title),
                         'quantity'   => $line['quantity'],
                         'unit_price' => $line['unit_price'],
                         'total_price' => $line['total_price'],
@@ -5172,6 +5304,21 @@ class LibraireProController extends Controller
                         'total_cost' => $line['cogs'],
                         'staff_user_id' => $line['staff_user_id'] ?? null,
                     ]);
+
+                    if (($line['kind'] ?? null) === 'gift_card') {
+                        $giftCards->issue($tenant, $sale, $saleLine, (float) $line['total_price'], $line['gift_card_code'], [
+                            'recipient_name' => $line['recipient_name'] ?? null,
+                            'recipient_phone' => $line['recipient_phone'] ?? null,
+                        ], auth()->id());
+                    } elseif (($line['kind'] ?? null) === 'package') {
+                        $packages->sell($tenant, $sale, $saleLine, $line['package'], auth()->id());
+                    } elseif (($line['kind'] ?? null) === 'package_use') {
+                        $packages->consume($tenant, (int) $line['customer_package_id'], (int) $line['quantity'], $sale, $saleLine, auth()->id());
+                    }
+
+                    if (! $line['item']) {
+                        continue;
+                    }
 
                     $modifierService->attach(
                         $saleLine,
@@ -5232,6 +5379,10 @@ class LibraireProController extends Controller
                         'note' => $method === 'cash' && $amount > $allocatedAmount ? 'Paiement POS · reçu '.$this->money($amount) : 'Paiement POS',
                     ]);
                     $remainingPaymentToAllocate = max(0, round($remainingPaymentToAllocate - $allocatedAmount, 2));
+                }
+
+                if ($giftCardCode !== null && $payments['gift_card'] > 0.004) {
+                    $giftCards->redeem($tenant, $giftCardCode, min($payments['gift_card'], $total), $sale, auth()->id());
                 }
 
                 if ($cashDrawerIn > 0.001 && $session = $this->openCashRegisterSession($tenant, true)) {
@@ -6267,6 +6418,13 @@ class LibraireProController extends Controller
                 ],
             ]);
 
+            // Gift cards and packages (see Services\LiabilityReturns): what was
+            // paid with a card goes back on it, not into the drawer.
+            $cardCredit = app(\App\Services\LiabilityReturns::class)->apply($tenant, $sale, $lines, $returnTotal, $saleReturn, $isFullRefund, auth()->id());
+            if ($cardCredit > 0) {
+                $saleReturn->forceFill(['metadata' => array_merge($saleReturn->metadata ?? [], ['gift_card_credit' => $cardCredit])])->save();
+            }
+
             foreach ($lines as $returnLine) {
                 if (! $returnLine['item_id']) {
                     continue;
@@ -6337,8 +6495,9 @@ class LibraireProController extends Controller
                 }
             }
 
-            if ($returnTotal > 0.001 && $data['refund_method'] === 'cash' && $session = app(CashRegisterService::class)->openSession($tenant, true)) {
-                $movement = app(CashRegisterService::class)->recordMovement($tenant, $session, 'sale_refund_cash', 'out', $returnTotal, [
+            $cashRefund = round($returnTotal - $cardCredit, 2);
+            if ($cashRefund > 0.001 && $data['refund_method'] === 'cash' && $session = app(CashRegisterService::class)->openSession($tenant, true)) {
+                $movement = app(CashRegisterService::class)->recordMovement($tenant, $session, 'sale_refund_cash', 'out', $cashRefund, [
                     'sale_id' => $sale->id,
                     'reference' => $saleReturn->number,
                     'payment_method' => 'cash',
@@ -8307,8 +8466,15 @@ class LibraireProController extends Controller
             ->get();
 
         $purchaseCost = $saleItems->sum(fn ($line) => (float) $line->total_cost);
-        $grossRevenue = (float) $sales->sum('total_amount');
-        $returnsAmount = (float) $saleReturns->sum('total_amount');
+        // A gift card or package sold is a liability, not revenue; a card
+        // spent is a payment but no cash in. Shown as their own figures.
+        $grossRevenue = (float) $sales->sum(fn ($sale) => (float) $sale->total_amount - (float) $sale->non_revenue_amount);
+        $returnsAmount = (float) $saleReturns->sum(fn ($return) => (float) $return->total_amount - (float) $return->non_revenue_amount);
+        $liabilityKinds = ['gift_card', 'package'];
+        $giftCardsSold = (float) $saleItems->where('kind', 'gift_card')->sum('total_price');
+        $packagesSold = (float) $saleItems->where('kind', 'package')->sum('total_price');
+        $giftCardsRedeemed = (float) $payments->where('method', \App\Support\Liabilities::GIFT_CARD_PAYMENT)->sum('amount');
+        $saleItems = $saleItems->reject(fn ($line) => in_array($line->kind, $liabilityKinds, true));
         $netRevenue = max(0, $grossRevenue - $returnsAmount);
         $expenseTotal = (float) $expenses->sum('amount');
         $grossProfit = $netRevenue - $purchaseCost;
@@ -8357,7 +8523,10 @@ class LibraireProController extends Controller
                 'expenses' => $expenseTotal,
                 'net_profit' => $grossProfit - $expenseTotal,
                 'purchases' => (float) $purchases->sum('total_amount'),
-                'payments' => (float) $payments->sum('amount'),
+                'payments' => (float) $payments->where('method', '!=', \App\Support\Liabilities::GIFT_CARD_PAYMENT)->sum('amount'),
+                'gift_cards_sold' => $giftCardsSold,
+                'gift_cards_redeemed' => $giftCardsRedeemed,
+                'packages_sold' => $packagesSold,
                 'stock_value' => (float) $stockItems->sum(fn ($item) => (float) $item->stock_quantity * (float) $item->purchase_price),
             ],
         ];

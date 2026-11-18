@@ -2652,6 +2652,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
     };
 
     const normalizeQuantity = (item, quantity, warn = false) => {
+        // A gift card or a package is sold one at a time.
+        if (item.kind === 'gift_card' || item.kind === 'package') return 1;
         const requested = Math.max(1, Number(quantity || 1));
         if (canExceedStock(item)) return requested;
 
@@ -2952,7 +2954,10 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 <div class="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
                     <div class="min-w-0">
                         <p class="pos-cart-title">${item.name}</p>
-                        <p class="pos-cart-meta">${item.barcode || translate('Sans code')} · ${money.format(item.price)} · stock ${stockLabel(item)}${item.note ? ` · ${item.note}` : ''}</p>
+                        <p class="pos-cart-meta">${item.kind === 'gift_card' ? translate('Carte cadeau') + (item.recipientName ? ' · ' + escapeHtml(item.recipientName) : '') + ' · ' + money.format(item.price)
+                            : item.kind === 'package' ? translate('Forfait') + ' · ' + money.format(item.price)
+                            : item.kind === 'package_use' ? translate('Forfait utilisé') + ' · ' + money.format(item.price)
+                            : `${item.barcode || translate('Sans code')} · ${money.format(item.price)} · stock ${stockLabel(item)}`}${item.note ? ` · ${escapeHtml(item.note)}` : ''}</p>
                         ${dialogStaff && item.staffUserId && staffNames[item.staffUserId] ? `<p class="pos-cart-staff mt-1 text-xs font-semibold text-brand">✂ ${staffNames[item.staffUserId]}</p>` : ''}
                     </div>
                     <div class="flex items-center gap-1">
@@ -2979,7 +2984,11 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             cartCount.textContent = String(cart.length);
         }
         if (cartJson) {
-            cartJson.value = JSON.stringify(cart.map(({ id, quantity, price, originalPrice, note, staffUserId }) => ({ id, quantity, price, original_price: originalPrice, note, staff_user_id: staffUserId || null })));
+            cartJson.value = JSON.stringify(cart.map(({ id, quantity, price, originalPrice, note, staffUserId, kind, packageId, customerPackageId, recipientName, recipientPhone }) => ({
+                id, quantity, price, original_price: originalPrice, note, staff_user_id: staffUserId || null,
+                kind: kind || null, package_id: packageId || null, customer_package_id: customerPackageId || null,
+                recipient_name: recipientName || null, recipient_phone: recipientPhone || null,
+            })));
         }
         screen.dataset.cartDirty = cart.length > 0 ? '1' : '0';
 
@@ -3158,6 +3167,18 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
         if (dialogNote) dialogNote.value = item.note || '';
         if (dialogStaff) dialogStaff.value = String(item.staffUserId || lastStaffId || '');
+        if (dialogPackage) {
+            const offers = item.kind === 'gift_card' || item.kind === 'package' ? [] : packagesFor(item.id)
+                .concat(item.kind === 'package_use' ? customerPackages.filter((p) => p.id === item.customerPackageId) : []);
+            const unique = offers.filter((p, i) => offers.findIndex((q) => q.id === p.id) === i);
+            dialogPackage.classList.toggle('hidden', unique.length === 0);
+            const select = dialogPackage.querySelector('select');
+            if (select) {
+                select.innerHTML = `<option value="">${translate('Prix normal')}</option>`
+                    + unique.map((p) => `<option value="${p.id}">${translate('Utiliser le forfait')} « ${escapeHtml(p.name)} » (${p.sessions_remaining} ${translate('restantes')})</option>`).join('');
+                select.value = item.kind === 'package_use' ? String(item.customerPackageId) : '';
+            }
+        }
         itemDialog.showModal();
         window.setTimeout(() => dialogQuantity?.focus(), 40);
     };
@@ -3202,27 +3223,44 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             return;
         }
         const note = dialogNote?.value?.trim() || '';
+        const packageChoice = dialogPackage && !dialogPackage.classList.contains('hidden')
+            ? (dialogPackage.querySelector('select')?.value || '')
+            : '';
         // Remembered for the next line: a cut and a beard are the same barber.
         const staffUserId = dialogStaff ? (dialogStaff.value || '') : '';
         if (dialogStaff) lastStaffId = staffUserId;
 
+        // « Utiliser le forfait »: the session pays the line (priced 0), for as
+        // many units as the package has left.
+        const chosenPackage = packageChoice ? customerPackages.find((p) => String(p.id) === String(packageChoice)) : null;
+        const packageQuantity = chosenPackage ? Math.max(1, Math.min(quantity, Number(chosenPackage.sessions_remaining))) : quantity;
+
         if (mode === 'edit') {
             const item = cart[Number(itemDialog.dataset.index)];
             if (!item) return;
-            item.quantity = quantity;
-            item.price = price;
+            item.quantity = (item.kind === 'gift_card' || item.kind === 'package') ? 1 : packageQuantity;
+            item.price = chosenPackage ? 0 : price;
             item.note = note;
             item.staffUserId = staffUserId;
+            if (chosenPackage) {
+                item.kind = 'package_use';
+                item.customerPackageId = chosenPackage.id;
+            } else if (item.kind === 'package_use') {
+                item.kind = null;
+                item.customerPackageId = null;
+            }
         } else {
             cart.push({
+                kind: chosenPackage ? 'package_use' : null,
+                customerPackageId: chosenPackage ? chosenPackage.id : null,
                 id: Number(itemDialog.dataset.productId || 0),
                 name: itemDialog.dataset.productName,
                 barcode: itemDialog.dataset.productBarcode || '',
                 stock: Number(itemDialog.dataset.productStock || 0),
                 type: itemDialog.dataset.productType || 'book',
                 originalPrice,
-                price,
-                quantity,
+                price: chosenPackage ? 0 : price,
+                quantity: packageQuantity,
                 note,
                 staffUserId,
                 priceIsFrom: isFrom,
@@ -3303,6 +3341,126 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         }
         return false;
     };
+
+    // ── Gift cards and packages ───────────────────────────────────────────────
+    // A card or a package SOLD is a liability line (not revenue, no VAT); a
+    // package SESSION used prices the line at 0; a card SPENT is a payment.
+    // The server re-checks all of it when the sale is saved.
+    const liabilityDialog = screen.querySelector('.pos-liability-dialog');
+    const packageOffers = JSON.parse(screen.dataset.packageOffers || '[]');
+    const giftCardLookupUrl = screen.dataset.giftCardLookupUrl || '';
+    const packagesContactUrl = screen.dataset.packagesContactUrl || '';
+    const giftCardInput = screen.querySelector('.pos-gift-card-code');
+    const giftCardAmount = screen.querySelector('.pos-gift-card-amount');
+    const giftCardStatus = screen.querySelector('.pos-gift-card-status');
+    const dialogPackage = itemDialog?.querySelector('.pos-dialog-package');
+    let customerPackages = [];
+    let giftCardBalance = null;
+
+    const addLiabilityLine = (fields) => {
+        cart.push({
+            id: 0, barcode: '', stock: 999999, type: 'service', quantity: 1, note: '',
+            originalPrice: fields.price, ...fields,
+        });
+        renderCart();
+    };
+
+    const openLiabilityDialog = (mode) => {
+        if (!liabilityDialog) return;
+        liabilityDialog.dataset.mode = mode;
+        liabilityDialog.querySelectorAll('[data-liability]').forEach((node) => {
+            node.style.display = node.dataset.liability === mode ? '' : 'none';
+        });
+        const error = liabilityDialog.querySelector('.pos-liability-error');
+        if (error) { error.textContent = ''; error.classList.add('hidden'); }
+        liabilityDialog.showModal();
+    };
+
+    const liabilityError = (message) => {
+        const error = liabilityDialog?.querySelector('.pos-liability-error');
+        if (error) { error.textContent = message; error.classList.remove('hidden'); } else { showToast(message); }
+    };
+
+    screen.querySelector('.pos-sell-gift-card')?.addEventListener('click', () => openLiabilityDialog('gift_card'));
+    screen.querySelector('.pos-sell-package')?.addEventListener('click', () => {
+        if (!clientSelect?.value) {
+            showToast(translate('Sélectionnez un client pour vendre un forfait.'));
+            return;
+        }
+        openLiabilityDialog('package');
+    });
+    liabilityDialog?.querySelectorAll('.dialog-close').forEach((button) => button.addEventListener('click', () => liabilityDialog.close()));
+    liabilityDialog?.querySelector('.pos-liability-save')?.addEventListener('click', () => {
+        if (liabilityDialog.dataset.mode === 'gift_card') {
+            const amount = Math.round(Number(liabilityDialog.querySelector('.pos-liability-amount')?.value || 0) * 100) / 100;
+            if (!(amount > 0)) {
+                liabilityError(translate('Saisissez le montant de la carte cadeau.'));
+                return;
+            }
+            addLiabilityLine({
+                kind: 'gift_card', name: translate('Carte cadeau'), price: amount,
+                recipientName: liabilityDialog.querySelector('.pos-liability-recipient')?.value.trim() || '',
+                recipientPhone: liabilityDialog.querySelector('.pos-liability-phone')?.value.trim() || '',
+            });
+        } else {
+            const offer = packageOffers.find((o) => String(o.id) === String(liabilityDialog.querySelector('.pos-liability-offer')?.value));
+            if (!offer) {
+                liabilityError(translate('Choisissez un forfait.'));
+                return;
+            }
+            addLiabilityLine({ kind: 'package', name: offer.name, price: Number(offer.price), packageId: offer.id });
+        }
+        liabilityDialog.close();
+    });
+
+    // The customer's packages that cover a service, for « utiliser le forfait ».
+    const packagesFor = (itemId) => customerPackages.filter((p) => Number(p.item_id) === Number(itemId)
+        && Number(p.sessions_remaining) - cart.filter((l) => l.kind === 'package_use' && l.customerPackageId === p.id).reduce((n, l) => n + l.quantity, 0) > 0);
+
+    const loadCustomerPackages = async () => {
+        customerPackages = [];
+        const contactId = clientSelect?.value;
+        // A package belongs to one customer: lines paid with one go back to the normal price.
+        cart.filter((l) => l.kind === 'package_use').forEach((l) => { l.kind = null; l.customerPackageId = null; l.price = l.originalPrice; });
+        renderCart();
+        if (!contactId || !packagesContactUrl) return;
+        try {
+            const response = await fetch(packagesContactUrl.replace('__ID__', contactId), { headers: { Accept: 'application/json' } });
+            if (response.ok) customerPackages = (await response.json()).packages || [];
+        } catch {
+            customerPackages = [];
+        }
+    };
+    if (packagesContactUrl) {
+        clientSelect?.addEventListener('change', loadCustomerPackages);
+        if (clientSelect?.value) loadCustomerPackages();
+    }
+
+    // A card spent at checkout: look it up first, then apply up to what is due.
+    const lookUpGiftCard = async () => {
+        const code = (giftCardInput?.value || '').trim();
+        giftCardBalance = null;
+        if (!code) { if (giftCardStatus) giftCardStatus.textContent = ''; return; }
+        if (giftCardStatus) { giftCardStatus.textContent = translate('Vérification…'); giftCardStatus.className = 'pos-gift-card-status mt-1 text-xs text-slate-500'; }
+        try {
+            const response = await fetch(giftCardLookupUrl + '?code=' + encodeURIComponent(code), { headers: { Accept: 'application/json' } });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || !payload.ok) {
+                if (giftCardStatus) { giftCardStatus.textContent = payload.message || translate('Carte introuvable.'); giftCardStatus.className = 'pos-gift-card-status mt-1 text-xs font-semibold text-rose-600'; }
+                return;
+            }
+            giftCardBalance = Number(payload.card.balance);
+            const due = totals().remaining;
+            if (giftCardAmount) giftCardAmount.value = Math.min(giftCardBalance, Math.max(0, due)).toFixed(2);
+            if (giftCardStatus) { giftCardStatus.textContent = translate('Solde') + ' ' + money.format(giftCardBalance) + (payload.card.expires_at ? ' · ' + translate('expire le') + ' ' + payload.card.expires_at : ''); giftCardStatus.className = 'pos-gift-card-status mt-1 text-xs font-semibold text-emerald-600'; }
+            renderCart();
+        } catch {
+            // The balance lives on the server: with no connection a card cannot be accepted.
+            if (giftCardStatus) { giftCardStatus.textContent = translate('Connexion impossible : une carte cadeau ne peut pas être acceptée hors ligne.'); giftCardStatus.className = 'pos-gift-card-status mt-1 text-xs font-semibold text-rose-600'; }
+        }
+    };
+    screen.querySelector('.pos-gift-card-check')?.addEventListener('click', lookUpGiftCard);
+    giftCardInput?.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); lookUpGiftCard(); } });
 
     const bindProductInteractions = (button) => {
         if (button.dataset.bound === '1') return;

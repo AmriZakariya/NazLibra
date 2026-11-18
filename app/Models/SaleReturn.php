@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['tenant_id', 'sale_id', 'contact_id', 'user_id', 'virtual_device_id', 'actor_name_snapshot', 'terminal_name_snapshot', 'number', 'status', 'refund_method', 'refund_scope', 'total_amount', 'lines', 'reason', 'restock', 'stock_disposition', 'returned_at', 'idempotency_key', 'metadata'])]
+#[Fillable(['tenant_id', 'sale_id', 'contact_id', 'user_id', 'virtual_device_id', 'actor_name_snapshot', 'terminal_name_snapshot', 'number', 'status', 'refund_method', 'refund_scope', 'total_amount', 'lines', 'reason', 'restock', 'stock_disposition', 'returned_at', 'idempotency_key', 'metadata', 'non_revenue_amount'])]
 class SaleReturn extends Model
 {
     use SoftDeletes;

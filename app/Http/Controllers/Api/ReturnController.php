@@ -37,6 +37,7 @@ class ReturnController extends Controller
         private readonly InventoryLedgerService $ledger,
         private readonly DocumentNumberGenerator $numbers,
         private readonly CashRegisterService $cashRegister,
+        private readonly \App\Services\LiabilityReturns $liabilities,
     ) {}
 
     /**
@@ -290,6 +291,15 @@ class ReturnController extends Controller
                     ],
                 ]);
 
+                // Gift cards and packages: a refunded card or package line is
+                // voided, a package session comes back, and what the customer
+                // paid with a gift card goes back onto that card, not into the
+                // drawer.
+                $cardCredit = $this->liabilities->apply($tenant, $sale, $lines, $returnTotal, $saleReturn, $isFullRefund, $action->actor->id);
+                if ($cardCredit > 0) {
+                    $saleReturn->forceFill(['metadata' => array_merge($saleReturn->metadata ?? [], ['gift_card_credit' => $cardCredit])])->save();
+                }
+
                 // Apply stock movements per line.
                 foreach ($lines as $returnLine) {
                     if (! $returnLine['item_id']) {
@@ -379,9 +389,10 @@ class ReturnController extends Controller
                 }
 
                 // Cash drawer out if refunded in cash.
-                $session = $returnTotal > 0.001 ? $this->cashRegister->openSession($tenant) : null;
+                $cashRefund = round($returnTotal - $cardCredit, 2);
+                $session = $cashRefund > 0.001 ? $this->cashRegister->openSession($tenant) : null;
                 if ($data['refund_method'] === RefundMethod::Cash->value && $session) {
-                    $this->cashRegister->recordMovement($tenant, $session, 'sale_refund_cash', 'out', $returnTotal, [
+                    $this->cashRegister->recordMovement($tenant, $session, 'sale_refund_cash', 'out', $cashRefund, [
                         'sale_id'         => $sale->id,
                         'reference'       => $saleReturn->number,
                         'payment_method'  => 'cash',

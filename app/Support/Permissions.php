@@ -67,6 +67,14 @@ class Permissions
                 'appointments.view' => 'Voir l’agenda',
                 'appointments.manage' => 'Prendre, déplacer et annuler un rendez-vous',
             ]],
+            'gift_cards' => ['label' => 'Cartes cadeaux', 'permissions' => [
+                'gift_cards.view' => 'Voir les cartes cadeaux et leur solde',
+                'gift_cards.manage' => 'Annuler et ajuster une carte cadeau',
+            ]],
+            'packages' => ['label' => 'Forfaits', 'permissions' => [
+                'packages.view' => 'Voir les forfaits et ceux des clients',
+                'packages.manage' => 'Créer les forfaits, annuler et ajuster ceux d’un client',
+            ]],
             'online_orders' => ['label' => 'Précommandes', 'permissions' => [
                 'online_orders.view' => 'Voir les précommandes',
                 'online_orders.create' => 'Créer une précommande',
@@ -255,6 +263,21 @@ class Permissions
             'appointments.update' => 'appointments.manage',
             'appointments.status' => 'appointments.manage',
             'appointments.booking' => 'appointments.manage',
+
+            'gift-cards' => 'gift_cards.view',
+            'gift-cards.show' => 'gift_cards.view',
+            // Looking a card up at the web till needs the right to ring up a sale, not to manage cards.
+            'gift-cards.lookup' => 'sales.create',
+            'gift-cards.settings' => 'gift_cards.manage',
+            'gift-cards.cancel' => 'gift_cards.manage',
+            'gift-cards.adjust' => 'gift_cards.manage',
+            'packages' => 'packages.view',
+            'packages.contact' => 'sales.create',
+            'packages.store' => 'packages.manage',
+            'packages.update' => 'packages.manage',
+            'packages.destroy' => 'packages.manage',
+            'customer-packages.cancel' => 'packages.manage',
+            'customer-packages.adjust' => 'packages.manage',
 
             'online-orders.store' => 'online_orders.create',
             'online-orders.status.update' => 'online_orders.edit',

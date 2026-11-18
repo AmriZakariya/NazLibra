@@ -471,7 +471,7 @@ class SyncController extends Controller
                 // variant_id included deliberately: the column list is
                 // explicit, so a sale pulled back to a till would otherwise
                 // arrive attributable to the article and not to the size.
-                'items:id,sale_id,item_id,variant_id,name,quantity,unit_price,total_price,unit_cost,total_cost',
+                'items:id,sale_id,item_id,variant_id,name,quantity,unit_price,total_price,unit_cost,total_cost,kind,customer_package_id',
                 'contact:id,name,phone',
                 'user:id,name',
                 'virtualDevice:id,name',
@@ -484,7 +484,7 @@ class SyncController extends Controller
 
         $page = $this->syncPage($request, $query, 'sales:location-'.$request->attributes->get('api_location_id'), $tenant->id, 100, 200, [
                 'id', 'location_id', 'contact_id', 'user_id', 'virtual_device_id', 'actor_name_snapshot', 'terminal_name_snapshot', 'number', 'status', 'payment_method',
-                'subtotal_amount', 'discount_amount', 'tax_amount', 'total_amount', 'metadata',
+                'subtotal_amount', 'discount_amount', 'tax_amount', 'total_amount', 'non_revenue_amount', 'metadata',
                 'sold_at', 'updated_at', 'deleted_at',
                 // The client submitted this sale under this key and stores it
                 // locally. Returning it lets a device recognise a sale it

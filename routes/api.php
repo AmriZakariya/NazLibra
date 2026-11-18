@@ -133,6 +133,7 @@ Route::prefix('v1')->group(function (): void {
             // Legacy alias kept for backward compatibility during rollout.
             Route::get('catalog',              [SyncController::class, 'catalog']);
             Route::get('printers',             [SyncController::class, 'printers']);
+            Route::get('packages',             [\App\Http\Controllers\Api\PackageController::class, 'sync']);          // prepaid packages
         });
 
         // ── Contact transactions ───────────────────────────────────────────────
@@ -168,6 +169,10 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('tickets/{ticket}', [TicketController::class, 'destroy'])->middleware('api.action:sales.create');
             Route::patch('tickets/{ticket}/name', [TicketController::class, 'rename'])->middleware('api.action:sales.create');
         });
+
+        // ── Gift cards: the balance behind a code (the server holds it) ───────
+        Route::get('gift-cards/{code}', [\App\Http\Controllers\Api\GiftCardController::class, 'show'])
+            ->middleware(['api.action:sales.create', 'throttle:60,1']);
 
         // ── Appointments (barbers, salons) ─────────────────────────────────────
         Route::get('appointments', [\App\Http\Controllers\Api\AppointmentController::class, 'index'])->middleware('api.action:appointments.view');

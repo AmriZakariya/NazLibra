@@ -94,8 +94,10 @@ class DashboardController extends Controller
             ->whereBetween('sales.sold_at', [$from, $to])
             ->selectRaw('
                 COUNT(DISTINCT sales.id) AS sale_count,
-                SUM(sale_items.quantity)  AS items_sold,
-                SUM(sale_items.total_price) AS gross_revenue,
+                SUM('.\App\Support\Liabilities::revenueSql('sale_items.kind', 'sale_items.quantity').') AS items_sold,
+                SUM('.\App\Support\Liabilities::revenueSql().') AS gross_revenue,
+                SUM('.\App\Support\Liabilities::kindSql('gift_card').') AS gift_cards_sold,
+                SUM('.\App\Support\Liabilities::kindSql('package').') AS packages_sold,
                 SUM(sale_items.total_cost)  AS cogs
             ')
             ->first();
@@ -104,6 +106,9 @@ class DashboardController extends Controller
         $cogs         = (float) ($salesData->cogs ?? 0);
         $saleCount    = (int) ($salesData->sale_count ?? 0);
         $itemsSold    = (int) ($salesData->items_sold ?? 0);
+        // Not revenue: kept as their own figures so the totals stay right.
+        $giftCardsSold = (float) ($salesData->gift_cards_sold ?? 0);
+        $packagesSold  = (float) ($salesData->packages_sold ?? 0);
 
         $salesTaxTotal = (float) DB::table('sales')
             ->where('tenant_id', $tenant->id)
@@ -126,7 +131,7 @@ class DashboardController extends Controller
             ->whereNull('sales.deleted_at')
             ->whereBetween('sale_returns.created_at', [$from, $to])
             ->selectRaw('
-                COALESCE(SUM(sale_returns.total_amount), 0) AS total,
+                COALESCE(SUM(sale_returns.total_amount - COALESCE(sale_returns.non_revenue_amount, 0)), 0) AS total,
                 COALESCE(SUM(
                     CASE
                         WHEN sales.total_amount > 0
@@ -178,6 +183,7 @@ class DashboardController extends Controller
             ->where('sales.tenant_id', $tenant->id)
             ->whereIn('sales.status', $confirmedStatuses)
             ->whereBetween('sales.sold_at', [$from, $to])
+            ->whereRaw("COALESCE(sale_items.kind, '') NOT IN ('gift_card', 'package')")
             ->selectRaw('sale_items.item_id, sale_items.name, SUM(sale_items.quantity) AS qty_sold, SUM(sale_items.total_price) AS revenue, SUM(sale_items.total_cost) AS cost')
             ->groupBy('sale_items.item_id', 'sale_items.name')
             ->orderByDesc('revenue')
@@ -206,6 +212,9 @@ class DashboardController extends Controller
                 'gross_profit'     => round($grossProfit, 2),
                 'margin_percent'   => $margin,
                 'avg_ticket'       => $avgTicket,
+                'gift_cards_sold'  => round($giftCardsSold, 2),
+                'packages_sold'    => round($packagesSold, 2),
+                'gift_cards_redeemed' => round((float) ($paymentBreakdown['gift_card'] ?? 0), 2),
             ],
             'stock_health'       => ['low_stock' => $lowStockCount, 'out_of_stock' => $outOfStockCount],
             'payment_breakdown'  => $paymentBreakdown,
