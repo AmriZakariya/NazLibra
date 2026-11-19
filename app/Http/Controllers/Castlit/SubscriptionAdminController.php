@@ -27,7 +27,14 @@ class SubscriptionAdminController extends Controller
         $status = $request->query('status', 'pending');
         $query = Subscription::with('install')->latest();
 
-        if (in_array($status, [Subscription::STATUS_PENDING, Subscription::STATUS_APPROVED, Subscription::STATUS_REJECTED], true)) {
+        // « Approuvées » are the clients in the fleet; a retired one (install
+        // archived) has its own tab, « Retirés ».
+        $retired = fn ($q) => $q->where('status', TenantInstall::STATUS_ARCHIVED);
+        if ($status === 'archived') {
+            $query->whereHas('install', $retired);
+        } elseif ($status === Subscription::STATUS_APPROVED) {
+            $query->where('status', $status)->whereDoesntHave('install', $retired);
+        } elseif (in_array($status, [Subscription::STATUS_PENDING, Subscription::STATUS_REJECTED], true)) {
             $query->where('status', $status);
         } else {
             $status = 'all';
@@ -103,7 +110,9 @@ class SubscriptionAdminController extends Controller
                 : null,
             'counts'        => [
                 'pending'  => Subscription::where('status', Subscription::STATUS_PENDING)->count(),
-                'approved' => Subscription::where('status', Subscription::STATUS_APPROVED)->count(),
+                'approved' => Subscription::where('status', Subscription::STATUS_APPROVED)
+                    ->whereDoesntHave('install', $retired)->count(),
+                'archived' => Subscription::whereHas('install', $retired)->count(),
                 'rejected' => Subscription::where('status', Subscription::STATUS_REJECTED)->count(),
             ],
         ]);

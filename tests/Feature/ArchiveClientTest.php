@@ -70,4 +70,21 @@ class ArchiveClientTest extends TestCase
         $this->actingAs(User::factory()->create())->post(route('castlit.admin.archive', $client));
         $this->assertSame(TenantInstall::STATUS_LIVE, $client->install->fresh()->status, 'not a platform admin');
     }
+
+    public function test_a_retired_client_leaves_approved_for_its_own_tab(): void
+    {
+        $admin = User::factory()->create(['is_platform_admin' => true]);
+        $kept = $this->liveClient('garde');
+        $gone = $this->liveClient('retire');
+        $gone->install->update(['status' => TenantInstall::STATUS_ARCHIVED]);
+
+        $approved = $this->actingAs($admin)->get(route('castlit.admin.index', ['status' => 'approved']))->assertOk();
+        $this->assertSame([$kept->id], $approved->viewData('subscriptions')->pluck('id')->all());
+        $this->assertSame(1, $approved->viewData('counts')['approved']);
+        $this->assertSame(1, $approved->viewData('counts')['archived']);
+        $approved->assertSee('Retirés')->assertSee('data-stats-fold', false);
+
+        $archived = $this->actingAs($admin)->get(route('castlit.admin.index', ['status' => 'archived']))->assertOk();
+        $this->assertSame([$gone->id], $archived->viewData('subscriptions')->pluck('id')->all());
+    }
 }

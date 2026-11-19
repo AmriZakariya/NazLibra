@@ -120,7 +120,7 @@
         @if (session('error'))<div class="flash flash-err">{{ session('error') }}</div>@endif
 
         <div class="tabs">
-            @php $tabs = ['pending' => 'En attente', 'approved' => 'Approuvées', 'rejected' => 'Rejetées', 'all' => 'Toutes']; @endphp
+            @php $tabs = ['pending' => 'En attente', 'approved' => 'Approuvées', 'archived' => 'Retirés', 'rejected' => 'Rejetées', 'all' => 'Toutes']; @endphp
             @foreach ($tabs as $key => $label)
                 <a href="{{ route('castlit.admin.index', $key === 'all' ? [] : ['status' => $key]) }}"
                    class="tab {{ $status === $key ? 'active' : '' }}">
@@ -130,17 +130,6 @@
             @endforeach
         </div>
 
-        {{-- D'où viennent les demandes, toutes périodes confondues : c'est ce
-             qui dit si l'argent mis dans une boutique d'applications ou dans
-             le site rapporte des commerces. --}}
-        @if (isset($origins) && $origins->isNotEmpty())
-            <div class="origins" data-origins>
-                <span>Provenance :</span>
-                @foreach ($origins as $label => $n)
-                    <span>{{ $label }} <strong>{{ $n }}</strong></span>
-                @endforeach
-            </div>
-        @endif
 
         @if (($followups ?? 0) > 0)
             <a href="{{ route('castlit.admin.visits', ['followup' => 1, 'from' => now(\App\Support\TenantClock::DEFAULT_TIMEZONE)->subDays(13)->toDateString()]) }}"
@@ -149,35 +138,9 @@
             </a>
         @endif
 
-        {{-- Quelles publicités amènent des commerces : 30 derniers jours, par
-             source et campagne (balises utm, sinon le site d'où vient la
-             visite). Une ligne filtre la liste. --}}
-        @if ($campaigns->isNotEmpty() || $campaignFilter)
-            <div class="campaigns" data-campaigns>
-                <div class="campaigns-head">
-                    <strong>Campagnes · 30 derniers jours</strong>
-                    @if ($campaignFilter)
-                        <a class="campaigns-clear" href="{{ route('castlit.admin.index', array_filter(['status' => $status === 'all' ? null : $status])) }}">Filtre : {{ $campaignFilter }} ✕</a>
-                    @endif
-                </div>
-                @if ($campaigns->isNotEmpty())
-                    <div class="tbl-scroll">
-                        <table class="tbl campaigns-tbl">
-                            <thead><tr><th>Source · campagne</th><th class="num">Visites</th><th class="num">Demandes</th><th class="num">Approuvées</th></tr></thead>
-                            <tbody>
-                                @foreach ($campaigns as $c)
-                                    <tr>
-                                        <td><a href="{{ route('castlit.admin.index', ['status' => 'all', 'campaign_source' => $c['source'], 'campaign_name' => $c['name'] ?? '-']) }}"><span class="camp">{{ $c['label'] }}</span></a></td>
-                                        <td class="num"><a href="{{ route('castlit.admin.visits', ['from' => now(\App\Support\TenantClock::DEFAULT_TIMEZONE)->subDays(29)->toDateString(), 'campaign_source' => $c['source'], 'campaign_name' => $c['name'] ?? '-']) }}">{{ $c['visits'] }}</a></td>
-                                        <td class="num">{{ $c['total'] }}</td>
-                                        <td class="num">{{ $c['approved'] }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
-            </div>
+
+        @if ($campaignFilter)
+            <div class="flash" style="margin-bottom:16px">Filtre campagne : {{ $campaignFilter }} · <a href="{{ route('castlit.admin.index', array_filter(['status' => $status === 'all' ? null : $status])) }}">retirer ✕</a></div>
         @endif
 
         <div class="card">
@@ -262,6 +225,52 @@
         </div>
 
         <div class="pager">{{ $subscriptions->links() }}</div>
+
+        {{-- Provenance et campagnes : utiles de temps en temps, pas à chaque visite. --}}
+        <details class="stats-fold" style="margin-top:20px" @if ($campaignFilter) open @endif data-stats-fold>
+            <summary style="cursor:pointer; font-weight:700; margin-bottom:12px">Provenance & campagnes</summary>
+        {{-- D'où viennent les demandes, toutes périodes confondues : c'est ce
+             qui dit si l'argent mis dans une boutique d'applications ou dans
+             le site rapporte des commerces. --}}
+        @if (isset($origins) && $origins->isNotEmpty())
+            <div class="origins" data-origins>
+                <span>Provenance :</span>
+                @foreach ($origins as $label => $n)
+                    <span>{{ $label }} <strong>{{ $n }}</strong></span>
+                @endforeach
+            </div>
+        @endif
+        {{-- Quelles publicités amènent des commerces : 30 derniers jours, par
+             source et campagne (balises utm, sinon le site d'où vient la
+             visite). Une ligne filtre la liste. --}}
+        @if ($campaigns->isNotEmpty() || $campaignFilter)
+            <div class="campaigns" data-campaigns>
+                <div class="campaigns-head">
+                    <strong>Campagnes · 30 derniers jours</strong>
+                    @if ($campaignFilter)
+                        <a class="campaigns-clear" href="{{ route('castlit.admin.index', array_filter(['status' => $status === 'all' ? null : $status])) }}">Filtre : {{ $campaignFilter }} ✕</a>
+                    @endif
+                </div>
+                @if ($campaigns->isNotEmpty())
+                    <div class="tbl-scroll">
+                        <table class="tbl campaigns-tbl">
+                            <thead><tr><th>Source · campagne</th><th class="num">Visites</th><th class="num">Demandes</th><th class="num">Approuvées</th></tr></thead>
+                            <tbody>
+                                @foreach ($campaigns as $c)
+                                    <tr>
+                                        <td><a href="{{ route('castlit.admin.index', ['status' => 'all', 'campaign_source' => $c['source'], 'campaign_name' => $c['name'] ?? '-']) }}"><span class="camp">{{ $c['label'] }}</span></a></td>
+                                        <td class="num"><a href="{{ route('castlit.admin.visits', ['from' => now(\App\Support\TenantClock::DEFAULT_TIMEZONE)->subDays(29)->toDateString(), 'campaign_source' => $c['source'], 'campaign_name' => $c['name'] ?? '-']) }}">{{ $c['visits'] }}</a></td>
+                                        <td class="num">{{ $c['total'] }}</td>
+                                        <td class="num">{{ $c['approved'] }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
+        @endif
+        </details>
     </div>
 </main>
 @endsection
