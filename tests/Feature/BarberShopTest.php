@@ -182,4 +182,41 @@ class BarberShopTest extends TestCase
             ->assertSee('Barbier Test')
             ->assertSee('Pourboires');
     }
+
+    public function test_a_held_web_ticket_keeps_each_lines_staff_through_to_the_sale(): void
+    {
+        $other = User::create([
+            'name' => 'Second Barbier', 'email' => 'barbier2@example.test',
+            'password' => Hash::make('password'), 'commission_rate' => 30,
+        ]);
+        $this->tenant->users()->attach($other->id, ['role' => 'cashier']);
+
+        $this->actingAs($this->owner);
+        $this->post(route('pos.tickets.store'), [
+            'cart' => json_encode([
+                ['id' => $this->cut->id, 'quantity' => 1, 'staff_user_id' => $this->barber->id],
+                ['id' => $this->cut->id, 'quantity' => 1, 'price' => 50, 'staff_user_id' => $other->id],
+            ]),
+        ])->assertSessionHasNoErrors();
+
+        $ticket = \App\Models\PosTicket::firstOrFail();
+        $this->assertSame([$this->barber->id, $other->id], array_column($ticket->cart, 'staff_user_id'));
+
+        // Restoring hands the cart back to the till with the staff on it.
+        $resume = json_decode(html_entity_decode(
+            preg_match("/data-resume-cart='([^']*)'/", $this->get(route('pos', ['ticket' => $ticket->id]))->getContent(), $m) ? $m[1] : '[]'
+        ), true);
+        $this->assertSame([$this->barber->id, $other->id], array_column($resume, 'staff_user_id'));
+
+        // ...and selling what was restored credits each of them.
+        $this->post(route('pos.store'), [
+            'ticket_id' => $ticket->id,
+            // The till rebuilds its lines from the saved ones and posts them with `id`.
+            'cart' => json_encode(array_map(fn ($l) => $l + ['id' => $l['item_id']], $resume)),
+            'cash_amount' => 1000,
+        ])->assertSessionHasNoErrors();
+
+        $lines = Sale::latest('id')->firstOrFail()->items()->orderBy('id')->get();
+        $this->assertSame([$this->barber->id, $other->id], $lines->pluck('staff_user_id')->all());
+    }
 }

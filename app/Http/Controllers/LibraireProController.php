@@ -8448,6 +8448,8 @@ class LibraireProController extends Controller
                 // « Produits utilisés »: a held ticket keeps the alternative chosen and the adjusted quantities.
                 'component_choices' => is_array($line['component_choices'] ?? null) ? $line['component_choices'] : [],
                 'component_overrides' => is_array($line['component_overrides'] ?? null) ? $line['component_overrides'] : [],
+                // Who did the work on this line (null = the cashier); a held ticket must not forget it.
+                'staff_user_id' => (int) ($line['staff_user_id'] ?? 0) ?: null,
             ];
         })->filter(fn ($line) => $line['item_id'] > 0)
             ->values();
