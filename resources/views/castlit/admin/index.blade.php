@@ -40,6 +40,7 @@
     .pill-rejected { background: var(--err-bg); color: var(--err); }
     .pill-live { background: var(--ok-bg); color: var(--ok); }
     .pill-failed { background: var(--err-bg); color: var(--err); }
+    .pill-archived { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
     .pill-running, .pill-queued { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
     .row-link { color: var(--brand); font-weight: 650; font-size: 13.5px; }
     .empty { padding: 48px; text-align: center; color: var(--muted); }

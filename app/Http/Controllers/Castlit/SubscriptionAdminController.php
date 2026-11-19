@@ -349,6 +349,40 @@ class SubscriptionAdminController extends Controller
     }
 
     /** Re-send the welcome email (URL + login) for a live install. */
+    /** « Retirer » : left out of updates, backups and scheduled tasks; nothing deleted. */
+    public function archive(Subscription $subscription): RedirectResponse
+    {
+        $install = $subscription->install;
+        if (! $install || $install->status !== TenantInstall::STATUS_LIVE) {
+            return back()->with('error', 'Seul un espace en ligne peut être retiré.');
+        }
+
+        $install->forceFill([
+            'status' => TenantInstall::STATUS_ARCHIVED,
+            'archived_at' => now(),
+            'current_step' => 'Retiré : exclu des mises à jour, sauvegardes et tâches planifiées',
+        ])->save();
+
+        return back()->with('success', "{$install->domain} est retiré : il ne recevra plus les mises à jour.");
+    }
+
+    /** « Réactiver » : back in every fleet task, as it was. */
+    public function restore(Subscription $subscription): RedirectResponse
+    {
+        $install = $subscription->install;
+        if (! $install || $install->status !== TenantInstall::STATUS_ARCHIVED) {
+            return back()->with('error', 'Cet espace n’est pas retiré.');
+        }
+
+        $install->forceFill([
+            'status' => TenantInstall::STATUS_LIVE,
+            'archived_at' => null,
+            'current_step' => 'Réactivé',
+        ])->save();
+
+        return back()->with('success', "{$install->domain} est réactivé. Pensez à le mettre à jour.");
+    }
+
     public function resendAccess(Subscription $subscription): RedirectResponse
     {
         $install = $subscription->install;

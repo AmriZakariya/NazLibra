@@ -34,6 +34,7 @@
     .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
     .pill-live { background: var(--ok-bg); color: var(--ok); }
     .pill-failed { background: var(--err-bg); color: var(--err); }
+    .pill-archived { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
     .pill-suspended { background: var(--warn-bg); color: var(--warn); }
     .pill-blocked { background: var(--err-bg); color: var(--err); }
     .pill-trial { background: var(--warn-bg); color: var(--warn); }
@@ -237,6 +238,8 @@
                                     <span class="pill pill-blocked">Bloqué</span>
                                 @elseif ($install->isLive())
                                     <span class="pill pill-live">En ligne</span>
+                                @elseif ($install->status === \App\Models\TenantInstall::STATUS_ARCHIVED)
+                                    <span class="pill pill-archived">Retiré</span>
                                 @else
                                     <span class="pill pill-failed">{{ ucfirst($install->status) }}</span>
                                 @endif

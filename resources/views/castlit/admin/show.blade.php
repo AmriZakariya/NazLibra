@@ -75,6 +75,7 @@
     .pill-pending { background: var(--warn-bg); color: var(--warn); }
     .pill-approved, .pill-live { background: var(--ok-bg); color: var(--ok); }
     .pill-rejected, .pill-failed { background: var(--err-bg); color: var(--err); }
+    .pill-archived { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
     .pill-running, .pill-queued { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
     .actions { display: flex; flex-direction: column; gap: 12px; }
     .actions form { display: contents; }
@@ -157,7 +158,7 @@
                             @if ($subscription->install->status === \App\Models\TenantInstall::STATUS_FAILED)
                                 <div class="fail-banner">✗ {{ $subscription->install->current_step ?: 'Le provisioning a échoué — voir le journal ci-dessous.' }}</div>
                             @endif
-                            <div class="kv"><span class="k">Statut</span><span class="v"><span class="pill pill-{{ $subscription->install->status }}">{{ ucfirst($subscription->install->status) }}</span></span></div>
+                            <div class="kv"><span class="k">Statut</span><span class="v"><span class="pill pill-{{ $subscription->install->status }}">{{ $subscription->install->status === \App\Models\TenantInstall::STATUS_ARCHIVED ? 'Retiré' : ucfirst($subscription->install->status) }}</span></span></div>
                             @if ($subscription->install->current_step)
                                 <div class="kv"><span class="k">Étape</span><span class="v {{ $inProgress ? 'step-now' : '' }}">@if ($inProgress)<span class="live-dot"></span>@endif{{ $subscription->install->current_step }}</span></div>
                             @endif
@@ -492,6 +493,21 @@
                                 @csrf
                                 <button class="btn btn-ghost btn-block" type="submit" data-owner-password
                                         onclick="return confirm('Créer un nouveau mot de passe pour {{ $subscription->install->owner_email ?: $subscription->email }} et l’envoyer par email ? L’ancien ne marchera plus.')">🔑 Nouveau mot de passe propriétaire</button>
+                            </form>
+                            {{-- Out of the fleet: no more updates, backups or scheduled tasks.
+                                 The space keeps running; nothing is deleted. --}}
+                            <form method="POST" action="{{ route('castlit.admin.archive', $subscription) }}" style="margin-top:18px">
+                                @csrf
+                                <button class="btn btn-danger btn-block" type="submit" data-archive
+                                        onclick="return confirm('Retirer {{ $subscription->install->domain }} ? Il ne recevra plus les mises à jour, sauvegardes et tâches planifiées. L’espace reste en ligne et rien n’est supprimé ; vous pourrez le réactiver.')">Retirer ce client</button>
+                            </form>
+                        @elseif ($subscription->install && $subscription->install->status === \App\Models\TenantInstall::STATUS_ARCHIVED)
+                            <p style="font-size:14px; color:var(--muted); font-weight:600">Client retiré{{ $subscription->install->archived_at ? ' le '.$subscription->install->archived_at->format('d/m/Y') : '' }}</p>
+                            <p style="font-size:12.5px; color:var(--muted); margin:-2px 0 8px">Exclu des mises à jour, sauvegardes et tâches planifiées. L’espace n’a pas été supprimé.</p>
+                            <a class="btn btn-ghost btn-block" href="{{ $subscription->install->url() }}" target="_blank" rel="noopener">Ouvrir l'espace client ↗</a>
+                            <form method="POST" action="{{ route('castlit.admin.restore', $subscription) }}" style="margin-top:10px">
+                                @csrf
+                                <button class="btn btn-primary btn-block" type="submit" data-restore>↺ Réactiver</button>
                             </form>
                         @elseif ($subscription->install && $subscription->install->status === \App\Models\TenantInstall::STATUS_QUEUED)
                             <p style="font-size:14px; font-weight:600; margin-bottom:4px"><span class="live-dot"></span>En file d'attente…</p>

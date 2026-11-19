@@ -11,6 +11,12 @@ class TenantInstall extends Model
     public const STATUS_RUNNING = 'running';
     public const STATUS_LIVE    = 'live';
     public const STATUS_FAILED  = 'failed';
+    /**
+     * Removed by the team: left out of every fleet task (updates, backups,
+     * schedules, password rotation), which all select STATUS_LIVE. The space
+     * itself is untouched and « Réactiver » puts it back.
+     */
+    public const STATUS_ARCHIVED = 'archived';
 
     protected $fillable = [
         'subscription_id', 'subdomain', 'domain', 'docroot', 'db_name',
@@ -27,6 +33,7 @@ class TenantInstall extends Model
     protected $casts = [
         'is_enabled'         => 'boolean',
         'provisioned_at'     => 'datetime',
+        'archived_at'        => 'datetime',
         'updated_version_at' => 'datetime',
         'updated_log_at'     => 'datetime',
         'trial_ends_at'      => 'datetime',
