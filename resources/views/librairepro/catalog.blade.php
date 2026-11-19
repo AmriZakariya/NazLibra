@@ -492,6 +492,7 @@
                                 <option value="available" @selected($stockInventoryState === 'available')>Disponible</option>
                                 <option value="low" @selected($stockInventoryState === 'low')>Sous alerte</option>
                                 <option value="out" @selected($stockInventoryState === 'out')>Rupture</option>
+                                <option value="negative" @selected($stockInventoryState === 'negative')>Stock négatif</option>
                             </select>
                             <button class="h-11 rounded-lg bg-brand px-4 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20">Filtrer</button>
                             <a href="{{ route('stock', ['panel' => 'stock-adjustments']) }}" class="grid h-11 place-items-center rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:border-brand/40 hover:text-brand dark:border-white/10 dark:text-slate-200">Réinitialiser</a>
@@ -515,12 +516,14 @@
                         <tbody class="divide-y divide-slate-200 dark:divide-white/10">
                             @forelse ($stockInventoryItems as $stockItem)
                                 @php
-                                    $storeStock = (int) ($stockItem->store_stock_quantity ?? 0);
+                                    $storeStock = \App\Support\Stock::number($stockItem->store_stock_quantity ?? 0);
                                     $storeAverageCost = (float) ($stockItem->store_average_cost ?? $stockItem->purchase_price);
-                                    $purchaseValue = $storeAverageCost * $storeStock;
-                                    $saleValue = (float) $stockItem->sale_price * $storeStock;
-                                    $isOut = $storeStock <= 0;
-                                    $isLow = ! $isOut && $storeStock <= (int) $stockItem->min_stock_threshold;
+                                    // A negative stock is a debt to the shelf: it never carries a (negative) value.
+                                    $purchaseValue = $storeAverageCost * max(0, $storeStock);
+                                    $saleValue = (float) $stockItem->sale_price * max(0, $storeStock);
+                                    $isNegative = $storeStock < 0;
+                                    $isOut = $storeStock == 0;
+                                    $isLow = ! $isOut && ! $isNegative && $storeStock <= (int) $stockItem->min_stock_threshold;
                                     $historyUrl = route('stock', ['panel' => 'stock-adjustments', 'inventory_item' => $stockItem->id]).'#inventory-history';
                                     $adjustUrl = route('stock', ['panel' => 'stock-adjustment-add', 'stock_q' => $stockItem->item_code ?? $stockItem->barcode ?? $stockItem->title]);
                                 @endphp
@@ -540,16 +543,18 @@
                                     </td>
                                     <td class="px-3 py-3 text-sm text-slate-500">
                                         <span class="font-medium text-slate-700 dark:text-slate-200">{{ $currentStoreLocation?->name ?? ($currentStore['name'] ?? 'Magasin principal') }}</span>
-                                        <span class="block text-xs">Global: {{ number_format((int) $stockItem->stock_quantity, 0, ',', ' ') }}</span>
+                                        <span class="block text-xs">Global: {{ \App\Support\Stock::display($stockItem->stock_quantity) }}</span>
                                     </td>
                                     <td class="px-3 py-3 text-right">
-                                        <span class="stock-table-number is-volume">{{ number_format($storeStock, 0, ',', ' ') }}</span>
+                                        <span class="stock-table-number is-volume">{{ \App\Support\Stock::display($storeStock) }}</span>
                                         <span class="block text-xs text-slate-500">{{ $stockItem->unit?->name ?? 'unité(s)' }}</span>
                                     </td>
                                     <td class="px-3 py-3 text-right"><span class="stock-table-number">{{ $money($purchaseValue) }}</span></td>
                                     <td class="px-3 py-3 text-right"><span class="stock-table-number">{{ $money($saleValue) }}</span></td>
                                     <td class="px-3 py-3">
-                                        @if ($isOut)
+                                        @if ($isNegative)
+                                            <span class="inline-flex rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-800 ring-1 ring-inset ring-rose-300 dark:bg-rose-500/20 dark:text-rose-100 dark:ring-rose-500/30">Stock négatif</span>
+                                        @elseif ($isOut)
                                             <span class="inline-flex rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-500/10 dark:text-rose-100 dark:ring-rose-500/20">Rupture</span>
                                         @elseif ($isLow)
                                             <span class="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-100 dark:ring-amber-500/20">Sous alerte</span>
@@ -1330,7 +1335,7 @@
                             <input name="q" value="{{ $query }}" type="search" autocomplete="off" placeholder="Rechercher : nom, code-barres, code article, marque…" data-catalog-search>
                         </label>
                         <label class="catalog-select"><span class="sr-only">Catégorie</span><select name="category"><option value="all">Toutes les catégories</option><option value="uncategorized" @selected($categoryFilter === 'uncategorized')>Sans catégorie</option>@foreach ($categories as $category)<option value="{{ $category->id }}" @selected((string) $categoryFilter === (string) $category->id)>{{ $category->name }}</option>@endforeach</select></label>
-                        <label class="catalog-select"><span class="sr-only">Stock</span><select name="stock"><option value="all" @selected($stock === 'all')>Tout le stock</option><option value="low" @selected($stock === 'low')>Stock bas</option><option value="out" @selected($stock === 'out')>Rupture</option></select></label>
+                        <label class="catalog-select"><span class="sr-only">Stock</span><select name="stock"><option value="all" @selected($stock === 'all')>Tout le stock</option><option value="low" @selected($stock === 'low')>Stock bas</option><option value="out" @selected($stock === 'out')>Rupture</option><option value="negative" @selected($stock === 'negative')>Stock négatif</option></select></label>
                         <button type="button" class="catalog-more-toggle" data-more-filters-toggle aria-expanded="{{ $moreFilters > 0 ? 'true' : 'false' }}">Plus de filtres @if ($moreFilters > 0)<span>{{ $moreFilters }}</span>@endif</button>
                         <a href="{{ route('catalog', ['panel' => 'articles']) }}" class="catalog-reset {{ $hasFilters ? '' : 'hidden' }}" data-catalog-reset>Réinitialiser</a>
                         <noscript><button class="catalog-reset" type="submit">Filtrer</button></noscript>
@@ -1438,7 +1443,10 @@
                         </div>
                         <div class="app-action-row">
                             <x-status-pill :tone="$editItem->type === 'service' ? 'info' : 'primary'">{{ $editItem->type === 'service' ? 'Service' : 'Article' }}</x-status-pill>
-                            <x-status-pill :tone="$editItem->is_low_stock ? 'warning' : 'success'">{{ $editItem->type === 'service' ? 'Stock illimité' : ($editItem->hasCapacity() || $editItem->content_container ? \App\Support\ContentUnits::describeStock($editItem, (float) $editItem->stock_quantity) : $editItem->stock_quantity.' unités') }}</x-status-pill>
+                            <x-status-pill :tone="$editItem->type !== 'service' && (float) $editItem->stock_quantity < 0 ? 'danger' : ($editItem->is_low_stock ? 'warning' : 'success')">{{ $editItem->type === 'service' ? 'Stock illimité' : ($editItem->hasCapacity() || $editItem->content_container ? \App\Support\ContentUnits::describeStock($editItem, (float) $editItem->stock_quantity) : $editItem->stock_quantity.' unités') }}</x-status-pill>
+                            @if ($editItem->type !== 'service' && (float) $editItem->stock_quantity < 0)
+                                <x-status-pill tone="danger">Stock négatif</x-status-pill>
+                            @endif
                         </div>
                     </div>
                     <div class="catalog-quick-actions mt-4">

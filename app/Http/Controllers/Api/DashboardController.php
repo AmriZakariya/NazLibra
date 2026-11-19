@@ -169,7 +169,8 @@ class DashboardController extends Controller
             ->whereNull('deleted_at')
             ->where('type', '!=', 'service')
             ->selectRaw('
-                SUM(CASE WHEN stock_quantity <= 0 THEN 1 ELSE 0 END) AS out_of_stock,
+                SUM(CASE WHEN stock_quantity = 0 THEN 1 ELSE 0 END) AS out_of_stock,
+                SUM(CASE WHEN stock_quantity < 0 THEN 1 ELSE 0 END) AS negative_stock,
                 SUM(CASE WHEN min_stock_threshold > 0 AND stock_quantity > 0 AND stock_quantity <= min_stock_threshold THEN 1 ELSE 0 END) AS low_stock
             ')
             ->first();
@@ -216,7 +217,7 @@ class DashboardController extends Controller
                 'packages_sold'    => round($packagesSold, 2),
                 'gift_cards_redeemed' => round((float) ($paymentBreakdown['gift_card'] ?? 0), 2),
             ],
-            'stock_health'       => ['low_stock' => $lowStockCount, 'out_of_stock' => $outOfStockCount],
+            'stock_health'       => ['low_stock' => $lowStockCount, 'out_of_stock' => $outOfStockCount, 'negative_stock' => (int) ($stockHealth->negative_stock ?? 0)],
             'payment_breakdown'  => $paymentBreakdown,
             'top_items'          => $topItems,
         ]);

@@ -32,8 +32,9 @@ use Illuminate\Support\Facades\DB;
  *  - a line may adjust a quantity (per unit of service); only for a product of
  *    the recipe;
  *  - a sale is NEVER refused for a low bottle: the movement is recorded, the
- *    part the shelf did not have is noted on the snapshot, and the product's
- *    stock status flips to out of stock so the usual alerts show it.
+ *    part the shelf did not have is noted on the snapshot, and the shelf shows
+ *    its real (negative) figure, so the usual alerts show it; the next stock
+ *    in pays that deficit first.
  */
 class ServiceConsumption
 {
@@ -312,6 +313,9 @@ class ServiceConsumption
                 'actorNameSnapshot' => $actor['actorName'] ?? null,
                 'terminalNameSnapshot' => $actor['terminalName'] ?? null,
                 'allowNegative' => true,
+                // Booked now at the purchase price; the next incoming stock
+                // trues it up to the real cost (see InventoryLedgerService).
+                'deficitUnitCost' => $fallbackUnit,
             ]);
 
             $cost = round((float) $result['cogs'] + $shortfall * $fallbackUnit, 4);

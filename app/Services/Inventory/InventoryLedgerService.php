@@ -9,6 +9,9 @@ use App\Enums\ItemStatus;
 use App\Models\Item;
 use App\Models\ItemLocationStock;
 use App\Models\Location;
+use App\Models\Sale;
+use App\Models\SaleItem;
+use App\Models\SaleItemConsumption;
 use App\Models\Tenant;
 use App\Exceptions\InsufficientStockException;
 use Carbon\Carbon;
@@ -26,6 +29,21 @@ use Illuminate\Support\Facades\DB;
  *   - Every outgoing movement consumes layers using the tenant's costing method (LIFO/FIFO/WAC).
  *   - ItemLocationStock and items.stock_quantity are read-cache only —
  *     always recomputed from layers by syncStockCache().
+ *
+ * Negative stock (the shop's real figure, never clamped at 0):
+ *   - Layers never go below 0, so FIFO/LIFO/WAC and the stock value are
+ *     untouched. What an allowed outgoing movement takes that no layer has is
+ *     the item+location DEFICIT (item_location_stock.deficit_quantity):
+ *         cache quantity = SUM(layers remaining) - deficit
+ *   - Incoming stock settles the deficit FIRST: -0,02 then +1 box gives 0,98
+ *     and the new layer holds 0,98 (the settled part never becomes shelf
+ *     stock, nor stock value).
+ *   - COGS is corrected with the real cost (« Correct with real cost »): for
+ *     each settled part, the sale line / consumption that took it is trued up
+ *     by settled x (incoming unit cost - the fallback unit cost booked then);
+ *     sale_items.total_cost, sales.cogs and the movement's total_cost follow.
+ *     Old movements' cogs (the layers' figure) are never rewritten.
+ *   - Availability for selling is the layers' sum (>= 0) and is unchanged.
  *   - No frontend or mobile client may call these methods directly.
  *     Controllers call us; we call nobody above us.
  *   - All operations are atomic (wrapped in DB::transaction).
@@ -105,6 +123,7 @@ class InventoryLedgerService
             $stock         = $this->lockOrCreateStock($tenantId, $itemId, $variantId, $locationId);
             $quantityBefore = (float) $stock->quantity;
             $quantityAfter  = $quantityBefore + $quantity;
+            $settled        = 0.0;
 
             // ── Create the movement record ────────────────────────────────────
             $movement = InventoryMovement::create([
@@ -140,8 +159,9 @@ class InventoryLedgerService
                 $this->rebuildFrom($tenantId, $itemId, $variantId, $locationId, $occurredAt);
                 $layer = InventoryLayer::where('source_movement_id', $movement->id)->first();
             } else {
-                // Fast path: create the layer directly.
-                $layer = $this->createLayer($movement, $quantity, $unitCost, $occurredAt);
+                // Fast path: the part that pays a deficit never becomes shelf stock.
+                $settled = $this->settleDeficit($stock, $movement, $quantity, $unitCost);
+                $layer = $this->createLayer($movement, round($quantity - $settled, 4), $unitCost, $occurredAt);
                 $this->syncStockCache($tenantId, $itemId, $variantId, $locationId);
             }
 
@@ -235,7 +255,7 @@ class InventoryLedgerService
             // ── Lock stock cache row ──────────────────────────────────────────
             $stock          = $this->lockOrCreateStock($tenantId, $itemId, $variantId, $locationId);
             $quantityBefore = (float) $stock->quantity;
-            $quantityAfter  = max(0, $quantityBefore - $quantity);
+            $quantityAfter  = round($quantityBefore - $quantity, 4); // the real figure, negative included
 
             // ── Create the movement record first (COGS updated after consumption) ──
             $movement = InventoryMovement::create([
@@ -251,6 +271,7 @@ class InventoryLedgerService
                 'unit_cost'            => null, // updated after LIFO consumption
                 'total_cost'           => null, // updated after LIFO consumption
                 'cogs'                 => null, // updated after LIFO consumption
+                'deficit_unit_cost'    => (float) ($params['deficitUnitCost'] ?? 0),
                 'occurred_at'          => $occurredAt,
                 'synced_at'            => $params['syncedAt'] ?? null,
                 'idempotency_key'      => $params['idempotencyKey'] ?? null,
@@ -277,6 +298,12 @@ class InventoryLedgerService
                 [$consumptions, $cogs] = $this->consumeLayersByMethod(
                     $tenantId, $itemId, $variantId, $locationId, $quantity, $movement->id
                 );
+                // What no layer had is the deficit: the shelf shows it, negative.
+                $shortfall = round($quantity - (float) $consumptions->sum('quantity_consumed'), 4);
+                if ($shortfall > 0.00005) {
+                    $movement->forceFill(['deficit_quantity' => $shortfall])->save();
+                    $stock->forceFill(['deficit_quantity' => round((float) $stock->deficit_quantity + $shortfall, 4)])->save();
+                }
                 $this->syncStockCache($tenantId, $itemId, $variantId, $locationId);
             }
 
@@ -541,16 +568,37 @@ class InventoryLedgerService
                 ->orderBy('id')          // deterministic tiebreaker
                 ->get();
 
+            // The deficit standing just before the replay: the figure the last
+            // earlier movement left (negative = layers empty, deficit = -figure).
+            $previous = InventoryMovement::where('tenant_id', $tenantId)
+                ->where('item_id', $itemId)
+                ->where('location_id', $locationId)
+                ->where('occurred_at', '<', $fromOccurredAt)
+                ->orderByDesc('occurred_at')->orderByDesc('id')
+                ->first(['quantity_after']);
+            $deficit = $previous ? max(0.0, -(float) $previous->quantity_after) : 0.0;
+
             foreach ($movements as $movement) {
                 $delta = (float) $movement->quantity_delta;
 
                 if ($delta > 0) {
-                    $this->createLayer($movement, $delta, (float) ($movement->unit_cost ?? 0), $movement->occurred_at);
+                    // Settles the deficit first, as live. The cost true-ups of
+                    // the sales it paid for were booked when they happened.
+                    $settle = round(min($deficit, $delta), 4);
+                    $deficit = round($deficit - $settle, 4);
+                    $this->createLayer($movement, round($delta - $settle, 4), (float) ($movement->unit_cost ?? 0), $movement->occurred_at);
                 } elseif ($delta < 0) {
                     $qty = abs($delta);
                     [$consumptions, $cogs] = $this->consumeLayersByMethod(
                         $tenantId, $itemId, $variantId, $locationId, $qty, $movement->id
                     );
+                    $short = round($qty - (float) $consumptions->sum('quantity_consumed'), 4);
+                    if ($short > 0.00005) {
+                        $deficit = round($deficit + $short, 4);
+                        if ((float) $movement->deficit_settled_quantity <= 0) {
+                            $movement->forceFill(['deficit_quantity' => $short])->save();
+                        }
+                    }
                     $avgUnit = $qty > 0 ? round($cogs / $qty, 4) : 0.0;
                     $movement->update([
                         'unit_cost'  => $avgUnit,
@@ -561,6 +609,11 @@ class InventoryLedgerService
             }
 
             // ── Step 7: Rebuild stock cache from layers ────────────────────────
+            ItemLocationStock::where('tenant_id', $tenantId)
+                ->where('item_id', $itemId)
+                ->where('location_id', $locationId)
+                ->when($variantId, fn ($q) => $q->where('variant_id', $variantId))
+                ->update(['deficit_quantity' => $deficit]);
             $this->syncStockCache($tenantId, $itemId, $variantId, $locationId);
         });
     }
@@ -593,9 +646,17 @@ class InventoryLedgerService
             ')
             ->first();
 
-        $quantity    = (float) ($agg->qty ?? 0);
+        $layerQty    = (float) ($agg->qty ?? 0);
         $value       = (float) ($agg->val ?? 0);
-        $averageCost = $quantity > 0 ? round($value / $quantity, 4) : 0.0;
+        $averageCost = $layerQty > 0 ? round($value / $layerQty, 4) : 0.0;
+
+        // The real figure: what the layers hold minus what was taken beyond them.
+        $deficit = (float) ItemLocationStock::where('tenant_id', $tenantId)
+            ->where('item_id', $itemId)
+            ->where('location_id', $locationId)
+            ->when($variantId, fn ($q) => $q->where('variant_id', $variantId))
+            ->sum('deficit_quantity');
+        $quantity = round($layerQty - $deficit, 4);
 
         // Update or create the ItemLocationStock cache row.
         ItemLocationStock::where('tenant_id', $tenantId)
@@ -651,8 +712,107 @@ class InventoryLedgerService
             'remaining_quantity' => $quantity,
             'unit_cost'          => $unitCost,
             'occurred_at'        => $occurredAt,
-            'exhausted_at'       => null,
+            // A layer whose whole quantity paid a deficit is born empty.
+            'exhausted_at'       => $quantity <= 0 ? now() : null,
         ]);
+    }
+
+    /**
+     * An incoming movement pays the deficit first. Returns the part it settled.
+     *
+     * Each settled part is trued up on the outgoing movement that took it
+     * (oldest first): the sale was costed at the fallback price (or nothing),
+     * the real cost is the incoming unit cost. Must run in a transaction.
+     */
+    private function settleDeficit(ItemLocationStock $stock, InventoryMovement $incoming, float $quantity, float $unitCost): float
+    {
+        $deficit = (float) $stock->deficit_quantity;
+        if ($deficit <= 0.00005 || $quantity <= 0) {
+            return 0.0;
+        }
+
+        $settle = round(min($deficit, $quantity), 4);
+        $stock->forceFill(['deficit_quantity' => round($deficit - $settle, 4)])->save();
+        $incoming->forceFill(['settled_quantity' => $settle])->save();
+
+        $left = $settle;
+        $open = InventoryMovement::where('tenant_id', $incoming->tenant_id)
+            ->where('item_id', $incoming->item_id)
+            ->where('location_id', $incoming->location_id)
+            ->when($incoming->variant_id, fn ($q) => $q->where('variant_id', $incoming->variant_id))
+            ->whereRaw('deficit_quantity > deficit_settled_quantity')
+            ->orderBy('occurred_at')->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($open as $outgoing) {
+            if ($left <= 0.00005) {
+                break;
+            }
+            $take = round(min($left, (float) $outgoing->deficit_quantity - (float) $outgoing->deficit_settled_quantity), 4);
+            if ($take <= 0) {
+                continue;
+            }
+            $left = round($left - $take, 4);
+            $trueUp = round($take * ($unitCost - (float) $outgoing->deficit_unit_cost), 4);
+
+            $qty = abs((float) $outgoing->quantity_delta);
+            $newTotal = round((float) $outgoing->total_cost + $trueUp, 4);
+            $outgoing->forceFill([
+                'deficit_settled_quantity' => round((float) $outgoing->deficit_settled_quantity + $take, 4),
+                'total_cost' => $newTotal,
+                'unit_cost' => $qty > 0 ? round($newTotal / $qty, 4) : $outgoing->unit_cost,
+            ])->save();
+
+            if (abs($trueUp) > 0.00005) {
+                $this->trueUpSale($outgoing, $trueUp);
+            }
+        }
+
+        return $settle;
+    }
+
+    /** Carries a COGS true-up to the business documents that took the stock. */
+    private function trueUpSale(InventoryMovement $outgoing, float $trueUp): void
+    {
+        $line = null;
+        if ($outgoing->reference_type === SaleItem::class) {
+            $line = SaleItem::find($outgoing->reference_id);
+            $consumption = SaleItemConsumption::where('movement_id', $outgoing->id)->first();
+            if ($consumption) {
+                $qty = (float) $consumption->quantity_stock;
+                $total = round((float) $consumption->total_cost + $trueUp, 4);
+                $consumption->forceFill([
+                    'total_cost' => $total,
+                    'unit_cost' => $qty > 0 ? round($total / $qty, 4) : $consumption->unit_cost,
+                ])->save();
+            }
+        } elseif ($outgoing->reference_type === Sale::class) {
+            if (preg_match('/-line-(\d+)$/', (string) $outgoing->idempotency_key, $m)) {
+                $line = SaleItem::where('sale_id', $outgoing->reference_id)->whereKey((int) $m[1])->first();
+            }
+            $line ??= SaleItem::where('sale_id', $outgoing->reference_id)->where('item_id', $outgoing->item_id)->orderBy('id')->first();
+        }
+        if (! $line) {
+            return;
+        }
+
+        $lineQty = max(1, (float) $line->quantity);
+        $line->forceFill([
+            'total_cost' => round((float) $line->total_cost + $trueUp, 4),
+            'unit_cost' => round((float) $line->unit_cost + $trueUp / $lineQty, 4),
+        ])->save();
+
+        $sale = Sale::find($line->sale_id);
+        if ($sale) {
+            $sale->cogs = round((float) $sale->cogs + $trueUp, 4);
+            $meta = $sale->metadata;
+            if (is_array($meta) && isset($meta['cogs']['total'])) {
+                $meta['cogs']['total'] = round((float) $meta['cogs']['total'] + $trueUp, 4);
+                $sale->metadata = $meta;
+            }
+            $sale->save();
+        }
     }
 
     /**

@@ -304,7 +304,8 @@ class LibraireProController extends Controller
         ]);
         $stockValue = (float) $tenant->items()
             ->where('type', '!=', 'service')
-            ->selectRaw('sum(stock_quantity * purchase_price) as value')
+            // A negative stock is a debt to the shelf, never a negative value.
+            ->selectRaw('sum(case when stock_quantity > 0 then stock_quantity * purchase_price else 0 end) as value')
             ->value('value');
         $lowStockCount = $tenant->items()
             ->where('type', '!=', 'service')
@@ -312,7 +313,11 @@ class LibraireProController extends Controller
             ->count();
         $outOfStockCount = $tenant->items()
             ->where('type', '!=', 'service')
-            ->where('stock_quantity', '<=', 0)
+            ->where('stock_quantity', '=', 0)
+            ->count();
+        $negativeStockCount = $tenant->items()
+            ->where('type', '!=', 'service')
+            ->where('stock_quantity', '<', 0)
             ->count();
         $totalPhysicalItems = max(1, $tenant->items()->where('type', '!=', 'service')->count());
         $stockHealth = max(0, round((($totalPhysicalItems - $lowStockCount) / $totalPhysicalItems) * 100));
@@ -390,6 +395,7 @@ class LibraireProController extends Controller
                 'health' => $stockHealth,
                 'low' => $lowStockCount,
                 'out' => $outOfStockCount,
+                'negative' => $negativeStockCount,
                 'value' => $stockValue,
             ],
             'cashSummary' => [
@@ -701,7 +707,7 @@ class LibraireProController extends Controller
             ? (float) ItemLocationStock::where('tenant_id', $tenant->id)
                 ->where('item_id', $selectedInventoryItem->id)
                 ->where('location_id', $currentStoreLocationId)
-                ->selectRaw('SUM(quantity * average_cost) as value')
+                ->selectRaw('SUM(CASE WHEN quantity > 0 THEN quantity * average_cost ELSE 0 END) as value')
                 ->value('value') ?? 0
             : 0;
         $selectedInventoryItemReserved = $selectedInventoryItem
@@ -747,7 +753,8 @@ class LibraireProController extends Controller
                     ->orWhere('items.location', 'like', "%{$stockInventoryQuery}%");
             }))
             ->when($stockInventoryState === 'low', fn (Builder $builder) => $builder->whereRaw('coalesce(inventory_location_stock.quantity, 0) <= items.min_stock_threshold')->whereRaw('coalesce(inventory_location_stock.quantity, 0) > 0'))
-            ->when($stockInventoryState === 'out', fn (Builder $builder) => $builder->whereRaw('coalesce(inventory_location_stock.quantity, 0) <= 0'))
+            ->when($stockInventoryState === 'out', fn (Builder $builder) => $builder->whereRaw('coalesce(inventory_location_stock.quantity, 0) = 0'))
+            ->when($stockInventoryState === 'negative', fn (Builder $builder) => $builder->whereRaw('coalesce(inventory_location_stock.quantity, 0) < 0'))
             ->when($stockInventoryState === 'available', fn (Builder $builder) => $builder->whereRaw('coalesce(inventory_location_stock.quantity, 0) > 0'))
             ->orderByRaw('case when coalesce(inventory_location_stock.quantity, 0) <= items.min_stock_threshold then 0 else 1 end')
             ->orderBy('items.title')
@@ -817,8 +824,10 @@ class LibraireProController extends Controller
                 DB::raw('(
                     SELECT COALESCE(SUM(
                         CASE
+                            -- The part of an incoming movement that paid a deficit never
+                            -- became shelf stock: it carries no stock value.
                             WHEN sm2.quantity_delta >= 0
-                                THEN COALESCE(sm2.total_cost, 0)
+                                THEN COALESCE(sm2.total_cost, 0) - COALESCE(sm2.settled_quantity, 0) * COALESCE(sm2.unit_cost, 0)
                             -- A service\'s consumption: only what left the layers
                             -- (cogs). Its total_cost also prices the part taken from
                             -- an empty shelf, which never was stock value.
@@ -1129,10 +1138,12 @@ class LibraireProController extends Controller
                 }
                 $quantity = (float) $item->stock_quantity;
                 $tone = $quantity <= 0 ? 'is-danger' : ($item->is_low_stock ? 'is-warning' : 'is-ok');
+                $negative = $quantity < 0;
                 $unit = $item->unit?->name;
                 $details = array_filter([$unit, $item->min_stock_threshold > 0 ? 'alerte ≤ '.number_format($item->min_stock_threshold, 0, ',', ' ') : null]);
 
-                return '<div class="catalog-stock"><span class="catalog-stock-badge '.$tone.'">'.number_format($quantity, 0, ',', ' ').'</span>'
+                return '<div class="catalog-stock"><span class="catalog-stock-badge '.$tone.'">'.\App\Support\Stock::display($quantity).'</span>'
+                    .($negative ? '<small>Stock négatif</small>' : '')
                     .($details ? '<small>'.e(implode(' · ', $details)).'</small>' : '').'</div>';
             })
             // One state, not four pills: the flags only appear when something
@@ -2178,7 +2189,8 @@ class LibraireProController extends Controller
             ->when($unit !== 'all', fn (Builder $builder) => $builder->where('items.unit_id', $unit))
             ->when($tax !== 'all', fn (Builder $builder) => $builder->where('items.tax_id', $tax))
             ->when($stock === 'low', fn (Builder $builder) => $builder->whereColumn('items.stock_quantity', '<=', 'items.min_stock_threshold'))
-            ->when($stock === 'out', fn (Builder $builder) => $builder->where('items.stock_quantity', '<=', 0))
+            ->when($stock === 'out', fn (Builder $builder) => $builder->where('items.stock_quantity', '=', 0))
+            ->when($stock === 'negative', fn (Builder $builder) => $builder->where('items.stock_quantity', '<', 0))
             ->when(is_numeric($minPrice), fn (Builder $builder) => $builder->where('items.sale_price', '>=', (float) $minPrice))
             ->when(is_numeric($maxPrice), fn (Builder $builder) => $builder->where('items.sale_price', '<=', (float) $maxPrice))
             ->when(in_array($panel, ['services', 'ajouter-service'], true), fn (Builder $builder) => $builder->where('items.type', 'service'))
@@ -8718,7 +8730,7 @@ class LibraireProController extends Controller
                 'gift_cards_sold' => $giftCardsSold,
                 'gift_cards_redeemed' => $giftCardsRedeemed,
                 'packages_sold' => $packagesSold,
-                'stock_value' => (float) $stockItems->sum(fn ($item) => (float) $item->stock_quantity * (float) $item->purchase_price),
+                'stock_value' => (float) $stockItems->sum(fn ($item) => max(0.0, (float) $item->stock_quantity) * (float) $item->purchase_price),
             ],
         ];
     }

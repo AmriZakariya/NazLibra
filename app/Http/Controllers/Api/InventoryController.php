@@ -49,7 +49,8 @@ class InventoryController extends Controller
             ->where('status', 'active')
             ->where('type', '!=', 'service')
             ->selectRaw('
-                SUM(CASE WHEN stock_quantity <= 0 THEN 1 ELSE 0 END) AS out_of_stock,
+                SUM(CASE WHEN stock_quantity = 0 THEN 1 ELSE 0 END) AS out_of_stock,
+                SUM(CASE WHEN stock_quantity < 0 THEN 1 ELSE 0 END) AS negative_stock,
                 SUM(CASE WHEN min_stock_threshold > 0 AND stock_quantity > 0 AND stock_quantity <= min_stock_threshold THEN 1 ELSE 0 END) AS low_stock
             ')
             ->first();
@@ -62,6 +63,7 @@ class InventoryController extends Controller
                 'total_value'        => round((float) ($layerAgg->total_value ?? 0), 2),
                 'low_stock_count'    => (int) ($alertCounts->low_stock ?? 0),
                 'out_of_stock_count' => (int) ($alertCounts->out_of_stock ?? 0),
+                'negative_stock_count' => (int) ($alertCounts->negative_stock ?? 0),
             ],
         ]);
     }
@@ -95,7 +97,8 @@ class InventoryController extends Controller
                 });
             })
             ->when($type, fn ($q) => $q->where('type', $type))
-            ->when($stock === 'out', fn ($q) => $q->where('type', '!=', 'service')->where('stock_quantity', '<=', 0))
+            ->when($stock === 'out', fn ($q) => $q->where('type', '!=', 'service')->where('stock_quantity', '=', 0))
+            ->when($stock === 'negative', fn ($q) => $q->where('type', '!=', 'service')->where('stock_quantity', '<', 0))
             ->when($stock === 'low', fn ($q) => $q->where('type', '!=', 'service')->where('min_stock_threshold', '>', 0)->whereColumn('stock_quantity', '<=', 'min_stock_threshold'))
             ->when($sort === 'stock_asc',  fn ($q) => $q->orderBy('stock_quantity'))
             ->when($sort === 'stock_desc', fn ($q) => $q->orderByDesc('stock_quantity'))
@@ -126,7 +129,7 @@ class InventoryController extends Controller
             $layerStockValue = round((float) ($layer?->stock_value ?? 0), 2);
             // Fall back to purchase_price × stock_quantity for items whose layers
             // pre-date the unit_cost tracking (layers have unit_cost = 0).
-            $stockValue = $layerStockValue ?: round((float) $item->purchase_price * (float) $item->stock_quantity, 2);
+            $stockValue = $layerStockValue ?: round((float) $item->purchase_price * max(0.0, (float) $item->stock_quantity), 2);
             return [
                 'id'                  => $item->id,
                 'type'                => $item->type,

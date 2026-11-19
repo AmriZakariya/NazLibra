@@ -791,4 +791,140 @@ class ServiceConsumptionTest extends TestCase
         $this->assertStringContainsString('0,96', $page);
         $this->assertStringNotContainsString('-0,96', $page, 'an empty shelf is worth 0, never less');
     }
+
+    // ── Negative stock: the shelf shows its real value ──────────────────────
+
+    private function receive(Item $item, float $quantity, float $unitCost, string $key): array
+    {
+        return app(InventoryLedgerService::class)->createIncomingMovement([
+            'tenantId' => $this->tenant->id, 'itemId' => $item->id, 'variantId' => null,
+            'locationId' => $this->location->id, 'type' => InventoryMovementType::PURCHASE,
+            'quantity' => $quantity, 'unitCost' => $unitCost, 'occurredAt' => now()->addMinute(),
+            'syncedAt' => null, 'userId' => null, 'idempotencyKey' => $key,
+            'referenceType' => null, 'referenceId' => null, 'referenceNumber' => null, 'reason' => null,
+            'note' => null, 'virtualDeviceId' => null, 'actorNameSnapshot' => null, 'terminalNameSnapshot' => null,
+        ]);
+    }
+
+    public function test_consuming_from_an_empty_shelf_shows_the_real_negative_stock_everywhere(): void
+    {
+        $cire = $this->product('Cire chaude', 500, 'g', 60, 0);
+        $this->recipe([['component_item_id' => $cire->id, 'quantity' => 8]]); // 0.016 pot
+        $this->sell()->assertCreated();
+
+        $movement = InventoryMovement::where('item_id', $cire->id)->where('type', 'service_consumption')->sole();
+        $this->assertEqualsWithDelta(-0.016, (float) $movement->quantity_after, 0.00001);
+        $this->assertEqualsWithDelta(-0.016, $this->onHand($cire), 0.00001);
+        $this->assertEqualsWithDelta(-0.016, (float) $cire->fresh()->stock_quantity, 0.00001);
+        $this->assertEqualsWithDelta(0.016, (float) ItemLocationStock::where('item_id', $cire->id)->value('deficit_quantity'), 0.00001);
+        $ledger = app(InventoryLedgerService::class);
+        $this->assertSame(0.0, $ledger->availableQuantity($this->tenant->id, $cire->id, null, $this->location->id), 'selling availability clamps at 0');
+        $this->assertSame(0.0, $ledger->inventoryValue($this->tenant->id, $cire->id, $this->location->id), 'a deficit is never a negative value');
+
+        // The feeds carry the negative figure, availability stays at 0.
+        $headers = ['X-Tenant-Slug' => $this->tenant->slug, 'X-Location-Id' => (string) $this->location->id];
+        $this->travel(3)->seconds();
+        $this->app['auth']->forgetGuards();
+        $stock = $this->withToken($this->token())->withHeaders($headers)->getJson('/api/v1/sync/stock')->assertOk();
+        $row = collect($stock->json('stock'))->firstWhere('item_id', $cire->id);
+        $this->assertEqualsWithDelta(-0.016, $row['qty'], 0.00001);
+        $this->assertEquals(0, $row['available']);
+        $this->app['auth']->forgetGuards();
+        $items = $this->withToken($this->token())->withHeaders($headers)->getJson('/api/v1/sync/items')->assertOk();
+        $this->assertEqualsWithDelta(-0.016, (float) collect($items->json('items'))->firstWhere('id', $cire->id)['stock_quantity'], 0.00001);
+
+        // The back-office list: « Stock négatif », distinct from « Rupture ».
+        $negative = $this->actingAs($this->owner)->get(route('stock', ['panel' => 'stock-adjustments', 'stock_inventory_state' => 'negative']))->assertOk()->getContent();
+        $this->assertStringContainsString('Cire chaude', $negative);
+        $this->assertStringContainsString('-0,016', $negative);
+        $this->assertStringContainsString('Stock négatif</span>', $negative);
+        $out = $this->actingAs($this->owner)->get(route('stock', ['panel' => 'stock-adjustments', 'stock_inventory_state' => 'out']))->assertOk()->getContent();
+        $this->assertStringNotContainsString('Stock négatif</span>', $out, 'a negative stock is not a plain « Rupture »');
+    }
+
+    public function test_incoming_stock_pays_the_deficit_first_and_trues_up_the_cost(): void
+    {
+        $cire = $this->product('Cire chaude', 500, 'g', 60, 0);
+        $this->recipe([['component_item_id' => $cire->id, 'quantity' => 8]]);
+        $this->sell()->assertCreated();
+
+        $consumed = SaleItemConsumption::where('component_item_id', $cire->id)->sole();
+        $line = SaleItem::findOrFail($consumed->sale_item_id);
+        $sale = Sale::findOrFail($consumed->sale_id);
+        $before = (float) $sale->cogs;
+        $this->assertEqualsWithDelta(0.96, (float) SaleItemConsumption::where('component_item_id', $cire->id)->sole()->total_cost, 0.0001, 'booked at the purchase price');
+
+        // One box arrives, bought at 80 (not 60).
+        $result = $this->receive($cire, 1, 80, 'box-1');
+
+        $this->assertEqualsWithDelta(0.984, $this->onHand($cire), 0.00001, '-0.016 then +1');
+        $this->assertEqualsWithDelta(0.984, (float) $result['layer']->remaining_quantity, 0.00001);
+        $this->assertEqualsWithDelta(0.984, (float) $result['layer']->original_quantity, 0.00001);
+        $this->assertEqualsWithDelta(0.0, (float) ItemLocationStock::where('item_id', $cire->id)->value('deficit_quantity'), 0.00001);
+        $this->assertEqualsWithDelta(0.984, (float) $cire->fresh()->stock_quantity, 0.00001);
+        $ledger = app(InventoryLedgerService::class);
+        $this->assertEqualsWithDelta(0.984 * 80, $ledger->inventoryValue($this->tenant->id, $cire->id, $this->location->id), 0.001, 'the settled part is not shelf value');
+
+        // COGS trued up with the real cost: 0.016 x (80 - 60) = 0.32 more.
+        $consumption = SaleItemConsumption::where('component_item_id', $cire->id)->sole();
+        $this->assertEqualsWithDelta(1.28, (float) $consumption->total_cost, 0.0001);
+        $this->assertEqualsWithDelta(1.28, (float) InventoryMovement::where('type', 'service_consumption')->where('item_id', $cire->id)->value('total_cost'), 0.0001);
+        $this->assertEqualsWithDelta($before + 0.32, (float) $sale->fresh()->cogs, 0.0001);
+        $this->assertEqualsWithDelta((float) $line->total_cost + 0.32, (float) $line->fresh()->total_cost, 0.0001);
+        $this->assertEqualsWithDelta((float) $sale->fresh()->cogs, (float) SaleItem::where('sale_id', $sale->id)->sum('total_cost'), 0.0001, 'sale and lines stay coherent');
+
+        // A second box never settles twice.
+        $this->receive($cire, 1, 80, 'box-2');
+        $this->assertEqualsWithDelta(1.984, $this->onHand($cire), 0.00001);
+        $this->assertEqualsWithDelta(1.28, (float) SaleItemConsumption::where('component_item_id', $cire->id)->sole()->total_cost, 0.0001);
+    }
+
+    public function test_an_oversold_product_goes_negative_only_when_the_shop_allows_it(): void
+    {
+        $mug = $this->product('Mug', null, null, 5, 0);
+        $this->service->update(['type' => 'supply', 'sale_price' => 20]);
+        $this->recipe([], $this->service);
+        ItemComponent::where('item_id', $this->service->id)->delete();
+
+        // Overselling off: still refused, the stock untouched.
+        $refused = $this->sell(['item_id' => $mug->id, 'quantity' => 2]);
+        $this->assertFalse($refused->isSuccessful());
+        $this->assertEquals(0, $this->onHand($mug));
+
+        $settings = $this->tenant->settings;
+        data_set($settings, 'pos.allow_oversell', true);
+        $this->tenant->update(['settings' => $settings]);
+
+        $this->sell(['item_id' => $mug->id, 'quantity' => 2])->assertCreated();
+        $this->assertEquals(-2, $this->onHand($mug));
+        $this->assertEquals(-2, (float) $mug->fresh()->stock_quantity);
+        $this->assertEquals(-2, (float) InventoryMovement::where('item_id', $mug->id)->where('type', 'sale')->value('quantity_after'));
+
+        // Stock in: -2 then +5 = 3, the layer holds 3, the sale is trued up at the real cost.
+        $line = SaleItem::where('item_id', $mug->id)->sole();
+        $this->receive($mug, 5, 7, 'mugs');
+        $this->assertEquals(3, $this->onHand($mug));
+        $this->assertEquals(3, (float) \App\Models\InventoryLayer::where('item_id', $mug->id)->sum('remaining_quantity'));
+        $this->assertEqualsWithDelta(14.0, (float) $line->fresh()->total_cost, 0.0001, '2 x 7 booked on the sale line');
+    }
+
+    public function test_the_backfill_corrects_empty_shelves_with_a_recorded_shortfall_once(): void
+    {
+        $cire = $this->product('Cire chaude', 500, 'g', 60, 0);
+        $this->recipe([['component_item_id' => $cire->id, 'quantity' => 8]]);
+        $this->sell()->assertCreated();
+
+        // Put the data back as the old code left it: shelf at 0, nothing tracked.
+        ItemLocationStock::where('item_id', $cire->id)->update(['quantity' => 0, 'deficit_quantity' => 0]);
+        $cire->update(['stock_quantity' => 0]);
+        InventoryMovement::where('item_id', $cire->id)->update(['deficit_quantity' => 0]);
+
+        $migration = require database_path('migrations/2026_11_24_000002_backfill_negative_stock_from_shortfalls.php');
+        $migration->up();
+        $migration->up();
+
+        $this->assertEqualsWithDelta(-0.016, $this->onHand($cire), 0.00001, 'corrected once, not twice');
+        $this->assertEqualsWithDelta(0.016, (float) ItemLocationStock::where('item_id', $cire->id)->value('deficit_quantity'), 0.00001);
+        $this->assertEqualsWithDelta(-0.016, (float) $cire->fresh()->stock_quantity, 0.00001);
+    }
 }

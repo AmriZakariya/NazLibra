@@ -179,7 +179,7 @@
                         <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-white/10">
                             <div class="h-full rounded-full bg-brand" style="width: {{ $stockSummary['health'] }}%"></div>
                         </div>
-                        <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">{{ $stockSummary['low'] }} {{ $tr('alerte(s)') }}, {{ $stockSummary['out'] }} {{ $tr('rupture(s)') }}</p>
+                        <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">{{ $stockSummary['low'] }} {{ $tr('alerte(s)') }}, {{ $stockSummary['out'] }} {{ $tr('rupture(s)') }}@if (! empty($stockSummary['negative'])), {{ $stockSummary['negative'] }} {{ $tr('stock(s) négatif(s)') }}@endif</p>
                     </div>
 
                     <div class="rounded-xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">

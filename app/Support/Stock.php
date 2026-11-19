@@ -16,7 +16,9 @@ final class Stock
     /** « 2,95 » / « 3 »: at most four decimals, no trailing zeros, the shop's separator. */
     public static function plain(mixed $value, string $decimal = ','): string
     {
-        $text = rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.');
+        $n = round((float) $value, 4);
+        // « -0 » is not a stock: a rounding crumb reads as zero.
+        $text = rtrim(rtrim(number_format(abs($n) < 0.00005 ? 0.0 : $n, 4, '.', ''), '0'), '.');
 
         return $decimal === '.' ? $text : str_replace('.', $decimal, $text);
     }

@@ -19,6 +19,7 @@ class ItemLocationStock extends Model
         'variant_id',
         'location_id',
         'quantity',
+        'deficit_quantity',
         'reserved_quantity',
         'incoming_quantity',
         'damaged_quantity',
@@ -37,6 +38,7 @@ class ItemLocationStock extends Model
     {
         return [
             'quantity' => \App\Casts\Quantity::class,
+            'deficit_quantity' => 'decimal:4',
             'reserved_quantity' => 'integer',
             'incoming_quantity' => 'integer',
             'damaged_quantity' => 'integer',
