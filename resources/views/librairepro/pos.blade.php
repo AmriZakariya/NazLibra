@@ -485,7 +485,7 @@
         </div>
 
         <aside class="pos-checkout-shell xl:sticky xl:top-20 xl:h-[calc(100vh-6rem)]">
-            <form id="pos-checkout-form" action="{{ route('pos.store') }}" method="POST" class="grid h-full min-h-0 gap-3 xl:grid-rows-[minmax(320px,1fr)_auto]" data-pos-checkout>
+            <form id="pos-checkout-form" action="{{ route('pos.store') }}" method="POST" class="grid h-full min-h-0 gap-3 xl:grid-rows-[minmax(180px,1fr)_auto]" data-pos-checkout>
                 @csrf
                 <input type="hidden" name="_idempotency_key" value="{{ old('_idempotency_key', (string) \Illuminate\Support\Str::uuid()) }}">
                 <input class="pos-cart-json" name="cart" type="hidden" value="[]">
@@ -667,6 +667,12 @@
                         <label class="pos-money-field block rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10"><span class="text-[11px] font-bold uppercase text-slate-500">{{ $tr('Avance') }}</span><input name="advance_amount" min="0" step="0.01" type="number" class="pos-payment h-8 w-full border-0 px-0 text-base font-bold" placeholder="0"></label>
                     </div>
 
+                    @if ($giftCardsOn || $packagesOn)
+                    {{-- Folded by default: the payment block must fit the till's column,
+                         and « Ajouter un paiement » must stay on screen. --}}
+                    <details class="pos-extras mt-1.5 rounded-xl border border-slate-200 px-3 py-1.5 dark:border-white/10" data-pos-extras>
+                        <summary class="cursor-pointer list-none text-xs font-bold uppercase text-slate-500">{{ $tr('Carte cadeau & forfaits') }}</summary>
+                    @endif
                     @if ($giftCardsOn)
                         {{-- A card's balance lives on the server: look the code up, then apply up to what is due. --}}
                         <div class="mt-1.5 grid grid-cols-[1.4fr_1fr_auto] items-end gap-1.5 rounded-xl border border-slate-200 px-3 py-2 dark:border-white/10" data-pos-gift-card>
@@ -682,6 +688,9 @@
                             @if ($giftCardsOn)<button type="button" class="pos-sell-gift-card rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold dark:border-white/10">{{ $tr('Vendre une carte cadeau') }}</button>@endif
                             @if ($packagesOn)<button type="button" class="pos-sell-package rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold dark:border-white/10">{{ $tr('Vendre un forfait') }}</button>@endif
                         </div>
+                    @endif
+                    @if ($giftCardsOn || $packagesOn)
+                    </details>
                     @endif
 
                     @if ($posTips)
@@ -710,7 +719,7 @@
                         <span class="sr-only">{{ $tr('Nom du ticket') }}</span>
                         <input name="ticket_name" value="{{ $resumeTicketName }}" maxlength="80" autocomplete="off" data-ticket-name class="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20 dark:border-white/10 dark:bg-slate-950" placeholder="{{ $tr('Nom du ticket (facultatif) — ex : Table 4') }}">
                     </label>
-                    <div class="mt-2 grid grid-cols-[1fr_1.5fr] gap-2">
+                    <div class="pos-submit-row mt-2 grid grid-cols-[1fr_1.5fr] gap-2">
                         <button class="pos-hold-submit rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50" type="submit" formaction="{{ route('pos.tickets.store') }}" @disabled($sourceInvoice || $sourceOnlineOrder)>
                             {{ $tr('Mettre en attente') }}
                         </button>

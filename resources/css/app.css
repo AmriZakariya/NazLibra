@@ -4717,6 +4717,29 @@
         z-index: 5;
     }
 
+    /* The till column is sticky and as tall as the screen: a payment block
+       taller than what is left (gift card, packages, tips) pushed
+       « Ajouter un paiement » out of reach. It scrolls inside, the actions
+       stay pinned at its bottom. */
+    @media (min-width: 1280px) {
+        .pos-payment-footer {
+            max-height: calc(100vh - 6rem - 200px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+
+        .pos-payment-footer .pos-submit-row {
+            position: sticky;
+            bottom: -0.625rem;
+            margin-bottom: -0.625rem;
+            padding: 0.5rem 0 0.625rem;
+            background: var(--surface);
+            z-index: 2;
+        }
+    }
+
+    .pos-extras[open] > summary { margin-bottom: 0.375rem; }
+
     .pos-payment-footer label.rounded-lg {
         background: color-mix(in srgb, var(--surface-muted) 35%, var(--surface));
         transition: border-color 160ms ease, background-color 160ms ease;
