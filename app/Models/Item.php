@@ -53,6 +53,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'purchase_price',
     'sale_price',
     'duration_minutes',
+    'content_quantity',
+    'content_unit',
     'price_is_from',
     'reseller_sale_price',
     'mrp',
@@ -87,6 +89,8 @@ class Item extends Model
             'purchase_price' => 'decimal:2',
             'sale_price' => 'decimal:2',
             'duration_minutes' => 'integer',
+            'content_quantity' => 'decimal:3',
+            'stock_quantity' => \App\Casts\Quantity::class,
             'price_is_from' => 'boolean',
             'reseller_sale_price' => 'decimal:2',
             'mrp' => 'decimal:2',
@@ -138,6 +142,18 @@ class Item extends Model
         return (int) $this->variant_count > 0;
     }
 
+    /** The recipe: the products this service consumes (base + variant rows). */
+    public function components(): HasMany
+    {
+        return $this->hasMany(ItemComponent::class, 'item_id')->orderBy('sort_order')->orderBy('id');
+    }
+
+    /** True when one stocked unit has a known capacity (a 200 ml bottle). */
+    public function hasCapacity(): bool
+    {
+        return (float) $this->content_quantity > 0 && ! empty($this->content_unit);
+    }
+
     public function variants(): HasMany
     {
         return $this->hasMany(ItemVariant::class);
@@ -158,15 +174,15 @@ class Item extends Model
         return $this->stock_quantity <= $this->min_stock_threshold;
     }
 
-    public function totalStockQuantity(): int
+    public function totalStockQuantity(): int|float
     {
-        return (int) $this->itemLocationStocks()->sum('quantity');
+        return \App\Support\Stock::number($this->itemLocationStocks()->sum('quantity'));
     }
 
-    public function totalAvailableQuantity(): int
+    public function totalAvailableQuantity(): int|float
     {
-        return (int) $this->itemLocationStocks()
+        return \App\Support\Stock::number($this->itemLocationStocks()
             ->selectRaw('SUM(quantity - reserved_quantity) as available')
-            ->value('available') ?? 0;
+            ->value('available') ?? 0);
     }
 }

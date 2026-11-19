@@ -2195,7 +2195,7 @@ class LibraireProController extends Controller
 
         $item = Item::create($data);
 
-        if ($item->type !== 'service' && $item->track_inventory && (int) $item->stock_quantity > 0) {
+        if ($item->type !== 'service' && $item->track_inventory && (float) $item->stock_quantity > 0) {
             $inventoryService = app(\App\Services\Inventory\InventoryService::class);
             $locationId = $inventoryService->locationIdFromName($tenant->id, null);
             $ledger = app(\App\Services\Inventory\InventoryLedgerService::class);
@@ -2205,7 +2205,7 @@ class LibraireProController extends Controller
                 'variantId'     => null,
                 'locationId'    => $locationId,
                 'type'          => \App\Services\Inventory\InventoryMovementType::OPENING_STOCK,
-                'quantity'      => (int) $item->stock_quantity,
+                'quantity'      => round((float) $item->stock_quantity, 4),
                 'unitCost'      => (float) $item->purchase_price,
                 'occurredAt'    => now(),
                 'referenceType' => Item::class,
@@ -2222,7 +2222,7 @@ class LibraireProController extends Controller
     {
         $this->authorizeTenantItem($item);
         $tenant = $this->tenant();
-        $beforeStock = (int) $item->stock_quantity;
+        $beforeStock = round((float) $item->stock_quantity, 4);
         $beforeType = $item->type;
         $data = $this->validatedItem($request, $item);
         $data['status'] = ($data['status'] ?? $item->status) !== 'archived' && $data['stock_quantity'] <= 0 && ($data['type'] ?? $item->type) !== 'service' ? 'out_of_stock' : ($data['status'] ?? $item->status);
@@ -2230,11 +2230,21 @@ class LibraireProController extends Controller
         $item->update($data);
         $item->refresh();
 
-        if ($beforeType !== 'service' && $item->type !== 'service' && $item->track_inventory && $beforeStock !== (int) $item->stock_quantity) {
+        if ($beforeType !== 'service' && $item->type !== 'service' && $item->track_inventory && abs($beforeStock - round((float) $item->stock_quantity, 4)) > 0.00005) {
             $inventoryService = app(\App\Services\Inventory\InventoryService::class);
             $locationId = $inventoryService->locationIdFromName($tenant->id, null);
-            $delta = (int) $item->stock_quantity - $beforeStock;
-            if ($delta > 0) {
+            $delta = round((float) $item->stock_quantity - $beforeStock, 4);
+            if ($delta < 0 && abs($delta - round($delta)) > 0.00005) {
+                // A fraction of a unit out (a bottle by the ml): the ledger
+                // keeps four decimals, the legacy move is whole units.
+                app(\App\Services\Inventory\InventoryLedgerService::class)->createOutgoingMovement([
+                    'tenantId' => $tenant->id, 'itemId' => $item->id, 'variantId' => null, 'locationId' => $locationId,
+                    'type' => \App\Services\Inventory\InventoryMovementType::MANUAL_DEDUCT,
+                    'quantity' => abs($delta), 'occurredAt' => now()->utc(), 'allowNegative' => true,
+                    'referenceType' => Item::class, 'referenceId' => $item->id, 'referenceNumber' => $item->item_code,
+                    'note' => 'Modification fiche article '.$item->item_code,
+                ]);
+            } elseif ($delta > 0) {
                 $ledger = app(\App\Services\Inventory\InventoryLedgerService::class);
                 $ledger->createIncomingMovement([
                     'tenantId'      => $tenant->id,
@@ -2268,6 +2278,25 @@ class LibraireProController extends Controller
         }
 
         return back()->with('status', 'Article mis à jour.');
+    }
+
+    /** « Produits utilisés »: replaces a service's recipe with the form's rows. */
+    public function syncItemComponents(Request $request, Item $item, \App\Services\Catalogue\ItemComponentService $components): RedirectResponse
+    {
+        $this->authorizeTenantItem($item);
+
+        $data = $request->validate([
+            'components' => ['nullable', 'array', 'max:'.\App\Services\Catalogue\ItemComponentService::MAX_ROWS],
+            'components.*.component_item_id' => ['required', 'integer'],
+            'components.*.quantity' => ['required', 'numeric', 'min:0', 'max:999999'],
+            'components.*.variant_id' => ['nullable', 'integer'],
+            'components.*.choice_group' => ['nullable', 'string', 'max:80'],
+            'components.*.is_default' => ['nullable', 'boolean'],
+        ]);
+
+        $components->sync($item, array_values($data['components'] ?? []));
+
+        return back()->with('status', 'Produits utilisés enregistrés.');
     }
 
     public function destroyItem(Item $item): RedirectResponse
@@ -2602,6 +2631,8 @@ class LibraireProController extends Controller
             \App\Services\Catalogue\StarterCatalogue::cleanup($upload);
         }
         $starter->describeCategories($tenant);
+        // The care products the services use, and their starting recipes.
+        $supplies = $starter->applySupplies($tenant);
 
         $after = $starter->existingTitles($tenant);
         $created = $titles->filter(fn (string $t) => ! array_key_exists(mb_strtolower($t), $before))->count();
@@ -2612,7 +2643,10 @@ class LibraireProController extends Controller
         $plural = fn (int $n, string $one, string $many): string => $n.' '.($n > 1 ? $many : $one);
         $message = $plural($created, 'prestation créée', 'prestations créées')
             .($updated > 0 ? ', '.$plural($updated, 'mise à jour', 'mises à jour') : '')
-            .', '.$plural($categories, 'catégorie', 'catégories').', '.$plural($photos, 'photo', 'photos').'.';
+            .', '.$plural($categories, 'catégorie', 'catégories').', '.$plural($photos, 'photo', 'photos')
+            .($supplies['products'] > 0 ? ', '.$plural($supplies['products'], 'produit de soin', 'produits de soin') : '')
+            .($supplies['recipes'] > 0 ? ', '.$plural($supplies['recipes'], 'recette de produits utilisés', 'recettes de produits utilisés') : '')
+            .'.';
 
         return $import->with('status', $message);
     }
@@ -4997,6 +5031,10 @@ class LibraireProController extends Controller
                 // pile is deducted — only the price, the ticket, and any
                 // article a modifier eats into.
                 'modifier_ids' => array_map('intval', (array) ($line['modifier_ids'] ?? [])),
+                // « Produits utilisés »: which alternative of a choice group,
+                // and any adjusted quantity (see Services\Catalogue\ServiceConsumption).
+                'component_choices' => is_array($line['component_choices'] ?? null) ? $line['component_choices'] : [],
+                'component_overrides' => is_array($line['component_overrides'] ?? null) ? $line['component_overrides'] : [],
                 'quantity' => max(1, (int) ($line['quantity'] ?? 1)),
                 'unit_price' => $price,
                 'note' => mb_substr(trim((string) ($line['note'] ?? '')), 0, 160),
@@ -5174,8 +5212,12 @@ class LibraireProController extends Controller
                     }
                     $lineTotal = round($unitPrice * $line['quantity'], 2);
                     $averageCost = $item->type !== 'service' ? $this->locationAverageCost($tenant->id, $item->id, $variant?->id, $saleLocationId) : 0.0;
+                    // The products a service will use, checked before anything is written.
+                    $consumptionPlan = app(\App\Services\Catalogue\ServiceConsumption::class)
+                        ->plan($item, $variant, (int) $line['quantity'], $line['component_choices'] ?? [], $line['component_overrides'] ?? []);
                     $subtotal += $lineTotal;
                     $saleLines[] = [
+                        'consumption_plan' => $consumptionPlan,
                         'kind' => $line['kind'] === 'package_use' ? 'package_use' : null,
                         'customer_package_id' => $line['kind'] === 'package_use' ? $line['customer_package_id'] : null,
                         'item' => $item,
@@ -5376,6 +5418,13 @@ class LibraireProController extends Controller
                         $saleLocationId,
                     );
 
+                    if (! empty($line['consumption_plan'])) {
+                        app(\App\Services\Catalogue\ServiceConsumption::class)->record($sale, $saleLine, $line['consumption_plan'], $saleLocationId, [
+                            'userId' => auth()->id(),
+                            'actorName' => auth()->user()?->name,
+                        ]);
+                    }
+
                     if ($line['item']->type !== 'service') {
                         $inventoryService->move(new \App\Services\Inventory\MovementDTO(
                             tenantId: $tenant->id,
@@ -5398,6 +5447,15 @@ class LibraireProController extends Controller
                             $line['item']->update(['status' => 'out_of_stock']);
                         }
                     }
+                }
+
+                // Products a service used are a cost of the sale: the margins
+                // read sale_items.total_cost, and the sale carries the total.
+                if (collect($saleLines)->contains(fn ($l) => ! empty($l['consumption_plan']))) {
+                    $consumedCogs = (float) $sale->items()->sum('total_cost');
+                    $meta = $sale->metadata ?? [];
+                    $meta['cogs']['total'] = round($consumedCogs, 4);
+                    $sale->forceFill(['cogs' => $consumedCogs, 'metadata' => $meta])->save();
                 }
 
                 if (! empty($data['appointment_id'])) {
@@ -5884,7 +5942,7 @@ class LibraireProController extends Controller
                         );
                     }
 
-                    $sale->items()->create([
+                    $manualLine = $sale->items()->create([
                         'item_id'    => $line['item']->id,
                         'name'       => $line['item']->title,
                         'quantity'   => $line['quantity'],
@@ -5893,6 +5951,16 @@ class LibraireProController extends Controller
                         'unit_cost'  => $line['average_cost'],
                         'total_cost' => $line['cogs'],
                     ]);
+
+                    // A service's recipe, at its defaults (this form has no choices).
+                    $consumptionService = app(\App\Services\Catalogue\ServiceConsumption::class);
+                    if ($consumptionPlan = $consumptionService->plan($line['item'], null, (int) $line['quantity'])) {
+                        $consumptionService->record($sale, $manualLine, $consumptionPlan, $saleLocationId, [
+                            'userId' => auth()->id(),
+                            'actorName' => auth()->user()?->name,
+                        ]);
+                        $sale->forceFill(['cogs' => (float) $sale->items()->sum('total_cost')])->save();
+                    }
 
                     if ($line['item']->type !== 'service') {
                         $reserveStock = in_array($status, ['unpaid', 'partial'], true)
@@ -6476,6 +6544,16 @@ class LibraireProController extends Controller
             foreach ($lines as $returnLine) {
                 if (! $returnLine['item_id']) {
                     continue;
+                }
+
+                // A refunded service gives back, proportionally, the products
+                // it used (only when the line is put back in stock).
+                if ($returnLine['stock_action'] === 'restock') {
+                    app(\App\Services\Catalogue\ServiceConsumption::class)->reverse(
+                        $tenant->id, (int) $returnLine['sale_item_id'], (int) $returnLine['quantity'],
+                        (int) ($returnLine['max_quantity'] ?? $returnLine['quantity']), $saleReturn, (int) $returnLocationId,
+                        ['userId' => auth()->id(), 'actorName' => auth()->user()?->name],
+                    );
                 }
 
                 $item = Item::whereKey($returnLine['item_id'])->lockForUpdate()->first();
@@ -8534,7 +8612,12 @@ class LibraireProController extends Controller
                 'name' => $first->name,
                 'quantity' => (int) $lines->sum('quantity'),
                 'revenue' => (float) $lines->sum('total_price'),
-                'cost' => (float) $lines->sum(fn ($line) => (float) ($line->item?->purchase_price ?? 0) * (int) $line->quantity),
+                // The cost snapshotted on the line (it carries the products a
+                // service used); the article's purchase price for a line that
+                // has none.
+                'cost' => (float) $lines->sum(fn ($line) => (float) $line->total_cost > 0
+                    ? (float) $line->total_cost
+                    : (float) ($line->item?->purchase_price ?? 0) * (int) $line->quantity),
             ];
         })->sortByDesc('revenue')->values();
 
@@ -8557,6 +8640,14 @@ class LibraireProController extends Controller
             'topItems' => $topItems,
             'categorySales' => $categorySales,
             'team' => \App\Support\StaffReport::rows($sales, \App\Support\StaffReport::tipsOwed($tenant->id)),
+            // « Produits utilisés »: what the services consumed in the period.
+            'consumption' => $request->query('section') === 'consumption'
+                ? \App\Support\ConsumptionReport::compute(
+                    $tenant->id,
+                    \Illuminate\Support\Carbon::parse($from)->startOfDay()->toDateTimeString(),
+                    \Illuminate\Support\Carbon::parse($to)->endOfDay()->toDateTimeString(),
+                )
+                : null,
             // The kitchen's preparation times, for a shop with a kitchen screen.
             'kitchen' => AppModules::enabled($tenant, 'kds')
                 ? \App\Support\KitchenReport::compute($tenant->id, \Illuminate\Support\Carbon::parse($from)->startOfDay(), \Illuminate\Support\Carbon::parse($to)->endOfDay())
@@ -11141,9 +11232,13 @@ class LibraireProController extends Controller
             'reseller_sale_price' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
             'duration_minutes' => ['nullable', 'integer', 'min:5', 'max:600'],
             'price_is_from' => ['nullable', 'boolean'],
+            // What one stocked unit contains (a 200 ml bottle): both or neither.
+            'content_quantity' => ['nullable', 'numeric', 'min:0.001', 'max:999999', 'required_with:content_unit'],
+            'content_unit' => ['nullable', 'string', Rule::in(\App\Support\ContentUnits::keys()), 'required_with:content_quantity'],
             'warehouse' => ['nullable', 'string', 'max:255'],
             'opening_stock' => ['nullable', 'integer', 'min:0'],
-            'stock_quantity' => ['required', 'integer', 'min:0'],
+            // Decimal: a product used by the ml is stocked as 2.95 bottles.
+            'stock_quantity' => ['required', 'numeric', 'decimal:0,4', 'min:0', 'max:99999999'],
             'min_stock_threshold' => ['required', 'integer', 'min:0'],
             'location' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'in:active,archived,out_of_stock'],
@@ -11195,6 +11290,14 @@ class LibraireProController extends Controller
         $data['item_group'] = $data['item_group'] ?? 'Single';
         // Only a service is timed; goods carry no duration.
         $data['duration_minutes'] = ($data['type'] ?? $item?->type) === 'service' ? ($data['duration_minutes'] ?? null) : null;
+        // Only a physical product has a capacity; a service is not stocked.
+        if (($data['type'] ?? $item?->type) === 'service') {
+            $data['content_quantity'] = null;
+            $data['content_unit'] = null;
+        } else {
+            $data['content_quantity'] = $data['content_quantity'] ?? null;
+            $data['content_unit'] = $data['content_unit'] ?? null;
+        }
         // « À partir de »: the sale price is a floor, not a fixed price.
         $data['price_is_from'] = $request->boolean('price_is_from');
         $data['seller_points'] = $data['seller_points'] ?? 0;

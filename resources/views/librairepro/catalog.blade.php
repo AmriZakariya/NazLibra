@@ -1516,6 +1516,10 @@
                             </div>
                         </div>
                     @endif
+
+                    @if ($editItem->type === 'service')
+                        @include('librairepro.partials.service-components', ['item' => $editItem, 'money' => $money, 'tr' => $tr])
+                    @endif
                 </article>
             @endif
         </section>

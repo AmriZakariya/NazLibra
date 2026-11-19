@@ -313,6 +313,7 @@ Route::delete('/catalogue/unites/{unit}', [LibraireProController::class, 'destro
 Route::post('/catalogue/taxes', [LibraireProController::class, 'storeTax'])->name('catalog.taxes.store');
 Route::put('/catalogue/taxes/{tax}', [LibraireProController::class, 'updateTax'])->name('catalog.taxes.update');
 Route::delete('/catalogue/taxes/{tax}', [LibraireProController::class, 'destroyTax'])->name('catalog.taxes.destroy');
+Route::put('/catalogue/articles/{item}/produits-utilises', [LibraireProController::class, 'syncItemComponents'])->name('catalog.components.sync');
 Route::post('/catalogue/variantes', [LibraireProController::class, 'storeVariant'])->name('catalog.variants.store');
 Route::put('/catalogue/variantes/{variant}', [LibraireProController::class, 'updateVariant'])->name('catalog.variants.update');
 

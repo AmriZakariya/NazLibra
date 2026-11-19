@@ -316,9 +316,12 @@
         @if ($item) Stock actuel @else Stock initial @endif
         {!! $required !!}
     </span>
-    <input name="stock_quantity" required type="number" min="0"
+    <input name="stock_quantity" required type="number" min="0" step="0.0001"
            value="{{ old('stock_quantity', $item?->stock_quantity ?? 0) }}"
            class="{{ $input }}" placeholder="0">
+    @if ($item && $item->hasCapacity())
+        <span class="mt-1 block text-xs font-semibold text-slate-500">{{ \App\Support\ContentUnits::describeStock($item, (float) $item->stock_quantity) }}</span>
+    @endif
     @if ($item)
         <span class="mt-1 block text-xs text-slate-400">Pour ajuster le stock, utilisez les <a href="{{ route('stock', ['panel' => 'stock-adjustment-add']) }}" class="font-semibold text-brand hover:underline">ajustements</a>.</span>
     @endif
@@ -330,6 +333,23 @@
            value="{{ old('min_stock_threshold', $item?->min_stock_threshold ?? data_get($tenant->settings, 'pos.default_min_stock_threshold', 3)) }}"
            class="{{ $input }}" placeholder="3">
 </label>
+
+{{-- What one unit contains: the base of « Produits utilisés » (a service uses 10 ml of a 200 ml bottle). --}}
+<div class="block">
+    <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Contenu d’une unité') }}</span>
+    <div class="mt-1 grid grid-cols-[1fr_7rem] gap-2">
+        <input name="content_quantity" type="number" min="0.001" step="any" inputmode="decimal"
+               value="{{ old('content_quantity', $item?->content_quantity !== null ? \App\Support\Stock::plain($item->content_quantity, '.') : '') }}"
+               class="{{ $input }} !mt-0" placeholder="200">
+        <select name="content_unit" class="{{ $select }} !mt-0">
+            <option value="">{{ $tr('Aucun') }}</option>
+            @foreach (\App\Support\ContentUnits::options() as $unitKey => $unitLabel)
+                <option value="{{ $unitKey }}" @selected(old('content_unit', $item?->content_unit) === $unitKey)>{{ $unitLabel }}</option>
+            @endforeach
+        </select>
+    </div>
+    <span class="mt-1 block text-xs text-slate-400">{{ $tr('Ex. : 200 ml pour un flacon. Les services qui l’utilisent en retirent des fractions du stock.') }}</span>
+</div>
 
 <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
     <input type="hidden" name="track_inventory" value="0">

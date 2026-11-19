@@ -52,9 +52,10 @@ class StarterCatalogueTest extends TestCase
 
     public function test_applying_creates_the_services_categories_variants_options_and_photos(): void
     {
-        $this->apply()->assertRedirect()->assertSessionHas('status', '45 prestations créées, 8 catégories, 45 photos.');
+        $this->apply()->assertRedirect()->assertSessionHas('status', '45 prestations créées, 8 catégories, 45 photos, 30 produits de soin, 15 recettes de produits utilisés.');
 
-        $services = Item::where('tenant_id', $this->tenant->id)->get();
+        // The care products the services use come with them, but are not services.
+        $services = Item::where('tenant_id', $this->tenant->id)->where('type', 'service')->get();
         $this->assertCount(45, $services);
         $this->assertSame(['service'], $services->pluck('type')->unique()->all());
         $this->assertSame(8, $services->pluck('category_id')->unique()->count());
@@ -93,12 +94,51 @@ class StarterCatalogueTest extends TestCase
 
         $this->apply()->assertSessionHas('status', '0 prestation créée, 45 mises à jour, 8 catégories, 0 photo.');
 
-        $this->assertSame(45, Item::where('tenant_id', $this->tenant->id)->count());
-        $this->assertSame(8, \App\Models\Category::where('tenant_id', $this->tenant->id)->whereHas('items')->count());
+        $this->assertSame(45, Item::where('tenant_id', $this->tenant->id)->where('type', 'service')->count());
+        $this->assertSame(30, Item::where('tenant_id', $this->tenant->id)->where('type', 'supply')->count());
+        $this->assertSame(9, \App\Models\Category::where('tenant_id', $this->tenant->id)->whereHas('items')->count());
         $this->assertSame(3, $this->item('Shampoing')->variants()->count());
         $this->assertSame([$photo], $this->item('Shampoing')->images, 'a photo already there is kept');
         $this->assertEquals(40.0, (float) $this->item('Brushing')->sale_price, 'a re-apply restores the starter price');
         $this->assertCount(1, $this->item('Pédicure')->modifierGroups()->get());
+    }
+
+    public function test_applying_creates_the_care_products_and_the_recipes_once(): void
+    {
+        $this->apply();
+
+        $products = Item::where('tenant_id', $this->tenant->id)->where('type', 'supply')->get();
+        $this->assertCount(30, $products);
+        $gel = $this->item('Gel nettoyant visage');
+        $this->assertEquals(200, (float) $gel->content_quantity);
+        $this->assertSame('ml', $gel->content_unit);
+        $this->assertEquals(0, (float) $gel->stock_quantity);
+        $this->assertSame(0.0, (float) $gel->sale_price, 'not sold retail');
+        $this->assertGreaterThan(0, (float) $this->item('Crème solaire SPF 50')->sale_price, 'sold retail too');
+        // Equipment is never consumed, so it is not a product at all.
+        $this->assertSame(0, Item::where('tenant_id', $this->tenant->id)->where('title', 'like', '%Chauffe-cire%')->count());
+
+        // A facial: a Masque choice group with a default, gloves in pieces.
+        $facial = $this->item('Soin visage normal');
+        $rows = \App\Models\ItemComponent::where('item_id', $facial->id)->get();
+        $mask = $rows->where('choice_group', 'Masque');
+        $this->assertCount(2, $mask);
+        $this->assertSame(['Masque hydratant'], $mask->where('is_default', true)->map(fn ($r) => Item::find($r->component_item_id)->title)->values()->all());
+        $this->assertEquals(2, (float) $rows->firstWhere('component_item_id', $this->item('Gants jetables')->id)->quantity);
+
+        // Waxing scales with the zone: armpits take less wax than legs.
+        $wax = fn (string $zone) => (float) \App\Models\ItemComponent::where('item_id', $this->item($zone)->id)
+            ->where('component_item_id', $this->item('Cire chaude (pelable)')->id)->value('quantity');
+        $this->assertGreaterThan(0, $wax('Aisselles'));
+        $this->assertLessThan($wax('Jambes'), $wax('Aisselles'));
+
+        // Again: nothing is duplicated, and a recipe the shop edited stays as it made it.
+        $before = \App\Models\ItemComponent::count();
+        \App\Models\ItemComponent::where('item_id', $facial->id)->where('component_item_id', $gel->id)->update(['quantity' => 9]);
+        $this->apply();
+        $this->assertSame(30, Item::where('tenant_id', $this->tenant->id)->where('type', 'supply')->count());
+        $this->assertSame($before, \App\Models\ItemComponent::count());
+        $this->assertEquals(9, (float) \App\Models\ItemComponent::where('item_id', $facial->id)->where('component_item_id', $gel->id)->value('quantity'));
     }
 
     public function test_it_is_offered_in_the_empty_catalogue_and_the_import_panel_of_a_beauty_shop(): void

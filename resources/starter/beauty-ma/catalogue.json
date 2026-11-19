@@ -575,5 +575,1215 @@
    "variants": "",
    "options": ""
   }
- ]
+ ],
+ "supplies": [
+  {
+   "title": "Gel nettoyant visage",
+   "content_quantity": 200,
+   "content_unit": "ml",
+   "purchase_price": 45,
+   "sale_price": 0
+  },
+  {
+   "title": "Lait démaquillant",
+   "content_quantity": 200,
+   "content_unit": "ml",
+   "purchase_price": 40,
+   "sale_price": 0
+  },
+  {
+   "title": "Eau micellaire",
+   "content_quantity": 400,
+   "content_unit": "ml",
+   "purchase_price": 55,
+   "sale_price": 0
+  },
+  {
+   "title": "Lotion tonique",
+   "content_quantity": 200,
+   "content_unit": "ml",
+   "purchase_price": 40,
+   "sale_price": 0
+  },
+  {
+   "title": "Gommage visage",
+   "content_quantity": 150,
+   "content_unit": "ml",
+   "purchase_price": 60,
+   "sale_price": 0
+  },
+  {
+   "title": "Exfoliant enzymatique",
+   "content_quantity": 75,
+   "content_unit": "g",
+   "purchase_price": 90,
+   "sale_price": 0
+  },
+  {
+   "title": "Masque hydratant",
+   "content_quantity": 250,
+   "content_unit": "g",
+   "purchase_price": 120,
+   "sale_price": 0
+  },
+  {
+   "title": "Masque purifiant (argile)",
+   "content_quantity": 250,
+   "content_unit": "g",
+   "purchase_price": 85,
+   "sale_price": 0
+  },
+  {
+   "title": "Sérum hydratant",
+   "content_quantity": 30,
+   "content_unit": "ml",
+   "purchase_price": 130,
+   "sale_price": 0
+  },
+  {
+   "title": "Sérum vitamine C",
+   "content_quantity": 30,
+   "content_unit": "ml",
+   "purchase_price": 160,
+   "sale_price": 280
+  },
+  {
+   "title": "Crème hydratante",
+   "content_quantity": 50,
+   "content_unit": "ml",
+   "purchase_price": 80,
+   "sale_price": 150
+  },
+  {
+   "title": "Crème nourrissante",
+   "content_quantity": 50,
+   "content_unit": "ml",
+   "purchase_price": 85,
+   "sale_price": 0
+  },
+  {
+   "title": "Crème contour des yeux",
+   "content_quantity": 15,
+   "content_unit": "ml",
+   "purchase_price": 70,
+   "sale_price": 0
+  },
+  {
+   "title": "Crème solaire SPF 50",
+   "content_quantity": 50,
+   "content_unit": "ml",
+   "purchase_price": 70,
+   "sale_price": 130
+  },
+  {
+   "title": "Huile de massage visage",
+   "content_quantity": 100,
+   "content_unit": "ml",
+   "purchase_price": 75,
+   "sale_price": 140
+  },
+  {
+   "title": "Eau thermale",
+   "content_quantity": 150,
+   "content_unit": "ml",
+   "purchase_price": 40,
+   "sale_price": 70
+  },
+  {
+   "title": "Cire chaude (pelable)",
+   "content_quantity": 800,
+   "content_unit": "g",
+   "purchase_price": 120,
+   "sale_price": 0
+  },
+  {
+   "title": "Cire tiède",
+   "content_quantity": 800,
+   "content_unit": "g",
+   "purchase_price": 90,
+   "sale_price": 0
+  },
+  {
+   "title": "Cire froide (bandes)",
+   "content_quantity": 20,
+   "content_unit": "piece",
+   "purchase_price": 30,
+   "sale_price": 0
+  },
+  {
+   "title": "Bandes d'épilation",
+   "content_quantity": 100,
+   "content_unit": "piece",
+   "purchase_price": 25,
+   "sale_price": 0
+  },
+  {
+   "title": "Spatules en bois",
+   "content_quantity": 100,
+   "content_unit": "piece",
+   "purchase_price": 20,
+   "sale_price": 0
+  },
+  {
+   "title": "Huile pré-épilation",
+   "content_quantity": 100,
+   "content_unit": "ml",
+   "purchase_price": 30,
+   "sale_price": 0
+  },
+  {
+   "title": "Lotion pré-épilation",
+   "content_quantity": 250,
+   "content_unit": "ml",
+   "purchase_price": 40,
+   "sale_price": 0
+  },
+  {
+   "title": "Talc",
+   "content_quantity": 100,
+   "content_unit": "g",
+   "purchase_price": 20,
+   "sale_price": 0
+  },
+  {
+   "title": "Huile post-épilation",
+   "content_quantity": 100,
+   "content_unit": "ml",
+   "purchase_price": 45,
+   "sale_price": 0
+  },
+  {
+   "title": "Lait apaisant après épilation",
+   "content_quantity": 250,
+   "content_unit": "ml",
+   "purchase_price": 45,
+   "sale_price": 80
+  },
+  {
+   "title": "Gel d'aloe vera",
+   "content_quantity": 250,
+   "content_unit": "ml",
+   "purchase_price": 40,
+   "sale_price": 70
+  },
+  {
+   "title": "Désinfectant pour la peau",
+   "content_quantity": 500,
+   "content_unit": "ml",
+   "purchase_price": 35,
+   "sale_price": 0
+  },
+  {
+   "title": "Gants jetables",
+   "content_quantity": 100,
+   "content_unit": "piece",
+   "purchase_price": 40,
+   "sale_price": 0
+  },
+  {
+   "title": "Papier d'examen / draps jetables",
+   "content_quantity": 50,
+   "content_unit": "piece",
+   "purchase_price": 60,
+   "sale_price": 0
+  }
+ ],
+ "recipes": {
+  "Soin visage normal": [
+   {
+    "product": "Lait démaquillant",
+    "quantity": 3,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gel nettoyant visage",
+    "quantity": 5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion tonique",
+    "quantity": 5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gommage visage",
+    "quantity": 5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Masque hydratant",
+    "quantity": 10,
+    "group": "Masque",
+    "default": true
+   },
+   {
+    "product": "Masque purifiant (argile)",
+    "quantity": 10,
+    "group": "Masque",
+    "default": false
+   },
+   {
+    "product": "Sérum hydratant",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Crème hydratante",
+    "quantity": 3,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile de massage visage",
+    "quantity": 3,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Papier d'examen / draps jetables",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Soin visage hydrafacial": [
+   {
+    "product": "Gel nettoyant visage",
+    "quantity": 5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Exfoliant enzymatique",
+    "quantity": 3,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Sérum vitamine C",
+    "quantity": 3,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Sérum hydratant",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Masque hydratant",
+    "quantity": 10,
+    "group": "Masque",
+    "default": true
+   },
+   {
+    "product": "Masque purifiant (argile)",
+    "quantity": 10,
+    "group": "Masque",
+    "default": false
+   },
+   {
+    "product": "Crème contour des yeux",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Crème hydratante",
+    "quantity": 3,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Crème solaire SPF 50",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Eau thermale",
+    "quantity": 3,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Papier d'examen / draps jetables",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Duvet": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 5,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 5,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 1,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 0.5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Sourcils": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 3,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 3,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 1,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 0.5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Duvet & sourcils": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 8,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 8,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 2,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 1.6,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 1.2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 1.2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 0.6,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Menton": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 3,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 3,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 1,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 0.5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Visage complet": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 12,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 12,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 3,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 2.4,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 1.4,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 1.8,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 1.8,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Aisselles": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 8,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 8,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 2,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 1.6,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 1.2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 1.2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 0.6,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Papier d'examen / draps jetables",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Demi-bras": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 15,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 15,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 3,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 3,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 1.8,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 2.2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 2.2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 1.2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Papier d'examen / draps jetables",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Bras": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 25,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 25,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 5,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 3,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 3.8,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 3.8,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Papier d'examen / draps jetables",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Demi-jambes": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 30,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 30,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 4,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 6,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 3.6,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 4.5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 4.5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 2.4,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Papier d'examen / draps jetables",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Jambes": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 55,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 55,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 8,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 3,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 11,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 6.6,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 8.2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 8.2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 4.4,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Papier d'examen / draps jetables",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Bord maillot": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 12,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 12,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 2,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 2.4,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 1.4,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 1.8,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 1.8,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Papier d'examen / draps jetables",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Maillot": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 25,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 25,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 4,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 3,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 3.8,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 3.8,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Papier d'examen / draps jetables",
+    "quantity": 1,
+    "group": null,
+    "default": false
+   }
+  ],
+  "Épilation totale": [
+   {
+    "product": "Cire chaude (pelable)",
+    "quantity": 150,
+    "group": "Cire",
+    "default": true
+   },
+   {
+    "product": "Cire tiède",
+    "quantity": 150,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Cire froide (bandes)",
+    "quantity": 20,
+    "group": "Cire",
+    "default": false
+   },
+   {
+    "product": "Spatules en bois",
+    "quantity": 8,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lotion pré-épilation",
+    "quantity": 30,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Huile post-épilation",
+    "quantity": 18,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Lait apaisant après épilation",
+    "quantity": 22.5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Désinfectant pour la peau",
+    "quantity": 22.5,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Talc",
+    "quantity": 12,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Gants jetables",
+    "quantity": 4,
+    "group": null,
+    "default": false
+   },
+   {
+    "product": "Papier d'examen / draps jetables",
+    "quantity": 2,
+    "group": null,
+    "default": false
+   }
+  ]
+ }
 }

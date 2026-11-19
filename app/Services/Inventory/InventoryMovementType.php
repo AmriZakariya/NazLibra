@@ -25,6 +25,9 @@ final class InventoryMovementType
     public const LOSS = 'loss';
     public const EXPIRATION = 'expiration';
     public const INTERNAL_USE = 'internal_use';
+    /** A service used products (« Consommation interne »), and its refund giving them back. */
+    public const SERVICE_CONSUMPTION = 'service_consumption';
+    public const SERVICE_CONSUMPTION_RETURN = 'service_consumption_return';
     public const TRANSFER_OUT = 'transfer_out';
     public const TRANSFER_IN = 'transfer_in';
     public const RESERVATION = 'reservation';
@@ -40,6 +43,7 @@ final class InventoryMovementType
             self::OPENING_STOCK,
             self::ADJUSTMENT,
             self::SALE_CANCEL,
+            self::SERVICE_CONSUMPTION_RETURN,
             self::CUSTOMER_RETURN,
             self::REFUND_WITH_RETURN,
             self::RETURN,
@@ -67,6 +71,7 @@ final class InventoryMovementType
             self::LOSS,
             self::EXPIRATION,
             self::INTERNAL_USE,
+            self::SERVICE_CONSUMPTION,
             self::TRANSFER_OUT,
             self::RESERVATION,
         ], true);
@@ -83,6 +88,7 @@ final class InventoryMovementType
             self::OPENING_STOCK,
             self::ADJUSTMENT,
             self::SALE_CANCEL,
+            self::SERVICE_CONSUMPTION_RETURN,
             self::CUSTOMER_RETURN,
             self::REFUND_WITH_RETURN,
             self::RETURN,
@@ -114,6 +120,7 @@ final class InventoryMovementType
             self::LOSS,
             self::EXPIRATION,
             self::INTERNAL_USE,
+            self::SERVICE_CONSUMPTION,
             self::TRANSFER_OUT,
         ];
     }

@@ -38,6 +38,7 @@ class ReturnController extends Controller
         private readonly DocumentNumberGenerator $numbers,
         private readonly CashRegisterService $cashRegister,
         private readonly \App\Services\LiabilityReturns $liabilities,
+        private readonly \App\Services\Catalogue\ServiceConsumption $consumption,
     ) {}
 
     /**
@@ -304,6 +305,21 @@ class ReturnController extends Controller
                 foreach ($lines as $returnLine) {
                     if (! $returnLine['item_id']) {
                         continue;
+                    }
+
+                    // A refunded service gives back, proportionally, the products
+                    // it used (only when the line is put back in stock).
+                    if ($returnLine['stock_action'] === 'restock') {
+                        $this->consumption->reverse(
+                            $tenant->id, (int) $returnLine['sale_item_id'], (int) $returnLine['quantity'],
+                            (int) $returnLine['max_quantity'], $saleReturn, $locationId,
+                            [
+                                'userId' => $action->actor->id,
+                                'virtualDeviceId' => $action->virtualDevice?->id,
+                                'actorName' => $action->actor->name,
+                                'terminalName' => $action->virtualDevice?->name,
+                            ],
+                        );
                     }
 
                     $item = Item::whereKey($returnLine['item_id'])->lockForUpdate()->first();

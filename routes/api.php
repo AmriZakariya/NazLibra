@@ -116,6 +116,7 @@ Route::prefix('v1')->group(function (): void {
             Route::get('by-operator', [StatisticsController::class, 'byOperator']);
             Route::get('by-category', [StatisticsController::class, 'byCategory']);
             Route::get('by-hour',     [StatisticsController::class, 'byHour']);
+            Route::get('consumption', [StatisticsController::class, 'consumption']);
         });
 
         // ── Delta sync ────────────────────────────────────────────────────────
@@ -221,6 +222,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('items/{item}/images', [ItemController::class, 'uploadImage']);
         // Déclinaisons: edit/add (items.edit) and remove (items.delete, checked inside).
         Route::put('items/{item}/variants', [ItemController::class, 'syncVariants'])->middleware('api.action:items.edit');
+        // « Produits utilisés »: the recipe of a service (replaces the stored one).
+        Route::put('items/{item}/components', [ItemController::class, 'syncComponents'])->middleware('api.action:items.edit');
 
         // ── Inventory adjustments ─────────────────────────────────────────────
         Route::post('inventory/adjustments', [AdjustmentController::class, 'store'])->middleware('api.action:stock.adjust');

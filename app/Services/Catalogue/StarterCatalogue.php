@@ -2,8 +2,12 @@
 
 namespace App\Services\Catalogue;
 
+use App\Models\Category;
 use App\Models\Item;
+use App\Models\ItemComponent;
+use App\Models\Tax;
 use App\Models\Tenant;
+use App\Models\Unit;
 use App\Support\BusinessMode;
 use App\Support\Money;
 use Illuminate\Http\UploadedFile;
@@ -111,6 +115,114 @@ class StarterCatalogue
         $zip->close();
 
         return new UploadedFile($path, 'catalogue-type-salon.zip', 'application/zip', null, true);
+    }
+
+    /**
+     * The care products the salon's services use (« Produits utilisés »), and
+     * the recipes of the services that exist: starting estimates the shop
+     * adjusts, never a promise about its real practice.
+     *
+     * Idempotent: a product that exists (by title, deleted ones included) is
+     * left as the shop made it, and a service that already has a recipe keeps
+     * it. Products start with no stock; those that are not sold retail stay
+     * off the till.
+     *
+     * @return array{products: int, recipes: int}
+     */
+    public function applySupplies(Tenant $tenant, string $key = self::SALON_MA): array
+    {
+        $data = $this->data($key);
+        $supplies = $data['supplies'] ?? [];
+        if ($supplies === []) {
+            return ['products' => 0, 'recipes' => 0];
+        }
+
+        $category = Category::firstOrCreate(
+            ['tenant_id' => $tenant->id, 'slug' => Str::slug('PRODUITS DE SOIN')],
+            ['name' => 'PRODUITS DE SOIN', 'icon' => 'archive', 'color' => '#4F46E5', 'loan_duration_days' => 14, 'daily_fine_amount' => 2,
+                'description' => 'Produits de soin et consommables utilisés par les services'],
+        );
+        $unit = Unit::firstOrCreate(['tenant_id' => $tenant->id, 'name' => 'Pièce']);
+        $tax = Tax::firstOrCreate(['tenant_id' => $tenant->id, 'name' => 'Sans TVA'], ['rate' => 0]);
+
+        $existing = Item::withTrashed()->where('tenant_id', $tenant->id)->get(['id', 'tenant_id', 'title', 'item_code', 'type'])
+            ->keyBy(fn (Item $i) => mb_strtolower(trim($i->title)));
+        $codes = Item::withTrashed()->where('tenant_id', $tenant->id)->pluck('item_code')->flip();
+
+        $created = 0;
+        foreach ($supplies as $i => $supply) {
+            $title = $supply['title'];
+            if ($existing->has(mb_strtolower($title))) {
+                continue;
+            }
+            $n = $i + 1;
+            do {
+                $code = 'SOIN-'.str_pad((string) $n++, 3, '0', STR_PAD_LEFT);
+            } while ($codes->has($code));
+            $codes->put($code, true);
+
+            $retail = (float) ($supply['sale_price'] ?? 0) > 0;
+            $item = Item::create([
+                'tenant_id' => $tenant->id,
+                'category_id' => $category->id,
+                'unit_id' => $unit->id,
+                'tax_id' => $tax->id,
+                'type' => 'supply',
+                'status' => 'out_of_stock',
+                'is_enabled' => true,
+                // Off the till unless the shop sells it over the counter.
+                'checkout_visible' => $retail,
+                'online_store_visible' => false,
+                'item_code' => $code,
+                'title' => $title,
+                'price' => $supply['purchase_price'],
+                'purchase_price' => $supply['purchase_price'],
+                'sale_price' => $supply['sale_price'] ?? 0,
+                'tax_type' => 'Exclusive',
+                'discount_type' => 'Percentage',
+                'discount' => 0,
+                'opening_stock' => 0,
+                'stock_quantity' => 0,
+                'min_stock_threshold' => 1,
+                'track_inventory' => true,
+                'content_quantity' => $supply['content_quantity'],
+                'content_unit' => $supply['content_unit'],
+            ]);
+            $existing->put(mb_strtolower($title), $item);
+            $created++;
+        }
+
+        $recipes = 0;
+        $components = app(ItemComponentService::class);
+        foreach ($data['recipes'] ?? [] as $serviceTitle => $rows) {
+            $service = $existing->get(mb_strtolower($serviceTitle));
+            if (! $service || $service->type !== 'service') {
+                continue;
+            }
+            if (ItemComponent::where('tenant_id', $tenant->id)->where('item_id', $service->id)->exists()) {
+                continue;
+            }
+            $payload = [];
+            foreach ($rows as $order => $row) {
+                $product = $existing->get(mb_strtolower($row['product']));
+                if (! $product) {
+                    continue;
+                }
+                $payload[] = [
+                    'component_item_id' => $product->id,
+                    'quantity' => $row['quantity'],
+                    'choice_group' => $row['group'] ?? null,
+                    'is_default' => (bool) ($row['default'] ?? false),
+                    'sort_order' => $order,
+                ];
+            }
+            if ($payload !== []) {
+                $components->sync($service, $payload);
+                $recipes++;
+            }
+        }
+
+        return ['products' => $created, 'recipes' => $recipes];
     }
 
     /** Give the categories their description, unless the shop wrote its own. */

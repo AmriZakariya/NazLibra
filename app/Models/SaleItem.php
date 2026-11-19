@@ -38,6 +38,12 @@ class SaleItem extends Model
         return $this->belongsTo(Item::class);
     }
 
+    /** The products a service line consumed. */
+    public function consumptions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(SaleItemConsumption::class);
+    }
+
     /** Who did it: the barber on a haircut, the seller on a product. */
     public function staff(): BelongsTo
     {

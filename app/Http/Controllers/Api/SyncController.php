@@ -114,6 +114,7 @@ class SyncController extends Controller
             'item_code', 'item_group', 'nb_item', 'title', 'isbn', 'barcode', 'sku', 'custom_barcode1', 'author',
             'sale_price', 'purchase_price', 'min_stock_threshold', 'track_inventory',
             'stock_quantity', 'images', 'extra_fields', 'description', 'tags', 'duration_minutes', 'price_is_from',
+            'content_quantity', 'content_unit',
             'updated_at', 'created_at', 'deleted_at',
         ]);
 
@@ -251,12 +252,33 @@ class SyncController extends Controller
             ->values()
             ->all();
 
+        // « Produits utilisés »: always the WHOLE set, whatever `since` says —
+        // a recipe edit deletes rows, and a deleted row leaves nothing for a
+        // delta to carry. A few hundred small rows at most: the till replaces
+        // its local table with this list.
+        $itemComponents = \App\Models\ItemComponent::where('tenant_id', $tenant->id)
+            ->orderBy('item_id')->orderBy('variant_id')->orderBy('sort_order')->orderBy('id')
+            ->get()
+            ->map(fn (\App\Models\ItemComponent $row): array => \App\Services\Catalogue\ItemComponentService::payload($row))
+            ->all();
+
+        $locale = \App\Support\Locale::shop($tenant);
+        $contentUnits = collect(\App\Support\ContentUnits::keys())
+            ->map(fn (string $key): array => [
+                'key' => $key,
+                'label' => \App\Support\ContentUnits::label($key, 1, $locale),
+                'label_plural' => \App\Support\ContentUnits::label($key, 2, $locale),
+            ])->all();
+
         return response()->json([
             'ok'               => true,
             'sync_at'          => $this->formatCursorTime($syncAt),
             'is_full_snapshot' => $since === null,
             'has_more'         => false,
             'next_cursor'      => null,
+            'item_components'  => $itemComponents,
+            'item_components_is_full' => true,
+            'content_units'    => $contentUnits,
             'categories'       => $categories,
             'brands'           => $brands,
             'units'            => $units,
@@ -341,9 +363,9 @@ class SyncController extends Controller
             ->map(fn ($s) => [
                 'item_id'    => $s->item_id,
                 'variant_id' => $s->variant_id,
-                'qty'        => (int) $s->quantity,
+                'qty'        => \App\Support\Stock::number($s->quantity),
                 'reserved'   => (int) $s->reserved_quantity,
-                'available'  => max(0, (int) $s->quantity - (int) $s->reserved_quantity),
+                'available'  => \App\Support\Stock::number(max(0, (float) $s->quantity - (float) $s->reserved_quantity)),
                 'avg_cost'   => (float) $s->average_cost,
                 'updated_at' => $s->updated_at?->toISOString(),
                 'deleted_at' => $s->deleted_at?->toISOString(),
@@ -472,6 +494,8 @@ class SyncController extends Controller
                 // explicit, so a sale pulled back to a till would otherwise
                 // arrive attributable to the article and not to the size.
                 'items:id,sale_id,item_id,variant_id,name,quantity,unit_price,total_price,unit_cost,total_cost,kind,customer_package_id',
+                // What a service line consumed (« Produits utilisés »).
+                'items.consumptions:id,sale_item_id,service_item_id,component_item_id,choice_group,content_unit,quantity_content,quantity_stock,total_cost,shortfall_stock,returned_stock',
                 'contact:id,name,phone',
                 'user:id,name',
                 'virtualDevice:id,name',

@@ -56,6 +56,7 @@ class SaleController extends Controller
         private readonly \App\Services\Catalogue\ModifierService $modifiers,
         private readonly GiftCardService $giftCards,
         private readonly PackageService $packages,
+        private readonly \App\Services\Catalogue\ServiceConsumption $consumption,
     ) {}
 
     /**
@@ -171,6 +172,17 @@ class SaleController extends Controller
             // itself sells a supplement nobody is charged for or counts.
             'items.*.modifier_ids'     => ['nullable', 'array'],
             'items.*.modifier_ids.*'   => ['integer'],
+            // « Produits utilisés » of a service line. The server decides what
+            // is consumed; the till may say WHICH alternative of a choice group
+            // (a list of {group, component_item_id}) and adjust a quantity
+            // (per unit of service, in the product's content unit). Both are
+            // optional: an app that sends neither gets the recipe's defaults.
+            'items.*.component_choices'                      => ['nullable', 'array', 'max:30'],
+            'items.*.component_choices.*.group'              => ['nullable', 'string', 'max:80'],
+            'items.*.component_choices.*.component_item_id'  => ['nullable', 'integer'],
+            'items.*.component_overrides'                    => ['nullable', 'array', 'max:60'],
+            'items.*.component_overrides.*.component_item_id' => ['required_with:items.*.component_overrides', 'integer'],
+            'items.*.component_overrides.*.quantity'         => ['required_with:items.*.component_overrides', 'numeric', 'min:0', 'max:99999'],
             'items.*.custom_name'      => ['nullable', 'string', 'max:255'],
             'items.*.quantity'         => ['required', 'integer', 'min:1'],
             'items.*.unit_price'       => ['nullable', 'numeric', 'min:0'],
@@ -468,6 +480,18 @@ class SaleController extends Controller
             }
             $lineTotal  = round($unitPrice * (int) $line['quantity'], 2);
 
+            // What the service will consume, checked here so a till that sent
+            // a choice or an adjustment outside the recipe is told, not
+            // quietly given another one.
+            try {
+                $consumptionPlan = $this->consumption->plan(
+                    $item, $variant, (int) $line['quantity'],
+                    $line['component_choices'] ?? [], $line['component_overrides'] ?? [],
+                );
+            } catch (\App\Services\Catalogue\ConsumptionException $e) {
+                throw ValidationException::withMessages(['items' => $e->getMessage()]);
+            }
+
             // Snapshot the weighted-average cost at this location right now.
             $avgCost = $item->type !== ItemType::Service->value
                 ? (float) (ItemLocationStock::where('tenant_id', $tenant->id)
@@ -494,6 +518,7 @@ class SaleController extends Controller
                 'staff_user_id' => $staffOf($line['staff_user_id'] ?? null),
                 'avg_cost'    => $avgCost,
                 'line_cogs'   => $lineCogs,
+                'consumption_plan' => $consumptionPlan,
                 'tax_rate'    => max(0.0, min(100.0, (float) ($item->tax?->rate ?? 0))),
             ];
         }
@@ -840,6 +865,18 @@ class SaleController extends Controller
                     $locationId,
                 );
 
+                // The products a service used: stock out in fractions of the
+                // stocked unit, the cost added to the line. Same transaction
+                // as the sale, so a replay never deducts twice.
+                if (! empty($line['consumption_plan'])) {
+                    $this->consumption->record($sale, $saleItem, $line['consumption_plan'], $locationId, [
+                        'userId' => $action->actor->id,
+                        'virtualDeviceId' => $action->virtualDevice?->id,
+                        'actorName' => $action->actor->name,
+                        'terminalName' => $action->virtualDevice?->name,
+                    ]);
+                }
+
                 if ($line['item'] && $line['item']->type !== ItemType::Service->value) {
                     // InventoryLedgerService::createOutgoingMovement() handles LIFO
                     // layer consumption, COGS computation, and stock cache sync.
@@ -912,6 +949,11 @@ class SaleController extends Controller
             // Update sale.cogs with actual LIFO-computed total (from all sale items' total_cost).
             $actualSaleCogs = $sale->items()->sum('total_cost');
             $sale->update(['cogs' => $actualSaleCogs]);
+            if (collect($saleLines)->contains(fn ($l) => ! empty($l['consumption_plan']))) {
+                $meta = $sale->metadata ?? [];
+                $meta['cogs']['total'] = round((float) $actualSaleCogs, 4);
+                $sale->forceFill(['metadata' => $meta])->save();
+            }
 
             // Record individual payment lines.
             $remaining = $total;
@@ -1325,14 +1367,18 @@ class SaleController extends Controller
         $sale->load(['items:id,sale_id,item_id,name,quantity,unit_price,total_price,unit_cost,total_cost,staff_user_id,kind,customer_package_id', 'contact:id,name,phone', 'user:id,name', 'virtualDevice:id,name', 'location:id,name']);
 
         // Post-sale stock snapshot so the client updates local stock immediately.
-        $itemIds    = collect($requestedLines)->pluck('item_id')->filter()->unique()->all();
+        // The products a service consumed are part of the snapshot too (stock
+        // in stocked units, fractional: 2.95 bottles).
+        $consumed = \App\Models\SaleItemConsumption::where('sale_id', $sale->id)->orderBy('id')->get();
+        $itemIds    = collect($requestedLines)->pluck('item_id')->filter()
+            ->merge($consumed->pluck('component_item_id'))->unique()->all();
         $stockAfter = ItemLocationStock::query()
             ->where('tenant_id', $tenantId)
             ->where('location_id', $locationId)
             ->whereIn('item_id', $itemIds)
             ->get(['item_id', 'quantity', 'reserved_quantity'])
             ->mapWithKeys(fn ($s) => [
-                (string) $s->item_id => max(0, (int) $s->quantity - (int) $s->reserved_quantity),
+                (string) $s->item_id => \App\Support\Stock::number(max(0, (float) $s->quantity - (float) $s->reserved_quantity)),
             ]);
 
         return response()->json([
@@ -1359,6 +1405,19 @@ class SaleController extends Controller
             // moves no stock, and an empty collection encodes as [] — which
             // the till could not read, so it re-sent the sale forever.
             'stock_after'     => $stockAfter->isEmpty() ? new \stdClass : $stockAfter,
+            // « Produits utilisés »: what each service line consumed, as
+            // snapshotted at the sale (empty when no service used a product).
+            'consumption'     => $consumed->map(fn ($c) => [
+                'sale_item_id' => (int) $c->sale_item_id,
+                'service_item_id' => $c->service_item_id !== null ? (int) $c->service_item_id : null,
+                'component_item_id' => (int) $c->component_item_id,
+                'choice_group' => $c->choice_group,
+                'content_unit' => $c->content_unit,
+                'quantity_content' => (float) $c->quantity_content,
+                'quantity_stock' => (float) $c->quantity_stock,
+                'total_cost' => (float) $c->total_cost,
+                'shortfall_stock' => (float) $c->shortfall_stock,
+            ])->values(),
         ], $alreadyExisted ? 200 : 201);
     }
 }

@@ -218,6 +218,22 @@ class StatisticsController extends Controller
         ]);
     }
 
+    // ── Consumption (« Produits utilisés ») ───────────────────────────────────
+
+    /**
+     * GET /api/v1/statistics/consumption?from=&to=
+     *
+     * The products services used, by product and by service, in the product's
+     * content unit and in stocked units, with their cost (net of refunds).
+     */
+    public function consumption(Request $request)
+    {
+        $tenant          = $this->tenant($request);
+        [$fromDt, $toDt] = $this->dateRange($request);
+
+        return response()->json(['ok' => true] + \App\Support\ConsumptionReport::compute((int) $tenant->id, $fromDt, $toDt));
+    }
+
     // ── By operator ───────────────────────────────────────────────────────────
 
     public function byOperator(Request $request)

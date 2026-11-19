@@ -156,6 +156,9 @@ class ItemController extends Controller
             'purchase_price'      => ['nullable', 'numeric', 'min:0'],
             'duration_minutes'    => ['nullable', 'integer', 'min:5', 'max:600'],
             'price_is_from'       => ['nullable', 'boolean'],
+            // What one stocked unit contains (200 + ml): both or neither.
+            'content_quantity'    => ['nullable', 'numeric', 'min:0.001', 'max:999999', 'required_with:content_unit'],
+            'content_unit'        => ['nullable', 'string', Rule::in(\App\Support\ContentUnits::keys()), 'required_with:content_quantity'],
             'stock_quantity'      => ['nullable', 'integer', 'min:0'],
             'min_stock_threshold' => ['nullable', 'integer', 'min:0'],
             'isbn'                => ['nullable', 'string', 'max:30'],
@@ -194,6 +197,8 @@ class ItemController extends Controller
                     'purchase_price'      => $data['purchase_price'] ?? 0,
                     'duration_minutes'    => $data['type'] === ItemType::Service->value ? ($data['duration_minutes'] ?? null) : null,
                     'price_is_from'       => (bool) ($data['price_is_from'] ?? false),
+                    'content_quantity'    => $data['type'] === ItemType::Service->value ? null : ($data['content_quantity'] ?? null),
+                    'content_unit'        => $data['type'] === ItemType::Service->value ? null : ($data['content_unit'] ?? null),
                     'stock_quantity'      => $initialStock,
                     'min_stock_threshold' => $data['min_stock_threshold'] ?? 3,
                     'isbn'                => $data['isbn'] ?? null,
@@ -278,6 +283,8 @@ class ItemController extends Controller
             'purchase_price'      => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'duration_minutes'    => ['sometimes', 'nullable', 'integer', 'min:5', 'max:600'],
             'price_is_from'       => ['sometimes', 'boolean'],
+            'content_quantity'    => ['sometimes', 'nullable', 'numeric', 'min:0.001', 'max:999999', 'required_with:content_unit'],
+            'content_unit'        => ['sometimes', 'nullable', 'string', Rule::in(\App\Support\ContentUnits::keys()), 'required_with:content_quantity'],
             'stock_quantity'      => ['prohibited'],
             'min_stock_threshold' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'isbn'                => ['sometimes', 'nullable', 'string', 'max:30'],
@@ -305,6 +312,8 @@ class ItemController extends Controller
             $data['status'] = ItemStatus::fromTypeAndStock($nextType, (int) $item->stock_quantity)->value;
             if ($nextType === ItemType::Service->value) {
                 $data['stock_quantity'] = 0;
+                $data['content_quantity'] = null;
+                $data['content_unit'] = null;
             }
         }
 
@@ -364,6 +373,47 @@ class ItemController extends Controller
             ])->values(),
             'removed' => $result['removed'],
             'ids' => (object) $result['map'],
+        ]);
+    }
+
+    /**
+     * PUT /api/v1/items/{item}/components — the till's edit of a service's
+     * recipe (« Produits utilisés »).
+     *
+     * `components` is the WHOLE recipe and replaces the stored one (a row left
+     * out is removed; `[]` empties it). Quantities are in the product's content
+     * unit; a variant row (`variant_id`) overrides the service's row for the
+     * same product, and quantity 0 on it means « not used for that variant ».
+     * Rows sharing a `choice_group` are alternatives, one per sale line.
+     */
+    public function syncComponents(Request $request, Item $item, \App\Services\Catalogue\ItemComponentService $components): JsonResponse
+    {
+        /** @var Tenant $tenant */
+        $tenant = $request->attributes->get('api_tenant');
+
+        if ($item->tenant_id !== $tenant->id) {
+            return response()->json(['ok' => false, 'message' => 'Article introuvable.'], 404);
+        }
+
+        $data = $request->validate([
+            'components'                     => ['present', 'array', 'max:'.\App\Services\Catalogue\ItemComponentService::MAX_ROWS],
+            'components.*.component_item_id' => ['required', 'integer'],
+            'components.*.quantity'          => ['required', 'numeric', 'min:0', 'max:999999'],
+            'components.*.variant_id'        => ['nullable', 'integer'],
+            'components.*.choice_group'      => ['nullable', 'string', 'max:80'],
+            'components.*.is_default'        => ['nullable', 'boolean'],
+            'components.*.sort_order'        => ['nullable', 'integer', 'min:0', 'max:100000'],
+        ]);
+
+        $rows = $components->sync($item, $data['components']);
+        $estimate = app(\App\Services\Catalogue\ServiceConsumption::class)->estimate($item);
+
+        return response()->json([
+            'ok' => true,
+            'item_id' => $item->id,
+            'components' => $rows->map(fn ($row) => \App\Services\Catalogue\ItemComponentService::payload($row))->values(),
+            // Per unit of service, at today's cost: what the margin is read against.
+            'estimated_cost' => $estimate['cost'],
         ]);
     }
 

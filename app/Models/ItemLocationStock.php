@@ -36,7 +36,7 @@ class ItemLocationStock extends Model
     protected function casts(): array
     {
         return [
-            'quantity' => 'integer',
+            'quantity' => \App\Casts\Quantity::class,
             'reserved_quantity' => 'integer',
             'incoming_quantity' => 'integer',
             'damaged_quantity' => 'integer',
@@ -67,7 +67,7 @@ class ItemLocationStock extends Model
         return $this->belongsTo(Location::class);
     }
 
-    public function availableQuantity(): int
+    public function availableQuantity(): int|float
     {
         return max(0, $this->quantity - $this->reserved_quantity);
     }
