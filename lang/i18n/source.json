@@ -3757,6 +3757,7 @@
     "Une caisse ne peut provenir que d’un seul document source.",
     "Une carte annulée ne peut plus être ajustée.",
     "Une carte cadeau ne peut pas payer l’achat d’une autre carte cadeau.",
+    "Une carte cadeau ou un forfait vendu n’est pas du chiffre d’affaires : il ne rapporte rien tant qu’il n’est pas utilisé. Un service payé avec une carte cadeau compte une seule fois, comme service. Une séance de forfait est créditée au barbier qui l’a faite, à la valeur d’une séance (prix payé pour le forfait ÷ nombre de séances).",
     "Une carte cadeau se vend à l’unité, pour un montant positif.",
     "Une catégorie sélectionnée est invalide.",
     "Une déclinaison de la liste n’appartient pas à ce service.",

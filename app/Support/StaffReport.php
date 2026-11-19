@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\CustomerPackage;
 use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\TipPayout;
@@ -18,6 +19,16 @@ use Illuminate\Support\Collection;
  * Revenue is what the customer paid for the line: a discount on the whole
  * ticket is shared across its lines, so a barber's commission is never on
  * money the shop did not take. A tip is not revenue and earns no commission.
+ *
+ * What is NOT revenue, and what is credited instead (the rule, in one place):
+ *  - a gift card or a package SOLD is money the shop owes (Liabilities): the
+ *    line earns nobody anything. A service paid WITH a gift card is an
+ *    ordinary line of its own, so that money is counted once, as the service;
+ *  - a package SESSION is priced 0 on the ticket, so it is credited to the
+ *    barber who did it at the value of one session: the price paid for the
+ *    package divided by its sessions, frozen when it was sold
+ *    (CustomerPackage::sessionValue()). A refunded sale gives the session
+ *    back and credits nothing.
  */
 class StaffReport
 {
@@ -84,6 +95,13 @@ class StaffReport
         $sales = $sales->reject(fn (Sale $sale) => $sale->status === 'cancelled');
         $rows = [];
 
+        // The value of one session, for every package a session was used from.
+        $packageIds = $sales->flatMap(fn (Sale $sale) => $sale->items)
+            ->where('kind', Liabilities::PACKAGE_USE)->pluck('customer_package_id')->filter()->unique()->all();
+        $packages = $packageIds === []
+            ? collect()
+            : CustomerPackage::query()->whereIn('id', $packageIds)->get()->keyBy('id');
+
         $row = function (?int $userId) use (&$rows) {
             $key = $userId ?? 0;
 
@@ -108,8 +126,22 @@ class StaffReport
             $paidShare = $lineTotal > 0 ? ($saleTotal - $returned) / $lineTotal : 0.0;
 
             foreach ($sale->items as $line) {
+                // A card or package sold is not revenue: nobody earned it yet.
+                if (in_array($line->kind, Liabilities::KINDS, true)) {
+                    continue;
+                }
                 $userId = $line->staff_user_id ?? $sale->user_id;
                 $row($userId);
+                if ($line->kind === Liabilities::PACKAGE_USE) {
+                    // Priced 0 on the ticket: credited at the session's value.
+                    if ($sale->status !== 'refunded') {
+                        $rows[$userId ?? 0]['services'] += (int) round((float) $line->quantity);
+                        $rows[$userId ?? 0]['service_revenue'] += ($packages->get($line->customer_package_id)?->sessionValue() ?? 0.0)
+                            * (float) $line->quantity;
+                    }
+
+                    continue;
+                }
                 $amount = (float) $line->total_price * $paidShare;
                 if ($line->item?->type === 'service') {
                     if ($sale->status !== 'refunded') {

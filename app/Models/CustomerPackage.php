@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /** A package a customer bought: sessions left on a service. */
-#[Fillable(['tenant_id', 'contact_id', 'package_id', 'name', 'item_id', 'variant_id', 'sessions_total', 'sessions_remaining', 'price_paid', 'expires_at', 'status', 'sale_id', 'sale_item_id', 'sold_at'])]
+#[Fillable(['tenant_id', 'contact_id', 'package_id', 'name', 'item_id', 'variant_id', 'sessions_total', 'sessions_remaining', 'price_paid', 'session_value', 'expires_at', 'status', 'sale_id', 'sale_item_id', 'sold_at'])]
 class CustomerPackage extends Model
 {
     public const ACTIVE = 'active';
@@ -23,6 +23,7 @@ class CustomerPackage extends Model
     {
         return [
             'price_paid' => 'decimal:2',
+            'session_value' => 'decimal:4',
             'expires_at' => 'date',
             'sold_at' => 'datetime',
             'sessions_total' => 'integer',
@@ -43,6 +44,19 @@ class CustomerPackage extends Model
     public function movements(): HasMany
     {
         return $this->hasMany(CustomerPackageMovement::class)->orderBy('id');
+    }
+
+    /**
+     * What one session is worth: the price PAID for the package over its
+     * sessions, frozen at the sale. Rows from before it was frozen derive it.
+     */
+    public function sessionValue(): float
+    {
+        if ($this->session_value !== null) {
+            return (float) $this->session_value;
+        }
+
+        return $this->sessions_total > 0 ? (float) $this->price_paid / $this->sessions_total : 0.0;
     }
 
     /** Usable today: active, sessions left, not past its date. */

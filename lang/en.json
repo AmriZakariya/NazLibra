@@ -3842,6 +3842,7 @@
     "Une caisse ne peut provenir que d’un seul document source.": "A register can only come from a single source document.",
     "Une carte annulée ne peut plus être ajustée.": "A cancelled card can no longer be adjusted.",
     "Une carte cadeau ne peut pas payer l’achat d’une autre carte cadeau.": "A gift card cannot pay for another gift card.",
+    "Une carte cadeau ou un forfait vendu n’est pas du chiffre d’affaires : il ne rapporte rien tant qu’il n’est pas utilisé. Un service payé avec une carte cadeau compte une seule fois, comme service. Une séance de forfait est créditée au barbier qui l’a faite, à la valeur d’une séance (prix payé pour le forfait ÷ nombre de séances).": "A gift card or package sold is not revenue: it earns nothing until it is used. A service paid with a gift card counts once, as the service. A package session is credited to the barber who did it, at the value of one session (price paid for the package ÷ number of sessions).",
     "Une carte cadeau se vend à l’unité, pour un montant positif.": "A gift card is sold one at a time, for a positive amount.",
     "Une catégorie sélectionnée est invalide.": "A selected category is invalid.",
     "Une déclinaison de la liste n’appartient pas à ce service.": "A variant in the list does not belong to this service.",

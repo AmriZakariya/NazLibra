@@ -53,6 +53,9 @@ class PackageService
             'sessions_total' => $package->sessions,
             'sessions_remaining' => $package->sessions,
             'price_paid' => (float) $line->total_price,
+            // Paid, not listed: a package takes no discount at the till, so the
+            // line is what the customer handed over. A session is worth a share.
+            'session_value' => $package->sessions > 0 ? round((float) $line->total_price / $package->sessions, 4) : null,
             'expires_at' => $expires,
             'status' => CustomerPackage::ACTIVE,
             'sale_id' => $sale->id,

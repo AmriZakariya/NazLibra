@@ -157,6 +157,84 @@ class BarberShopTest extends TestCase
         $this->assertSame(40.0, $rows[$this->owner->id]['product_revenue']);
     }
 
+    /** @param array<string, mixed> $payments */
+    private function sellWith(array $items, array $payments, array $extra = []): \Illuminate\Testing\TestResponse
+    {
+        return $this->withToken($this->token())->postJson('/api/v1/pos/sales', [
+            'idempotency_key' => Str::uuid()->toString(),
+            'location_id' => $this->location->id,
+            'items' => $items,
+            'payments' => $payments,
+        ] + $extra);
+    }
+
+    private function teamRows(): \Illuminate\Support\Collection
+    {
+        $sales = Sale::with('items.item')->where('tenant_id', $this->tenant->id)->get();
+
+        return StaffReport::rows($sales)->keyBy('user_id');
+    }
+
+    private function liabilitiesOn(): void
+    {
+        $settings = $this->tenant->settings ?? [];
+        $settings['modules']['enabled'] = ['gift_cards' => true, 'packages' => true];
+        $this->tenant->update(['settings' => $settings]);
+    }
+
+    public function test_a_gift_card_sold_is_nobodys_revenue_or_commission(): void
+    {
+        $this->liabilitiesOn();
+        $this->sellWith([
+            ['kind' => 'gift_card', 'quantity' => 1, 'unit_price' => 200],
+            ['item_id' => $this->cut->id, 'quantity' => 1, 'staff_user_id' => $this->barber->id],
+        ], ['cash' => 260])->assertCreated();
+
+        $rows = $this->teamRows();
+        $this->assertSame(60.0, $rows[$this->barber->id]['revenue']);
+        $this->assertFalse($rows->has($this->owner->id), 'the card sold earns the cashier nothing');
+        $this->assertSame(24.0, $rows[$this->barber->id]['commission']);
+    }
+
+    public function test_a_service_paid_with_a_gift_card_is_counted_once(): void
+    {
+        $this->liabilitiesOn();
+        $this->sellWith([['kind' => 'gift_card', 'quantity' => 1, 'unit_price' => 100]], ['cash' => 100])->assertCreated();
+        $code = \App\Models\GiftCard::firstOrFail()->code;
+        $this->sellWith([
+            ['item_id' => $this->cut->id, 'quantity' => 1, 'staff_user_id' => $this->barber->id],
+        ], ['gift_card' => 60], ['gift_card_code' => $code])->assertCreated();
+
+        $rows = $this->teamRows();
+        $this->assertSame(60.0, $rows[$this->barber->id]['revenue'], 'the service, once');
+        $this->assertFalse($rows->has($this->owner->id));
+    }
+
+    public function test_a_package_session_credits_the_barber_at_the_value_of_a_session(): void
+    {
+        $this->liabilitiesOn();
+        $customer = \App\Models\Contact::create(['tenant_id' => $this->tenant->id, 'kind' => 'client', 'name' => 'Cliente Test', 'phone' => '+212600000001']);
+        $offer = \App\Models\ServicePackage::create([
+            'tenant_id' => $this->tenant->id, 'name' => '5 coupes', 'item_id' => $this->cut->id,
+            'sessions' => 5, 'price' => 400, 'is_active' => true,
+        ]);
+        $this->sellWith([['kind' => 'package', 'package_id' => $offer->id, 'quantity' => 1]], ['cash' => 400], ['contact_id' => $customer->id])->assertCreated();
+        $owned = \App\Models\CustomerPackage::firstOrFail();
+        $this->assertEquals(80, $owned->sessionValue(), 'what was paid over the sessions, frozen at the sale');
+
+        // The definition is edited later: what was agreed does not move.
+        $offer->update(['price' => 1000]);
+        $this->sellWith([
+            ['item_id' => $this->cut->id, 'quantity' => 1, 'kind' => 'package_use', 'customer_package_id' => $owned->id, 'staff_user_id' => $this->barber->id],
+        ], ['cash' => 0], ['contact_id' => $customer->id])->assertCreated();
+
+        $rows = $this->teamRows();
+        $this->assertSame(1, $rows[$this->barber->id]['services']);
+        $this->assertSame(80.0, $rows[$this->barber->id]['service_revenue']);
+        $this->assertSame(32.0, $rows[$this->barber->id]['commission'], '40 % of one session');
+        $this->assertFalse($rows->has($this->owner->id), 'selling the package paid the cashier nothing');
+    }
+
     public function test_the_till_is_told_whether_to_ask_and_who_can_be_named(): void
     {
         $settings = $this->tenant->settings ?? [];
