@@ -801,6 +801,8 @@ class LibraireProController extends Controller
                 'items.title as item_title',
                 'items.item_code',
                 'items.barcode',
+                'items.content_quantity',
+                'items.content_unit',
                 'items.purchase_price',
                 'items.sale_price',
                 'items.stock_quantity',

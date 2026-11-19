@@ -766,4 +766,28 @@ class ServiceConsumptionTest extends TestCase
         $this->assertSame($this->purifiant->id, (int) $line['component_choices'][0]['component_item_id']);
         $this->assertEqualsWithDelta(30.0, (float) $line['component_overrides'][0]['quantity'], 0.001);
     }
+
+    /**
+     * Seen on a salon's journal: three consumption lines all reading « 0 /
+     * 0 / 0,00 DH ». The quantities were cast to whole numbers, and a product
+     * with no stock recorded no cost on its movement.
+     */
+    public function test_the_stock_journal_shows_fractional_consumption_and_its_cost_even_with_no_stock(): void
+    {
+        $empty = $this->product('Cire chaude', 500, 'g', 60, 0);
+        $this->recipe([['component_item_id' => $empty->id, 'quantity' => 8]]);
+        $this->sell()->assertCreated();
+
+        $movement = \DB::table('stock_movements')->where('item_id', $empty->id)->where('type', 'service_consumption')->first();
+        $this->assertEquals(-0.016, (float) $movement->quantity_delta);
+        $this->assertEquals(0.96, (float) $movement->total_cost, '8 g of a 60 DH pot of 500 g');
+        $this->assertStringContainsString('sans stock', $movement->note);
+
+        $page = $this->actingAs($this->owner)->get(route('stock', ['panel' => 'stock-adjustments']))->assertOk()->getContent();
+        $this->assertStringContainsString('Consommation interne', $page);
+        $this->assertStringNotContainsString('service_consumption</span>', $page, 'a label, not the raw type');
+        $this->assertStringContainsString('-0,05', $page, '10 ml of a 200 ml gel');
+        $this->assertStringContainsString('(10 ml)', $page);
+        $this->assertStringContainsString('0,96', $page);
+    }
 }

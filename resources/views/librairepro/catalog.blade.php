@@ -771,6 +771,8 @@
                                     'stocktake' => 'Inventaire',
                                     'damage' => 'Casse',
                                     'loss' => 'Perte',
+                                    'service_consumption' => 'Consommation interne',
+                                    'service_consumption_return' => 'Retour de consommation',
                                 ] as $typeValue => $typeLabel)
                                     <option value="{{ $typeValue }}" @selected($movementType === $typeValue)>{{ $typeLabel }}</option>
                                 @endforeach
@@ -788,7 +790,12 @@
                 <div class="inventory-movement-list" data-inventory-movement-list>
                     @forelse ($stockMovements as $movement)
                         @php
-                            $delta = (int) $movement->quantity_delta;
+                            // Fractional since « Produits utilisés »: 8 g of a 500 g pot is -0,016,
+                            // which a cast to int showed as « 0 ».
+                            $delta = (float) $movement->quantity_delta;
+                            $contentHint = fn (float $qty): string => (float) ($movement->content_quantity ?? 0) > 0 && $movement->content_unit
+                                ? ' ('.\App\Support\ContentUnits::format(abs($qty) * (float) $movement->content_quantity, $movement->content_unit).')'
+                                : '';
                             $movementLabels = [
                                 'sale' => ['label' => 'Vente', 'tone' => 'danger', 'icon' => '-'],
                                 'purchase' => ['label' => 'Achat', 'tone' => 'success', 'icon' => '+'],
@@ -809,6 +816,8 @@
                                 'stocktake' => ['label' => 'Inventaire', 'tone' => 'primary', 'icon' => 'I'],
                                 'damage' => ['label' => 'Casse', 'tone' => 'danger', 'icon' => '!'],
                                 'loss' => ['label' => 'Perte', 'tone' => 'danger', 'icon' => '!'],
+                                'service_consumption' => ['label' => 'Consommation interne', 'tone' => 'warning', 'icon' => '-'],
+                                'service_consumption_return' => ['label' => 'Retour de consommation', 'tone' => 'info', 'icon' => '+'],
                             ];
                             $movementMeta = $movementLabels[$movement->type] ?? ['label' => $movement->type, 'tone' => 'neutral', 'icon' => '•'];
                             $relatedAction = match ($movement->reference_type) {
@@ -849,12 +858,12 @@
                             <div class="inventory-movement-metrics">
                                 <div class="inventory-metric">
                                     <span>Mouvement</span>
-                                    <strong class="{{ $delta >= 0 ? 'is-positive' : 'is-negative' }}">{{ $delta > 0 ? '+' : '' }}{{ number_format($delta, 0, ',', ' ') }}</strong>
+                                    <strong class="{{ $delta >= 0 ? 'is-positive' : 'is-negative' }}">{{ $delta > 0 ? '+' : '' }}{{ \App\Support\Stock::plain($delta) }}</strong>@if ($contentHint($delta) !== '')<span class="block text-xs font-semibold text-slate-500">{{ $contentHint($delta) }}</span>@endif
                                     <span class="mt-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">{{ $money($movementValue) }}</span>
                                 </div>
                                 <div class="inventory-metric">
                                     <span>Stock après</span>
-                                    <strong>{{ number_format((int) $movement->quantity_after, 0, ',', ' ') }}</strong>
+                                    <strong>{{ \App\Support\Stock::plain((float) $movement->quantity_after) }}</strong>
                                     <span class="mt-1 block text-xs font-semibold text-slate-600 dark:text-slate-300">{{ $money($stockValueAfter) }}</span>
                                 </div>
                                 <div class="inventory-metric">

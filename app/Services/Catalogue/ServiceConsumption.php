@@ -2,6 +2,7 @@
 
 namespace App\Services\Catalogue;
 
+use App\Support\ContentUnits;
 use App\Enums\ItemType;
 use App\Models\Item;
 use App\Models\ItemComponent;
@@ -315,6 +316,17 @@ class ServiceConsumption
 
             $cost = round((float) $result['cogs'] + $shortfall * $fallbackUnit, 4);
             $total += $cost;
+
+            // An empty shelf still cost money: the journal shows the full
+            // value (purchase price for the part with no stock) and says so.
+            // `cogs` stays the layers' figure, so the stock value is unchanged.
+            if ($shortfall > 0 && isset($result['movement'])) {
+                $result['movement']->forceFill([
+                    'total_cost' => $cost,
+                    'unit_cost' => $quantity > 0 ? round($cost / $quantity, 4) : 0,
+                    'note' => $result['movement']->note.' · sans stock : '.ContentUnits::describeStock($product, $shortfall),
+                ])->save();
+            }
 
             SaleItemConsumption::create([
                 'tenant_id' => $sale->tenant_id,
