@@ -46,7 +46,7 @@ class FromPriceTest extends TestCase
     {
         return Item::create([
             'tenant_id' => $this->tenant->id, 'title' => $title, 'type' => 'service', 'status' => 'active',
-            'sale_price' => $price, 'purchase_price' => 0, 'stock_quantity' => 9999, 'price_is_from' => $from,
+            'sale_price' => $price, 'purchase_price' => 0, 'stock_quantity' => 9999, 'price_is_from' => $from, 'bookable_online' => true,
             'unit_id' => Unit::where('tenant_id', $this->tenant->id)->value('id'),
             'tax_id' => Tax::where('tenant_id', $this->tenant->id)->value('id'),
         ]);

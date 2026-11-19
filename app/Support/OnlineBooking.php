@@ -108,17 +108,26 @@ class OnlineBooking
             ->get(['users.id', 'users.name']);
     }
 
-    /** The services on offer, cheapest first within their name order. */
+    /**
+     * The services on offer: those the shop shows online (items.bookable_online),
+     * grouped by category (alphabetical, uncategorised last), by name inside it.
+     */
     public static function services(Tenant $tenant): Collection
     {
         return Item::where('tenant_id', $tenant->id)
             ->where('type', 'service')
+            ->where('bookable_online', true)
             ->whereNotIn('status', ['archived', 'inactive'])
-            ->orderBy('title')
             // What the client picks among, when a service has several prices
             // or lengths: « Court / Mi-long / Long », « 30 min / 1 h ».
-            ->with(['variants' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')->orderBy('id')])
-            ->get(['id', 'title', 'sale_price', 'duration_minutes', 'price_is_from']);
+            ->with(['variants' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')->orderBy('id'), 'category:id,name'])
+            ->get(['id', 'title', 'sale_price', 'duration_minutes', 'price_is_from', 'category_id'])
+            ->sortBy([
+                fn (Item $a, Item $b) => ($a->category_id === null) <=> ($b->category_id === null),
+                fn (Item $a, Item $b) => strcasecmp((string) $a->category?->name, (string) $b->category?->name),
+                fn (Item $a, Item $b) => strcasecmp($a->title, $b->title),
+            ])
+            ->values();
     }
 
     /** The active variant [id] of [service], or null. */
@@ -164,7 +173,7 @@ class OnlineBooking
      *
      * @return list<string>
      */
-    public static function slots(Tenant $tenant, string $date, ?int $staffId, ?CarbonImmutable $now = null, ?int $duration = null): array
+    public static function slots(Tenant $tenant, string $date, ?int $staffId, ?CarbonImmutable $now = null, ?int $duration = null, ?Item $service = null): array
     {
         $settings = self::settings($tenant);
         $tz = Appointments::timezone($tenant);
@@ -177,7 +186,8 @@ class OnlineBooking
         $length = $duration ?: $step;
 
         $team = self::staff($tenant)->pluck('id')->map(fn ($id) => (int) $id);
-        $staff = $team;
+        // Only those who do this service; « peu importe » picks among them.
+        $staff = ServiceStaff::allowed($service, $team);
         if ($staffId !== null) {
             if (! $staff->contains($staffId)) {
                 return [];
@@ -235,7 +245,7 @@ class OnlineBooking
         }
         $staffId = $data['staff_user_id'] ? (int) $data['staff_user_id'] : null;
         $duration = self::durationOf($tenant, $service, $variant);
-        if (! in_array($data['time'], self::slots($tenant, $data['date'], $staffId, $now, $duration), true)) {
+        if (! in_array($data['time'], self::slots($tenant, $data['date'], $staffId, $now, $duration, $service), true)) {
             throw ValidationException::withMessages(['time' => __('booking.error_slot_taken')]);
         }
 
@@ -246,7 +256,7 @@ class OnlineBooking
         $hours = Schedules::plans($tenant, [$start->toDateString()], $team)[$start->toDateString()] ?? [];
         $working = $team->filter(fn (int $id) => Schedules::covers($hours[$id] ?? [], $start, $start->addMinutes($duration)))->values();
         $staffId ??= self::firstFree(
-            $working,
+            ServiceStaff::allowed($service, $working),
             $working,
             self::busy($tenant, $start->startOfDay()),
             $start,

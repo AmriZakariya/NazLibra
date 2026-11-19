@@ -130,6 +130,9 @@
                 <h2>{{ __('booking.step_service') }}</h2>
                 <div class="choices">
                     @foreach ($services as $service)
+                        @if ($loop->first || $service->category_id !== $services[$loop->index - 1]->category_id)
+                            @if ($service->category)<p class="hint" data-service-group style="margin:8px 0 0;font-weight:700">{{ $service->category->name }}</p>@endif
+                        @endif
                         @php
                             // Several prices or lengths: the page shows the lowest, « dès », and asks which below.
                             $variantPrices = $service->variants->map(fn ($v) => $v->price());
@@ -172,7 +175,7 @@
                             <span><b>{{ __('booking.any_staff') }}</b><small>{{ __('booking.any_staff_hint') }}</small></span>
                         </label>
                         @foreach ($staff as $member)
-                            <label class="choice">
+                            <label class="choice" data-staff-choice="{{ $member->id }}">
                                 <input type="radio" name="staff_user_id" value="{{ $member->id }}" data-label="{{ $member->name }}" @checked((string) old('staff_user_id') === (string) $member->id)>
                                 <span><b>{{ $member->name }}</b></span>
                             </label>
@@ -251,6 +254,18 @@
         }
     }
     const needsVariant = () => { const s = picked('item_id'); return !!s && !!form.querySelector(`[data-variants-for="${s.value}"]`); };
+    // Who does the chosen service (only restricted services are listed).
+    const doing = @json($serviceStaff);
+    function syncStaff() {
+        const service = picked('item_id');
+        const allowed = service ? doing[service.value] : null;
+        for (const label of form.querySelectorAll('[data-staff-choice]')) {
+            const show = !allowed || allowed.includes(Number(label.dataset.staffChoice));
+            label.hidden = !show;
+            const input = label.querySelector('input');
+            if (!show && input.checked) { input.checked = false; form.querySelector('input[name="staff_user_id"][value=""]')?.click(); }
+        }
+    }
     const staffValue = () => picked('staff_user_id')?.value ?? form.querySelector('input[type=hidden][name="staff_user_id"]')?.value ?? '';
 
     function refreshSummary() {
@@ -301,13 +316,14 @@
     form.addEventListener('change', (e) => {
         if (e.target.name === 'time') wanted = e.target.value;
         // A longer service fits in fewer slots: the times depend on it too.
-        if (e.target.name === 'item_id') syncVariants();
+        if (e.target.name === 'item_id') { syncVariants(); syncStaff(); }
         if (['date', 'staff_user_id', 'item_id', 'variant_id'].includes(e.target.name)) loadSlots();
         else refreshSummary();
     });
     form.addEventListener('input', refreshSummary);
     form.addEventListener('submit', () => { submit.disabled = true; });
     syncVariants();
+    syncStaff();
     loadSlots();
 })();
 </script>

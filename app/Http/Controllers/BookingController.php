@@ -34,6 +34,7 @@ class BookingController extends Controller
             'tenant' => $tenant,
             'services' => OnlineBooking::services($tenant),
             'staff' => OnlineBooking::staff($tenant),
+            'serviceStaff' => \App\Support\ServiceStaff::map($tenant),
             'days' => OnlineBooking::openDays($tenant),
             'duration' => OnlineBooking::settings($tenant)['duration'],
             'sent' => session('booking_sent'),
@@ -56,7 +57,7 @@ class BookingController extends Controller
         return response()->json([
             'slots' => OnlineBooking::slots(
                 $tenant, $data['date'], isset($data['staff']) ? (int) $data['staff'] : null,
-                null, OnlineBooking::durationOf($tenant, $service, $variant),
+                null, OnlineBooking::durationOf($tenant, $service, $variant), $service,
             ),
         ]);
     }

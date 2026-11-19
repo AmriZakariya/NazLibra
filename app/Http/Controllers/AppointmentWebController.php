@@ -40,6 +40,7 @@ class AppointmentWebController extends Controller
 
         return view('appointments.index', [
             'hours' => $plans,
+            'serviceStaff' => \App\Support\ServiceStaff::map($tenant),
             'blocks' => \App\Support\Schedules::blocksOn($tenant, $day->toDateString()),
             'closure' => \App\Support\Schedules::closure($tenant, $day->toDateString()),
             'tenant' => $tenant,

@@ -216,6 +216,38 @@
     </span>
 </label>
 
+@php
+    $formTenant = \App\Support\TenantContext::require(request(), auth()->user());
+    $bookableField = \App\Support\ItemFieldVisibility::forTenant($formTenant, 'service')['bookable'];
+    $teamMembers = $formTenant->users()->where('users.is_active', true)->orderBy('users.name')->get(['users.id', 'users.name']);
+@endphp
+@if ($bookableField)
+<label class="block rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900" data-bookable-online>
+    <input type="hidden" name="bookable_sent" value="1">
+    <input type="hidden" name="bookable_online" value="0">
+    <span class="flex items-start gap-3">
+        <input name="bookable_online" value="1" type="checkbox" @checked((bool) old('bookable_online', $item?->bookable_online ?? true)) class="mt-1 rounded border-slate-300 text-brand focus:ring-brand">
+        <span>
+            <span class="block text-xs font-semibold uppercase text-slate-500">{{ $tr('Réservable en ligne') }}</span>
+            <small class="mt-1 block text-xs text-slate-500">{{ $tr('Proposé sur la page de réservation publique.') }}</small>
+        </span>
+    </span>
+</label>
+@if (($teamMembers ?? collect())->count() > 1)
+@php $doneBy = $item ? (\App\Support\ServiceStaff::idsFor($item) ?? []) : []; @endphp
+<div class="block rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900 lg:col-span-2" data-service-staff>
+    <input type="hidden" name="staff_sent" value="1">
+    <span class="block text-xs font-semibold uppercase text-slate-500">{{ $tr('Qui réalise ce service') }}</span>
+    <div class="mt-2 flex flex-wrap gap-3">
+        @foreach ($teamMembers as $member)
+            <label class="flex items-center gap-1.5 text-sm"><input type="checkbox" name="staff_user_ids[]" value="{{ $member->id }}" @checked(in_array($member->id, (array) old('staff_user_ids', $doneBy), true)) class="rounded border-slate-300"> {{ $member->name }}</label>
+        @endforeach
+    </div>
+    <small class="mt-1 block text-xs text-slate-500">{{ $tr('Aucune case cochée : tout le monde peut le faire.') }}</small>
+</div>
+@endif
+@endif
+
 <label class="block rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-slate-900">
     <input type="hidden" name="checkout_visible" value="0">
     <span class="flex items-start gap-3">

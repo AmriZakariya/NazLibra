@@ -113,10 +113,15 @@ class SyncController extends Controller
             'type', 'status', 'is_enabled', 'checkout_visible', 'online_store_visible',
             'item_code', 'item_group', 'nb_item', 'title', 'isbn', 'barcode', 'sku', 'custom_barcode1', 'author',
             'sale_price', 'purchase_price', 'min_stock_threshold', 'track_inventory',
-            'stock_quantity', 'images', 'extra_fields', 'description', 'tags', 'duration_minutes', 'price_is_from',
+            'stock_quantity', 'images', 'extra_fields', 'description', 'tags', 'duration_minutes', 'price_is_from', 'bookable_online',
             'content_quantity', 'content_unit', 'content_container',
             'updated_at', 'created_at', 'deleted_at',
         ]);
+
+        // Who does each service (absent = everyone), read in one query.
+        $staff = \Illuminate\Support\Facades\DB::table('item_staff')->whereIn('item_id', $page['rows']->pluck('id'))
+            ->orderBy('user_id')->get(['item_id', 'user_id'])->groupBy('item_id');
+        $page['rows']->each(fn ($row) => $row->setAttribute('staff_user_ids', $staff->get($row->id)?->pluck('user_id')->map(fn ($id) => (int) $id)->values()->all() ?? []));
 
         return response()->json([
             'ok'       => true,

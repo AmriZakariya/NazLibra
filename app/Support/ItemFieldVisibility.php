@@ -14,6 +14,7 @@ use App\Models\Tenant;
  *   Author / brand  products: « Auteur » in a bookshop, « Marque » elsewhere
  *   Barcode, SKU    products
  *   Group           products; a service only once it has variants
+ *   Bookable        services of a barber / beauty shop (online booking, who does it)
  *
  * A hidden field is never erased: a save leaves the stored value alone.
  */
@@ -22,7 +23,7 @@ class ItemFieldVisibility
     public const LIBRARY = 'library';
 
     /**
-     * @return array{isbn: bool, author: bool, author_label: string, barcode: bool, sku: bool, group: bool}
+     * @return array{isbn: bool, author: bool, author_label: string, barcode: bool, sku: bool, group: bool, bookable: bool}
      */
     public static function for(?string $activity, ?string $type, bool $hasVariants = false): array
     {
@@ -36,6 +37,8 @@ class ItemFieldVisibility
             'barcode' => ! $isService,
             'sku' => ! $isService,
             'group' => ! $isService || $hasVariants,
+            // « Réservable en ligne » and who does it: services of a shop that works by appointment.
+            'bookable' => $isService && in_array(BusinessMode::normalize($activity), ['barber', 'beauty'], true),
         ];
     }
 

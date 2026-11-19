@@ -171,14 +171,14 @@
             <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Barbier</span>
                 <select name="staff_user_id" class="{{ $input }}">
                     <option value="">— Sans barbier précis —</option>
-                    @foreach ($staff as $s)<option value="{{ $s->id }}" @selected((string) old('staff_user_id') === (string) $s->id)>{{ $s->name }}</option>@endforeach
+                    @foreach ($staff as $s)<option value="{{ $s->id }}" data-staff-option @selected((string) old('staff_user_id') === (string) $s->id)>{{ $s->name }}</option>@endforeach
                 </select>
             </label>
             <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Prestation</span>
                 {{-- Picking a service fills in its duration. --}}
                 <select name="item_id" class="{{ $input }}" onchange="window.apptPickService(this)">
                     <option value="">—</option>
-                    @foreach ($services as $service)<option value="{{ $service->id }}" data-duration="{{ $service->duration_minutes }}">{{ $service->title }} · @if ($service->price_is_from){{ __('booking.from') }} @endif{{ $money($service->sale_price) }}@if ($service->duration_minutes) · {{ $service->duration_minutes }} min @endif</option>@endforeach
+                    @foreach ($services as $service)<option value="{{ $service->id }}" data-duration="{{ $service->duration_minutes }}" data-staff="{{ json_encode($serviceStaff[$service->id] ?? []) }}">{{ $service->title }} · @if ($service->price_is_from){{ __('booking.from') }} @endif{{ $money($service->sale_price) }}@if ($service->duration_minutes) · {{ $service->duration_minutes }} min @endif</option>@endforeach
                 </select>
             </label>
             {{-- A service with several prices or lengths is booked as one of them; its length fills in. --}}
@@ -248,6 +248,13 @@
             form.variant_id.value = '';
             const minutes = select.selectedOptions[0]?.dataset.duration;
             if (minutes) form.duration_minutes.value = minutes;
+            // Only those who do this service (none listed = everyone).
+            const who = JSON.parse(select.selectedOptions[0]?.dataset.staff || '[]');
+            for (const o of form.querySelectorAll('select[name=staff_user_id] option[data-staff-option]')) {
+                const show = who.length === 0 || who.includes(Number(o.value));
+                o.hidden = o.disabled = !show;
+                if (!show && o.selected) form.staff_user_id.value = '';
+            }
         };
         window.apptPickVariant = (select) => {
             const form = select.form;

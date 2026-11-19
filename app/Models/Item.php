@@ -57,6 +57,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'content_unit',
     'content_container',
     'price_is_from',
+    'bookable_online',
     'reseller_sale_price',
     'mrp',
     'warehouse',
@@ -93,9 +94,31 @@ class Item extends Model
             'content_quantity' => 'decimal:3',
             'stock_quantity' => \App\Casts\Quantity::class,
             'price_is_from' => 'boolean',
+            'bookable_online' => 'boolean',
             'reseller_sale_price' => 'decimal:2',
             'mrp' => 'decimal:2',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // A new service is offered on the public booking page where the shop
+        // works by appointment (barber, beauty), and not elsewhere — unless
+        // whoever created it said so. Existing rows were true already.
+        static::creating(function (Item $item): void {
+            if ($item->getAttribute('bookable_online') !== null) {
+                return;
+            }
+            $tenant = $item->type === 'service' ? Tenant::find($item->tenant_id) : null;
+            $activity = $tenant ? \App\Support\BusinessMode::current($tenant)['key'] : null;
+            $item->setAttribute('bookable_online', $item->type === 'service' && in_array($activity, ['barber', 'beauty'], true));
+        });
+    }
+
+    /** The team members who do this service; none = everyone does. */
+    public function staffMembers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'item_staff')->withPivot('tenant_id')->withTimestamps();
     }
 
     public function category(): BelongsTo

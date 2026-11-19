@@ -156,6 +156,10 @@ class ItemController extends Controller
             'purchase_price'      => ['nullable', 'numeric', 'min:0'],
             'duration_minutes'    => ['nullable', 'integer', 'min:5', 'max:600'],
             'price_is_from'       => ['nullable', 'boolean'],
+            // Services: shown on the public booking page, and done only by these people (none = everyone).
+            'bookable_online'     => ['nullable', 'boolean'],
+            'staff_user_ids'      => ['nullable', 'array'],
+            'staff_user_ids.*'    => ['integer'],
             // What one stocked unit contains (200 + ml): both or neither.
             'content_quantity'    => ['nullable', 'numeric', 'min:0.001', 'max:999999', 'required_with:content_unit'],
             'content_unit'        => ['nullable', 'string', Rule::in(\App\Support\ContentUnits::keys()), 'required_with:content_quantity'],
@@ -198,6 +202,8 @@ class ItemController extends Controller
                     'purchase_price'      => $data['purchase_price'] ?? 0,
                     'duration_minutes'    => $data['type'] === ItemType::Service->value ? ($data['duration_minutes'] ?? null) : null,
                     'price_is_from'       => (bool) ($data['price_is_from'] ?? false),
+                    // Unset: the model decides by the shop's activity.
+                    'bookable_online'     => $data['type'] === ItemType::Service->value ? ($data['bookable_online'] ?? null) : false,
                     'content_quantity'    => $data['type'] === ItemType::Service->value ? null : ($data['content_quantity'] ?? null),
                     'content_unit'        => $data['type'] === ItemType::Service->value ? null : ($data['content_unit'] ?? null),
                     'content_container'   => $data['type'] === ItemType::Service->value ? null : ($data['content_container'] ?? null),
@@ -251,6 +257,10 @@ class ItemController extends Controller
                     ]);
                 }
 
+                if ($data['type'] === ItemType::Service->value && ! empty($data['staff_user_ids'])) {
+                    \App\Support\ServiceStaff::set($tenant, $item, $data['staff_user_ids']);
+                }
+
                 return $item;
             });
         } catch (QueryException $exception) {
@@ -285,6 +295,9 @@ class ItemController extends Controller
             'purchase_price'      => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'duration_minutes'    => ['sometimes', 'nullable', 'integer', 'min:5', 'max:600'],
             'price_is_from'       => ['sometimes', 'boolean'],
+            'bookable_online'     => ['sometimes', 'boolean'],
+            'staff_user_ids'      => ['sometimes', 'nullable', 'array'],
+            'staff_user_ids.*'    => ['integer'],
             'content_quantity'    => ['sometimes', 'nullable', 'numeric', 'min:0.001', 'max:999999', 'required_with:content_unit'],
             'content_unit'        => ['sometimes', 'nullable', 'string', Rule::in(\App\Support\ContentUnits::keys()), 'required_with:content_quantity'],
             'content_container'   => ['sometimes', 'nullable', 'string', Rule::in(\App\Support\ContentUnits::containerKeys())],
@@ -321,7 +334,13 @@ class ItemController extends Controller
             }
         }
 
+        $staffIds = $data['staff_user_ids'] ?? null;
+        $sendStaff = array_key_exists('staff_user_ids', $data);
+        unset($data['staff_user_ids']);
         $item->update($data);
+        if ($sendStaff) {
+            \App\Support\ServiceStaff::set($tenant, $item, $staffIds ?? []);
+        }
 
         return response()->json(['ok' => true, 'item' => $item->fresh()->load('tax')]);
     }

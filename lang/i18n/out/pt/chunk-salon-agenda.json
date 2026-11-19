@@ -43,5 +43,9 @@
  "Une pause, une absence ou une formation : le créneau n’est plus proposé aux clients ni réservable. Ce n’est pas un rendez-vous.": "Uma pausa, uma ausência ou uma formação: o horário deixa de ser oferecido aos clientes e não pode ser marcado. Não é uma marcação.",
  "{0} début {1}": "{0} início {1}",
  "{0} fin {1}": "{0} fim {1}",
- "‹ Retour à l’agenda": "‹ Voltar à agenda"
+ "‹ Retour à l’agenda": "‹ Voltar à agenda",
+ "Aucune case cochée : tout le monde peut le faire.": "Nenhuma caixa marcada: todos podem fazê-lo.",
+ "Proposé sur la page de réservation publique.": "Oferecido na página pública de marcações.",
+ "Qui réalise ce service": "Quem realiza este serviço",
+ "Réservable en ligne": "Reservável online"
 }

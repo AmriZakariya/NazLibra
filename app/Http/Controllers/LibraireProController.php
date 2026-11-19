@@ -2196,6 +2196,9 @@ class LibraireProController extends Controller
         }
 
         $item = Item::create($data);
+        if ($item->type === 'service' && $request->has('staff_sent')) {
+            \App\Support\ServiceStaff::set($tenant, $item, (array) $request->input('staff_user_ids', []));
+        }
 
         if ($item->type !== 'service' && $item->track_inventory && (float) $item->stock_quantity > 0) {
             $inventoryService = app(\App\Services\Inventory\InventoryService::class);
@@ -2231,6 +2234,9 @@ class LibraireProController extends Controller
 
         $item->update($data);
         $item->refresh();
+        if ($item->type === 'service' && $request->has('staff_sent')) {
+            \App\Support\ServiceStaff::set($tenant, $item, (array) $request->input('staff_user_ids', []));
+        }
 
         if ($beforeType !== 'service' && $item->type !== 'service' && $item->track_inventory && abs($beforeStock - round((float) $item->stock_quantity, 4)) > 0.00005) {
             $inventoryService = app(\App\Services\Inventory\InventoryService::class);
@@ -11271,6 +11277,9 @@ class LibraireProController extends Controller
             'reseller_sale_price' => ['nullable', 'numeric', 'decimal:0,2', 'min:0', 'max:999999999'],
             'duration_minutes' => ['nullable', 'integer', 'min:5', 'max:600'],
             'price_is_from' => ['nullable', 'boolean'],
+            'bookable_online' => ['nullable', 'boolean'],
+            'staff_user_ids' => ['nullable', 'array'],
+            'staff_user_ids.*' => ['integer'],
             // What one stocked unit contains (a 200 ml bottle): both or neither.
             'content_quantity' => ['nullable', 'numeric', 'min:0.001', 'max:999999', 'required_with:content_unit'],
             'content_unit' => ['nullable', 'string', Rule::in(\App\Support\ContentUnits::keys()), 'required_with:content_quantity'],
@@ -11342,6 +11351,10 @@ class LibraireProController extends Controller
         }
         // « À partir de »: the sale price is a floor, not a fixed price.
         $data['price_is_from'] = $request->boolean('price_is_from');
+        // Services: shown on the public booking page (only when the form carries the box).
+        if (($data['type'] ?? $item?->type) === 'service' && $request->has('bookable_sent')) {
+            $data['bookable_online'] = $request->boolean('bookable_online');
+        }
         $data['seller_points'] = $data['seller_points'] ?? 0;
         $data['discount_type'] = $data['discount_type'] ?? 'Percentage';
         $data['discount'] = $data['discount'] ?? 0;

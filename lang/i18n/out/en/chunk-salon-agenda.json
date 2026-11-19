@@ -43,5 +43,9 @@
  "Une pause, une absence ou une formation : le créneau n’est plus proposé aux clients ni réservable. Ce n’est pas un rendez-vous.": "A break, an absence or a training: the slot is no longer offered to customers or bookable. It is not an appointment.",
  "{0} début {1}": "{0} start {1}",
  "{0} fin {1}": "{0} end {1}",
- "‹ Retour à l’agenda": "‹ Back to the agenda"
+ "‹ Retour à l’agenda": "‹ Back to the agenda",
+ "Aucune case cochée : tout le monde peut le faire.": "No box ticked: everyone can do it.",
+ "Proposé sur la page de réservation publique.": "Offered on the public booking page.",
+ "Qui réalise ce service": "Who does this service",
+ "Réservable en ligne": "Bookable online"
 }

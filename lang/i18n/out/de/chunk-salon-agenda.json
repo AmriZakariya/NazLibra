@@ -43,5 +43,9 @@
  "Une pause, une absence ou une formation : le créneau n’est plus proposé aux clients ni réservable. Ce n’est pas un rendez-vous.": "Eine Pause, Abwesenheit oder Schulung: Das Zeitfenster wird Kunden nicht mehr angeboten und ist nicht buchbar. Es ist kein Termin.",
  "{0} début {1}": "{0} Beginn {1}",
  "{0} fin {1}": "{0} Ende {1}",
- "‹ Retour à l’agenda": "‹ Zurück zur Agenda"
+ "‹ Retour à l’agenda": "‹ Zurück zur Agenda",
+ "Aucune case cochée : tout le monde peut le faire.": "Keine Auswahl: Alle können es ausführen.",
+ "Proposé sur la page de réservation publique.": "Wird auf der öffentlichen Buchungsseite angeboten.",
+ "Qui réalise ce service": "Wer führt diese Leistung aus",
+ "Réservable en ligne": "Online buchbar"
 }

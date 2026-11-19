@@ -43,5 +43,9 @@
  "Une pause, une absence ou une formation : le créneau n’est plus proposé aux clients ni réservable. Ce n’est pas un rendez-vous.": "استراحة أو غياب أو تدريب: لا تُعرض الفترة على الزبائن ولا يمكن حجزها. ليست موعدًا.",
  "{0} début {1}": "{0} بداية {1}",
  "{0} fin {1}": "{0} نهاية {1}",
- "‹ Retour à l’agenda": "‹ العودة إلى الأجندة"
+ "‹ Retour à l’agenda": "‹ العودة إلى الأجندة",
+ "Aucune case cochée : tout le monde peut le faire.": "إذا لم تحدد أي خانة: يمكن للجميع القيام بها.",
+ "Proposé sur la page de réservation publique.": "يُعرض في صفحة الحجز العامة.",
+ "Qui réalise ce service": "من ينفذ هذه الخدمة",
+ "Réservable en ligne": "قابل للحجز عبر الإنترنت"
 }
