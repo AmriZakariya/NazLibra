@@ -238,8 +238,14 @@ class OnlineBooking
             $start->addMinutes($duration),
         );
 
+        // The customer's file, found by phone within this shop (never by
+        // name), or opened now: the shop sees their history, notes and
+        // packages on the request, and a second visit finds the same file.
+        $contact = PhoneContact::findOrCreate($tenant, $data['customer_name'], $data['customer_phone'], ['reservation-en-ligne']);
+
         return Appointment::create([
             'tenant_id' => $tenant->id,
+            'contact_id' => $contact?->id,
             'staff_user_id' => $staffId,
             'item_id' => $service->id,
             'variant_id' => $variant?->id,

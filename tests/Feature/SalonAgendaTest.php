@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Appointment;
+use App\Models\Contact;
 use App\Models\Item;
 use App\Models\ItemVariant;
 use App\Models\Sale;
@@ -235,5 +236,47 @@ class SalonAgendaTest extends TestCase
         // Now the staff-less one can only be Sara's: Sara is taken for it.
         $this->expectException(ValidationException::class);
         $this->manual(['starts_at' => '2026-11-03 09:00', 'staff_user_id' => $this->sara->id]);
+    }
+
+    // ---- B5 an online request finds (or opens) the customer's file ------
+
+    protected function ask(array $data = []): \Illuminate\Testing\TestResponse
+    {
+        return $this->post(route('booking.store'), $data + [
+            'item_id' => $this->massage->id, 'variant_id' => $this->long->id, 'staff_user_id' => '',
+            'date' => '2026-11-03', 'time' => '09:00', 'customer_name' => 'Karim', 'customer_phone' => '0612345678',
+        ]);
+    }
+
+    public function test_an_online_request_opens_a_customer_file_with_the_e164_phone(): void
+    {
+        $this->openBooking([$this->ali]);
+        $this->ask()->assertSessionHasNoErrors();
+
+        $contact = Contact::where('tenant_id', $this->tenant->id)->where('name', 'Karim')->sole();
+        $this->assertSame('+212612345678', $contact->getRawOriginal('phone'));
+        $this->assertSame($contact->id, Appointment::sole()->contact_id);
+    }
+
+    public function test_an_online_request_finds_the_customer_by_phone_not_by_name(): void
+    {
+        $this->openBooking([$this->ali]);
+        $known = Contact::create(['tenant_id' => $this->tenant->id, 'kind' => 'client', 'name' => 'Karim B.', 'phone' => '+212 6 12 34 56 78']);
+        $namesake = Contact::create(['tenant_id' => $this->tenant->id, 'kind' => 'client', 'name' => 'Karim', 'phone' => '+212600000009']);
+        $other = \App\Models\Tenant::create(['name' => 'Autre', 'slug' => 'autre-'.uniqid()]);
+        Contact::create(['tenant_id' => $other->id, 'kind' => 'client', 'name' => 'Karim', 'phone' => '+212611111111']);
+
+        $before = Contact::count();
+        $this->ask()->assertSessionHasNoErrors();
+        $this->assertSame($known->id, Appointment::sole()->contact_id, 'same phone, written differently: the same customer');
+        $this->assertSame($before, Contact::count(), 'no new file');
+
+        // Same name, another number: a new customer, the namesake is untouched.
+        $this->ask(['time' => '10:00', 'customer_phone' => '0611111111'])->assertSessionHasNoErrors();
+        $second = Appointment::latest('id')->first();
+        $this->assertNotSame($namesake->id, $second->contact_id);
+        $this->assertNotSame($known->id, $second->contact_id);
+        $this->assertSame('+212611111111', Contact::find($second->contact_id)->getRawOriginal('phone'));
+        $this->assertSame($before + 1, Contact::count(), 'the other shop\'s customer with that number is not ours');
     }
 }
