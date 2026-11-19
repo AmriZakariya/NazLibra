@@ -78,6 +78,9 @@ class AuthController extends Controller
     )]
     public function login(Request $request): JsonResponse
     {
+        if (is_string($request->input('email'))) {
+            $request->merge(['email' => \App\Support\Email::normalize($request->input('email'))]);
+        }
         $data = $request->validate([
             'email'       => ['required', 'email'],
             'password'    => ['required', 'string'],

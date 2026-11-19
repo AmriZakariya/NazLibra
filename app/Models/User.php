@@ -26,6 +26,14 @@ class User extends Authenticatable
      *
      * @return array<string, string>
      */
+    /** Stored trimmed and lowercase: see App\Support\Email. */
+    protected function email(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            set: fn (?string $value) => \App\Support\Email::normalize($value),
+        );
+    }
+
     protected function casts(): array
     {
         return [

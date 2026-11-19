@@ -25,7 +25,7 @@ class SupportPasswordCommand extends Command
             return self::FAILURE;
         }
 
-        $user = User::where('email', $this->argument('email'))->first();
+        $user = User::where('email', \App\Support\Email::normalize($this->argument('email')))->first();
         if (! $user) {
             $this->line(json_encode(['status' => 'absent']));
 

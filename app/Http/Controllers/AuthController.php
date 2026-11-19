@@ -117,7 +117,7 @@ class AuthController extends Controller
 
     public function login(Request $request): RedirectResponse
     {
-        $credentials = $request->validate([
+        $credentials = $this->withNormalizedEmail($request)->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
         ]);
@@ -203,7 +203,7 @@ class AuthController extends Controller
 
     public function unlockSession(Request $request): RedirectResponse
     {
-        $data = $request->validate([
+        $data = $this->withNormalizedEmail($request)->validate([
             'pin' => ['required', 'string', new FourDigitPin],
         ]);
 
@@ -235,7 +235,7 @@ class AuthController extends Controller
 
     public function unlockWithPassword(Request $request): RedirectResponse
     {
-        $data = $request->validate([
+        $data = $this->withNormalizedEmail($request)->validate([
             'password' => ['required', 'string'],
         ]);
 
@@ -516,7 +516,7 @@ class AuthController extends Controller
     /** @return array<string, mixed> */
     private function activityFilters(Request $request): array
     {
-        return $request->validate([
+        return $this->withNormalizedEmail($request)->validate([
             'user_id' => ['nullable', 'integer'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
@@ -724,7 +724,7 @@ class AuthController extends Controller
         $user = $request->user();
         $tenant = TenantContext::require($request, $user);
 
-        $data = $request->validate([
+        $data = $this->withNormalizedEmail($request)->validate([
             'name' => ['required', 'string', 'max:160'],
             'email' => ['required', 'email', 'max:190', Rule::unique('users', 'email')->ignore($user->id)],
             'phone' => ['nullable', 'string', 'max:60'],
@@ -798,7 +798,7 @@ class AuthController extends Controller
 
     public function sendPasswordResetLink(Request $request): RedirectResponse
     {
-        $request->validate([
+        $this->withNormalizedEmail($request)->validate([
             'email' => ['required', 'email', 'exists:users,email'],
         ]);
 
@@ -830,7 +830,7 @@ class AuthController extends Controller
 
     public function updatePassword(Request $request): RedirectResponse
     {
-        $data = $request->validate([
+        $data = $this->withNormalizedEmail($request)->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
             'password' => ['required', 'confirmed', 'min:8', 'max:120'],
@@ -888,7 +888,7 @@ class AuthController extends Controller
 
     public function updatePin(Request $request): RedirectResponse
     {
-        $data = $request->validate([
+        $data = $this->withNormalizedEmail($request)->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
             'pin' => ['required', 'string', new FourDigitPin, 'confirmed'],
@@ -946,5 +946,15 @@ class AuthController extends Controller
                 ]);
             }
         }
+    }
+
+    /** The typed email, trimmed and lowercase, before any lookup: see App\Support\Email. */
+    private function withNormalizedEmail(Request $request): Request
+    {
+        if (is_string($request->input('email'))) {
+            $request->merge(['email' => \App\Support\Email::normalize($request->input('email'))]);
+        }
+
+        return $request;
     }
 }
