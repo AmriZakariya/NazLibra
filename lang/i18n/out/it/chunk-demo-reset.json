@@ -1,0 +1,20 @@
+{
+ "Achats, paiements fournisseurs, retours achat.": "Acquisti, pagamenti ai fornitori, resi di acquisto.",
+ "Articles, variantes, options, modificateurs, recettes, catégories, marques, photos, personnel par service.": "Articoli, varianti, opzioni, modificatori, ricette, categorie, marchi, foto, personale per servizio.",
+ "Cartes cadeaux & forfaits": "Carte regalo e pacchetti",
+ "Cartes cadeaux, forfaits, forfaits clients et leurs mouvements.": "Carte regalo, pacchetti, pacchetti dei clienti e i loro movimenti.",
+ "Choisissez les groupes de données à remettre à plat (tous cochés par défaut). Garde toujours société, utilisateurs, rôles, magasins, terminaux et paramètres.": "Scegli i gruppi di dati da cancellare (tutti selezionati per impostazione predefinita). Azienda, utenti, ruoli, negozi, terminali e impostazioni vengono sempre conservati.",
+ "Clients, fournisseurs, notes et pièces jointes.": "Clienti, fornitori, note e allegati.",
+ "Coché car il dépend de :": "Selezionato perché dipende da:",
+ "Groupes à remettre à plat": "Gruppi da cancellare",
+ "Horaires du personnel & fermetures": "Orari del personale e chiusure",
+ "Horaires, exceptions et fermetures de la boutique.": "Orari del personale, eccezioni e chiusure del negozio.",
+ "Mouvements, couches, stock par magasin (déficits compris), ajustements, inventaires, transferts.": "Movimenti, strati, giacenza per negozio (deficit inclusi), rettifiche, inventari, trasferimenti.",
+ "Précommandes web / WhatsApp et leurs lignes.": "Preordini web / WhatsApp e le loro righe.",
+ "Rendez-vous & file d’attente": "Appuntamenti e coda",
+ "Rendez-vous, plages bloquées et file d’attente.": "Appuntamenti, fasce bloccate e coda di attesa.",
+ "Sessions et mouvements de caisse, dépenses, comptes (soldes remis à l’ouverture), coupons, remises, avances.": "Sessioni e movimenti di cassa, spese, conti (saldi riportati al saldo iniziale), coupon, sconti, anticipi.",
+ "Toujours conservés : utilisateurs (leurs identifiants envoyés restent valables), rôles et accès, codes PIN, profil société et paramètres, magasins / emplacements, terminaux et appareils virtuels.": "Sempre conservati: utenti (gli accessi inviati via e-mail restano validi), ruoli e accessi, codici PIN, profilo aziendale e impostazioni, negozi / sedi, terminali e dispositivi virtuali.",
+ "Ventes & retours": "Vendite e resi",
+ "Ventes, lignes, paiements, retours, tickets, consommations, pourboires versés, points de fidélité, mouvements de caisse liés.": "Vendite, righe, pagamenti, resi, scontrini, consumi, mance pagate, punti fedeltà, movimenti di cassa collegati."
+}

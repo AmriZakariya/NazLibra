@@ -1,0 +1,20 @@
+{
+ "Achats, paiements fournisseurs, retours achat.": "Purchases, supplier payments, purchase returns.",
+ "Articles, variantes, options, modificateurs, recettes, catégories, marques, photos, personnel par service.": "Items, variants, options, modifiers, recipes, categories, brands, photos, staff per service.",
+ "Cartes cadeaux & forfaits": "Gift cards & packages",
+ "Cartes cadeaux, forfaits, forfaits clients et leurs mouvements.": "Gift cards, packages, customer packages and their movements.",
+ "Choisissez les groupes de données à remettre à plat (tous cochés par défaut). Garde toujours société, utilisateurs, rôles, magasins, terminaux et paramètres.": "Choose which data groups to wipe (all ticked by default). Company, users, roles, shops, terminals and settings are always kept.",
+ "Clients, fournisseurs, notes et pièces jointes.": "Customers, suppliers, notes and attachments.",
+ "Coché car il dépend de :": "Ticked because it depends on:",
+ "Groupes à remettre à plat": "Groups to wipe",
+ "Horaires du personnel & fermetures": "Staff schedules & closures",
+ "Horaires, exceptions et fermetures de la boutique.": "Staff schedules, exceptions and shop closures.",
+ "Mouvements, couches, stock par magasin (déficits compris), ajustements, inventaires, transferts.": "Movements, layers, stock per shop (deficits included), adjustments, stocktakes, transfers.",
+ "Précommandes web / WhatsApp et leurs lignes.": "Web / WhatsApp pre-orders and their lines.",
+ "Rendez-vous & file d’attente": "Appointments & queue",
+ "Rendez-vous, plages bloquées et file d’attente.": "Appointments, blocked slots and the walk-in queue.",
+ "Sessions et mouvements de caisse, dépenses, comptes (soldes remis à l’ouverture), coupons, remises, avances.": "Register sessions and movements, expenses, accounts (balances reset to opening), coupons, discounts, advances.",
+ "Toujours conservés : utilisateurs (leurs identifiants envoyés restent valables), rôles et accès, codes PIN, profil société et paramètres, magasins / emplacements, terminaux et appareils virtuels.": "Always kept: users (their emailed logins stay valid), roles and access, PIN codes, company profile and settings, shops / locations, terminals and virtual devices.",
+ "Ventes & retours": "Sales & returns",
+ "Ventes, lignes, paiements, retours, tickets, consommations, pourboires versés, points de fidélité, mouvements de caisse liés.": "Sales, lines, payments, returns, tickets, consumptions, tips paid out, loyalty points, linked register movements."
+}

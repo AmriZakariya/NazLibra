@@ -1,0 +1,20 @@
+{
+ "Achats, paiements fournisseurs, retours achat.": "المشتريات، مدفوعات الموردين، مرتجعات الشراء.",
+ "Articles, variantes, options, modificateurs, recettes, catégories, marques, photos, personnel par service.": "المنتجات، المتغيرات، الخيارات، الإضافات، الوصفات، الفئات، العلامات التجارية، الصور، الموظفون لكل خدمة.",
+ "Cartes cadeaux & forfaits": "بطاقات الهدايا والباقات",
+ "Cartes cadeaux, forfaits, forfaits clients et leurs mouvements.": "بطاقات الهدايا، الباقات، باقات العملاء وحركاتها.",
+ "Choisissez les groupes de données à remettre à plat (tous cochés par défaut). Garde toujours société, utilisateurs, rôles, magasins, terminaux et paramètres.": "اختر مجموعات البيانات المراد مسحها (كلها محددة افتراضيا). تبقى الشركة والمستخدمون والأدوار والمتاجر والأجهزة الطرفية والإعدادات دائما.",
+ "Clients, fournisseurs, notes et pièces jointes.": "العملاء، الموردون، الملاحظات والمرفقات.",
+ "Coché car il dépend de :": "محدد لأنه يعتمد على:",
+ "Groupes à remettre à plat": "المجموعات المراد مسحها",
+ "Horaires du personnel & fermetures": "جداول الموظفين والإغلاقات",
+ "Horaires, exceptions et fermetures de la boutique.": "جداول الموظفين والاستثناءات وإغلاقات المتجر.",
+ "Mouvements, couches, stock par magasin (déficits compris), ajustements, inventaires, transferts.": "الحركات، الطبقات، المخزون لكل متجر (بما فيه العجز)، التعديلات، الجرد، التحويلات.",
+ "Précommandes web / WhatsApp et leurs lignes.": "الطلبات المسبقة عبر الويب / واتساب وبنودها.",
+ "Rendez-vous & file d’attente": "المواعيد وقائمة الانتظار",
+ "Rendez-vous, plages bloquées et file d’attente.": "المواعيد، الفترات المحجوزة وقائمة الانتظار.",
+ "Sessions et mouvements de caisse, dépenses, comptes (soldes remis à l’ouverture), coupons, remises, avances.": "جلسات وحركات الصندوق، المصاريف، الحسابات (تعاد الأرصدة إلى رصيد الافتتاح)، القسائم، الخصومات، الدفعات المقدمة.",
+ "Toujours conservés : utilisateurs (leurs identifiants envoyés restent valables), rôles et accès, codes PIN, profil société et paramètres, magasins / emplacements, terminaux et appareils virtuels.": "يبقى دائما: المستخدمون (تبقى بيانات دخولهم المرسلة بالبريد صالحة)، الأدوار والصلاحيات، رموز PIN، ملف الشركة والإعدادات، المتاجر / المواقع، الأجهزة الطرفية والأجهزة الافتراضية.",
+ "Ventes & retours": "المبيعات والمرتجعات",
+ "Ventes, lignes, paiements, retours, tickets, consommations, pourboires versés, points de fidélité, mouvements de caisse liés.": "المبيعات، البنود، المدفوعات، المرتجعات، التذاكر، الاستهلاكات، البقشيش المدفوع، نقاط الولاء، حركات الصندوق المرتبطة."
+}

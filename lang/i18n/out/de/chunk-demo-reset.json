@@ -1,0 +1,20 @@
+{
+ "Achats, paiements fournisseurs, retours achat.": "Einkäufe, Lieferantenzahlungen, Einkaufsretouren.",
+ "Articles, variantes, options, modificateurs, recettes, catégories, marques, photos, personnel par service.": "Artikel, Varianten, Optionen, Modifikatoren, Rezepturen, Kategorien, Marken, Fotos, Personal je Leistung.",
+ "Cartes cadeaux & forfaits": "Geschenkkarten & Pakete",
+ "Cartes cadeaux, forfaits, forfaits clients et leurs mouvements.": "Geschenkkarten, Pakete, Kundenpakete und ihre Bewegungen.",
+ "Choisissez les groupes de données à remettre à plat (tous cochés par défaut). Garde toujours société, utilisateurs, rôles, magasins, terminaux et paramètres.": "Wählen Sie die zu löschenden Datengruppen (standardmäßig alle markiert). Firma, Benutzer, Rollen, Filialen, Terminals und Einstellungen bleiben immer erhalten.",
+ "Clients, fournisseurs, notes et pièces jointes.": "Kunden, Lieferanten, Notizen und Anhänge.",
+ "Coché car il dépend de :": "Markiert, weil es abhängt von:",
+ "Groupes à remettre à plat": "Zu löschende Gruppen",
+ "Horaires du personnel & fermetures": "Dienstpläne & Schließungen",
+ "Horaires, exceptions et fermetures de la boutique.": "Dienstpläne, Ausnahmen und Schließungen des Geschäfts.",
+ "Mouvements, couches, stock par magasin (déficits compris), ajustements, inventaires, transferts.": "Bewegungen, Schichten, Bestand je Filiale (inkl. Fehlbestände), Korrekturen, Inventuren, Umlagerungen.",
+ "Précommandes web / WhatsApp et leurs lignes.": "Web- / WhatsApp-Vorbestellungen und ihre Positionen.",
+ "Rendez-vous & file d’attente": "Termine & Warteschlange",
+ "Rendez-vous, plages bloquées et file d’attente.": "Termine, gesperrte Zeiten und Warteschlange.",
+ "Sessions et mouvements de caisse, dépenses, comptes (soldes remis à l’ouverture), coupons, remises, avances.": "Kassensitzungen und -bewegungen, Ausgaben, Konten (Salden auf Anfangssaldo zurückgesetzt), Gutscheine, Rabatte, Vorschüsse.",
+ "Toujours conservés : utilisateurs (leurs identifiants envoyés restent valables), rôles et accès, codes PIN, profil société et paramètres, magasins / emplacements, terminaux et appareils virtuels.": "Immer erhalten: Benutzer (ihre per E-Mail gesendeten Zugänge bleiben gültig), Rollen und Zugriffe, PIN-Codes, Firmenprofil und Einstellungen, Filialen / Standorte, Terminals und virtuelle Geräte.",
+ "Ventes & retours": "Verkäufe & Retouren",
+ "Ventes, lignes, paiements, retours, tickets, consommations, pourboires versés, points de fidélité, mouvements de caisse liés.": "Verkäufe, Positionen, Zahlungen, Retouren, Bons, Verbräuche, ausgezahlte Trinkgelder, Treuepunkte, verknüpfte Kassenbewegungen."
+}

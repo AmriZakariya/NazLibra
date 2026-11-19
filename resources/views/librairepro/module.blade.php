@@ -4921,11 +4921,25 @@
                                 'title' => 'Reset demo workspace',
                                 'short' => 'Reset complet',
                                 'group' => 'Tout remettre à plat',
-                                'description' => 'Nettoyage complet: ventes, commandes, achats, documents, stock, catalogue, contacts et finances. Garde société, utilisateurs, rôles, magasins et paramètres.',
+                                'description' => 'Choisissez les groupes de données à remettre à plat (tous cochés par défaut). Garde toujours société, utilisateurs, rôles, magasins, terminaux et paramètres.',
                                 'edge' => 'Le plus adapté avant une nouvelle présentation client.',
                                 'count' => $demoMaintenanceStats['total_demo_rows'] ?? 0,
                             ],
                         ];
+                        $demoResetGroups = [
+                            'sales' => ['Ventes & retours', 'Ventes, lignes, paiements, retours, tickets, consommations, pourboires versés, points de fidélité, mouvements de caisse liés.'],
+                            'appointments' => ['Rendez-vous & file d’attente', 'Rendez-vous, plages bloquées et file d’attente.'],
+                            'gifts' => ['Cartes cadeaux & forfaits', 'Cartes cadeaux, forfaits, forfaits clients et leurs mouvements.'],
+                            'stock' => ['Stock', 'Mouvements, couches, stock par magasin (déficits compris), ajustements, inventaires, transferts.'],
+                            'catalog' => ['Catalogue', 'Articles, variantes, options, modificateurs, recettes, catégories, marques, photos, personnel par service.'],
+                            'contacts' => ['Contacts', 'Clients, fournisseurs, notes et pièces jointes.'],
+                            'purchases' => ['Achats', 'Achats, paiements fournisseurs, retours achat.'],
+                            'documents' => ['Documents', 'Factures, devis, factures de vente ; la numérotation repart à 00001.'],
+                            'finance' => ['Finances', 'Sessions et mouvements de caisse, dépenses, comptes (soldes remis à l’ouverture), coupons, remises, avances.'],
+                            'online' => ['Commandes en ligne', 'Précommandes web / WhatsApp et leurs lignes.'],
+                            'schedules' => ['Horaires du personnel & fermetures', 'Horaires, exceptions et fermetures de la boutique.'],
+                        ];
+                        $demoResetPulls = \App\Support\DemoReset::PULLS;
                         $demoTotalRows = (int) ($demoMaintenanceStats['total_demo_rows'] ?? 0);
                         $demoQuickActions = match ($demoModeKey) {
                             'restaurant', 'coffee' => ['clear_sales', 'clear_finance', 'clear_inventory', 'clear_items', 'reset_demo'],
@@ -5018,6 +5032,27 @@
                                             <p class="mt-2 rounded-lg bg-white px-3 py-2 text-xs leading-5 text-slate-500 ring-1 ring-slate-200 dark:bg-slate-900 dark:ring-white/10">{{ $action['edge'] }}</p>
                                         </div>
                                     </div>
+                                    @if ($actionKey === 'reset_demo')
+                                        <fieldset class="mt-4 space-y-2" data-demo-reset-groups>
+                                            <legend class="text-xs font-black uppercase tracking-[0.12em] text-slate-500">Groupes à remettre à plat</legend>
+                                            <div class="grid gap-2 sm:grid-cols-2">
+                                                @foreach ($demoResetGroups as $groupKey => [$groupLabel, $groupHelp])
+                                                    @php $pulledBy = collect($demoResetPulls)->filter(fn ($pulled) => in_array($groupKey, $pulled, true))->keys()->all(); @endphp
+                                                    <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-slate-900">
+                                                        <input type="checkbox" name="groups[]" value="{{ $groupKey }}" checked data-group="{{ $groupKey }}" data-pulled-by="{{ implode(',', $pulledBy) }}" class="mt-0.5 size-4 shrink-0 rounded accent-rose-600" @disabled(! $currentUserIsOwner)>
+                                                        <span class="min-w-0">
+                                                            <span class="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{{ $groupLabel }} <span class="text-[11px] font-medium text-slate-400">{{ number_format((int) ($demoResetCounts[$groupKey] ?? 0), 0, ',', ' ') }}</span></span>
+                                                            <span class="block text-xs leading-5 text-slate-500 dark:text-slate-400">{{ $groupHelp }}</span>
+                                                            @if ($pulledBy !== [])
+                                                                <span class="mt-1 hidden text-[11px] font-semibold text-amber-700 dark:text-amber-300" data-why="{{ $groupKey }}"><span>Coché car il dépend de :</span>@foreach ($pulledBy as $by) <span data-by="{{ $by }}" class="hidden">{{ $demoResetGroups[$by][0] }}</span>@endforeach</span>
+                                                            @endif
+                                                        </span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                            <p class="rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800 ring-1 ring-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-200 dark:ring-emerald-500/20">Toujours conservés : utilisateurs (leurs identifiants envoyés restent valables), rôles et accès, codes PIN, profil société et paramètres, magasins / emplacements, terminaux et appareils virtuels.</p>
+                                        </fieldset>
+                                    @endif
                                     <div class="mt-4 space-y-3">
                                         <label class="flex cursor-pointer items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-slate-900">
                                             <input type="checkbox" name="hard_delete" value="1" class="size-4 rounded accent-rose-600" @disabled(! $currentUserIsOwner)>
@@ -5036,6 +5071,48 @@
                                 </form>
                             @endforeach
                         </div>
+                        <script>
+                            (function () {
+                                var box = document.querySelector('[data-demo-reset-groups]');
+                                if (!box) return;
+                                var inputs = Array.prototype.slice.call(box.querySelectorAll('input[data-group]'));
+                                var byKey = {};
+                                inputs.forEach(function (i) { byKey[i.dataset.group] = i; });
+                                function refresh() {
+                                    // Whatever references a ticked group is ticked too (the server enforces the same).
+                                    var changed = true;
+                                    while (changed) {
+                                        changed = false;
+                                        inputs.forEach(function (i) {
+                                            if (i.checked) return;
+                                            var pullers = (i.dataset.pulledBy || '').split(',').filter(Boolean);
+                                            if (pullers.some(function (k) { return byKey[k] && byKey[k].checked; })) { i.checked = true; changed = true; }
+                                        });
+                                    }
+                                    inputs.forEach(function (i) {
+                                        var why = box.querySelector('[data-why="' + i.dataset.group + '"]');
+                                        if (!why) return;
+                                        var any = false;
+                                        why.querySelectorAll('[data-by]').forEach(function (s) {
+                                            var on = byKey[s.dataset.by] && byKey[s.dataset.by].checked;
+                                            s.classList.toggle('hidden', !on);
+                                            any = any || on;
+                                        });
+                                        why.classList.toggle('hidden', !(any && i.checked));
+                                    });
+                                }
+                                inputs.forEach(function (i) {
+                                    i.addEventListener('change', function () {
+                                        if (!i.checked) {
+                                            var pullers = (i.dataset.pulledBy || '').split(',').filter(Boolean);
+                                            if (pullers.some(function (k) { return byKey[k] && byKey[k].checked; })) { i.checked = true; }
+                                        }
+                                        refresh();
+                                    });
+                                });
+                                refresh();
+                            })();
+                        </script>
                     </article>
 
                 @elseif ($settingsSection === 'company')

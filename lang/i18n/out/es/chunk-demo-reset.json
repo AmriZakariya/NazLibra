@@ -1,0 +1,20 @@
+{
+ "Achats, paiements fournisseurs, retours achat.": "Compras, pagos a proveedores, devoluciones de compra.",
+ "Articles, variantes, options, modificateurs, recettes, catégories, marques, photos, personnel par service.": "Artículos, variantes, opciones, modificadores, recetas, categorías, marcas, fotos, personal por servicio.",
+ "Cartes cadeaux & forfaits": "Tarjetas regalo y bonos",
+ "Cartes cadeaux, forfaits, forfaits clients et leurs mouvements.": "Tarjetas regalo, bonos, bonos de clientes y sus movimientos.",
+ "Choisissez les groupes de données à remettre à plat (tous cochés par défaut). Garde toujours société, utilisateurs, rôles, magasins, terminaux et paramètres.": "Elija los grupos de datos que borrar (todos marcados por defecto). La empresa, los usuarios, los roles, las tiendas, los terminales y los ajustes siempre se conservan.",
+ "Clients, fournisseurs, notes et pièces jointes.": "Clientes, proveedores, notas y archivos adjuntos.",
+ "Coché car il dépend de :": "Marcado porque depende de:",
+ "Groupes à remettre à plat": "Grupos que borrar",
+ "Horaires du personnel & fermetures": "Horarios del personal y cierres",
+ "Horaires, exceptions et fermetures de la boutique.": "Horarios del personal, excepciones y cierres de la tienda.",
+ "Mouvements, couches, stock par magasin (déficits compris), ajustements, inventaires, transferts.": "Movimientos, capas, stock por tienda (déficits incluidos), ajustes, inventarios, traspasos.",
+ "Précommandes web / WhatsApp et leurs lignes.": "Pedidos previos web / WhatsApp y sus líneas.",
+ "Rendez-vous & file d’attente": "Citas y cola de espera",
+ "Rendez-vous, plages bloquées et file d’attente.": "Citas, franjas bloqueadas y cola de espera.",
+ "Sessions et mouvements de caisse, dépenses, comptes (soldes remis à l’ouverture), coupons, remises, avances.": "Sesiones y movimientos de caja, gastos, cuentas (saldos restablecidos al saldo inicial), cupones, descuentos, anticipos.",
+ "Toujours conservés : utilisateurs (leurs identifiants envoyés restent valables), rôles et accès, codes PIN, profil société et paramètres, magasins / emplacements, terminaux et appareils virtuels.": "Siempre se conservan: usuarios (sus accesos enviados por correo siguen válidos), roles y accesos, códigos PIN, perfil de la empresa y ajustes, tiendas / ubicaciones, terminales y dispositivos virtuales.",
+ "Ventes & retours": "Ventas y devoluciones",
+ "Ventes, lignes, paiements, retours, tickets, consommations, pourboires versés, points de fidélité, mouvements de caisse liés.": "Ventas, líneas, pagos, devoluciones, tickets, consumos, propinas pagadas, puntos de fidelidad, movimientos de caja vinculados."
+}

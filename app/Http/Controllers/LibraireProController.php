@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\DemoReset;
 use App\Models\Category;
 use App\Models\AuditLog;
 use App\Models\Brand;
@@ -3748,11 +3749,17 @@ class LibraireProController extends Controller
         $data = $request->validate([
             'confirmation' => ['required', 'string', 'in:DEMO'],
             'hard_delete'  => ['nullable', 'boolean'],
+            'groups'       => [$action === 'reset_demo' ? 'required' : 'nullable', 'array', $action === 'reset_demo' ? 'min:1' : 'max:0'],
+            'groups.*'     => ['string', Rule::in(DemoReset::GROUPS)],
         ]);
         abort_unless(in_array($action, $actions, true), 404);
 
         $hardDelete = $request->boolean('hard_delete');
-        $deleted = DB::transaction(fn (): array => $this->executeDemoMaintenanceAction($tenant, $action, $hardDelete));
+        $picked = $action === 'reset_demo' ? (array) $data['groups'] : DemoReset::groupsForAction($action);
+        $groups = DemoReset::expand($picked);
+        $engine = new DemoReset($tenant, $hardDelete);
+        $deleted = DB::transaction(fn (): array => $engine->run($groups));
+        $engine->deleteFiles();
 
         AuditLog::create([
             'tenant_id' => $tenant->id,
@@ -3765,15 +3772,20 @@ class LibraireProController extends Controller
             'subject_reference_snapshot' => $action,
             'properties' => [
                 'confirmation' => $data['confirmation'],
+                'groups' => $groups,
                 'deleted' => $deleted,
             ],
         ]);
 
         $total = array_sum(array_map('intval', $deleted));
+        $status = 'Nettoyage démo exécuté: '.$total.' ligne(s) supprimée(s) ou réinitialisée(s).';
+        if (array_diff($groups, $picked)) {
+            $status .= ' Groupes ajoutés car ils dépendent de la sélection : '.implode(', ', array_diff($groups, $picked)).'.';
+        }
 
         return redirect()
             ->route('module', ['module' => 'settings', 'section' => 'demo-data'])
-            ->with('status', 'Nettoyage démo exécuté: '.$total.' ligne(s) supprimée(s) ou réinitialisée(s).');
+            ->with('status', $status);
     }
 
     public function updateVirtualDeviceSettings(Request $request): RedirectResponse
@@ -8486,6 +8498,7 @@ class LibraireProController extends Controller
             'storeAccessOptions' => ! $uses('settings') ? [] : $this->storeAccessOptions($tenant),
             'currentUserIsOwner' => ! $uses('settings') ? false : $this->currentUserIsOwner($tenant),
             'demoMaintenanceStats' => ! $uses('settings') ? [] : $this->demoMaintenanceStats($tenant),
+            'demoResetCounts' => ! $uses('settings') ? [] : DemoReset::counts($tenant),
             'auditLogs' => ! $uses('settings') ? collect() : AuditLog::where('tenant_id', $tenant->id)->with('user')->latest()->take(12)->get(),
         ]);
     }
@@ -10497,193 +10510,6 @@ class LibraireProController extends Controller
         $stats['total_demo_rows'] = array_sum($stats);
 
         return $stats;
-    }
-
-    private function executeDemoMaintenanceAction(Tenant $tenant, string $action, bool $hardDelete = false): array
-    {
-        return match ($action) {
-            'clear_sales'         => $this->clearDemoSales($tenant, $hardDelete),
-            'clear_inventory'     => $this->clearDemoInventory($tenant, $hardDelete),
-            'clear_items'         => $this->clearDemoItems($tenant, $hardDelete),
-            'clear_online_orders' => $this->clearDemoOnlineOrders($tenant),
-            'clear_purchases'     => $this->clearDemoPurchases($tenant),
-            'clear_documents'     => $this->clearDemoDocuments($tenant),
-            'clear_finance'       => $this->clearDemoFinance($tenant),
-            'clear_contacts'      => $this->clearDemoContacts($tenant, $hardDelete),
-            'reset_demo'          => $this->resetDemoWorkspace($tenant, $hardDelete),
-            default               => [],
-        };
-    }
-
-    private function resetDemoWorkspace(Tenant $tenant, bool $hardDelete = false): array
-    {
-        return $this->mergeCleanupCounts(
-            $this->clearDemoSales($tenant, $hardDelete),
-            $this->clearDemoOnlineOrders($tenant),
-            $this->clearDemoDocuments($tenant),
-            $this->clearDemoPurchases($tenant),
-            $this->clearDemoFinance($tenant),
-            $this->clearDemoItems($tenant, $hardDelete),
-            $this->clearDemoContacts($tenant, $hardDelete),
-        );
-    }
-
-    private function clearDemoSales(Tenant $tenant, bool $hardDelete = false): array
-    {
-        $saleQuery = fn () => Sale::where('tenant_id', $tenant->id);
-        $saleIds = $saleQuery()->pluck('id');
-
-        $counts = [
-            'pos_tickets'              => PosTicket::where('tenant_id', $tenant->id)->delete(),
-            'cash_register_movements'  => $saleIds->isEmpty() ? 0 : CashRegisterMovement::where('tenant_id', $tenant->id)->whereIn('sale_id', $saleIds)->delete(),
-            'sale_stock_movements'     => DB::table('stock_movements')->where('tenant_id', $tenant->id)->where('reference_type', Sale::class)->delete(),
-            // A return belongs to its sale. Left behind, it kept its number
-            // while the cleanup reset the sequence, and the next refund at the
-            // till collided with it.
-            'return_stock_movements'   => DB::table('stock_movements')->where('tenant_id', $tenant->id)->where('reference_type', SaleReturn::class)->delete(),
-            'sale_returns'             => $hardDelete
-                ? SaleReturn::withTrashed()->where('tenant_id', $tenant->id)->forceDelete()
-                : SaleReturn::where('tenant_id', $tenant->id)->delete(),
-            'sales'                    => $hardDelete ? $saleQuery()->forceDelete() : $saleQuery()->delete(),
-        ];
-
-        OnlineOrder::withTrashed()->where('tenant_id', $tenant->id)->update(['converted_sale_id' => null, 'converted_by' => null]);
-        Quotation::where('tenant_id', $tenant->id)->update(['converted_sale_id' => null]);
-
-        return $counts;
-    }
-
-    private function clearDemoInventory(Tenant $tenant, bool $hardDelete = false): array
-    {
-        $stocktakeIds = Stocktake::where('tenant_id', $tenant->id)->pluck('id');
-
-        return [
-            'stocktake_items'     => $stocktakeIds->isEmpty() ? 0 : StocktakeItem::where('tenant_id', $tenant->id)->whereIn('stocktake_id', $stocktakeIds)->delete(),
-            'stocktakes'          => Stocktake::where('tenant_id', $tenant->id)->delete(),
-            'stock_adjustments'   => StockAdjustment::where('tenant_id', $tenant->id)->delete(),
-            'stock_transfers'     => StockTransfer::where('tenant_id', $tenant->id)->delete(),
-            'stock_movements'     => DB::table('stock_movements')->where('tenant_id', $tenant->id)->delete(),
-            'item_location_stock' => $hardDelete
-                ? ItemLocationStock::withTrashed()->where('tenant_id', $tenant->id)->forceDelete()
-                : ItemLocationStock::where('tenant_id', $tenant->id)->delete(),
-            'item_stock_reset'    => Item::where('tenant_id', $tenant->id)->update(['stock_quantity' => 0, 'updated_at' => now()]),
-            'variant_stock_reset' => DB::table('item_variants')->whereIn('item_id', Item::where('tenant_id', $tenant->id)->select('id'))->update(['stock_quantity' => 0, 'updated_at' => now()]),
-        ];
-    }
-
-    private function clearDemoItems(Tenant $tenant, bool $hardDelete = false): array
-    {
-        $counts = $this->mergeCleanupCounts(
-            $this->clearDemoSales($tenant, $hardDelete),
-            $this->clearDemoOnlineOrders($tenant),
-            $this->clearDemoDocuments($tenant),
-            $this->clearDemoPurchases($tenant),
-            $this->clearDemoFinance($tenant),
-            $this->clearDemoInventory($tenant, $hardDelete),
-        );
-
-        $itemIds = $hardDelete
-            ? Item::withTrashed()->where('tenant_id', $tenant->id)->pluck('id')
-            : Item::where('tenant_id', $tenant->id)->pluck('id');
-
-        $counts['loans'] = Loan::where('tenant_id', $tenant->id)->delete();
-
-        // Full catalog demo cleanup is destructive by definition. Remove stock
-        // projection rows before deleting variants; otherwise nullable
-        // variant_id FKs can collapse multiple soft-deleted rows to variant_id
-        // null and violate the generated unique variant_key constraint.
-        $counts['item_location_stock_force_deleted'] = $itemIds->isEmpty()
-            ? 0
-            : ItemLocationStock::withTrashed()
-                ->where('tenant_id', $tenant->id)
-                ->whereIn('item_id', $itemIds)
-                ->forceDelete();
-
-        $counts['item_variants'] = $itemIds->isEmpty() ? 0 : ItemVariant::whereIn('item_id', $itemIds)->delete();
-        $counts['items'] = $hardDelete
-            ? Item::withTrashed()->where('tenant_id', $tenant->id)->forceDelete()
-            : Item::where('tenant_id', $tenant->id)->delete();
-
-        return $counts;
-    }
-
-    private function clearDemoOnlineOrders(Tenant $tenant): array
-    {
-        $orderIds = OnlineOrder::withTrashed()->where('tenant_id', $tenant->id)->pluck('id');
-        Sale::where('tenant_id', $tenant->id)->whereNotNull('source_online_order_id')->update(['source_online_order_id' => null]);
-
-        return [
-            'online_order_items' => $orderIds->isEmpty() ? 0 : OnlineOrderItem::whereIn('online_order_id', $orderIds)->delete(),
-            'online_orders'      => OnlineOrder::withTrashed()->where('tenant_id', $tenant->id)->forceDelete(),
-        ];
-    }
-
-    private function clearDemoPurchases(Tenant $tenant): array
-    {
-        return [
-            'purchase_stock_movements' => DB::table('stock_movements')->where('tenant_id', $tenant->id)->where('reference_type', Purchase::class)->delete(),
-            'purchase_payments'        => PurchasePayment::where('tenant_id', $tenant->id)->delete(),
-            'purchase_returns'         => PurchaseReturn::where('tenant_id', $tenant->id)->delete(),
-            'purchases'                => Purchase::where('tenant_id', $tenant->id)->delete(),
-        ];
-    }
-
-    private function clearDemoDocuments(Tenant $tenant): array
-    {
-        $invoiceIds  = Invoice::withTrashed()->where('tenant_id', $tenant->id)->pluck('id');
-        $estimateIds = Estimate::withTrashed()->where('tenant_id', $tenant->id)->pluck('id');
-
-        Sale::where('tenant_id', $tenant->id)->whereNotNull('source_invoice_id')->update(['source_invoice_id' => null]);
-        Estimate::withTrashed()->where('tenant_id', $tenant->id)->update(['converted_invoice_id' => null]);
-
-        return [
-            'invoice_histories'  => $invoiceIds->isEmpty() ? 0 : DB::table('document_status_histories')->where('tenant_id', $tenant->id)->where('document_type', 'invoice')->whereIn('document_id', $invoiceIds)->delete(),
-            'estimate_histories' => $estimateIds->isEmpty() ? 0 : DB::table('document_status_histories')->where('tenant_id', $tenant->id)->where('document_type', 'estimate')->whereIn('document_id', $estimateIds)->delete(),
-            'sale_invoices'      => SaleInvoice::where('tenant_id', $tenant->id)->delete(),
-            'invoices'           => Invoice::withTrashed()->where('tenant_id', $tenant->id)->forceDelete(),
-            'estimates'          => Estimate::withTrashed()->where('tenant_id', $tenant->id)->forceDelete(),
-            'quotations'         => Quotation::where('tenant_id', $tenant->id)->delete(),
-            'document_sequences' => DB::table('document_sequences')->where('tenant_id', $tenant->id)->delete(),
-        ];
-    }
-
-    private function clearDemoFinance(Tenant $tenant): array
-    {
-        $counts = [
-            'cash_register_movements' => CashRegisterMovement::where('tenant_id', $tenant->id)->delete(),
-            'cash_register_sessions'  => CashRegisterSession::where('tenant_id', $tenant->id)->delete(),
-            'account_transactions'    => AccountTransaction::where('tenant_id', $tenant->id)->delete(),
-            'customer_advances'       => CustomerAdvance::where('tenant_id', $tenant->id)->delete(),
-            'expenses'                => Expense::where('tenant_id', $tenant->id)->delete(),
-            'expense_categories'      => ExpenseCategory::where('tenant_id', $tenant->id)->delete(),
-            'coupon_sale'             => DB::table('coupon_sale')->where('tenant_id', $tenant->id)->delete(),
-            'discount_rule_sale'      => DB::table('discount_rule_sale')->where('tenant_id', $tenant->id)->delete(),
-            'coupons'                 => Coupon::where('tenant_id', $tenant->id)->delete(),
-            'discount_rules'          => DiscountRule::where('tenant_id', $tenant->id)->delete(),
-            'account_balance_reset'   => FinancialAccount::where('tenant_id', $tenant->id)->update(['current_balance' => DB::raw('opening_balance'), 'updated_at' => now()]),
-        ];
-
-        Contact::where('tenant_id', $tenant->id)->update(['advance_balance' => 0, 'outstanding_balance' => 0, 'updated_at' => now()]);
-
-        return $counts;
-    }
-
-    private function clearDemoContacts(Tenant $tenant, bool $hardDelete = false): array
-    {
-        $counts = $this->mergeCleanupCounts(
-            $this->clearDemoSales($tenant, $hardDelete),
-            $this->clearDemoOnlineOrders($tenant),
-            $this->clearDemoDocuments($tenant),
-            $this->clearDemoPurchases($tenant),
-            $this->clearDemoFinance($tenant),
-        );
-
-        $counts['loans']    = Loan::where('tenant_id', $tenant->id)->delete();
-        $counts['contacts'] = $hardDelete
-            ? Contact::withTrashed()->where('tenant_id', $tenant->id)->forceDelete()
-            : Contact::where('tenant_id', $tenant->id)->delete();
-
-        return $counts;
     }
 
     private function mergeCleanupCounts(array ...$groups): array
