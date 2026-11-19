@@ -727,6 +727,29 @@
             </form>
         </aside>
 
+        {{-- « Produits utilisés »: the recipe of a service, as data (no round trip) and as a dialog. --}}
+        <script type="application/json" class="pos-consumption-data">@json($consumption)</script>
+        <dialog class="app-dialog pos-consumption-dialog w-[min(540px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+            <div class="border-b border-slate-200 p-5 dark:border-white/10">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-brand">{{ $tr('Produits utilisés') }}</p>
+                        <h2 class="pos-consumption-title mt-1 truncate text-xl font-semibold">Service</h2>
+                        <p class="mt-1 text-sm text-slate-500">{{ $tr('Pour une unité du service. Les quantités sont dans l’unité du produit.') }}</p>
+                    </div>
+                    <button class="dialog-close grid size-9 place-items-center rounded-lg border border-slate-200 text-lg font-semibold dark:border-white/10" type="button">×</button>
+                </div>
+            </div>
+            <div class="pos-consumption-body grid gap-4 p-5"></div>
+            <div class="flex items-center justify-between gap-2 border-t border-slate-200 p-4 dark:border-white/10">
+                <button class="pos-consumption-reset rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold dark:border-white/10" type="button">{{ $tr('Rétablir la recette') }}</button>
+                <div class="flex gap-2">
+                    <button class="dialog-close rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10" type="button">{{ $tr('Annuler') }}</button>
+                    <button class="pos-consumption-apply rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white" type="button">{{ $tr('Valider') }}</button>
+                </div>
+            </div>
+        </dialog>
+
         <dialog class="app-dialog pos-item-dialog w-[min(540px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/45 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
             <div class="border-b border-slate-200 p-5 dark:border-white/10">
                 <div class="flex items-start justify-between gap-4">

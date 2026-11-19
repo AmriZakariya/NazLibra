@@ -693,4 +693,70 @@ class ServiceConsumptionTest extends TestCase
         $this->assertEqualsWithDelta(2.95, (float) $this->gel->fresh()->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(2.95, $this->onHand($this->gel), 0.0001);
     }
+    public function test_the_web_till_adjusts_a_quantity_and_zeroes_a_product(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post(route('pos.store'), [
+            'cart' => json_encode([[
+                'id' => $this->service->id, 'quantity' => 1,
+                'component_choices' => [['group' => 'Masque', 'component_item_id' => $this->purifiant->id]],
+                'component_overrides' => [
+                    ['component_item_id' => $this->gel->id, 'quantity' => 30],      // 30 ml instead of 10
+                    ['component_item_id' => $this->gloves->id, 'quantity' => 0],    // none this time
+                ],
+            ]]),
+            'cash_amount' => 1000,
+        ])->assertSessionHasNoErrors();
+
+        $this->assertEqualsWithDelta(9.85, $this->onHand($this->gel), 0.0001, '30 ml of 200');
+        $this->assertEqualsWithDelta(100.0, $this->onHand($this->gloves), 0.0001, 'zeroed: nothing deducted');
+        $this->assertEqualsWithDelta(3.96, $this->onHand($this->purifiant), 0.0001);
+        $this->assertEqualsWithDelta(4.0, $this->onHand($this->hydratant), 0.0001, 'the default mask is untouched');
+        $line = SaleItem::where('item_id', $this->service->id)->sole();
+        $this->assertSame(2, SaleItemConsumption::where('sale_item_id', $line->id)->count());
+        $this->assertEqualsWithDelta(0.15, (float) SaleItemConsumption::where('sale_item_id', $line->id)->where('component_item_id', $this->gel->id)->value('quantity_stock'), 0.0001);
+        $this->assertEqualsWithDelta(30.0, (float) SaleItemConsumption::where('sale_item_id', $line->id)->where('component_item_id', $this->gel->id)->value('quantity_content'), 0.0001);
+    }
+
+    public function test_the_till_page_embeds_the_recipes_and_capacities_for_the_choice_dialog(): void
+    {
+        $this->actingAs($this->owner);
+        $html = $this->get(route('pos'))->assertOk()->getContent();
+        $this->assertStringContainsString('pos-consumption-dialog', $html);
+        $this->assertSame(1, preg_match('#<script type="application/json" class="pos-consumption-data">(.*?)</script>#s', $html, $m));
+        $data = json_decode($m[1], true);
+
+        $rows = collect($data['recipes'][$this->service->id] ?? []);
+        $this->assertCount(4, $rows);
+        $masks = $rows->where('group', 'Masque');
+        $this->assertCount(2, $masks, 'two alternatives: the till must ask');
+        $this->assertSame([$this->hydratant->id], $masks->where('is_default', true)->pluck('product_id')->values()->all());
+        $this->assertEqualsWithDelta(10.0, $rows->firstWhere('product_id', $this->gel->id)['quantity'], 0.001);
+        // Products: their name and what the quantity is counted in.
+        $this->assertSame('Gel nettoyant', $data['products'][$this->gel->id]['name']);
+        $this->assertSame('ml', $data['products'][$this->gel->id]['unit']);
+        $this->assertSame('', $data['products'][$this->gloves->id]['unit'], 'no capacity: counted in stocked units');
+        // A quantity of 0 in the recipe never reaches the till.
+        ItemComponent::where('item_id', $this->service->id)->where('component_item_id', $this->gloves->id)->update(['quantity' => 0]);
+        $again = $this->get(route('pos'))->getContent();
+        preg_match('#<script type="application/json" class="pos-consumption-data">(.*?)</script>#s', $again, $m2);
+        $this->assertCount(3, json_decode($m2[1], true)['recipes'][$this->service->id]);
+    }
+
+    public function test_a_held_ticket_keeps_the_chosen_alternative_and_adjustments(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post(route('pos.tickets.store'), [
+            'cart' => json_encode([[
+                'id' => $this->service->id, 'quantity' => 1,
+                'component_choices' => [['group' => 'Masque', 'component_item_id' => $this->purifiant->id]],
+                'component_overrides' => [['component_item_id' => $this->gel->id, 'quantity' => 30]],
+            ]]),
+        ])->assertSessionHasNoErrors();
+
+        $ticket = \App\Models\PosTicket::firstOrFail();
+        $line = $ticket->cart[0];
+        $this->assertSame($this->purifiant->id, (int) $line['component_choices'][0]['component_item_id']);
+        $this->assertEqualsWithDelta(30.0, (float) $line['component_overrides'][0]['quantity'], 0.001);
+    }
 }

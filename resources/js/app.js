@@ -2958,9 +2958,11 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                             : item.kind === 'package' ? translate('Forfait') + ' · ' + money.format(item.price)
                             : item.kind === 'package_use' ? translate('Forfait utilisé') + ' · ' + money.format(item.price)
                             : `${item.barcode || translate('Sans code')} · ${money.format(item.price)} · stock ${stockLabel(item)}`}${item.note ? ` · ${escapeHtml(item.note)}` : ''}</p>
+                        ${!item.kind && consumptionSummary(item) ? `<p class="pos-cart-consumption mt-1 text-xs font-semibold text-slate-500">${translate('Produits utilisés')} : ${escapeHtml(consumptionSummary(item))}</p>` : ''}
                         ${dialogStaff && item.staffUserId && staffNames[item.staffUserId] ? `<p class="pos-cart-staff mt-1 text-xs font-semibold text-brand">✂ ${staffNames[item.staffUserId]}</p>` : ''}
                     </div>
                     <div class="flex items-center gap-1">
+                        ${!item.kind && recipeRows(item.id).length ? `<button class="pos-cart-consumption-edit grid size-8 place-items-center rounded-md bg-slate-100 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-200" data-index="${index}" type="button" title="${translate('Produits utilisés')}">🧴</button>` : ''}
                         <button class="pos-cart-edit grid size-8 place-items-center rounded-md bg-slate-100 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-200" data-index="${index}" type="button" title="${translate('Modifier')}">✎</button>
                         <button class="pos-remove grid size-8 place-items-center rounded-md bg-rose-50 text-base font-bold text-rose-600" data-index="${index}" type="button">×</button>
                     </div>
@@ -2984,10 +2986,13 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             cartCount.textContent = String(cart.length);
         }
         if (cartJson) {
-            cartJson.value = JSON.stringify(cart.map(({ id, quantity, price, originalPrice, note, staffUserId, kind, packageId, customerPackageId, recipientName, recipientPhone }) => ({
+            cartJson.value = JSON.stringify(cart.map(({ id, quantity, price, originalPrice, note, staffUserId, kind, packageId, customerPackageId, recipientName, recipientPhone, componentChoices, componentOverrides }) => ({
                 id, quantity, price, original_price: originalPrice, note, staff_user_id: staffUserId || null,
                 kind: kind || null, package_id: packageId || null, customer_package_id: customerPackageId || null,
                 recipient_name: recipientName || null, recipient_phone: recipientPhone || null,
+                // « Produits utilisés »: [{group, component_item_id}] and [{component_item_id, quantity}].
+                component_choices: Object.entries(effectiveChoices(id, { choices: componentChoices })).map(([group, productId]) => ({ group, component_item_id: Number(productId) })),
+                component_overrides: Object.entries(componentOverrides || {}).map(([productId, quantity]) => ({ component_item_id: Number(productId), quantity: Number(quantity) })),
             })));
         }
         screen.dataset.cartDirty = cart.length > 0 ? '1' : '0';
@@ -3068,7 +3073,204 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         bump.addEventListener('animationend', () => bump.remove(), { once: true });
     };
 
-    const addProduct = (button, { prompt = true } = {}) => {
+    // « Produits utilisés »: the recipes come with the page (no round trip).
+    // A line carries componentChoices {group: productId} and componentOverrides
+    // {productId: quantity in the product's content unit, per unit of service};
+    // both default to "the recipe as written" and are what the server expects.
+    const consumptionData = (() => {
+        try {
+            return JSON.parse(screen.querySelector('.pos-consumption-data')?.textContent || '{}');
+        } catch {
+            return {};
+        }
+    })();
+    const consumptionRecipes = consumptionData.recipes || {};
+    const consumptionProducts = consumptionData.products || {};
+    const consumptionDialog = screen.querySelector('.pos-consumption-dialog');
+    const consumptionBody = consumptionDialog?.querySelector('.pos-consumption-body');
+    const roundContent = (value) => Math.round(Number(value) * 1000) / 1000;
+    const recipeRows = (serviceId) => consumptionRecipes[String(serviceId)] || [];
+    // Rows sharing a group are alternatives; a group of one is just a row.
+    const choiceGroupsOf = (serviceId) => {
+        const groups = new Map();
+        recipeRows(serviceId).forEach((row) => {
+            if (!row.group) return;
+            if (!groups.has(row.group)) groups.set(row.group, []);
+            groups.get(row.group).push(row);
+        });
+        return [...groups].filter(([, members]) => members.length >= 2).map(([group, members]) => ({
+            group,
+            members,
+            defaultId: Number((members.find((member) => member.is_default) || members[0]).product_id),
+        }));
+    };
+    const needsChoice = (serviceId) => choiceGroupsOf(serviceId).length > 0;
+    const consumptionProductName = (productId) => consumptionProducts[String(productId)]?.name || `#${productId}`;
+    const consumptionProductUnit = (productId) => consumptionProducts[String(productId)]?.unit || '';
+    // What the line will use: every group resolved (chosen, else default).
+    const effectiveChoices = (serviceId, state) => {
+        const out = {};
+        choiceGroupsOf(serviceId).forEach((group) => {
+            const given = Number(state?.choices?.[group.group]);
+            out[group.group] = group.members.some((member) => Number(member.product_id) === given) ? given : group.defaultId;
+        });
+        return out;
+    };
+    // Same service, same products, same quantities: the same consumption, so
+    // two such lines may merge into one.
+    const consumptionKey = (serviceId, state) => JSON.stringify([
+        Object.entries(effectiveChoices(serviceId, state)).sort(),
+        Object.entries(state?.overrides || {}).map(([id, qty]) => [Number(id), roundContent(qty)]).sort((a, b) => a[0] - b[0]),
+    ]);
+    const lineConsumption = (line) => ({ choices: line.componentChoices || {}, overrides: line.componentOverrides || {} });
+    const consumptionSummary = (line) => {
+        if (!recipeRows(line.id).length) return '';
+        const state = lineConsumption(line);
+        const parts = Object.values(effectiveChoices(line.id, state)).map((productId) => consumptionProductName(productId));
+        Object.entries(state.overrides).forEach(([productId, quantity]) => {
+            const unit = consumptionProductUnit(productId);
+            parts.push(Number(quantity) <= 0
+                ? `${consumptionProductName(productId)} ${translate('retiré')}`
+                : `${consumptionProductName(productId)} ${roundContent(quantity)}${unit ? ' ' + unit : ''}`);
+        });
+        return parts.join(' · ');
+    };
+
+    let consumptionTarget = null; // { serviceId, onApply }
+    let consumptionDraft = null; // { choices, overrides }
+
+    // The quantity typed for each product on screen becomes a draft override
+    // when it differs from the recipe (a quantity equal to it is no adjustment).
+    const readConsumptionDraft = () => {
+        if (!consumptionBody || !consumptionTarget) return;
+        const rows = recipeRows(consumptionTarget.serviceId);
+        consumptionBody.querySelectorAll('.pos-consumption-qty').forEach((input) => {
+            const productId = Number(input.dataset.product);
+            const recipe = rows.find((row) => Number(row.product_id) === productId);
+            if (!recipe) return;
+            const typed = input.value.trim() === '' ? Number(recipe.quantity) : Math.max(0, roundContent(input.value));
+            if (Math.abs(typed - Number(recipe.quantity)) < 0.0005) {
+                delete consumptionDraft.overrides[productId];
+            } else {
+                consumptionDraft.overrides[productId] = typed;
+            }
+        });
+    };
+
+    const renderConsumptionBody = () => {
+        if (!consumptionBody || !consumptionTarget) return;
+        const serviceId = consumptionTarget.serviceId;
+        const groups = choiceGroupsOf(serviceId);
+        const shown = new Set();
+        const quantityRow = (row) => {
+            const productId = Number(row.product_id);
+            const value = consumptionDraft.overrides[productId] ?? Number(row.quantity);
+            const unit = consumptionProductUnit(productId);
+            return `<div class="flex items-center justify-between gap-3">
+                <span class="min-w-0 truncate text-sm font-semibold">${escapeHtml(consumptionProductName(productId))}</span>
+                <span class="flex shrink-0 items-center gap-1">
+                    <input class="pos-consumption-qty h-10 w-24 rounded-lg border border-slate-200 px-2 text-right text-sm font-semibold dark:border-white/10 dark:bg-slate-900" type="number" min="0" step="any" inputmode="decimal" data-product="${productId}" value="${roundContent(value)}">
+                    <span class="w-10 text-xs text-slate-500">${escapeHtml(unit)}</span>
+                    <button class="pos-consumption-zero h-10 rounded-lg border border-slate-200 px-2 text-xs font-semibold text-rose-600 dark:border-white/10" type="button" data-product="${productId}" title="${translate('Ne pas utiliser ce produit')}">0</button>
+                </span>
+            </div>`;
+        };
+
+        consumptionBody.innerHTML = recipeRows(serviceId).map((row) => {
+            const group = groups.find((candidate) => candidate.group === row.group);
+            if (!group) return quantityRow(row);
+            if (shown.has(group.group)) return '';
+            shown.add(group.group);
+            const chosen = Number(consumptionDraft.choices[group.group]);
+            const chosenRow = group.members.find((member) => Number(member.product_id) === chosen) || group.members[0];
+            return `<fieldset class="grid gap-2 rounded-xl border border-slate-200 p-3 dark:border-white/10">
+                <legend class="px-1 text-xs font-semibold uppercase text-slate-500">${escapeHtml(group.group)}</legend>
+                <div class="flex flex-wrap gap-2">${group.members.map((member) => `
+                    <label class="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold ${Number(member.product_id) === chosen ? 'border-brand bg-brand/5 text-brand' : 'border-slate-200 dark:border-white/10'}">
+                        <input class="pos-consumption-choice" type="radio" name="pos-consumption-${escapeHtml(group.group)}" data-group="${escapeHtml(group.group)}" value="${member.product_id}" ${Number(member.product_id) === chosen ? 'checked' : ''}>
+                        ${escapeHtml(consumptionProductName(member.product_id))}
+                    </label>`).join('')}
+                </div>
+                ${quantityRow(chosenRow)}
+            </fieldset>`;
+        }).join('');
+    };
+
+    const openConsumptionDialog = (serviceId, name, state, onApply) => {
+        if (!consumptionDialog || !recipeRows(serviceId).length) return false;
+        consumptionTarget = { serviceId, onApply };
+        consumptionDraft = { choices: effectiveChoices(serviceId, state), overrides: {} };
+        Object.entries(state?.overrides || {}).forEach(([productId, quantity]) => {
+            consumptionDraft.overrides[Number(productId)] = Math.max(0, roundContent(quantity));
+        });
+        const title = consumptionDialog.querySelector('.pos-consumption-title');
+        if (title) title.textContent = name;
+        renderConsumptionBody();
+        consumptionDialog.showModal();
+        return true;
+    };
+
+    const applyConsumptionDialog = () => {
+        if (!consumptionTarget) return;
+        readConsumptionDraft();
+        // Only what is on screen counts: an adjustment typed for an
+        // alternative that was then switched away from is dropped.
+        const shownIds = new Set(
+            recipeRows(consumptionTarget.serviceId)
+                .filter((row) => !row.group || !choiceGroupsOf(consumptionTarget.serviceId).some((group) => group.group === row.group)
+                    || Number(consumptionDraft.choices[row.group]) === Number(row.product_id))
+                .map((row) => Number(row.product_id)),
+        );
+        const overrides = {};
+        Object.entries(consumptionDraft.overrides).forEach(([productId, quantity]) => {
+            if (shownIds.has(Number(productId))) overrides[productId] = quantity;
+        });
+        const { onApply } = consumptionTarget;
+        consumptionTarget = null;
+        consumptionDialog.close();
+        onApply({ choices: { ...consumptionDraft.choices }, overrides });
+    };
+
+    consumptionDialog?.addEventListener('change', (event) => {
+        const choice = event.target.closest('.pos-consumption-choice');
+        if (!choice) return;
+        readConsumptionDraft();
+        consumptionDraft.choices[choice.dataset.group] = Number(choice.value);
+        renderConsumptionBody();
+    });
+    consumptionDialog?.addEventListener('click', (event) => {
+        const zero = event.target.closest('.pos-consumption-zero');
+        if (zero) {
+            const input = consumptionBody.querySelector(`.pos-consumption-qty[data-product="${zero.dataset.product}"]`);
+            if (input) input.value = '0';
+        }
+    });
+    consumptionDialog?.querySelector('.pos-consumption-reset')?.addEventListener('click', () => {
+        if (!consumptionTarget) return;
+        consumptionDraft = { choices: effectiveChoices(consumptionTarget.serviceId, {}), overrides: {} };
+        renderConsumptionBody();
+    });
+    consumptionDialog?.querySelector('.pos-consumption-apply')?.addEventListener('click', applyConsumptionDialog);
+    consumptionDialog?.querySelectorAll('.dialog-close').forEach((button) => {
+        button.addEventListener('click', () => {
+            consumptionTarget = null;
+            consumptionDialog.close();
+        });
+    });
+
+    // A line just created for a service with alternatives asks which one;
+    // cancelling keeps the default, which is what an older till would send.
+    const askConsumptionChoice = (line) => {
+        if (line && !line.kind && needsChoice(line.id)) {
+            openConsumptionDialog(line.id, line.name, lineConsumption(line), (state) => {
+                line.componentChoices = state.choices;
+                line.componentOverrides = state.overrides;
+                renderCart();
+            });
+        }
+    };
+
+    const addProduct = (button, { prompt = true, consumption = null } = {}) => {
         if (button.dataset.sellable === '0') {
             openStockDialog(button);
             return null;
@@ -3085,13 +3287,25 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
 
         const id = Number(button.dataset.id || 0);
         const stock = Number(button.dataset.stock || 0);
+
+        // « Produits utilisés »: a service with alternatives (two masks, one
+        // used) asks which one before the line exists. A held ticket being
+        // restored passes its own choices instead (prompt:false).
+        if (prompt && !consumption && needsChoice(id)) {
+            openConsumptionDialog(id, button.dataset.name, {}, (state) => addProduct(button, { prompt: false, consumption: state }));
+            return null;
+        }
+        const wanted = consumption || { choices: {}, overrides: {} };
         // Merge only into a line that is still at its original price. Once a
         // line's price has been edited, re-adding the same item starts a NEW
         // line instead — so the cart can hold several entries of the same item
         // at different prices.
+        // A line whose products differ (another mask, an adjusted quantity)
+        // is another line, however equal its price.
         const existing = button.dataset.priceIsFrom === '1'
             ? null
-            : cart.find((item) => item.id === id && item.price === item.originalPrice);
+            : cart.find((item) => item.id === id && item.price === item.originalPrice
+                && consumptionKey(id, lineConsumption(item)) === consumptionKey(id, wanted));
         let line;
         let added; // did a unit actually get added? (false when the stock cap blocked it)
         if (existing) {
@@ -3111,6 +3325,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 quantity: 1,
                 note: '',
                 priceIsFrom: button.dataset.priceIsFrom === '1',
+                componentChoices: wanted.choices,
+                componentOverrides: wanted.overrides,
             };
             cart.push(line);
             added = true;
@@ -3235,6 +3451,7 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         const chosenPackage = packageChoice ? customerPackages.find((p) => String(p.id) === String(packageChoice)) : null;
         const packageQuantity = chosenPackage ? Math.max(1, Math.min(quantity, Number(chosenPackage.sessions_remaining))) : quantity;
 
+        let newLine = null;
         if (mode === 'edit') {
             const item = cart[Number(itemDialog.dataset.index)];
             if (!item) return;
@@ -3264,11 +3481,16 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 note,
                 staffUserId,
                 priceIsFrom: isFrom,
+                componentChoices: {},
+                componentOverrides: {},
             });
+            newLine = cart[cart.length - 1];
         }
 
         itemDialog.close();
         renderCart();
+        // A from-price service with alternatives still asks which one.
+        if (newLine) askConsumptionChoice(newLine);
     };
 
     const filterProducts = () => {
@@ -3614,6 +3836,18 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
         if (remove) {
             cart.splice(Number(remove.dataset.index), 1);
             renderCart();
+        }
+
+        const consumptionEdit = event.target.closest('.pos-cart-consumption-edit');
+        if (consumptionEdit) {
+            const line = cart[Number(consumptionEdit.dataset.index)];
+            if (line) {
+                openConsumptionDialog(line.id, line.name, lineConsumption(line), (state) => {
+                    line.componentChoices = state.choices;
+                    line.componentOverrides = state.overrides;
+                    renderCart();
+                });
+            }
         }
 
         const edit = event.target.closest('.pos-cart-edit');
@@ -4118,7 +4352,13 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                 // Use the exact line addProduct created/updated — a plain
                 // find-by-id would target the wrong entry once the same item
                 // appears on several lines (e.g. different prices).
-                const added = addProduct(product, { prompt: false });
+                const saved = {
+                    choices: Object.fromEntries((Array.isArray(line.component_choices) ? line.component_choices : [])
+                        .filter((choice) => choice && choice.group).map((choice) => [choice.group, Number(choice.component_item_id)])),
+                    overrides: Object.fromEntries((Array.isArray(line.component_overrides) ? line.component_overrides : [])
+                        .filter((override) => override && override.component_item_id).map((override) => [Number(override.component_item_id), Number(override.quantity)])),
+                };
+                const added = addProduct(product, { prompt: false, consumption: saved });
                 if (added) {
                     added.quantity = Math.min(added.stock, quantity);
                     added.quantity = normalizeQuantity(added, quantity, false);

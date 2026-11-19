@@ -68,6 +68,49 @@ class ServiceConsumption
             ->values();
     }
 
+    /**
+     * What the web till needs to offer « Produits utilisés » without a round
+     * trip: every service's own recipe (quantities > 0, in the product's
+     * content unit) and the products they name. The till sells no variant, so
+     * the base rows are the effective recipe.
+     *
+     * @return array{recipes: array<int, list<array{product_id: int, quantity: float, group: ?string, is_default: bool}>>, products: array<int, array{name: string, unit: string}>}
+     */
+    public function tillData(int $tenantId): array
+    {
+        $rows = ItemComponent::query()
+            ->where('tenant_id', $tenantId)->whereNull('variant_id')
+            ->orderBy('sort_order')->orderBy('id')->get();
+
+        $recipes = [];
+        foreach ($rows as $row) {
+            $r = $this->row($row);
+            if ($r['quantity'] <= 0) {
+                continue;
+            }
+            $recipes[(int) $row->item_id][] = [
+                'product_id' => $r['component_item_id'],
+                'quantity' => $r['quantity'],
+                'group' => $r['choice_group'],
+                'is_default' => $r['is_default'],
+            ];
+        }
+
+        $products = [];
+        $named = Item::query()->where('tenant_id', $tenantId)
+            ->whereIn('id', $rows->pluck('component_item_id')->unique()->all())
+            ->get(['id', 'title', 'content_quantity', 'content_unit']);
+        foreach ($named as $product) {
+            $products[(int) $product->id] = [
+                'name' => $product->title,
+                // « ml », « pièces »: what the quantity is counted in; empty for a product stocked in whole units.
+                'unit' => $product->hasCapacity() ? \App\Support\ContentUnits::label($product->content_unit, 2) : '',
+            ];
+        }
+
+        return ['recipes' => $recipes, 'products' => $products];
+    }
+
     /** @return array{component_item_id: int, quantity: float, choice_group: ?string, is_default: bool, sort_order: int, variant_id: ?int} */
     private function row(ItemComponent $row): array
     {

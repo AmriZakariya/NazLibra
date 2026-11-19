@@ -4739,6 +4739,7 @@ class LibraireProController extends Controller
             'posAskStaff' => \App\Support\StaffReport::asksStaff($tenant),
             'posTips' => \App\Support\StaffReport::tipsEnabled($tenant),
             'posStaff' => $tenant->users()->where('users.is_active', true)->orderBy('users.name')->get(['users.id', 'users.name']),
+            'consumption' => app(\App\Services\Catalogue\ServiceConsumption::class)->tillData($tenant->id),
             'nextSaleNumber' => $this->peekSaleNumber($tenant),
             'nextTicketNumber' => $this->nextTicketNumber($tenant),
             'categories' => Category::where('tenant_id', $tenant->id)->orderBy('name')->get(),
@@ -8444,6 +8445,9 @@ class LibraireProController extends Controller
                     : ($priceEditable && array_key_exists('unit_price', $line) ? round(max(0, (float) $line['unit_price']), 2) : null),
                 'original_price' => array_key_exists('original_price', $line) ? round(max(0, (float) $line['original_price']), 2) : null,
                 'note' => mb_substr(trim((string) ($line['note'] ?? '')), 0, 160),
+                // « Produits utilisés »: a held ticket keeps the alternative chosen and the adjusted quantities.
+                'component_choices' => is_array($line['component_choices'] ?? null) ? $line['component_choices'] : [],
+                'component_overrides' => is_array($line['component_overrides'] ?? null) ? $line['component_overrides'] : [],
             ];
         })->filter(fn ($line) => $line['item_id'] > 0)
             ->values();
