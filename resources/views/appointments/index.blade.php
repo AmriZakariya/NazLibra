@@ -32,6 +32,8 @@
                 </form>
                 <a href="{{ route('appointments', ['date' => $day->addDay()->toDateString()]) }}" class="inline-flex h-11 items-center rounded-xl border border-slate-200 px-3 text-sm font-semibold dark:border-white/10" aria-label="Jour suivant">›</a>
                 <a href="{{ route('appointments') }}" class="inline-flex h-11 items-center rounded-xl border border-slate-200 px-3 text-sm font-semibold dark:border-white/10">Aujourd’hui</a>
+                <a href="{{ route('appointments.schedules') }}" class="inline-flex h-11 items-center rounded-xl border border-slate-200 px-3 text-sm font-semibold dark:border-white/10" data-schedules-link>Horaires</a>
+                <button type="button" onclick="document.getElementById('block-create').showModal()" class="inline-flex h-11 items-center rounded-xl border border-slate-200 px-3 text-sm font-semibold dark:border-white/10" data-block-open>Bloquer un créneau</button>
                 <button type="button" onclick="document.getElementById('booking-settings').showModal()" class="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold dark:border-white/10" data-booking-settings-open>
                     Réservation en ligne
                     <span class="rounded-full px-2 py-0.5 text-xs {{ $booking['enabled'] ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-400' }}">{{ $booking['enabled'] ? 'Activée' : 'Désactivée' }}</span>
@@ -50,6 +52,9 @@
         @endif
         @if ($errors->any())
             <p class="mt-4 rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300" data-appointment-error>{{ $errors->first() }}</p>
+        @endif
+        @if ($closure)
+            <p class="mt-4 rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 dark:bg-white/10 dark:text-slate-200" data-shop-closed>Boutique fermée ce jour{{ $closure->label ? ' : '.$closure->label : '' }}.</p>
         @endif
     </section>
 
@@ -82,19 +87,40 @@
     <section class="mt-6 overflow-x-auto">
         <div class="grid min-w-full gap-4" style="grid-template-columns: repeat({{ max(1, count($columns)) }}, minmax(260px, 1fr));">
             @forelse ($columns as $column)
-                @php $mine = $appointments->where('staff_user_id', $column['id']); @endphp
-                <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03]" data-staff-column="{{ $column['id'] ?? 0 }}">
+                @php
+                    $mine = $appointments->where('staff_user_id', $column['id']);
+                    $intervals = $column['id'] ? ($hours[$column['id']] ?? []) : null;
+                    $myBlocks = $column['id'] ? $blocks->where('user_id', $column['id']) : collect();
+                    $labels = \App\Support\Schedules::BLOCK_LABELS;
+                    $within = function ($a) use ($intervals, $tz) {
+                        if ($intervals === null) return true;
+                        $s = $a->starts_at->setTimezone($tz);
+                        return \App\Support\Schedules::covers($intervals, $s, $a->endsAt()->setTimezone($tz));
+                    };
+                @endphp
+                <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-white/[0.03] {{ $intervals === [] ? 'bg-slate-100/70 dark:bg-white/[0.06]' : '' }}" data-staff-column="{{ $column['id'] ?? 0 }}" @if ($intervals === []) data-staff-off @endif>
                     <div class="flex items-center justify-between">
                         <h2 class="font-semibold">{{ $column['name'] }}</h2>
                         <span class="text-xs text-slate-500">{{ $mine->count() }}</span>
                     </div>
+                    @if ($intervals !== null)
+                        <p class="mt-1 text-xs {{ $intervals === [] ? 'font-semibold text-rose-600 dark:text-rose-300' : 'text-slate-500' }}" data-staff-hours>
+                            @if ($intervals === []) Ne travaille pas ce jour @else {{ collect($intervals)->map(fn ($i) => $i[0].'–'.$i[1])->implode(' · ') }} @endif
+                        </p>
+                    @endif
+                    @foreach ($myBlocks as $b)
+                        <div class="mt-2 flex items-center justify-between gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs dark:border-white/15 dark:bg-white/5" data-block="{{ $b->id }}">
+                            <span><span class="font-semibold">{{ $labels[$b->kind] ?? $b->kind }}</span> · {{ $b->starts_at->setTimezone($tz)->format('H:i') }}–{{ $b->endsAt()->setTimezone($tz)->format('H:i') }}@if ($b->note) · {{ $b->note }}@endif</span>
+                            <form method="POST" action="{{ route('appointments.blocks.destroy', $b) }}">@csrf @method('DELETE')<button class="font-semibold text-rose-600" aria-label="Libérer">×</button></form>
+                        </div>
+                    @endforeach
                     <div class="mt-3 space-y-3">
                         @forelse ($mine as $a)
                             @php [$label, $tone] = $statusLabels[$a->status] ?? [$a->status, '']; $wa = $whatsapp($a); @endphp
                             <article class="rounded-xl border border-slate-200 p-3 dark:border-white/10 {{ in_array($a->status, ['cancelled', 'no_show'], true) ? 'opacity-60' : '' }}" data-appointment="{{ $a->id }}">
                                 <div class="flex items-start justify-between gap-2">
                                     <div class="min-w-0">
-                                        <p class="font-semibold tabular-nums">{{ $a->starts_at->setTimezone($tz)->format('H:i') }}–{{ $a->endsAt()->setTimezone($tz)->format('H:i') }}</p>
+                                        <p class="font-semibold tabular-nums">{{ $a->starts_at->setTimezone($tz)->format('H:i') }}–{{ $a->endsAt()->setTimezone($tz)->format('H:i') }}@if (! $within($a) && in_array($a->status, \App\Models\Appointment::ACTIVE, true)) <span class="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-600 dark:bg-white/10 dark:text-slate-300" data-off-hours>Hors horaires</span>@endif</p>
                                         <p class="truncate text-sm">{{ $a->customer_name ?? $a->contact?->name }}</p>
                                         @if ($a->service_name)<p class="truncate text-xs text-slate-500">{{ $a->service_name }}</p>@endif
                                     </div>
@@ -177,9 +203,39 @@
                 <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Téléphone</span><input name="customer_phone" type="tel" value="{{ old('customer_phone') }}" class="{{ $input }}"></label>
             </div>
             <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note</span><input name="note" value="{{ old('note') }}" class="{{ $input }}"></label>
+            @if ($errors->has('outside_hours'))
+                <label class="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-200" data-outside-hours-confirm>
+                    <input type="checkbox" name="outside_hours" value="1" class="mt-0.5 size-4 rounded border-slate-300">
+                    <span>Réserver quand même, hors horaires.</span>
+                </label>
+            @endif
             <div class="flex justify-end gap-2">
                 <button type="button" onclick="this.closest('dialog').close()" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Annuler</button>
                 <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Enregistrer</button>
+            </div>
+        </form>
+    </dialog>
+    <dialog id="block-create" class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-0 text-slate-950 shadow-2xl backdrop:bg-slate-950/40 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100">
+        <form method="POST" action="{{ route('appointments.blocks.store') }}" class="space-y-4 p-5">
+            @csrf
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold">Bloquer un créneau</h3>
+                <button type="button" onclick="this.closest('dialog').close()" class="grid size-9 place-items-center rounded-lg border border-slate-200 dark:border-white/10" aria-label="Fermer">×</button>
+            </div>
+            <p class="text-sm text-slate-500">Une pause, une absence ou une formation : le créneau n’est plus proposé aux clients ni réservable. Ce n’est pas un rendez-vous.</p>
+            <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Qui</span>
+                <select name="user_id" required class="{{ $input }}">@foreach ($staff as $s)<option value="{{ $s->id }}">{{ $s->name }}</option>@endforeach</select></label>
+            <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Type</span>
+                <select name="kind" class="{{ $input }}">@foreach (\App\Support\Schedules::BLOCK_LABELS as $key => $label)<option value="{{ $key }}">{{ $label }}</option>@endforeach</select></label>
+            <div class="grid gap-3 sm:grid-cols-3">
+                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Date</span><input name="date" type="date" required value="{{ $day->toDateString() }}" class="{{ $input }}"></label>
+                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Heure</span><input name="time" type="time" required step="300" value="12:00" class="{{ $input }}"></label>
+                <label class="space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Durée (min)</span><input name="duration_minutes" type="number" min="5" max="1440" step="5" value="60" class="{{ $input }}"></label>
+            </div>
+            <label class="block space-y-1.5"><span class="text-xs font-semibold uppercase text-slate-500">Note</span><input name="note" maxlength="190" class="{{ $input }}"></label>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="this.closest('dialog').close()" class="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold dark:border-white/10">Annuler</button>
+                <button class="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Bloquer</button>
             </div>
         </form>
     </dialog>

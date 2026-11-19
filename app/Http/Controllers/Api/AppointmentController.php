@@ -9,6 +9,8 @@ use App\Support\ApiActionContext;
 use App\Support\AppModules;
 use App\Support\Appointments;
 use App\Support\OnlineBooking;
+use App\Support\Schedules;
+use App\Models\AppointmentBlock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -29,7 +31,7 @@ class AppointmentController extends Controller
         $data = $request->validate(['date' => ['nullable', 'date_format:Y-m-d']]);
         $date = $data['date'] ?? now(Appointments::timezone($tenant))->toDateString();
 
-        return response()->json([
+        return response()->json(Schedules::dayPayload($tenant, $date) + [
             'ok' => true,
             'date' => $date,
             'week' => Appointments::weekCounts($tenant, $date),
@@ -83,6 +85,42 @@ class AppointmentController extends Controller
         $appointment = Appointments::save($tenant, $request->validate(Appointments::rules(partial: true)), $this->actor($request)?->actor, $appointment);
 
         return response()->json(['ok' => true, 'appointment' => Appointments::toApi($appointment->load('staff', 'contact'), $tenant)]);
+    }
+
+    /**
+     * POST /api/v1/appointments/blocks — « Pause », « Absent », « Formation ».
+     * starts_at is the shop's time, like a booking's.
+     */
+    public function storeBlock(Request $request): JsonResponse
+    {
+        $tenant = $this->tenant($request);
+        if ($off = $this->moduleOff($tenant)) {
+            return $off;
+        }
+        $data = $request->validate([
+            // Not "user_id": the API refuses that name, the actor comes from the token.
+            'staff_user_id' => ['required', 'integer'],
+            'starts_at' => ['required', 'date'],
+            'duration_minutes' => ['required', 'integer', 'min:5', 'max:1440'],
+            'kind' => ['required', Rule::in(AppointmentBlock::KINDS)],
+            'note' => ['nullable', 'string', 'max:190'],
+        ]);
+        $block = Schedules::addBlock($tenant, ['user_id' => (int) $data['staff_user_id']] + $data, $this->actor($request)?->actor?->id);
+
+        return response()->json(['ok' => true, 'block' => Schedules::blockToApi($block)], 201);
+    }
+
+    /** DELETE /api/v1/appointments/blocks/{block} */
+    public function destroyBlock(Request $request, AppointmentBlock $block): JsonResponse
+    {
+        $tenant = $this->tenant($request);
+        if ($off = $this->moduleOff($tenant)) {
+            return $off;
+        }
+        abort_unless($block->tenant_id === $tenant->id, 404);
+        $block->delete();
+
+        return response()->json(['ok' => true]);
     }
 
     /** PATCH /api/v1/appointments/{appointment}/status */

@@ -40,6 +40,9 @@ class Appointments
             'note' => ['nullable', 'string', 'max:1000'],
             'status' => ['nullable', Rule::in(Appointment::STATUSES)],
             'location_id' => ['nullable', 'integer'],
+            // « Hors horaires »: the person booking confirms the time is outside
+            // the person's hours (or on a day off / holiday).
+            'outside_hours' => ['nullable', 'boolean'],
         ];
     }
 
@@ -144,7 +147,7 @@ class Appointments
             throw ValidationException::withMessages(['customer_name' => 'Indiquez le nom du client.']);
         }
 
-        self::assertFree($appointment);
+        self::assertFree($appointment, ! empty($data['outside_hours']));
         $appointment->save();
 
         return $appointment->refresh();
@@ -157,7 +160,7 @@ class Appointments
      * someone: if the others cannot absorb it, it would land on this one.
      * Confirming a request, or editing a booking, never clashes with itself.
      */
-    public static function assertFree(Appointment $appointment): void
+    public static function assertFree(Appointment $appointment, bool $allowOutsideHours = false): void
     {
         if (! $appointment->staff_user_id || ! in_array($appointment->status, Appointment::ACTIVE, true)) {
             return;
@@ -192,6 +195,37 @@ class Appointments
                     $clash->customer_name ?? 'client',
                 ),
             ]);
+        }
+
+        // A pause, a day off, a training: not bookable, whatever else is free.
+        if ($block = Schedules::blockClash($appointment->tenant_id, (int) $appointment->staff_user_id, $start, $end)) {
+            throw ValidationException::withMessages([
+                'starts_at' => sprintf(
+                    '%s est indisponible de %s à %s (%s).',
+                    $appointment->staff?->name ?? User::find($appointment->staff_user_id)?->name ?? 'Ce barbier',
+                    $block->starts_at->setTimezone($tz)->format('H:i'),
+                    $block->endsAt()->setTimezone($tz)->format('H:i'),
+                    Schedules::BLOCK_LABELS[$block->kind] ?? $block->kind,
+                ),
+            ]);
+        }
+
+        // Outside the person's hours: allowed, but only knowingly.
+        if ($tenant && ! $allowOutsideHours) {
+            $localStart = CarbonImmutable::instance($start)->setTimezone($tz);
+            $date = $localStart->toDateString();
+            if (Schedules::enforced($tenant, (int) $appointment->staff_user_id, $date)
+                && ! Schedules::covers(Schedules::intervals($tenant, (int) $appointment->staff_user_id, $date), $localStart, CarbonImmutable::instance($end)->setTimezone($tz))) {
+                throw ValidationException::withMessages([
+                    'outside_hours' => sprintf(
+                        'Hors horaires : %s ne travaille pas le %s de %s à %s. Confirmez pour réserver quand même.',
+                        User::find($appointment->staff_user_id)?->name ?? 'Ce barbier',
+                        $localStart->format('d/m'),
+                        $localStart->format('H:i'),
+                        CarbonImmutable::instance($end)->setTimezone($tz)->format('H:i'),
+                    ),
+                ]);
+            }
         }
 
         // Bookings with nobody named: each takes one free barber of the team.

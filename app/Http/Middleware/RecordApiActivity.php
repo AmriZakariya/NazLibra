@@ -54,6 +54,8 @@ class RecordApiActivity
         'PATCH api/v1/pos/tickets/{ticket}/name' => 'Ticket en attente renommé',
         'POST api/v1/sales/{sale}/invoice' => 'Facture créée',
         'POST api/v1/appointments' => 'Création rendez-vous',
+        'POST api/v1/appointments/blocks' => 'Créneau bloqué (agenda)',
+        'DELETE api/v1/appointments/blocks/{block}' => 'Créneau libéré (agenda)',
         'PATCH api/v1/appointments/{appointment}' => 'Modification rendez-vous',
         'PATCH api/v1/appointments/{appointment}/status' => 'Statut rendez-vous',
         'POST api/v1/cash-register/open' => 'Ouverture de caisse',

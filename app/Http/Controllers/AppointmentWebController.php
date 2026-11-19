@@ -36,7 +36,12 @@ class AppointmentWebController extends Controller
         $staff = $tenant->users()->where('users.is_active', true)->orderBy('users.name')
             ->get(['users.id', 'users.name', 'users.avatar_color']);
 
+        $plans = \App\Support\Schedules::plans($tenant, [$day->toDateString()], $staff->pluck('id'))[$day->toDateString()] ?? [];
+
         return view('appointments.index', [
+            'hours' => $plans,
+            'blocks' => \App\Support\Schedules::blocksOn($tenant, $day->toDateString()),
+            'closure' => \App\Support\Schedules::closure($tenant, $day->toDateString()),
             'tenant' => $tenant,
             'active' => 'appointments',
             'day' => $day,

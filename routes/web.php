@@ -470,6 +470,14 @@ Route::post('/rendez-vous', [\App\Http\Controllers\AppointmentWebController::cla
 Route::put('/rendez-vous/{appointment}', [\App\Http\Controllers\AppointmentWebController::class, 'update'])->name('appointments.update');
 Route::post('/rendez-vous/reservation-en-ligne', [\App\Http\Controllers\AppointmentWebController::class, 'saveBooking'])->name('appointments.booking');
 Route::patch('/rendez-vous/{appointment}/statut', [\App\Http\Controllers\AppointmentWebController::class, 'status'])->name('appointments.status');
+Route::get('/rendez-vous/horaires', [\App\Http\Controllers\AgendaScheduleController::class, 'index'])->name('appointments.schedules');
+Route::post('/rendez-vous/horaires/{user}', [\App\Http\Controllers\AgendaScheduleController::class, 'saveWeek'])->name('appointments.schedules.save');
+Route::post('/rendez-vous/exceptions', [\App\Http\Controllers\AgendaScheduleController::class, 'storeException'])->name('appointments.exceptions.store');
+Route::delete('/rendez-vous/exceptions/{exception}', [\App\Http\Controllers\AgendaScheduleController::class, 'destroyException'])->name('appointments.exceptions.destroy');
+Route::post('/rendez-vous/fermetures', [\App\Http\Controllers\AgendaScheduleController::class, 'storeClosure'])->name('appointments.closures.store');
+Route::delete('/rendez-vous/fermetures/{closure}', [\App\Http\Controllers\AgendaScheduleController::class, 'destroyClosure'])->name('appointments.closures.destroy');
+Route::post('/rendez-vous/blocages', [\App\Http\Controllers\AgendaScheduleController::class, 'storeBlock'])->name('appointments.blocks.store');
+Route::delete('/rendez-vous/blocages/{block}', [\App\Http\Controllers\AgendaScheduleController::class, 'destroyBlock'])->name('appointments.blocks.destroy');
 // Gift cards and prepaid packages.
 Route::get('/cartes-cadeaux', [\App\Http\Controllers\GiftCardWebController::class, 'index'])->name('gift-cards');
 Route::get('/cartes-cadeaux/verifier', [\App\Http\Controllers\GiftCardWebController::class, 'lookup'])->name('gift-cards.lookup');

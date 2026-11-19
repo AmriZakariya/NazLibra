@@ -127,21 +127,24 @@ class OnlineBooking
         return $service && $id ? $service->variants->firstWhere('id', $id) : null;
     }
 
-    /** @return list<string>  the days a client may pick, Y-m-d in the shop's day */
+    /**
+     * The days a client may pick (Y-m-d, the shop's day): those when at least
+     * one barber works — their own hours, an exception, or the shop's — and
+     * the shop is not on holiday.
+     *
+     * @return list<string>
+     */
     public static function openDays(Tenant $tenant, ?CarbonImmutable $now = null): array
     {
         $tz = Appointments::timezone($tenant);
         $today = ($now ?? CarbonImmutable::now())->setTimezone($tz)->startOfDay();
-        $hours = self::settings($tenant)['hours'];
-        $days = [];
+        $dates = [];
         for ($i = 0; $i <= self::DAYS_AHEAD; $i++) {
-            $day = $today->addDays($i);
-            if ($hours[$day->isoWeekday()] !== null) {
-                $days[] = $day->toDateString();
-            }
+            $dates[] = $today->addDays($i)->toDateString();
         }
+        $plans = Schedules::plans($tenant, $dates, self::staff($tenant)->pluck('id')->map(fn ($id) => (int) $id));
 
-        return $days;
+        return array_values(array_filter($dates, fn (string $date) => collect($plans[$date] ?? [])->contains(fn (array $intervals) => $intervals !== [])));
     }
 
     /**
@@ -170,7 +173,6 @@ class OnlineBooking
             return [];
         }
         $day = CarbonImmutable::parse($date, $tz)->startOfDay();
-        [$open, $close] = $settings['hours'][$day->isoWeekday()];
         $step = $settings['duration'];
         $length = $duration ?: $step;
 
@@ -186,15 +188,26 @@ class OnlineBooking
             return [];
         }
 
+        // Each barber's own hours that day: a slot is offered only where the
+        // person (or, for « peu importe », someone) is at work for its whole length.
+        $hours = Schedules::plans($tenant, [$date], $team)[$date] ?? [];
+        $opens = collect($hours)->flatten(1)->map(fn (array $i) => $i[0])->min();
+        $closes = collect($hours)->flatten(1)->map(fn (array $i) => $i[1])->max();
+        if ($opens === null || $closes === null) {
+            return [];
+        }
+
         $busy = self::busy($tenant, $day);
         $slots = [];
-        $start = CarbonImmutable::parse($date.' '.$open, $tz);
-        $end = CarbonImmutable::parse($date.' '.$close, $tz);
+        $start = CarbonImmutable::parse($date.' '.$opens, $tz);
+        $end = CarbonImmutable::parse($date.' '.$closes, $tz);
         for ($t = $start; $t->addMinutes($length)->lessThanOrEqualTo($end); $t = $t->addMinutes($step)) {
             if ($t->lessThanOrEqualTo($now)) {
                 continue;
             }
-            if (self::firstFree($staff, $team, $busy, $t, $t->addMinutes($length)) !== null) {
+            $until = $t->addMinutes($length);
+            $working = $team->filter(fn (int $id) => Schedules::covers($hours[$id] ?? [], $t, $until))->values();
+            if (self::firstFree($staff, $working, $busy, $t, $until) !== null) {
                 $slots[] = $t->format('H:i');
             }
         }
@@ -230,9 +243,11 @@ class OnlineBooking
         // "Peu importe": the first barber free then, so the shop confirms a
         // request that already fits.
         $team = self::staff($tenant)->pluck('id')->map(fn ($id) => (int) $id);
+        $hours = Schedules::plans($tenant, [$start->toDateString()], $team)[$start->toDateString()] ?? [];
+        $working = $team->filter(fn (int $id) => Schedules::covers($hours[$id] ?? [], $start, $start->addMinutes($duration)))->values();
         $staffId ??= self::firstFree(
-            $team,
-            $team,
+            $working,
+            $working,
             self::busy($tenant, $start->startOfDay()),
             $start,
             $start->addMinutes($duration),
@@ -291,7 +306,16 @@ class OnlineBooking
                 $a->staff_user_id ? (int) $a->staff_user_id : null,
                 CarbonImmutable::instance($a->starts_at),
                 CarbonImmutable::instance($a->endsAt()),
-            ]);
+            ])
+            // A pause, a training: the person is not there to be booked.
+            ->concat(\App\Models\AppointmentBlock::query()
+                ->where('tenant_id', $tenant->id)
+                ->whereBetween('starts_at', [$day->subHours(10)->utc(), $day->endOfDay()->utc()])
+                ->get()
+                ->map(fn (\App\Models\AppointmentBlock $b) => [
+                    (int) $b->user_id, CarbonImmutable::instance($b->starts_at), CarbonImmutable::instance($b->endsAt()),
+                ]))
+            ->values();
     }
 
     /**
