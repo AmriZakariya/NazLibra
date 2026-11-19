@@ -325,6 +325,8 @@ class OnlineBooking
                 ->map(fn (\App\Models\AppointmentBlock $b) => [
                     (int) $b->user_id, CarbonImmutable::instance($b->starts_at), CarbonImmutable::instance($b->endsAt()),
                 ]))
+            // A walk-in already called holds that barber for their length.
+            ->concat(WalkInQueue::holds($tenant, $day))
             ->values();
     }
 

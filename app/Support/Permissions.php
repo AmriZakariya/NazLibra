@@ -67,6 +67,10 @@ class Permissions
                 'appointments.view' => 'Voir l’agenda',
                 'appointments.manage' => 'Prendre, déplacer et annuler un rendez-vous',
             ]],
+            'queue' => ['label' => 'File d’attente', 'permissions' => [
+                'queue.view' => 'Voir la file d’attente',
+                'queue.manage' => 'Ajouter, appeler, installer et retirer un client de la file',
+            ]],
             'gift_cards' => ['label' => 'Cartes cadeaux', 'permissions' => [
                 'gift_cards.view' => 'Voir les cartes cadeaux et leur solde',
                 'gift_cards.manage' => 'Annuler et ajuster une carte cadeau',
@@ -274,6 +278,13 @@ class Permissions
             'appointments.closures.destroy' => 'appointments.manage',
             'appointments.blocks.store' => 'appointments.manage',
             'appointments.blocks.destroy' => 'appointments.manage',
+
+            'queue' => 'queue.view',
+            'queue.store' => 'queue.manage',
+            'queue.call' => 'queue.manage',
+            'queue.seat' => 'queue.manage',
+            'queue.leave' => 'queue.manage',
+            'queue.tv-token' => 'queue.manage',
 
             'gift-cards' => 'gift_cards.view',
             'gift-cards.show' => 'gift_cards.view',

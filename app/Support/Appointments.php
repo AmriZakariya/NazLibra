@@ -197,6 +197,23 @@ class Appointments
             ]);
         }
 
+        // A walk-in already called is about to sit in this chair.
+        if ($tenant) {
+            $day = CarbonImmutable::instance($start)->setTimezone($tz)->startOfDay();
+            $walkIn = WalkInQueue::holds($tenant, $day)->first(fn (array $h) => $h[0] === (int) $appointment->staff_user_id
+                && $h[1]->lessThan($end) && $h[2]->greaterThan($start));
+            if ($walkIn) {
+                throw ValidationException::withMessages([
+                    'starts_at' => sprintf(
+                        '%s reçoit un client de la file d’attente de %s à %s.',
+                        User::find($appointment->staff_user_id)?->name ?? 'Ce barbier',
+                        $walkIn[1]->setTimezone($tz)->format('H:i'),
+                        $walkIn[2]->setTimezone($tz)->format('H:i'),
+                    ),
+                ]);
+            }
+        }
+
         // A pause, a day off, a training: not bookable, whatever else is free.
         if ($block = Schedules::blockClash($appointment->tenant_id, (int) $appointment->staff_user_id, $start, $end)) {
             throw ValidationException::withMessages([

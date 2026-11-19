@@ -189,6 +189,9 @@ Route::post('/boutique/commandes', [OnlineStoreController::class, 'storeOrder'])
 Route::get('/reserver', [\App\Http\Controllers\BookingController::class, 'show'])->name('booking.show');
 Route::get('/reserver/creneaux', [\App\Http\Controllers\BookingController::class, 'slots'])->name('booking.slots');
 Route::post('/reserver', [\App\Http\Controllers\BookingController::class, 'store'])->name('booking.store');
+// The waiting-room screen: read-only, reached by a secret address, no login.
+Route::get('/file/{token}', [\App\Http\Controllers\QueueWebController::class, 'tv'])->name('queue.tv');
+Route::get('/file/{token}/donnees', [\App\Http\Controllers\QueueWebController::class, 'tvData'])->name('queue.tv.data');
 
 // The language menu: on the login page too, so not behind sign-in.
 Route::post('/langue/{locale}', [LibraireProController::class, 'switchLocale'])
@@ -492,6 +495,12 @@ Route::put('/forfaits/{package}', [\App\Http\Controllers\PackageWebController::c
 Route::delete('/forfaits/{package}', [\App\Http\Controllers\PackageWebController::class, 'destroy'])->name('packages.destroy');
 Route::post('/forfaits-clients/{customerPackage}/annuler', [\App\Http\Controllers\PackageWebController::class, 'cancel'])->name('customer-packages.cancel');
 Route::post('/forfaits-clients/{customerPackage}/ajuster', [\App\Http\Controllers\PackageWebController::class, 'adjust'])->name('customer-packages.adjust');
+Route::get('/file-attente', [\App\Http\Controllers\QueueWebController::class, 'index'])->name('queue');
+Route::post('/file-attente', [\App\Http\Controllers\QueueWebController::class, 'store'])->name('queue.store');
+Route::post('/file-attente/suivant', [\App\Http\Controllers\QueueWebController::class, 'call'])->name('queue.call');
+Route::post('/file-attente/{entry}/installer', [\App\Http\Controllers\QueueWebController::class, 'seat'])->name('queue.seat');
+Route::post('/file-attente/{entry}/parti', [\App\Http\Controllers\QueueWebController::class, 'leave'])->name('queue.leave');
+Route::post('/file-attente/ecran', [\App\Http\Controllers\QueueWebController::class, 'regenerateTv'])->name('queue.tv-token');
 Route::post('/pourboires/{user}/versements', [\App\Http\Controllers\AppointmentWebController::class, 'payTips'])->name('tips.payouts.store');
 
 // Virtual devices: selection & heartbeat (no device.selected middleware)

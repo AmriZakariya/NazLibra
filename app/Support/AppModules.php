@@ -28,6 +28,8 @@ class AppModules
             'stock' => ['label' => 'Stock', 'description' => 'Inventaire, mouvements, ajustements, transferts et valorisation.', 'default' => true],
             // On by default where shops work by appointment.
             'appointments' => ['label' => 'Rendez-vous', 'description' => 'Agenda par barbier ou employé, statuts, rappel WhatsApp et encaissement du rendez-vous.', 'default' => false, 'default_for' => ['barber', 'beauty']],
+            // Walk-ins waiting their turn: on for barbers, off for beauty salons (who book).
+            'queue' => ['label' => 'File d’attente', 'description' => 'Clients sans rendez-vous : file ordonnée, attente estimée, « appeler le suivant » et écran public.', 'default' => false, 'default_for' => ['barber']],
             'gift_cards' => ['label' => 'Cartes cadeaux', 'description' => 'Vente de cartes cadeaux, paiement par code, solde, expiration et historique.', 'default' => false, 'default_for' => ['barber', 'beauty']],
             'packages' => ['label' => 'Forfaits', 'description' => 'Forfaits et cartes de séances prépayés par client, séances restantes et utilisation en caisse.', 'default' => false, 'default_for' => ['barber', 'beauty']],
             'kds' => ['label' => 'Cuisine (KDS)', 'description' => 'Écran de préparation, envoi en cuisine, bons par poste et suivi des plats.', 'default' => false],
@@ -166,6 +168,7 @@ class AppModules
             'sales.' => 'sales',
             'online-orders.' => 'online_orders',
             'gift-cards' => 'gift_cards',
+            'queue' => 'queue',
             'packages' => 'packages',
             'quotations.' => 'quotations',
             'purchases.' => 'purchases',

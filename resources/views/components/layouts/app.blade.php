@@ -188,6 +188,7 @@
                     ['label' => 'Liste des retours de vente', 'icon' => '≡', 'href' => route('module', ['module' => 'sales', 'section' => 'returns'])],
                 ]],
                 ['key' => 'appointments', 'label' => 'Rendez-vous', 'icon' => '✂', 'href' => route('appointments')],
+                ['key' => 'queue', 'label' => 'File d’attente', 'icon' => '☰', 'href' => route('queue')],
                 ['key' => 'gift_cards', 'label' => 'Cartes cadeaux', 'icon' => '◈', 'href' => route('gift-cards')],
                 ['key' => 'packages', 'label' => 'Forfaits', 'icon' => '▣', 'href' => route('packages')],
                 ['key' => 'online_orders', 'label' => 'Précommandes', 'icon' => '◷', 'href' => route('module', 'online-orders'), 'children' => [
@@ -334,6 +335,7 @@
                 'dashboard' => 'dashboard tableau board home accueil الرئيسية لوحة القيادة kpi analytics stats statistiques اليوم today',
                 'catalog' => 'catalog catalogue articles items produits books livres خدمات services isbn barcode code barre categories catégories marques publishers éditeurs variants variantes labels etiquettes étiquettes import excel inventory مخزون منتجات كتب خدمات تصنيفات',
                 'sales' => 'sales ventes pos caisse checkout payment paiement ticket receipt reçu facture refund retour encaissement barcode scanner مبيعات صندوق تذكرة دفع',
+                'queue' => 'file attente walk-in sans rendez-vous passage client',
                 'appointments' => 'rendez-vous rdv agenda appointment booking réservation barbier coiffeur موعد مواعيد',
                 'gift_cards' => 'cartes cadeaux carte cadeau gift card voucher bon cadeau solde code بطاقة هدية',
                 'packages' => 'forfaits forfait séances package prepaid carte de séances abonnement باقة',

@@ -179,6 +179,12 @@ Route::prefix('v1')->group(function (): void {
         Route::get('appointments', [\App\Http\Controllers\Api\AppointmentController::class, 'index'])->middleware('api.action:appointments.view');
         Route::get('appointments/requests', [\App\Http\Controllers\Api\AppointmentController::class, 'requests'])->middleware('api.action:appointments.view');
         Route::post('appointments', [\App\Http\Controllers\Api\AppointmentController::class, 'store'])->middleware('api.action:appointments.manage');
+        // Walk-in queue (barbers): online only, shared by every till.
+        Route::get('queue', [\App\Http\Controllers\Api\QueueController::class, 'index'])->middleware('api.action:queue.view');
+        Route::post('queue', [\App\Http\Controllers\Api\QueueController::class, 'store'])->middleware('api.action:queue.manage');
+        Route::post('queue/next', [\App\Http\Controllers\Api\QueueController::class, 'call'])->middleware('api.action:queue.manage');
+        Route::post('queue/{entry}/seat', [\App\Http\Controllers\Api\QueueController::class, 'seat'])->middleware('api.action:queue.manage');
+        Route::post('queue/{entry}/leave', [\App\Http\Controllers\Api\QueueController::class, 'leave'])->middleware('api.action:queue.manage');
         Route::post('appointments/blocks', [\App\Http\Controllers\Api\AppointmentController::class, 'storeBlock'])->middleware('api.action:appointments.manage');
         Route::delete('appointments/blocks/{block}', [\App\Http\Controllers\Api\AppointmentController::class, 'destroyBlock'])->middleware('api.action:appointments.manage');
         Route::patch('appointments/{appointment}', [\App\Http\Controllers\Api\AppointmentController::class, 'update'])->middleware('api.action:appointments.manage');
