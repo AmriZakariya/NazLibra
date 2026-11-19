@@ -5071,7 +5071,7 @@ document.querySelectorAll('[data-stock-adjustment-builder]').forEach((form) => {
         });
 
         if (countNode) countNode.textContent = selectedCount.toLocaleString('fr-FR');
-        if (totalNode) totalNode.textContent = totalQuantity.toLocaleString('fr-FR');
+        if (totalNode) totalNode.textContent = totalQuantity.toLocaleString('fr-FR', { maximumFractionDigits: 4 });
     };
 
     const addRow = (preselectedValue = '') => {

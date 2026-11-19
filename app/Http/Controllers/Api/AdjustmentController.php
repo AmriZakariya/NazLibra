@@ -52,7 +52,7 @@ class AdjustmentController extends Controller
                     new OA\Property(property: 'item_id', type: 'integer', example: 42),
                     new OA\Property(property: 'variant_id', type: 'integer', nullable: true),
                     new OA\Property(property: 'mode', type: 'string', enum: ['delta', 'correction'], description: 'delta=signed change, correction=set absolute quantity'),
-                    new OA\Property(property: 'quantity', type: 'integer', description: 'Signed delta (delta mode) or absolute target (correction mode)', example: 5),
+                    new OA\Property(property: 'quantity', type: 'number', description: 'Up to 4 decimals. Signed delta (delta mode) or absolute target (correction mode)', example: 5),
                     new OA\Property(property: 'reason', type: 'string', nullable: true, example: 'Inventory count'),
                     new OA\Property(property: 'note', type: 'string', nullable: true, example: 'Shelf B3'),
                 ]
@@ -93,7 +93,8 @@ class AdjustmentController extends Controller
             'item_id'         => ['required', 'integer'],
             'variant_id'      => ['nullable', 'integer'],
             'mode'            => ['required', Rule::in(['delta', 'correction'])],
-            'quantity'        => ['required', 'integer', 'not_in:0'],
+            // Up to four decimals: a product used by the ml is stocked as 2.95 bottles.
+            'quantity'        => ['required', 'numeric', 'decimal:0,4', 'not_in:0'],
             'unit_cost'       => ['nullable', 'numeric', 'min:0'],
             'reason'          => ['nullable', 'string', 'max:500'],
             'note'            => ['nullable', 'string', 'max:500'],
@@ -141,7 +142,7 @@ class AdjustmentController extends Controller
 
                 $effectiveLocationId = $locationId ?? $this->ledger->defaultLocationId($tenant->id);
 
-                $qty = (int) $data['quantity'];
+                $qty = round((float) $data['quantity'], 4);
 
                 if ($data['mode'] === 'correction') {
                     if ($qty < 0) {
@@ -149,12 +150,12 @@ class AdjustmentController extends Controller
                     }
 
                     // Authoritative current stock from layers.
-                    $currentQty = (int) $this->ledger->availableQuantity(
+                    $currentQty = (float) $this->ledger->availableQuantity(
                         $tenant->id, $item->id, null, $effectiveLocationId
                     );
-                    $delta = $qty - $currentQty;
+                    $delta = round($qty - $currentQty, 4);
 
-                    if ($delta === 0) {
+                    if (abs($delta) < 0.00005) {
                         $stock = ItemLocationStock::where('tenant_id', $tenant->id)
                             ->where('item_id', $item->id)
                             ->where('location_id', $effectiveLocationId)
@@ -219,9 +220,9 @@ class AdjustmentController extends Controller
                     'stock_after' => [
                         'item_id'      => $item->id,
                         'location_id'  => $effectiveLocationId,
-                        'quantity'     => $summary['quantity'],
+                        'quantity'     => \App\Support\Stock::number($summary['quantity']),
                         'reserved'     => 0,
-                        'available'    => $summary['quantity'],
+                        'available'    => \App\Support\Stock::number($summary['quantity']),
                         'average_cost' => $summary['average_cost'],
                         'stock_value'  => $summary['value'],
                     ],
@@ -252,9 +253,9 @@ class AdjustmentController extends Controller
         return [
             'item_id'      => $itemId,
             'location_id'  => $locationId,
-            'quantity'     => $qty,
-            'reserved'     => $res,
-            'available'    => max(0, $qty - $res),
+            'quantity'     => \App\Support\Stock::number($qty),
+            'reserved'     => \App\Support\Stock::number($res),
+            'available'    => \App\Support\Stock::number(max(0, $qty - $res)),
             'average_cost' => $avg,
             'stock_value'  => round($qty * $avg, 2),
         ];

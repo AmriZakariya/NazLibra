@@ -617,4 +617,80 @@ class ServiceConsumptionTest extends TestCase
         $form(['content_container' => ''])->assertSessionHasNoErrors();
         $this->assertNull($this->gloves->fresh()->content_container);
     }
+    public function test_the_adjustment_api_takes_fractions_and_keeps_whole_stocks_whole(): void
+    {
+        $token = $this->token();
+        $headers = ['X-Tenant-Slug' => $this->tenant->slug, 'X-Location-Id' => (string) $this->location->id];
+        $adjust = function (array $body) use ($token, $headers) {
+            $this->app['auth']->forgetGuards();
+
+            return $this->withToken($token)->withHeaders($headers)->postJson('/api/v1/inventory/adjustments', $body + ['idempotency_key' => Str::uuid()->toString(), 'item_id' => $this->gel->id]);
+        };
+
+        // 10 bottles - 2.5 = 7.5
+        $out = $adjust(['mode' => 'delta', 'quantity' => -2.5])->assertCreated();
+        $this->assertEqualsWithDelta(7.5, $this->onHand($this->gel), 0.0001);
+        $this->assertSame(7.5, $out->json('stock_after.quantity'));
+        // + 0.0001 is the finest step; 5 decimals are refused.
+        $adjust(['mode' => 'delta', 'quantity' => 0.00001])->assertUnprocessable();
+        $adjust(['mode' => 'delta', 'quantity' => 0.25])->assertCreated();
+        $this->assertEqualsWithDelta(7.75, $this->onHand($this->gel), 0.0001);
+        // Correction to a fraction, then to a whole number: the JSON stays an integer.
+        $adjust(['mode' => 'correction', 'quantity' => 3.45])->assertCreated();
+        $this->assertEqualsWithDelta(3.45, (float) $this->gel->fresh()->stock_quantity, 0.0001);
+        $whole = $adjust(['mode' => 'correction', 'quantity' => 4])->assertCreated();
+        $this->assertSame(4, $whole->json('stock_after.quantity'));
+        $this->assertSame(4, $this->gel->fresh()->stock_quantity);
+        // Same figure again: nothing to do.
+        $adjust(['mode' => 'correction', 'quantity' => 4])->assertCreated()->assertJsonPath('no_change', true);
+        // Removing more than there is stays refused.
+        $adjust(['mode' => 'delta', 'quantity' => -4.5])->assertUnprocessable();
+    }
+
+    public function test_the_web_adjustment_and_stocktake_take_fractions(): void
+    {
+        $this->actingAs($this->owner);
+        $this->post(route('catalog.stock-adjustments.store'), [
+            'reason' => 'Casse', 'items' => [['item_id' => $this->gel->id, 'direction' => 'remove', 'quantity' => '2.5']],
+        ])->assertSessionHasNoErrors();
+        $this->assertEqualsWithDelta(7.5, (float) $this->gel->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(7.5, $this->onHand($this->gel), 0.0001);
+        $adjustment = \App\Models\StockAdjustment::latest('id')->firstOrFail();
+        $this->assertEqualsWithDelta(2.5, (float) $adjustment->total_quantity, 0.0001);
+        $this->assertEqualsWithDelta(-2.5, (float) $adjustment->lines[0]['quantity_delta'], 0.0001);
+
+        $this->post(route('catalog.stock-adjustments.store'), [
+            'reason' => 'Réception', 'items' => [['item_id' => $this->gel->id, 'direction' => 'add', 'quantity' => '0.45']],
+        ])->assertSessionHasNoErrors();
+        $this->assertEqualsWithDelta(7.95, (float) $this->gel->fresh()->stock_quantity, 0.0001);
+
+        // « set » to a fraction (the stock correction), then back to a whole.
+        $this->post(route('catalog.stock-adjustments.store'), [
+            'reason' => 'Comptage', 'items' => [['item_id' => $this->gel->id, 'direction' => 'set', 'quantity' => '3.45']],
+        ])->assertSessionHasNoErrors();
+        $this->assertEqualsWithDelta(3.45, $this->onHand($this->gel), 0.0001);
+        $this->post(route('catalog.stock-adjustments.store'), [
+            'reason' => 'Comptage', 'items' => [['item_id' => $this->gel->id, 'direction' => 'set', 'quantity' => '5']],
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(5, $this->gel->fresh()->stock_quantity);
+
+        // Five decimals are refused.
+        $this->post(route('catalog.stock-adjustments.store'), [
+            'reason' => 'x', 'items' => [['item_id' => $this->gel->id, 'direction' => 'add', 'quantity' => '0.00001']],
+        ])->assertSessionHasErrors('items.0.quantity');
+
+        // A stocktake counts 2.95 bottles against the 5 expected.
+        $this->post(route('catalog.stocktakes.store'), [
+            'location_id' => $this->location->id, 'items' => [['item_id' => $this->gel->id, 'counted_quantity' => '']],
+        ])->assertSessionHasNoErrors();
+        $stocktake = \App\Models\Stocktake::firstOrFail();
+        $line = $stocktake->items()->firstOrFail();
+        $this->assertSame(5, $line->expected_quantity);
+        $this->post(route('catalog.stocktakes.counts.update', $stocktake), ['counts' => [$line->id => '2.95']])->assertSessionHasNoErrors();
+        $this->assertEqualsWithDelta(2.95, (float) $line->fresh()->counted_quantity, 0.0001);
+        $this->assertEqualsWithDelta(-2.05, $line->fresh()->difference(), 0.0001);
+        $this->post(route('catalog.stocktakes.complete', $stocktake), ['_idempotency_key' => 'fraction-count'])->assertSessionHasNoErrors();
+        $this->assertEqualsWithDelta(2.95, (float) $this->gel->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(2.95, $this->onHand($this->gel), 0.0001);
+    }
 }

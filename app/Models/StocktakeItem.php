@@ -12,8 +12,9 @@ class StocktakeItem extends Model
     protected function casts(): array
     {
         return [
-            'expected_quantity' => 'integer',
-            'counted_quantity' => 'integer',
+            // Whole when whole, a decimal for a product stocked in fractions.
+            'expected_quantity' => \App\Casts\Quantity::class,
+            'counted_quantity' => \App\Casts\Quantity::class,
         ];
     }
 
@@ -32,8 +33,8 @@ class StocktakeItem extends Model
         return $this->belongsTo(ItemVariant::class);
     }
 
-    public function difference(): int
+    public function difference(): int|float
     {
-        return (int) ($this->counted_quantity ?? 0) - (int) $this->expected_quantity;
+        return \App\Support\Stock::number(round((float) ($this->counted_quantity ?? 0) - (float) $this->expected_quantity, 4));
     }
 }

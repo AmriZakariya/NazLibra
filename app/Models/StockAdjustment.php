@@ -12,6 +12,7 @@ class StockAdjustment extends Model
     {
         return [
             'lines' => 'array',
+            'total_quantity' => \App\Casts\Quantity::class,
             'adjusted_at' => 'datetime',
         ];
     }

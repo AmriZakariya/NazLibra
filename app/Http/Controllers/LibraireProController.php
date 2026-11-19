@@ -1173,7 +1173,8 @@ class LibraireProController extends Controller
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['nullable', 'integer', Rule::exists('items', 'id')->where('tenant_id', $tenant->id)],
             'items.*.direction' => ['nullable', 'in:add,remove,set'],
-            'items.*.quantity' => ['nullable', 'integer', 'min:0', 'max:999999'],
+            // Up to four decimals: a product used by the ml is stocked as 2.95 bottles.
+            'items.*.quantity' => ['nullable', 'numeric', 'decimal:0,4', 'min:0', 'max:999999'],
             'items.*.note' => ['nullable', 'string', 'max:300'],
         ]);
 
@@ -1185,7 +1186,7 @@ class LibraireProController extends Controller
                 $totalQuantity = 0;
 
                 foreach ($data['items'] as $line) {
-                    if (empty($line['item_id']) || (int) ($line['quantity'] ?? 0) <= 0) {
+                    if (empty($line['item_id']) || round((float) ($line['quantity'] ?? 0), 4) <= 0) {
                         continue;
                     }
 
@@ -1194,17 +1195,17 @@ class LibraireProController extends Controller
                         ->lockForUpdate()
                         ->findOrFail((int) $line['item_id']);
 
-                    $quantity = (int) $line['quantity'];
+                    $quantity = \App\Support\Stock::number((float) $line['quantity']);
                     $direction = $line['direction'] ?? 'add';
-                    $before = (int) $item->stock_quantity;
-                    $after = match ($direction) {
-                        'remove' => max(0, $before - $quantity),
+                    $before = \App\Support\Stock::number((float) $item->stock_quantity);
+                    $after = \App\Support\Stock::number(match ($direction) {
+                        'remove' => max(0, round($before - $quantity, 4)),
                         'set' => $quantity,
-                        default => $before + $quantity,
-                    };
-                    $delta = $after - $before;
+                        default => round($before + $quantity, 4),
+                    });
+                    $delta = \App\Support\Stock::number(round($after - $before, 4));
 
-                    if ($delta === 0) {
+                    if (abs((float) $delta) < 0.00005) {
                         continue;
                     }
 
@@ -1217,7 +1218,7 @@ class LibraireProController extends Controller
                         'delta' => $delta,
                         'note' => $line['note'] ?? null,
                     ];
-                    $totalQuantity += abs($delta);
+                    $totalQuantity = round($totalQuantity + abs((float) $delta), 4);
                 }
 
                 if ($pendingLines === []) {
@@ -1612,7 +1613,7 @@ class LibraireProController extends Controller
             'note' => ['nullable', 'string', 'max:700'],
             'items' => ['nullable', 'array'],
             'items.*.item_id' => ['nullable', 'integer', Rule::exists('items', 'id')->where('tenant_id', $tenant->id)],
-            'items.*.counted_quantity' => ['nullable', 'integer', 'min:0'],
+            'items.*.counted_quantity' => ['nullable', 'numeric', 'decimal:0,4', 'min:0'],
         ]);
 
         $stocktake = DB::transaction(function () use ($tenant, $data): Stocktake {
@@ -1637,7 +1638,7 @@ class LibraireProController extends Controller
                 }
 
                 $counted = isset($line['counted_quantity'])
-                    ? max(0, (int) $line['counted_quantity'])
+                    ? max(0, round((float) $line['counted_quantity'], 4))
                     : null;
 
                 // An article sold by size is counted SIZE BY SIZE. One line
@@ -1696,7 +1697,7 @@ class LibraireProController extends Controller
 
         $data = $request->validate([
             'counts' => ['required', 'array'],
-            'counts.*' => ['nullable', 'integer', 'min:0'],
+            'counts.*' => ['nullable', 'numeric', 'decimal:0,4', 'min:0'],
         ]);
 
         DB::transaction(function () use ($stocktake, $tenant, $data): void {
@@ -1710,7 +1711,8 @@ class LibraireProController extends Controller
                     ->first();
 
                 if ($stocktakeItem) {
-                    $stocktakeItem->update(['counted_quantity' => $count]);
+                    // A size is a whole piece; only an article's own pile can be fractional.
+                    $stocktakeItem->update(['counted_quantity' => $count === null ? null : ($stocktakeItem->variant_id ? (int) round((float) $count) : round((float) $count, 4))]);
                 }
             }
         });
@@ -1749,7 +1751,7 @@ class LibraireProController extends Controller
                 }
 
                 $difference = $line->difference();
-                if ($difference === 0) {
+                if (abs((float) $difference) < 0.00005) {
                     continue;
                 }
 
