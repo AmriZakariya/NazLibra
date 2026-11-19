@@ -141,9 +141,15 @@ class BarberPhaseTwoTest extends TestCase
 
     public function test_tips_have_their_own_switch_reaching_the_till(): void
     {
-        $this->assertTrue(StaffReport::tipsEnabled($this->tenant), 'on by default for a barber shop');
-
         $settings = $this->tenant->settings;
+        unset($settings['pos']['tips_enabled']);
+        $this->tenant->update(['settings' => $settings]);
+        $this->assertFalse(StaffReport::tipsEnabled($this->tenant->fresh()), 'off until the shop switches it on, even for a barber');
+
+        $settings['pos']['tips_enabled'] = true;
+        $this->tenant->update(['settings' => $settings]);
+        $this->assertTrue(StaffReport::tipsEnabled($this->tenant->fresh()));
+
         $settings['pos']['tips_enabled'] = false;
         $this->tenant->update(['settings' => $settings]);
 

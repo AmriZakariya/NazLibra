@@ -276,12 +276,12 @@ class GiftCardsTest extends TestCase
         $this->assertFalse(AppModules::enabled($this->tenant->refresh(), 'gift_cards'));
     }
 
-    public function test_the_module_is_on_by_default_for_beauty_and_barber_only(): void
+    public function test_the_modules_are_off_until_the_shop_switches_them_on(): void
     {
         $fresh = Tenant::first();
         $settings = $fresh->settings ?? [];
         unset($settings['modules']);
-        foreach (['barber' => true, 'beauty' => true, 'retail' => false] as $mode => $expected) {
+        foreach (['barber' => false, 'beauty' => false, 'retail' => false] as $mode => $expected) {
             $settings['company_profile']['business_mode'] = $mode;
             $fresh->update(['settings' => $settings]);
             $this->assertSame($expected, AppModules::enabled($fresh->refresh(), 'gift_cards'), $mode);

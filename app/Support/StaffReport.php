@@ -43,12 +43,10 @@ class StaffReport
         return in_array(BusinessMode::current($tenant)['key'], ['barber', 'beauty'], true);
     }
 
-    /** Whether the till offers a tip at checkout. Same default as asking who did the cut. */
+    /** Whether the till offers a tip at checkout: off until the shop switches it on in its settings. */
     public static function tipsEnabled(Tenant $tenant): bool
     {
-        $explicit = data_get($tenant->settings, 'pos.tips_enabled');
-
-        return $explicit !== null ? (bool) $explicit : self::asksStaff($tenant);
+        return (bool) data_get($tenant->settings, 'pos.tips_enabled', false);
     }
 
     /**

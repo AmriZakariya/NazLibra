@@ -30,8 +30,10 @@ class AppModules
             'appointments' => ['label' => 'Rendez-vous', 'description' => 'Agenda par barbier ou employé, statuts, rappel WhatsApp et encaissement du rendez-vous.', 'default' => false, 'default_for' => ['barber', 'beauty']],
             // Walk-ins waiting their turn: on for barbers, off for beauty salons (who book).
             'queue' => ['label' => 'File d’attente', 'description' => 'Clients sans rendez-vous : file ordonnée, attente estimée, « appeler le suivant » et écran public.', 'default' => false, 'default_for' => ['barber']],
-            'gift_cards' => ['label' => 'Cartes cadeaux', 'description' => 'Vente de cartes cadeaux, paiement par code, solde, expiration et historique.', 'default' => false, 'default_for' => ['barber', 'beauty']],
-            'packages' => ['label' => 'Forfaits', 'description' => 'Forfaits et cartes de séances prépayés par client, séances restantes et utilisation en caisse.', 'default' => false, 'default_for' => ['barber', 'beauty']],
+            // Off everywhere until the shop switches them on: their rows filled
+            // the till's payment block for shops that never sell either.
+            'gift_cards' => ['label' => 'Cartes cadeaux', 'description' => 'Vente de cartes cadeaux, paiement par code, solde, expiration et historique.', 'default' => false],
+            'packages' => ['label' => 'Forfaits', 'description' => 'Forfaits et cartes de séances prépayés par client, séances restantes et utilisation en caisse.', 'default' => false],
             'kds' => ['label' => 'Cuisine (KDS)', 'description' => 'Écran de préparation, envoi en cuisine, bons par poste et suivi des plats.', 'default' => false],
             'local_sync' => ['label' => 'Synchronisation locale', 'description' => 'Partage des tickets entre les appareils du magasin par le réseau local, sans internet.', 'default' => false],
             'loans' => ['label' => 'Emprunts', 'description' => 'Prêts, retours, pénalités, réservations et cartes membre.', 'default' => false],
