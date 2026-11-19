@@ -8,6 +8,9 @@ use App\Models\ItemVariant;
 use App\Models\Sale;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Appointments;
+use App\Support\OnlineBooking;
+use Illuminate\Validation\ValidationException;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -115,5 +118,122 @@ class SalonAgendaTest extends TestCase
         $booking->refresh();
         $this->assertSame('done', $booking->status);
         $this->assertSame($sale->id, $booking->sale_id);
+    }
+
+    // ---- helpers for the public page ------------------------------------
+
+    /** The public page open Mon-Sat 09:00-11:00, 30-minute slots, for [$staff]. */
+    protected function openBooking(array $staff, array $extra = []): void
+    {
+        $hours = [];
+        foreach (range(1, 6) as $d) {
+            $hours[$d] = ['open' => '09:00', 'close' => '11:00'];
+        }
+        $hours[7] = ['closed' => true];
+        OnlineBooking::save($this->tenant->refresh(), $extra + [
+            'enabled' => true, 'duration' => 30, 'hours' => $hours,
+            'staff_ids' => array_map(fn (User $u) => $u->id, $staff),
+        ]);
+        $this->tenant->refresh();
+    }
+
+    /** @return list<string> */
+    protected function slots(?User $staff = null, int $duration = 30): array
+    {
+        return OnlineBooking::slots($this->tenant->refresh(), '2026-11-03', $staff?->id, null, $duration);
+    }
+
+    // ---- B3 staff-less bookings hold a chair -----------------------------
+
+    public function test_a_staffless_booking_takes_the_only_barber_of_a_one_barber_shop(): void
+    {
+        $this->openBooking([$this->ali]);
+        $this->book(['starts_at' => $this->at('09:00'), 'staff_user_id' => null]);
+
+        $this->assertNotContains('09:00', $this->slots(), 'peu importe: nobody is left');
+        $this->assertNotContains('09:00', $this->slots($this->ali), 'the one barber would get that booking');
+        $this->assertContains('09:30', $this->slots());
+        $this->assertNull(Appointment::first()->staff_user_id, 'it stays unassigned');
+    }
+
+    public function test_a_staffless_booking_takes_one_of_two_barbers_not_both(): void
+    {
+        $this->openBooking([$this->ali, $this->sara]);
+        $this->book(['starts_at' => $this->at('09:00'), 'staff_user_id' => null]);
+
+        $this->assertContains('09:00', $this->slots(), 'one barber is still free');
+        $this->assertContains('09:00', $this->slots($this->ali), 'the staff-less booking can go to the other one');
+        $this->assertContains('09:00', $this->slots($this->sara));
+
+        // A second staff-less booking: now both are spoken for.
+        $this->book(['starts_at' => $this->at('09:00'), 'staff_user_id' => null]);
+        $this->assertNotContains('09:00', $this->slots());
+        $this->assertNotContains('09:00', $this->slots($this->ali));
+    }
+
+    public function test_a_staffless_booking_forces_the_choice_when_one_barber_is_named_elsewhere(): void
+    {
+        $this->openBooking([$this->ali, $this->sara]);
+        $this->book(['starts_at' => $this->at('09:00'), 'staff_user_id' => $this->ali->id]);
+        $this->book(['starts_at' => $this->at('09:00'), 'staff_user_id' => null]);
+
+        // Ali is named, the staff-less booking can only be Sara's.
+        $this->assertNotContains('09:00', $this->slots());
+        $this->assertNotContains('09:00', $this->slots($this->sara));
+        $this->assertNotContains('09:00', $this->slots($this->ali));
+    }
+
+    // ---- B4 a pending request holds the chair ----------------------------
+
+    protected function manual(array $data): Appointment
+    {
+        return Appointments::save($this->tenant->refresh(), $data + ['customer_name' => 'Client', 'duration_minutes' => 30], $this->owner);
+    }
+
+    public function test_a_manual_booking_over_a_pending_request_is_refused_with_a_clear_message(): void
+    {
+        $this->openBooking([$this->ali, $this->sara]);
+        $this->book(['starts_at' => $this->at('10:00'), 'staff_user_id' => $this->ali->id, 'status' => 'requested']);
+
+        try {
+            $this->manual(['starts_at' => '2026-11-03 10:00', 'staff_user_id' => $this->ali->id]);
+            $this->fail('the request holds the chair');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('demande en ligne', $e->errors()['starts_at'][0]);
+        }
+        // Another barber is fine.
+        $this->manual(['starts_at' => '2026-11-03 10:00', 'staff_user_id' => $this->sara->id]);
+        $this->assertSame(2, Appointment::count());
+    }
+
+    public function test_confirming_a_request_ignores_itself(): void
+    {
+        $this->openBooking([$this->ali, $this->sara]);
+        $request = $this->book(['starts_at' => $this->at('10:00'), 'staff_user_id' => $this->ali->id, 'status' => 'requested']);
+
+        $confirmed = Appointments::save($this->tenant->refresh(), ['status' => 'booked'], $this->owner, $request);
+
+        $this->assertSame('booked', $confirmed->status);
+    }
+
+    public function test_a_manual_booking_cannot_steal_the_chair_a_staffless_booking_needs(): void
+    {
+        $this->openBooking([$this->ali]);
+        $this->book(['starts_at' => $this->at('09:00'), 'staff_user_id' => null]);
+
+        $this->expectException(ValidationException::class);
+        $this->manual(['starts_at' => '2026-11-03 09:00', 'staff_user_id' => $this->ali->id]);
+    }
+
+    public function test_a_staffless_booking_leaves_room_when_another_barber_can_take_it(): void
+    {
+        $this->openBooking([$this->ali, $this->sara]);
+        $this->book(['starts_at' => $this->at('09:00'), 'staff_user_id' => null]);
+
+        $this->manual(['starts_at' => '2026-11-03 09:00', 'staff_user_id' => $this->ali->id]);
+        $this->assertSame(2, Appointment::count());
+        // Now the staff-less one can only be Sara's: Sara is taken for it.
+        $this->expectException(ValidationException::class);
+        $this->manual(['starts_at' => '2026-11-03 09:00', 'staff_user_id' => $this->sara->id]);
     }
 }

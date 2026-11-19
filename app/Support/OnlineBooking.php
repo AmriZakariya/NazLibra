@@ -32,7 +32,7 @@ class OnlineBooking
     public const DAYS_AHEAD = 30;
 
     /** The chair is held by these: a pending request as much as a booking. */
-    private const HOLDING = ['requested', 'booked', 'arrived'];
+    public const HOLDING = ['requested', 'booked', 'arrived'];
 
     /** @return array{enabled: bool, duration: int, hours: array<int, ?array{0: string, 1: string}>, staff_ids: ?array<int, int>} */
     public static function settings(Tenant $tenant): array
@@ -174,7 +174,8 @@ class OnlineBooking
         $step = $settings['duration'];
         $length = $duration ?: $step;
 
-        $staff = self::staff($tenant)->pluck('id')->map(fn ($id) => (int) $id);
+        $team = self::staff($tenant)->pluck('id')->map(fn ($id) => (int) $id);
+        $staff = $team;
         if ($staffId !== null) {
             if (! $staff->contains($staffId)) {
                 return [];
@@ -193,7 +194,7 @@ class OnlineBooking
             if ($t->lessThanOrEqualTo($now)) {
                 continue;
             }
-            if (self::firstFree($staff, $busy, $t, $t->addMinutes($length)) !== null) {
+            if (self::firstFree($staff, $team, $busy, $t, $t->addMinutes($length)) !== null) {
                 $slots[] = $t->format('H:i');
             }
         }
@@ -228,8 +229,10 @@ class OnlineBooking
         $start = CarbonImmutable::parse($data['date'].' '.$data['time'], $tz);
         // "Peu importe": the first barber free then, so the shop confirms a
         // request that already fits.
+        $team = self::staff($tenant)->pluck('id')->map(fn ($id) => (int) $id);
         $staffId ??= self::firstFree(
-            self::staff($tenant)->pluck('id')->map(fn ($id) => (int) $id),
+            $team,
+            $team,
             self::busy($tenant, $start->startOfDay()),
             $start,
             $start->addMinutes($duration),
@@ -262,12 +265,19 @@ class OnlineBooking
             ->get();
     }
 
-    /** @return Collection<int, array{0: int|null, 1: CarbonImmutable, 2: CarbonImmutable}> */
-    private static function busy(Tenant $tenant, CarbonImmutable $day): Collection
+    /**
+     * What holds a chair on [day]: [staff id or null, start, end] per booking
+     * or pending request. [ignore] is a booking being edited or confirmed,
+     * which must not clash with itself.
+     *
+     * @return Collection<int, array{0: int|null, 1: CarbonImmutable, 2: CarbonImmutable}>
+     */
+    public static function busy(Tenant $tenant, CarbonImmutable $day, ?int $ignore = null): Collection
     {
         return Appointment::query()
             ->where('tenant_id', $tenant->id)
             ->whereIn('status', self::HOLDING)
+            ->when($ignore, fn ($q) => $q->whereKeyNot($ignore))
             // From the evening before: a late booking can run past midnight.
             ->whereBetween('starts_at', [$day->subHours(10)->utc(), $day->endOfDay()->utc()])
             ->get(['staff_user_id', 'starts_at', 'duration_minutes'])
@@ -278,12 +288,33 @@ class OnlineBooking
             ]);
     }
 
-    /** The first barber in [staff] with nothing over [start, end), or null. */
-    private static function firstFree(Collection $staff, Collection $busy, CarbonImmutable $start, CarbonImmutable $end): ?int
+    /**
+     * The first barber in [wanted] who can take [start, end), or null.
+     *
+     * A booking made without a barber (by phone, at the desk) stays
+     * unassigned, but it still occupies SOMEONE: each such booking over the
+     * window consumes one distinct barber of the [team] who has no booking of
+     * their own over it. So a barber is free when they have nothing named on
+     * them AND the others who are free can absorb every staff-less booking —
+     * otherwise that booking would end up on them. « Peu importe » is free
+     * only if at least one barber remains after that.
+     *
+     * @param  Collection<int, int>  $wanted  who the client may pick (one barber, or the whole team)
+     * @param  Collection<int, int>  $team  every barber a staff-less booking could land on
+     */
+    public static function firstFree(Collection $wanted, Collection $team, Collection $busy, CarbonImmutable $start, CarbonImmutable $end): ?int
     {
-        return $staff->first(fn (int $id) => ! $busy->contains(
-            fn (array $b) => $b[0] === $id && $b[1]->lessThan($end) && $b[2]->greaterThan($start)
-        ));
+        $over = $busy->filter(fn (array $b) => $b[1]->lessThan($end) && $b[2]->greaterThan($start));
+        $named = $over->pluck(0)->filter(fn ($id) => $id !== null)->unique();
+        $free = $team->reject(fn (int $id) => $named->contains($id));
+        $floating = $over->filter(fn (array $b) => $b[0] === null)->count();
+
+        // Someone must be left once every staff-less booking has its own barber.
+        if ($free->count() - $floating < 1) {
+            return null;
+        }
+
+        return $wanted->first(fn (int $id) => $free->contains($id));
     }
 
     private static function isTime(mixed $value): bool

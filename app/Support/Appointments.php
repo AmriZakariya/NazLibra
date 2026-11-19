@@ -150,7 +150,13 @@ class Appointments
         return $appointment->refresh();
     }
 
-    /** A barber is one chair: refuses an active booking over another one. */
+    /**
+     * A barber is one chair: refuses an active booking over another one, or
+     * over a pending online request (« à confirmer » holds the chair too, as
+     * on the public page). A booking made without a barber still occupies
+     * someone: if the others cannot absorb it, it would land on this one.
+     * Confirming a request, or editing a booking, never clashes with itself.
+     */
     public static function assertFree(Appointment $appointment): void
     {
         if (! $appointment->staff_user_id || ! in_array($appointment->status, Appointment::ACTIVE, true)) {
@@ -159,11 +165,13 @@ class Appointments
 
         $start = $appointment->starts_at;
         $end = $start->copy()->addMinutes($appointment->duration_minutes ?: 30);
+        $tenant = Tenant::find($appointment->tenant_id);
+        $tz = self::timezone($tenant);
 
         $clash = Appointment::query()
             ->where('tenant_id', $appointment->tenant_id)
             ->where('staff_user_id', $appointment->staff_user_id)
-            ->whereIn('status', Appointment::ACTIVE)
+            ->whereIn('status', OnlineBooking::HOLDING)
             ->when($appointment->exists, fn ($q) => $q->whereKeyNot($appointment->id))
             ->where('starts_at', '<', $end)
             // Ends after this one starts. Computed here, not in SQL: adding
@@ -173,16 +181,33 @@ class Appointments
             ->first(fn (Appointment $other) => $other->endsAt()->greaterThan($start));
 
         if ($clash) {
-            $tz = $appointment->tenant_id ? self::timezone(Tenant::find($appointment->tenant_id)) : 'UTC';
             throw ValidationException::withMessages([
                 'starts_at' => sprintf(
-                    '%s a déjà un rendez-vous de %s à %s (%s).',
+                    $clash->status === 'requested'
+                        ? '%s a déjà une demande en ligne à confirmer de %s à %s (%s).'
+                        : '%s a déjà un rendez-vous de %s à %s (%s).',
                     $clash->staff?->name ?? 'Ce barbier',
                     $clash->starts_at->setTimezone($tz)->format('H:i'),
                     $clash->endsAt()->setTimezone($tz)->format('H:i'),
                     $clash->customer_name ?? 'client',
                 ),
             ]);
+        }
+
+        // Bookings with nobody named: each takes one free barber of the team.
+        if ($tenant) {
+            $team = OnlineBooking::staff($tenant)->pluck('id')->map(fn ($id) => (int) $id);
+            $day = CarbonImmutable::instance($start)->setTimezone($tz)->startOfDay();
+            if ($team->contains((int) $appointment->staff_user_id)
+                && OnlineBooking::firstFree(
+                    collect([(int) $appointment->staff_user_id]), $team,
+                    OnlineBooking::busy($tenant, $day, $appointment->exists ? $appointment->id : null),
+                    CarbonImmutable::instance($start), CarbonImmutable::instance($end),
+                ) === null) {
+                throw ValidationException::withMessages([
+                    'starts_at' => 'Des rendez-vous sans barbier occupent déjà ce créneau : attribuez-les à quelqu’un ou choisissez un autre horaire.',
+                ]);
+            }
         }
     }
 
