@@ -9,8 +9,8 @@ class InsufficientStockException extends RuntimeException
     public function __construct(
         public readonly int $itemId,
         public readonly int $locationId,
-        public readonly int $available,
-        public readonly int $requested,
+        public readonly int|float $available,
+        public readonly int|float $requested,
         string $message = '',
     ) {
         parent::__construct($message ?: sprintf(

@@ -37,16 +37,16 @@ class InventoryService
                 $dto->locationId
             );
 
-            $quantityBefore = (int) $stock->quantity;
+            $quantityBefore = round((float) $stock->quantity, 4);
             $delta = $this->applyDelta($dto->type, $dto->quantityChanged);
-            $quantityAfter = $quantityBefore + $delta;
+            $quantityAfter = round($quantityBefore + $delta, 4);
 
             if ($quantityAfter < 0 && ! $dto->allowNegative) {
                 throw new InsufficientStockException(
                     itemId: $dto->itemId,
                     locationId: $dto->locationId,
-                    available: $quantityBefore,
-                    requested: abs($delta),
+                    available: $this->whole($quantityBefore),
+                    requested: $this->whole(abs($delta)),
                 );
             }
 
@@ -102,7 +102,7 @@ class InventoryService
     /**
      * Get the available (quantity - reserved) stock for an item/variant at a location.
      */
-    public function available(int $tenantId, int $itemId, ?int $variantId = null, ?int $locationId = null): int
+    public function available(int $tenantId, int $itemId, ?int $variantId = null, ?int $locationId = null): int|float
     {
         $query = ItemLocationStock::query()
             ->where('tenant_id', $tenantId)
@@ -116,15 +116,15 @@ class InventoryService
             $query->where('location_id', $locationId);
         }
 
-        return (int) $query
+        return $this->whole((float) ($query
             ->selectRaw('SUM(quantity - reserved_quantity) as available')
-            ->value('available') ?? 0;
+            ->value('available') ?? 0));
     }
 
     /**
      * Get the total physical quantity for an item/variant at a location.
      */
-    public function quantity(int $tenantId, int $itemId, ?int $variantId = null, ?int $locationId = null): int
+    public function quantity(int $tenantId, int $itemId, ?int $variantId = null, ?int $locationId = null): int|float
     {
         $query = ItemLocationStock::query()
             ->where('tenant_id', $tenantId)
@@ -138,7 +138,7 @@ class InventoryService
             $query->where('location_id', $locationId);
         }
 
-        return (int) $query->sum('quantity') ?? 0;
+        return $this->whole((float) ($query->sum('quantity') ?? 0));
     }
 
     /**
@@ -355,7 +355,15 @@ class InventoryService
         return (string) \Illuminate\Support\Str::uuid();
     }
 
-    private function applyDelta(string $type, int $quantityChanged): int
+    /** A whole stock stays an integer; only a real fraction (2.95 bottles) is a float. */
+    private function whole(float $value): int|float
+    {
+        $n = round($value, 4);
+
+        return abs($n - round($n)) < 0.00005 ? (int) round($n) : $n;
+    }
+
+    private function applyDelta(string $type, int|float $quantityChanged): int|float
     {
         // Signed corrections; preserve the caller's direction.
         if (in_array($type, [InventoryMovementType::ADJUSTMENT, InventoryMovementType::CORRECTION, InventoryMovementType::ITEM_UPDATE, InventoryMovementType::STOCKTAKE], true)) {

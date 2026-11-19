@@ -6,7 +6,9 @@ use App\Models\Item;
 use App\Models\Location;
 use App\Models\StockTransfer;
 use App\Models\Tenant;
+use App\Services\Inventory\InventoryMovementType;
 use App\Services\Inventory\InventoryService;
+use App\Services\Inventory\MovementDTO;
 use App\Services\Inventory\StockTransferService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -44,7 +46,7 @@ class StockTransferTest extends TestCase
         $this->inventory = app(InventoryService::class);
     }
 
-    private function available(Location $location): int
+    private function available(Location $location): int|float
     {
         return $this->inventory->available($this->tenant->id, $this->item->id, null, $location->id);
     }
@@ -474,5 +476,32 @@ class StockTransferTest extends TestCase
         $this->assertFalse($legacy->isReversible());
         $this->expectException(ValidationException::class);
         app(StockTransferService::class)->cancel($legacy, 'Essai');
+    }
+
+    public function test_a_transfer_of_a_fraction_of_a_bottle_keeps_its_decimals(): void
+    {
+        $bottle = Item::create([
+            'tenant_id' => $this->tenant->id, 'title' => 'Flacon test', 'type' => 'supply', 'status' => 'active',
+            'sale_price' => 0, 'purchase_price' => 10, 'stock_quantity' => 0,
+        ]);
+        $this->inventory->move(new MovementDTO(
+            tenantId: $this->tenant->id, itemId: $bottle->id, variantId: null, locationId: $this->source->id,
+            type: InventoryMovementType::INITIAL_STOCK, quantityChanged: 5, unitCost: 10,
+        ));
+
+        $transfer = app(StockTransferService::class)->create($this->tenant, [
+            'source_location_id' => $this->source->id,
+            'destination_location_id' => $this->destination->id,
+            'items' => [['item_id' => $bottle->id, 'quantity' => 2.5]],
+        ]);
+        app(StockTransferService::class)->send($transfer);
+        $this->assertEqualsWithDelta(2.5, $this->inventory->available($this->tenant->id, $bottle->id, null, $this->source->id), 0.00001);
+
+        app(StockTransferService::class)->receive($transfer->refresh(), [0 => '2.25']);
+        $this->assertEqualsWithDelta(2.25, $this->inventory->available($this->tenant->id, $bottle->id, null, $this->destination->id), 0.00001);
+
+        $movement = \App\Models\InventoryMovement::where('item_id', $bottle->id)->where('type', InventoryMovementType::TRANSFER_OUT)->firstOrFail();
+        $this->assertEqualsWithDelta(-2.5, (float) $movement->quantity_delta, 0.00001);
+        $this->assertEqualsWithDelta(5.0, (float) $movement->quantity_before, 0.00001);
     }
 }

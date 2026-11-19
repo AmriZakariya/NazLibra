@@ -1462,7 +1462,7 @@ class LibraireProController extends Controller
             'note' => ['nullable', 'string', 'max:700'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['nullable', 'integer', Rule::exists('items', 'id')->where('tenant_id', $tenant->id)],
-            'items.*.quantity' => ['nullable', 'integer', 'min:1', 'max:999999'],
+            'items.*.quantity' => ['nullable', 'numeric', 'min:0.0001', 'max:999999'],
             'items.*.note' => ['nullable', 'string', 'max:300'],
         ], [
             'source_location_id.required' => "Choisissez l'emplacement source.",
@@ -1555,7 +1555,7 @@ class LibraireProController extends Controller
             // Absent means "all of it arrived", which is the common case and
             // should need no typing.
             'received' => ['nullable', 'array'],
-            'received.*' => ['nullable', 'integer', 'min:0'],
+            'received.*' => ['nullable', 'numeric', 'min:0'],
             'receipt_note' => ['nullable', 'string', 'max:500'],
         ]);
 

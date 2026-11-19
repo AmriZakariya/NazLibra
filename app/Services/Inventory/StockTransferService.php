@@ -106,7 +106,7 @@ class StockTransferService
 
             foreach ($transfer->lines ?? [] as $index => $line) {
                 $itemId = (int) ($line['item_id'] ?? 0);
-                $quantity = (int) ($line['quantity'] ?? 0);
+                $quantity = $this->qty($line['quantity'] ?? 0);
                 if ($itemId <= 0 || $quantity <= 0) {
                     continue;
                 }
@@ -159,12 +159,12 @@ class StockTransferService
             $lines = [];
             foreach ($transfer->lines ?? [] as $index => $line) {
                 $itemId = (int) ($line['item_id'] ?? 0);
-                $sent = (int) ($line['quantity'] ?? 0);
+                $sent = $this->qty($line['quantity'] ?? 0);
 
                 // Nothing said about a line means it all arrived: the common
                 // case is a clean receipt, and it should need no typing.
                 $received = array_key_exists($index, $quantities) && $quantities[$index] !== null && $quantities[$index] !== ''
-                    ? (int) $quantities[$index]
+                    ? $this->qty($quantities[$index])
                     : $sent;
 
                 if ($received < 0 || $received > $sent) {
@@ -268,9 +268,9 @@ class StockTransferService
 
                 foreach ($transfer->lines ?? [] as $line) {
                     $itemId = (int) ($line['item_id'] ?? 0);
-                    $sent = (int) ($line['quantity'] ?? 0);
+                    $sent = $this->qty($line['quantity'] ?? 0);
                     $quantity = $arrived
-                        ? (int) ($line['received_quantity'] ?? $sent)
+                        ? $this->qty($line['received_quantity'] ?? $sent)
                         : $sent;
 
                     if ($itemId <= 0 || $quantity <= 0) {
@@ -358,7 +358,7 @@ class StockTransferService
     }
 
     /**
-     * @return array<int, array{item: Item, quantity: int, available: int, note: string|null}>
+     * @return array<int, array{item: Item, quantity: int|float, available: int|float, note: string|null}>
      */
     private function resolveLines(Tenant $tenant, Location $source, array $items): array
     {
@@ -366,7 +366,7 @@ class StockTransferService
 
         foreach ($items as $index => $line) {
             $itemId = (int) ($line['item_id'] ?? 0);
-            $quantity = (int) ($line['quantity'] ?? 0);
+            $quantity = $this->qty($line['quantity'] ?? 0);
             if ($itemId <= 0 || $quantity <= 0) {
                 continue;
             }
@@ -431,7 +431,7 @@ class StockTransferService
     /**
      * What a line looks like once written down.
      *
-     * @param  array<int, array{item: Item, quantity: int, available: int, note: string|null}>  $lines
+     * @param  array<int, array{item: Item, quantity: int|float, available: int|float, note: string|null}>  $lines
      * @return array<int, array<string, mixed>>
      */
     private function lineSnapshots(array $lines): array
@@ -447,11 +447,19 @@ class StockTransferService
         ])->all();
     }
 
+    /** A quantity keeps up to 4 decimals (2.5 bottles); a whole one stays an integer. */
+    private function qty(mixed $value): int|float
+    {
+        $n = round((float) $value, 4);
+
+        return abs($n - round($n)) < 0.00005 ? (int) round($n) : $n;
+    }
+
     private function move(
         Tenant $tenant,
         StockTransfer $transfer,
         int $itemId,
-        int $quantity,
+        int|float $quantity,
         int $locationId,
         string $type,
         string $note,

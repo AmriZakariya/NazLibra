@@ -12,7 +12,7 @@ final class MovementDTO
         public readonly ?int $variantId,
         public readonly int $locationId,
         public readonly string $type,
-        public readonly int $quantityChanged,
+        public readonly int|float $quantityChanged,
         public readonly ?int $userId = null,
         public readonly ?string $referenceType = null,
         public readonly ?int $referenceId = null,
@@ -30,7 +30,7 @@ final class MovementDTO
         public readonly ?string $realDeviceIp = null,
         public readonly ?string $realDeviceUserAgent = null,
     ) {
-        if ($quantityChanged === 0) {
+        if (abs((float) $quantityChanged) < 0.00005) {
             throw new \InvalidArgumentException('Quantity changed cannot be zero.');
         }
 
