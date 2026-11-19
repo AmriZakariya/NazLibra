@@ -99,7 +99,7 @@ final class WalkInQueue
             });
 
         $entries = QueueEntry::where('tenant_id', $tenant->id)->whereIn('status', QueueEntry::OPEN)
-            ->with(['staff:id,name', 'preferredStaff:id,name', 'appointment:id,status,sale_id'])
+            ->with(['staff:id,name', 'preferredStaff:id,name', 'appointment.staff:id,name', 'appointment.contact:id,name,phone,notes'])
             ->orderBy('arrived_at')->orderBy('id')->get();
         $estimates = self::estimates($tenant, $entries->where('status', QueueEntry::WAITING), $now);
 

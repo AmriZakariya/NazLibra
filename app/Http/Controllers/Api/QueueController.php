@@ -108,6 +108,8 @@ class QueueController extends Controller
             'arrived_at' => $e->arrived_at->utc()->format('Y-m-d\TH:i:s\Z'),
             'called_at' => $e->called_at?->utc()->format('Y-m-d\TH:i:s\Z'),
             'appointment_id' => $e->appointment_id,
+            // Seated: the booking to cash out, as the agenda sends it.
+            'appointment' => $e->status === QueueEntry::SEATED && $e->appointment ? Appointments::toApi($e->appointment, $tenant) : null,
         ];
     }
 
