@@ -311,6 +311,7 @@ class SaleController extends Controller
         $reservedCodes = [];
         $belowFrom = [];
         $archivedVariants = [];
+        $staleRecipes = [];
         foreach ($data['items'] as $line) {
             $kind = $line['kind'] ?? null;
 
@@ -480,16 +481,23 @@ class SaleController extends Controller
             }
             $lineTotal  = round($unitPrice * (int) $line['quantity'], 2);
 
-            // What the service will consume, checked here so a till that sent
-            // a choice or an adjustment outside the recipe is told, not
-            // quietly given another one.
-            try {
-                $consumptionPlan = $this->consumption->plan(
-                    $item, $variant, (int) $line['quantity'],
-                    $line['component_choices'] ?? [], $line['component_overrides'] ?? [],
-                );
-            } catch (\App\Services\Catalogue\ConsumptionException $e) {
-                throw ValidationException::withMessages(['items' => $e->getMessage()]);
+            // What the service will consume. A choice or an adjustment naming
+            // a product the recipe no longer has (the recipe was edited after
+            // the till synced) never refuses the sale: it is ignored, the
+            // default applies, and it is marked on the sale and journaled.
+            $ignoredComponents = [];
+            $consumptionPlan = $this->consumption->plan(
+                $item, $variant, (int) $line['quantity'],
+                $line['component_choices'] ?? [], $line['component_overrides'] ?? [],
+                $ignoredComponents,
+            );
+            if ($ignoredComponents !== []) {
+                $staleRecipes[] = [
+                    'item_id' => $item->id,
+                    'variant_id' => $variant?->id,
+                    'name' => $variant ? $item->title.' — '.$variant->name : $item->title,
+                    'ignored' => $ignoredComponents,
+                ];
             }
 
             // Snapshot the weighted-average cost at this location right now.
@@ -708,7 +716,7 @@ class SaleController extends Controller
             $discountFactor, $taxTotal, $totalCogs, $allowOversell, $action, $soldAt,
             $pointsToRedeem, $loyaltyCfg, $loyaltyEnabled, $sourceOnlineOrder,
             $tip, $tipUserId, $tipMethod, $tipCash,
-            $nonRevenue, $giftCardCode, $belowFrom, $archivedVariants,
+            $nonRevenue, $giftCardCode, $belowFrom, $archivedVariants, $staleRecipes,
             &$saleNumber
         ): Sale {
             // Decrement advance balance atomically before the rest.
@@ -816,6 +824,7 @@ class SaleController extends Controller
                     })->values()->all(),
                     'below_from_price' => $belowFrom ?: null,
                     'archived_variants' => $archivedVariants ?: null,
+                    'stale_recipe_choices' => $staleRecipes ?: null,
                     'note' => $data['note'] ?? null,
                     'discount' => ['type' => $data['discount']['type'] ?? 'fixed', 'value' => $data['discount']['value'] ?? 0, 'amount' => $discount],
                     'loyalty' => $pointsToRedeem > 0 ? [
@@ -1071,7 +1080,37 @@ class SaleController extends Controller
             $this->journalArchivedVariants($request, $tenant, $action, $sale, $archivedVariants);
         }
 
+        if ($staleRecipes !== []) {
+            $this->journalStaleRecipeChoices($request, $tenant, $action, $sale, $staleRecipes);
+        }
+
         return $this->saleResponse($sale, $data['items'], $tenant->id, $locationId);
+    }
+
+    /** One journal entry per sale whose lines named products the service's recipe no longer has. */
+    private function journalStaleRecipeChoices(Request $request, Tenant $tenant, ApiActionContext $action, Sale $sale, array $lines): void
+    {
+        $app = \App\Support\RequestSnapshot::appClient($request);
+
+        \App\Support\ActivityRecorder::write([
+            'tenant_id' => $tenant->id,
+            'user_id' => $action->actor->id,
+            'kind' => \App\Support\ActivityRecorder::ACTION,
+            'outcome' => \App\Support\ActivityRecorder::OK,
+            'outcome_message' => 'Vente acceptée avec des produits utilisés périmés (recette modifiée) : '.collect($lines)->pluck('name')->join(', ').'.',
+            'action' => 'api.stale_recipe_choice',
+            'friendly_action' => 'Produits utilisés périmés ignorés',
+            'subject_type' => Sale::class,
+            'subject_id' => $sale->id,
+            'subject_name_snapshot' => $sale->number,
+            'virtual_device_id' => $action->virtualDevice?->id,
+            'app_version' => $app['version'],
+            'properties' => [
+                'sale_number' => $sale->number,
+                'app_version' => $app['version'],
+                'lines' => $lines,
+            ],
+        ]);
     }
 
     /** One journal entry per sale that sold a variant archived since the till last synced. */

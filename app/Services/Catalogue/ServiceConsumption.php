@@ -86,11 +86,13 @@ class ServiceConsumption
      *
      * @param  array<int|string, mixed>  $choices    group => product id, or [{group, component_item_id}]
      * @param  array<int, array<string, mixed>>  $overrides  [{component_item_id, quantity}] per unit of service
+     * @param  list<array<string, mixed>>  $ignored  filled with every choice or adjustment that named a product (or group)
+     *                                                 the recipe no longer has: a till that synced before the recipe was edited
+     *                                                 must not have its sale refused, so these are dropped (the default applies)
+     *                                                 and the caller records them
      * @return list<array{component: Item, component_item_id: int, choice_group: ?string, quantity_content: float, quantity_stock: float, content_unit: ?string}>
-     *
-     * @throws ConsumptionException a choice or an adjustment that is not in the recipe
      */
-    public function plan(Item $service, ?ItemVariant $variant, int $lineQuantity, array $choices = [], array $overrides = []): array
+    public function plan(Item $service, ?ItemVariant $variant, int $lineQuantity, array $choices = [], array $overrides = [], array &$ignored = []): array
     {
         if ($service->type !== ItemType::Service->value || $lineQuantity < 1) {
             return [];
@@ -101,14 +103,15 @@ class ServiceConsumption
             // Nothing to consume — and adjustments to a recipe that does not
             // exist are a till out of date, not a stock question.
             if ($choices !== [] || $overrides !== []) {
-                $this->assertKnown($choices, $overrides, $recipe);
+                $this->pickedChoices($recipe, $choices, $ignored);
+                $this->adjustments($recipe, $overrides, $ignored);
             }
 
             return [];
         }
 
-        $picked = $this->pickedChoices($recipe, $choices);
-        $adjust = $this->adjustments($recipe, $overrides);
+        $picked = $this->pickedChoices($recipe, $choices, $ignored);
+        $adjust = $this->adjustments($recipe, $overrides, $ignored);
 
         $used = $recipe->filter(function (array $r) use ($picked): bool {
             return $r['choice_group'] === null || ($picked[$r['choice_group']] ?? null) === $r['component_item_id'];
@@ -156,7 +159,7 @@ class ServiceConsumption
     }
 
     /** group => the product id used for it. @return array<string, int> */
-    private function pickedChoices(Collection $recipe, array $choices): array
+    private function pickedChoices(Collection $recipe, array $choices, array &$ignored = []): array
     {
         $given = [];
         foreach ($choices as $key => $value) {
@@ -176,21 +179,21 @@ class ServiceConsumption
         foreach ($recipe->whereNotNull('choice_group')->groupBy('choice_group') as $group => $members) {
             $ids = $members->pluck('component_item_id')->all();
             if (isset($given[$group])) {
-                if (! in_array($given[$group], $ids, true)) {
-                    throw new ConsumptionException('Le produit choisi pour « '.$group.' » ne fait pas partie des produits utilisés par ce service.');
-                }
-                $picked[$group] = $given[$group];
+                if (in_array($given[$group], $ids, true)) {
+                    $picked[$group] = $given[$group];
 
-                continue;
+                    continue;
+                }
+                $ignored[] = ['kind' => 'choice', 'group' => $group, 'component_item_id' => $given[$group]];
             }
             // The default; an app that predates choices lands here.
             $default = $members->firstWhere('is_default', true) ?? $members->first();
             $picked[$group] = (int) $default['component_item_id'];
         }
 
-        foreach (array_keys($given) as $group) {
-            if (! isset($picked[$group])) {
-                throw new ConsumptionException('« '.$group.' » n’est pas un choix de produit de ce service.');
+        foreach ($given as $group => $id) {
+            if (! $recipe->contains('choice_group', $group)) {
+                $ignored[] = ['kind' => 'choice', 'group' => $group, 'component_item_id' => $id];
             }
         }
 
@@ -198,29 +201,21 @@ class ServiceConsumption
     }
 
     /** component id => quantity per unit of service. @return array<int, float> */
-    private function adjustments(Collection $recipe, array $overrides): array
+    private function adjustments(Collection $recipe, array $overrides, array &$ignored = []): array
     {
         $known = $recipe->pluck('component_item_id')->all();
         $out = [];
         foreach ($overrides as $override) {
             $id = (int) ($override['component_item_id'] ?? 0);
             if (! in_array($id, $known, true)) {
-                throw new ConsumptionException('Un produit ajusté ne fait pas partie des produits utilisés par ce service.');
+                $ignored[] = ['kind' => 'override', 'component_item_id' => $id, 'quantity' => (float) ($override['quantity'] ?? 0)];
+
+                continue;
             }
             $out[$id] = round(max(0, (float) ($override['quantity'] ?? 0)), 3);
         }
 
         return $out;
-    }
-
-    private function assertKnown(array $choices, array $overrides, Collection $recipe): void
-    {
-        if ($overrides !== []) {
-            $this->adjustments($recipe, $overrides);
-        }
-        if ($choices !== []) {
-            $this->pickedChoices($recipe, $choices);
-        }
     }
 
     /**

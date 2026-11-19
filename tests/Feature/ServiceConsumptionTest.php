@@ -13,7 +13,6 @@ use App\Models\SaleItem;
 use App\Models\SaleItemConsumption;
 use App\Models\Tenant;
 use App\Models\User;
-use App\Services\Catalogue\ConsumptionException;
 use App\Services\Catalogue\ServiceConsumption;
 use App\Services\Inventory\InventoryLedgerService;
 use App\Services\Inventory\InventoryMovementType;
@@ -173,7 +172,7 @@ class ServiceConsumptionTest extends TestCase
         $this->assertNotNull($plan->firstWhere('component_item_id', $this->purifiant->id));
     }
 
-    public function test_a_choice_group_uses_the_default_or_the_explicit_choice_and_refuses_strangers(): void
+    public function test_a_choice_group_uses_the_default_or_the_explicit_choice_and_ignores_strangers(): void
     {
         $consumption = app(ServiceConsumption::class);
 
@@ -189,8 +188,11 @@ class ServiceConsumptionTest extends TestCase
         $map = collect($consumption->plan($this->service, null, 1, ['Masque' => $this->purifiant->id]))->pluck('component_item_id');
         $this->assertTrue($map->contains($this->purifiant->id));
 
-        $this->expectException(ConsumptionException::class);
-        $consumption->plan($this->service, null, 1, [['group' => 'Masque', 'component_item_id' => $this->gel->id]]);
+        // A product outside the group is ignored (the default applies) and reported.
+        $ignored = [];
+        $stale = collect($consumption->plan($this->service, null, 1, [['group' => 'Masque', 'component_item_id' => $this->gel->id]], [], $ignored))->pluck('component_item_id');
+        $this->assertTrue($stale->contains($this->hydratant->id));
+        $this->assertSame('choice', $ignored[0]['kind']);
     }
 
     public function test_an_api_sale_deducts_fractions_records_movements_and_snapshots_the_cost(): void
@@ -248,15 +250,31 @@ class ServiceConsumptionTest extends TestCase
         $this->assertEqualsWithDelta(4.0, $this->onHand($this->hydratant), 0.0001);    // the default was not used
     }
 
-    public function test_an_adjustment_outside_the_recipe_is_refused_and_nothing_moves(): void
+    public function test_a_stale_choice_or_adjustment_never_blocks_the_sale_and_is_journaled(): void
     {
         $stranger = $this->product('Autre produit', 100, 'ml', 10, 5);
 
-        $this->sell(['component_overrides' => [['component_item_id' => $stranger->id, 'quantity' => 5]]])->assertStatus(422);
-        $this->sell(['component_choices' => [['group' => 'Masque', 'component_item_id' => $stranger->id]]])->assertStatus(422);
+        $response = $this->sell([
+            'component_overrides' => [['component_item_id' => $stranger->id, 'quantity' => 5]],
+            'component_choices' => [['group' => 'Masque', 'component_item_id' => $stranger->id], ['group' => 'Fantôme', 'component_item_id' => $stranger->id]],
+        ])->assertCreated();
 
-        $this->assertSame(0, Sale::where('idempotency_key', '!=', '')->whereHas('items', fn ($q) => $q->where('item_id', $this->service->id))->count());
-        $this->assertEqualsWithDelta(10.0, $this->onHand($this->gel), 0.0001);
+        // The default recipe applied; the stranger was not touched.
+        $this->assertEqualsWithDelta(9.95, $this->onHand($this->gel), 0.0001);
+        $this->assertEqualsWithDelta(3.96, $this->onHand($this->hydratant), 0.0001);
+        $this->assertEqualsWithDelta(5.0, $this->onHand($stranger), 0.0001);
+        $this->assertSame(3, SaleItemConsumption::count());
+
+        $sale = Sale::where('tenant_id', $this->tenant->id)->latest('id')->first();
+        $this->assertCount(1, $sale->metadata['stale_recipe_choices']);
+        $this->assertCount(3, $sale->metadata['stale_recipe_choices'][0]['ignored']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'api.stale_recipe_choice', 'subject_id' => $sale->id]);
+    }
+
+    public function test_a_malformed_component_payload_is_still_refused(): void
+    {
+        $this->sell(['component_overrides' => [['component_item_id' => $this->gel->id, 'quantity' => -3]]])->assertStatus(422);
+        $this->sell(['component_overrides' => [['component_item_id' => 'abc', 'quantity' => 3]]])->assertStatus(422);
         $this->assertSame(0, SaleItemConsumption::count());
     }
 
