@@ -531,4 +531,90 @@ class ServiceConsumptionTest extends TestCase
         $this->assertTrue($rows[1]->is_default);
         $this->assertNull($rows[0]->choice_group);
     }
+    public function test_the_container_name_reads_in_the_display_helper(): void
+    {
+        app()->setLocale('fr');
+        $this->gel->update(['content_container' => 'flacon']);
+        $this->assertSame('3,45 flacons (690 ml)', \App\Support\ContentUnits::describeStock($this->gel->fresh(), 3.45));
+        $this->assertSame('1 flacon (200 ml)', \App\Support\ContentUnits::describeStock($this->gel->fresh(), 1));
+        $this->assertSame('0,5 flacon (100 ml)', \App\Support\ContentUnits::describeStock($this->gel->fresh(), 0.5));
+        // No container: « unités » as ever.
+        $this->assertSame('3 unités', \App\Support\ContentUnits::describeStock($this->gloves, 3));
+        $this->assertSame(['key' => 'rouleau', 'one' => 'rouleau', 'many' => 'rouleaux'], [
+            'key' => 'rouleau',
+            'one' => \App\Support\ContentUnits::containerLabel('rouleau', 1),
+            'many' => \App\Support\ContentUnits::containerLabel('rouleau', 2),
+        ]);
+    }
+
+    public function test_the_container_rides_the_sync_payloads(): void
+    {
+        $this->gel->update(['content_container' => 'flacon']);
+        $this->travel(3)->seconds();
+        $headers = ['X-Tenant-Slug' => $this->tenant->slug, 'X-Location-Id' => (string) $this->location->id];
+
+        $this->app['auth']->forgetGuards();
+        $meta = $this->withToken($this->token())->withHeaders($headers)->getJson('/api/v1/sync/meta')->assertOk();
+        $containers = collect($meta->json('content_containers'));
+        $this->assertCount(9, $containers);
+        $this->assertSame(['key' => 'flacon', 'label' => 'flacon', 'label_plural' => 'flacons'], $containers->firstWhere('key', 'flacon'));
+        $this->assertSame('boîtes', $containers->firstWhere('key', 'boite')['label_plural']);
+
+        $this->app['auth']->forgetGuards();
+        $items = collect($this->withToken($this->token())->withHeaders($headers)->getJson('/api/v1/sync/items')->assertOk()->json('items'));
+        $this->assertSame('flacon', $items->firstWhere('id', $this->gel->id)['content_container']);
+        $this->assertNull($items->firstWhere('id', $this->gloves->id)['content_container']);
+    }
+
+    public function test_the_item_api_accepts_a_container_and_validates_it(): void
+    {
+        $unit = \App\Models\Unit::where('tenant_id', $this->tenant->id)->value('id');
+        $tax = \App\Models\Tax::where('tenant_id', $this->tenant->id)->value('id');
+        $payload = fn (array $extra) => array_merge([
+            'local_id' => Str::uuid()->toString(), 'title' => 'Cire '.Str::random(4), 'sale_price' => 0, 'unit_id' => $unit, 'tax_id' => $tax, 'type' => 'supply',
+        ], $extra);
+        $token = $this->token();
+        $post = function (array $body) use ($token) {
+            $this->app['auth']->forgetGuards();
+
+            return $this->withToken($token)->postJson('/api/v1/items', $body);
+        };
+
+        $post($payload(['content_container' => 'seau']))->assertUnprocessable()->assertJsonValidationErrors('content_container');
+        // Alone, without a capacity.
+        $created = $post($payload(['content_container' => 'pot']))->assertCreated();
+        $this->assertSame('pot', Item::findOrFail($created->json('item.id'))->content_container);
+        // With a capacity.
+        $with = $post($payload(['content_container' => 'tube', 'content_quantity' => 50, 'content_unit' => 'ml']))->assertCreated();
+        $this->assertSame('tube', Item::findOrFail($with->json('item.id'))->content_container);
+        // A service never carries one.
+        $svc = $post($payload(['type' => 'service', 'content_container' => 'pot']))->assertCreated();
+        $this->assertNull(Item::findOrFail($svc->json('item.id'))->content_container);
+
+        // Update: set, clear, refuse a stranger.
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->putJson('/api/v1/items/'.$this->gel->id, ['content_container' => 'flacon'])->assertOk();
+        $this->assertSame('flacon', $this->gel->fresh()->content_container);
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->putJson('/api/v1/items/'.$this->gel->id, ['content_container' => 'seau'])->assertUnprocessable();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->putJson('/api/v1/items/'.$this->gel->id, ['content_container' => null])->assertOk();
+        $this->assertNull($this->gel->fresh()->content_container);
+    }
+
+    public function test_the_product_form_saves_a_container(): void
+    {
+        $this->actingAs($this->owner);
+        $form = fn (array $extra) => $this->put(route('catalog.items.update', $this->gloves), array_merge([
+            'type' => 'supply', 'title' => 'Gants jetables', 'unit_id' => \App\Models\Unit::where('tenant_id', $this->tenant->id)->value('id'),
+            'tax_id' => \App\Models\Tax::where('tenant_id', $this->tenant->id)->value('id'),
+            'purchase_price' => 0.5, 'sale_price' => 0, 'stock_quantity' => 100, 'min_stock_threshold' => 1,
+        ], $extra));
+
+        $form(['content_container' => 'seau'])->assertSessionHasErrors('content_container');
+        $form(['content_container' => 'boite'])->assertSessionHasNoErrors();
+        $this->assertSame('boite', $this->gloves->fresh()->content_container);
+        $form(['content_container' => ''])->assertSessionHasNoErrors();
+        $this->assertNull($this->gloves->fresh()->content_container);
+    }
 }

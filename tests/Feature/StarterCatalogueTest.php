@@ -141,6 +141,24 @@ class StarterCatalogueTest extends TestCase
         $this->assertEquals(9, (float) \App\Models\ItemComponent::where('item_id', $facial->id)->where('component_item_id', $gel->id)->value('quantity'));
     }
 
+    public function test_the_care_products_get_a_container_and_a_shops_own_value_is_never_overwritten(): void
+    {
+        $this->apply();
+        $this->assertSame('flacon', $this->item('Gel nettoyant visage')->content_container);
+        $this->assertSame('pot', $this->item('Cire chaude (pelable)')->content_container);
+        $this->assertSame('boite', $this->item('Gants jetables')->content_container);
+        $this->assertSame('paquet', $this->item('Bandes d\'épilation')->content_container);
+        $this->assertSame('rouleau', $this->item('Papier d\'examen / draps jetables')->content_container);
+        $this->assertSame(0, Item::where('tenant_id', $this->tenant->id)->where('type', 'supply')->whereNull('content_container')->count());
+
+        // The shop renamed one container, and a product made before containers existed has none.
+        $this->item('Gel nettoyant visage')->update(['content_container' => 'bidon']);
+        $this->item('Talc')->update(['content_container' => null]);
+        $this->apply();
+        $this->assertSame('bidon', $this->item('Gel nettoyant visage')->content_container, 'the shop\'s own value stays');
+        $this->assertSame('pot', $this->item('Talc')->content_container, 'a missing one is filled in');
+    }
+
     public function test_it_is_offered_in_the_empty_catalogue_and_the_import_panel_of_a_beauty_shop(): void
     {
         $this->actingAs($this->owner)->get(route('catalog', ['panel' => 'articles']))

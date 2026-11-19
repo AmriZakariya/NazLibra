@@ -22,6 +22,52 @@ final class ContentUnits
         'dose' => ['dose', 'doses'],
     ];
 
+    /** What one stocked unit IS (key => [singular, plural], French source). */
+    public const CONTAINERS = [
+        'flacon' => ['flacon', 'flacons'],
+        'pot' => ['pot', 'pots'],
+        'tube' => ['tube', 'tubes'],
+        'boite' => ['boîte', 'boîtes'],
+        'sachet' => ['sachet', 'sachets'],
+        'bidon' => ['bidon', 'bidons'],
+        'rouleau' => ['rouleau', 'rouleaux'],
+        'paquet' => ['paquet', 'paquets'],
+        'piece' => ['pièce', 'pièces'],
+    ];
+
+    /** @return list<string> */
+    public static function containerKeys(): array
+    {
+        return array_keys(self::CONTAINERS);
+    }
+
+    public static function isValidContainer(?string $container): bool
+    {
+        return $container !== null && isset(self::CONTAINERS[$container]);
+    }
+
+    /** « flacon(s) » translated, agreeing with the quantity; « unité(s) » when none is set. */
+    public static function containerLabel(?string $container, float|int $quantity = 1, ?string $locale = null): string
+    {
+        if (! self::isValidContainer($container)) {
+            return Locale::t(abs($quantity) > 1 ? 'unités' : 'unité', $locale);
+        }
+        [$one, $many] = self::CONTAINERS[$container];
+
+        return Locale::t(abs($quantity) > 1 ? $many : $one, $locale);
+    }
+
+    /** What the product form offers: key => translated name. */
+    public static function containerOptions(): array
+    {
+        $out = [];
+        foreach (self::CONTAINERS as $key => [$one]) {
+            $out[$key] = Locale::t($one);
+        }
+
+        return $out;
+    }
+
     /** @return list<string> */
     public static function keys(): array
     {
@@ -67,7 +113,7 @@ final class ContentUnits
      */
     public static function describeStock(Item $product, float|int $stocked): string
     {
-        $text = Stock::plain($stocked).' '.Locale::t(abs($stocked) > 1 ? 'unités' : 'unité');
+        $text = Stock::plain($stocked).' '.self::containerLabel($product->content_container, $stocked);
         if ($product->hasCapacity()) {
             $text .= ' ('.self::format($stocked * (float) $product->content_quantity, $product->content_unit).')';
         }

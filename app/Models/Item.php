@@ -55,6 +55,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'duration_minutes',
     'content_quantity',
     'content_unit',
+    'content_container',
     'price_is_from',
     'reseller_sale_price',
     'mrp',

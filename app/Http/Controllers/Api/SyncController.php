@@ -114,7 +114,7 @@ class SyncController extends Controller
             'item_code', 'item_group', 'nb_item', 'title', 'isbn', 'barcode', 'sku', 'custom_barcode1', 'author',
             'sale_price', 'purchase_price', 'min_stock_threshold', 'track_inventory',
             'stock_quantity', 'images', 'extra_fields', 'description', 'tags', 'duration_minutes', 'price_is_from',
-            'content_quantity', 'content_unit',
+            'content_quantity', 'content_unit', 'content_container',
             'updated_at', 'created_at', 'deleted_at',
         ]);
 
@@ -270,6 +270,13 @@ class SyncController extends Controller
                 'label_plural' => \App\Support\ContentUnits::label($key, 2, $locale),
             ])->all();
 
+        $contentContainers = collect(\App\Support\ContentUnits::containerKeys())
+            ->map(fn (string $key): array => [
+                'key' => $key,
+                'label' => \App\Support\ContentUnits::containerLabel($key, 1, $locale),
+                'label_plural' => \App\Support\ContentUnits::containerLabel($key, 2, $locale),
+            ])->all();
+
         return response()->json([
             'ok'               => true,
             'sync_at'          => $this->formatCursorTime($syncAt),
@@ -279,6 +286,7 @@ class SyncController extends Controller
             'item_components'  => $itemComponents,
             'item_components_is_full' => true,
             'content_units'    => $contentUnits,
+            'content_containers' => $contentContainers,
             'categories'       => $categories,
             'brands'           => $brands,
             'units'            => $units,

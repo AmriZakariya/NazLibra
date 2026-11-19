@@ -145,7 +145,7 @@ class StarterCatalogue
         $unit = Unit::firstOrCreate(['tenant_id' => $tenant->id, 'name' => 'Pièce']);
         $tax = Tax::firstOrCreate(['tenant_id' => $tenant->id, 'name' => 'Sans TVA'], ['rate' => 0]);
 
-        $existing = Item::withTrashed()->where('tenant_id', $tenant->id)->get(['id', 'tenant_id', 'title', 'item_code', 'type'])
+        $existing = Item::withTrashed()->where('tenant_id', $tenant->id)->get(['id', 'tenant_id', 'title', 'item_code', 'type', 'content_container'])
             ->keyBy(fn (Item $i) => mb_strtolower(trim($i->title)));
         $codes = Item::withTrashed()->where('tenant_id', $tenant->id)->pluck('item_code')->flip();
 
@@ -153,6 +153,13 @@ class StarterCatalogue
         foreach ($supplies as $i => $supply) {
             $title = $supply['title'];
             if ($existing->has(mb_strtolower($title))) {
+                // A product made before containers existed gets its name; one
+                // that already has a container (the shop's own) is never touched.
+                $product = $existing->get(mb_strtolower($title));
+                if ($product->type === 'supply' && empty($product->content_container) && ! empty($supply['content_container'])) {
+                    Item::withTrashed()->whereKey($product->id)->update(['content_container' => $supply['content_container']]);
+                }
+
                 continue;
             }
             $n = $i + 1;
@@ -187,6 +194,7 @@ class StarterCatalogue
                 'track_inventory' => true,
                 'content_quantity' => $supply['content_quantity'],
                 'content_unit' => $supply['content_unit'],
+                'content_container' => $supply['content_container'] ?? null,
             ]);
             $existing->put(mb_strtolower($title), $item);
             $created++;

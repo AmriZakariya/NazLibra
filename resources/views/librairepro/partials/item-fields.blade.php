@@ -351,6 +351,17 @@
     <span class="mt-1 block text-xs text-slate-400">{{ $tr('Ex. : 200 ml pour un flacon. Les services qui l’utilisent en retirent des fractions du stock.') }}</span>
 </div>
 
+{{-- What one stocked unit is called: « 3,45 flacons » instead of « 3,45 unités ». --}}
+<label class="block">
+    <span class="text-xs font-semibold uppercase text-slate-500">{{ $tr('Une unité de stock est un(e)') }}</span>
+    <select name="content_container" class="{{ $select }}">
+        <option value="">{{ $tr('Unité') }}</option>
+        @foreach (\App\Support\ContentUnits::containerOptions() as $containerKey => $containerLabel)
+            <option value="{{ $containerKey }}" @selected(old('content_container', $item?->content_container) === $containerKey)>{{ $containerLabel }}</option>
+        @endforeach
+    </select>
+</label>
+
 <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
     <input type="hidden" name="track_inventory" value="0">
     <input type="checkbox" id="track_inventory_toggle" name="track_inventory" value="1"

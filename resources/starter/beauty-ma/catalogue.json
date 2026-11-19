@@ -581,6 +581,7 @@
    "title": "Gel nettoyant visage",
    "content_quantity": 200,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 45,
    "sale_price": 0
   },
@@ -588,6 +589,7 @@
    "title": "Lait démaquillant",
    "content_quantity": 200,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 40,
    "sale_price": 0
   },
@@ -595,6 +597,7 @@
    "title": "Eau micellaire",
    "content_quantity": 400,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 55,
    "sale_price": 0
   },
@@ -602,6 +605,7 @@
    "title": "Lotion tonique",
    "content_quantity": 200,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 40,
    "sale_price": 0
   },
@@ -609,6 +613,7 @@
    "title": "Gommage visage",
    "content_quantity": 150,
    "content_unit": "ml",
+   "content_container": "tube",
    "purchase_price": 60,
    "sale_price": 0
   },
@@ -616,6 +621,7 @@
    "title": "Exfoliant enzymatique",
    "content_quantity": 75,
    "content_unit": "g",
+   "content_container": "pot",
    "purchase_price": 90,
    "sale_price": 0
   },
@@ -623,6 +629,7 @@
    "title": "Masque hydratant",
    "content_quantity": 250,
    "content_unit": "g",
+   "content_container": "pot",
    "purchase_price": 120,
    "sale_price": 0
   },
@@ -630,6 +637,7 @@
    "title": "Masque purifiant (argile)",
    "content_quantity": 250,
    "content_unit": "g",
+   "content_container": "pot",
    "purchase_price": 85,
    "sale_price": 0
   },
@@ -637,6 +645,7 @@
    "title": "Sérum hydratant",
    "content_quantity": 30,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 130,
    "sale_price": 0
   },
@@ -644,6 +653,7 @@
    "title": "Sérum vitamine C",
    "content_quantity": 30,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 160,
    "sale_price": 280
   },
@@ -651,6 +661,7 @@
    "title": "Crème hydratante",
    "content_quantity": 50,
    "content_unit": "ml",
+   "content_container": "pot",
    "purchase_price": 80,
    "sale_price": 150
   },
@@ -658,6 +669,7 @@
    "title": "Crème nourrissante",
    "content_quantity": 50,
    "content_unit": "ml",
+   "content_container": "pot",
    "purchase_price": 85,
    "sale_price": 0
   },
@@ -665,6 +677,7 @@
    "title": "Crème contour des yeux",
    "content_quantity": 15,
    "content_unit": "ml",
+   "content_container": "tube",
    "purchase_price": 70,
    "sale_price": 0
   },
@@ -672,6 +685,7 @@
    "title": "Crème solaire SPF 50",
    "content_quantity": 50,
    "content_unit": "ml",
+   "content_container": "tube",
    "purchase_price": 70,
    "sale_price": 130
   },
@@ -679,6 +693,7 @@
    "title": "Huile de massage visage",
    "content_quantity": 100,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 75,
    "sale_price": 140
   },
@@ -686,6 +701,7 @@
    "title": "Eau thermale",
    "content_quantity": 150,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 40,
    "sale_price": 70
   },
@@ -693,6 +709,7 @@
    "title": "Cire chaude (pelable)",
    "content_quantity": 800,
    "content_unit": "g",
+   "content_container": "pot",
    "purchase_price": 120,
    "sale_price": 0
   },
@@ -700,6 +717,7 @@
    "title": "Cire tiède",
    "content_quantity": 800,
    "content_unit": "g",
+   "content_container": "pot",
    "purchase_price": 90,
    "sale_price": 0
   },
@@ -707,6 +725,7 @@
    "title": "Cire froide (bandes)",
    "content_quantity": 20,
    "content_unit": "piece",
+   "content_container": "boite",
    "purchase_price": 30,
    "sale_price": 0
   },
@@ -714,6 +733,7 @@
    "title": "Bandes d'épilation",
    "content_quantity": 100,
    "content_unit": "piece",
+   "content_container": "paquet",
    "purchase_price": 25,
    "sale_price": 0
   },
@@ -721,6 +741,7 @@
    "title": "Spatules en bois",
    "content_quantity": 100,
    "content_unit": "piece",
+   "content_container": "boite",
    "purchase_price": 20,
    "sale_price": 0
   },
@@ -728,6 +749,7 @@
    "title": "Huile pré-épilation",
    "content_quantity": 100,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 30,
    "sale_price": 0
   },
@@ -735,6 +757,7 @@
    "title": "Lotion pré-épilation",
    "content_quantity": 250,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 40,
    "sale_price": 0
   },
@@ -742,6 +765,7 @@
    "title": "Talc",
    "content_quantity": 100,
    "content_unit": "g",
+   "content_container": "pot",
    "purchase_price": 20,
    "sale_price": 0
   },
@@ -749,6 +773,7 @@
    "title": "Huile post-épilation",
    "content_quantity": 100,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 45,
    "sale_price": 0
   },
@@ -756,6 +781,7 @@
    "title": "Lait apaisant après épilation",
    "content_quantity": 250,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 45,
    "sale_price": 80
   },
@@ -763,6 +789,7 @@
    "title": "Gel d'aloe vera",
    "content_quantity": 250,
    "content_unit": "ml",
+   "content_container": "tube",
    "purchase_price": 40,
    "sale_price": 70
   },
@@ -770,6 +797,7 @@
    "title": "Désinfectant pour la peau",
    "content_quantity": 500,
    "content_unit": "ml",
+   "content_container": "flacon",
    "purchase_price": 35,
    "sale_price": 0
   },
@@ -777,6 +805,7 @@
    "title": "Gants jetables",
    "content_quantity": 100,
    "content_unit": "piece",
+   "content_container": "boite",
    "purchase_price": 40,
    "sale_price": 0
   },
@@ -784,6 +813,7 @@
    "title": "Papier d'examen / draps jetables",
    "content_quantity": 50,
    "content_unit": "piece",
+   "content_container": "rouleau",
    "purchase_price": 60,
    "sale_price": 0
   }

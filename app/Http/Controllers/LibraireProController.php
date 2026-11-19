@@ -11235,6 +11235,7 @@ class LibraireProController extends Controller
             // What one stocked unit contains (a 200 ml bottle): both or neither.
             'content_quantity' => ['nullable', 'numeric', 'min:0.001', 'max:999999', 'required_with:content_unit'],
             'content_unit' => ['nullable', 'string', Rule::in(\App\Support\ContentUnits::keys()), 'required_with:content_quantity'],
+            'content_container' => ['nullable', 'string', Rule::in(\App\Support\ContentUnits::containerKeys())],
             'warehouse' => ['nullable', 'string', 'max:255'],
             'opening_stock' => ['nullable', 'integer', 'min:0'],
             // Decimal: a product used by the ml is stocked as 2.95 bottles.
@@ -11294,9 +11295,11 @@ class LibraireProController extends Controller
         if (($data['type'] ?? $item?->type) === 'service') {
             $data['content_quantity'] = null;
             $data['content_unit'] = null;
+            $data['content_container'] = null;
         } else {
             $data['content_quantity'] = $data['content_quantity'] ?? null;
             $data['content_unit'] = $data['content_unit'] ?? null;
+            $data['content_container'] = $data['content_container'] ?? null;
         }
         // « À partir de »: the sale price is a floor, not a fixed price.
         $data['price_is_from'] = $request->boolean('price_is_from');

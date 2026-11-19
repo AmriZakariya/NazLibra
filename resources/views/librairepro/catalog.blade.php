@@ -1429,7 +1429,7 @@
                         </div>
                         <div class="app-action-row">
                             <x-status-pill :tone="$editItem->type === 'service' ? 'info' : 'primary'">{{ $editItem->type === 'service' ? 'Service' : 'Article' }}</x-status-pill>
-                            <x-status-pill :tone="$editItem->is_low_stock ? 'warning' : 'success'">{{ $editItem->type === 'service' ? 'Stock illimité' : $editItem->stock_quantity.' unités' }}</x-status-pill>
+                            <x-status-pill :tone="$editItem->is_low_stock ? 'warning' : 'success'">{{ $editItem->type === 'service' ? 'Stock illimité' : ($editItem->hasCapacity() || $editItem->content_container ? \App\Support\ContentUnits::describeStock($editItem, (float) $editItem->stock_quantity) : $editItem->stock_quantity.' unités') }}</x-status-pill>
                         </div>
                     </div>
                     <div class="catalog-quick-actions mt-4">

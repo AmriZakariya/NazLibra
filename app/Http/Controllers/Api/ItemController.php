@@ -159,6 +159,7 @@ class ItemController extends Controller
             // What one stocked unit contains (200 + ml): both or neither.
             'content_quantity'    => ['nullable', 'numeric', 'min:0.001', 'max:999999', 'required_with:content_unit'],
             'content_unit'        => ['nullable', 'string', Rule::in(\App\Support\ContentUnits::keys()), 'required_with:content_quantity'],
+            'content_container'   => ['nullable', 'string', Rule::in(\App\Support\ContentUnits::containerKeys())],
             'stock_quantity'      => ['nullable', 'integer', 'min:0'],
             'min_stock_threshold' => ['nullable', 'integer', 'min:0'],
             'isbn'                => ['nullable', 'string', 'max:30'],
@@ -199,6 +200,7 @@ class ItemController extends Controller
                     'price_is_from'       => (bool) ($data['price_is_from'] ?? false),
                     'content_quantity'    => $data['type'] === ItemType::Service->value ? null : ($data['content_quantity'] ?? null),
                     'content_unit'        => $data['type'] === ItemType::Service->value ? null : ($data['content_unit'] ?? null),
+                    'content_container'   => $data['type'] === ItemType::Service->value ? null : ($data['content_container'] ?? null),
                     'stock_quantity'      => $initialStock,
                     'min_stock_threshold' => $data['min_stock_threshold'] ?? 3,
                     'isbn'                => $data['isbn'] ?? null,
@@ -285,6 +287,7 @@ class ItemController extends Controller
             'price_is_from'       => ['sometimes', 'boolean'],
             'content_quantity'    => ['sometimes', 'nullable', 'numeric', 'min:0.001', 'max:999999', 'required_with:content_unit'],
             'content_unit'        => ['sometimes', 'nullable', 'string', Rule::in(\App\Support\ContentUnits::keys()), 'required_with:content_quantity'],
+            'content_container'   => ['sometimes', 'nullable', 'string', Rule::in(\App\Support\ContentUnits::containerKeys())],
             'stock_quantity'      => ['prohibited'],
             'min_stock_threshold' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'isbn'                => ['sometimes', 'nullable', 'string', 'max:30'],
@@ -314,6 +317,7 @@ class ItemController extends Controller
                 $data['stock_quantity'] = 0;
                 $data['content_quantity'] = null;
                 $data['content_unit'] = null;
+                $data['content_container'] = null;
             }
         }
 
