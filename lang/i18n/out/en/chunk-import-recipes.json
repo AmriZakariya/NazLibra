@@ -1,0 +1,11 @@
+{
+ ": les produits du groupe sont des choix,": "are choices,",
+ "Contenu (nombre), Unité de contenu (ml, cl, l, g, kg, pièce, dose), Contenant (flacon, pot, tube, boîte, sachet, bidon, rouleau, paquet, pièce).": "Content (number), Content unit (ml, cl, l, g, kg, piece, dose), Container (bottle, jar, tube, box, sachet, can, roll, pack, piece).",
+ "Exemple :": "Example:",
+ "Prestations (recette) :": "Services (recipe):",
+ "Produits (capacité) :": "Products (capacity):",
+ "Produits utilisés :": "Products used:",
+ "Produits utilisés. Importez d'abord les produits, puis les prestations.": "Products used. Import the products first, then the services.",
+ "après la quantité marque le choix par défaut (un seul par groupe).": "after the quantity marks the default choice (only one per group).",
+ "la vide. Un produit ou une variante introuvable est signalé, les autres lignes sont importées.": "empties it. A product or variant that cannot be found is reported, the other lines are imported."
+}

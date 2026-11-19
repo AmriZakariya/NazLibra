@@ -35,6 +35,78 @@ final class ContentUnits
         'piece' => ['pièce', 'pièces'],
     ];
 
+    /** Extra spellings a sheet may use (English, plurals, long names), already normalised. */
+    private const UNIT_ALIASES = [
+        'ml' => ['millilitre', 'millilitres', 'milliliter', 'milliliters'],
+        'cl' => ['centilitre', 'centilitres', 'centiliter', 'centiliters'],
+        'l' => ['litre', 'litres', 'liter', 'liters', 'lt'],
+        'g' => ['gr', 'gramme', 'grammes', 'gram', 'grams'],
+        'kg' => ['kilo', 'kilos', 'kilogramme', 'kilogrammes', 'kilogram', 'kilograms'],
+        'piece' => ['pieces', 'pc', 'pcs', 'unit', 'units', 'unite', 'unites'],
+        'dose' => ['doses'],
+    ];
+
+    private const CONTAINER_ALIASES = [
+        'flacon' => ['flacons', 'bottle', 'bottles', 'bouteille', 'bouteilles'],
+        'pot' => ['pots', 'jar', 'jars'],
+        'tube' => ['tubes'],
+        'boite' => ['boites', 'box', 'boxes'],
+        'sachet' => ['sachets', 'bag', 'bags', 'pouch'],
+        'bidon' => ['bidons', 'can', 'cans', 'jug', 'jerrycan'],
+        'rouleau' => ['rouleaux', 'roll', 'rolls'],
+        'paquet' => ['paquets', 'pack', 'packs', 'packet', 'packets'],
+        'piece' => ['pieces', 'unit', 'units', 'unite', 'unites'],
+    ];
+
+    /** « Pièces », « ML », « flacon » → one comparable spelling (case, accents, trailing dot). */
+    private static function fold(string $text): string
+    {
+        $text = trim($text);
+        if (class_exists(\Normalizer::class)) {
+            $text = \Normalizer::normalize($text, \Normalizer::FORM_C) ?: $text;
+        }
+        $text = mb_strtolower($text);
+        $ascii = \Illuminate\Support\Str::ascii($text);
+
+        return rtrim($ascii !== '' && preg_match('/[a-z0-9]/', $ascii) ? $ascii : $text, '. ');
+    }
+
+    /** @param array<string, array{0: string, 1: string}> $labels @param array<string, list<string>> $aliases */
+    private static function lookup(string $text, array $labels, array $aliases): ?string
+    {
+        $needle = self::fold($text);
+        if ($needle === '') {
+            return null;
+        }
+        foreach ($labels as $key => $names) {
+            $known = [$key, ...$names, ...($aliases[$key] ?? [])];
+            foreach (Locale::SUPPORTED as $locale) {
+                foreach ($names as $name) {
+                    $known[] = Locale::t($name, $locale);
+                }
+            }
+            foreach ($known as $candidate) {
+                if (self::fold($candidate) === $needle) {
+                    return $key;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /** The unit key behind what a sheet wrote (« ML », « Pièces », « grams »), null when unknown. */
+    public static function parseUnit(string $text): ?string
+    {
+        return self::lookup($text, self::UNITS, self::UNIT_ALIASES);
+    }
+
+    /** The container key behind what a sheet wrote (« Flacon », « boîte », « jar »), null when unknown. */
+    public static function parseContainer(string $text): ?string
+    {
+        return self::lookup($text, self::CONTAINERS, self::CONTAINER_ALIASES);
+    }
+
     /** @return list<string> */
     public static function containerKeys(): array
     {

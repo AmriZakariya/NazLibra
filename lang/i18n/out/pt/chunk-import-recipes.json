@@ -1,0 +1,11 @@
+{
+ ": les produits du groupe sont des choix,": "são escolhas,",
+ "Contenu (nombre), Unité de contenu (ml, cl, l, g, kg, pièce, dose), Contenant (flacon, pot, tube, boîte, sachet, bidon, rouleau, paquet, pièce).": "Conteúdo (número), Unidade de conteúdo (ml, cl, l, g, kg, peça, dose), Embalagem (frasco, pote, tubo, caixa, saqueta, bidão, rolo, pacote, peça).",
+ "Exemple :": "Exemplo:",
+ "Prestations (recette) :": "Serviços (receita):",
+ "Produits (capacité) :": "Produtos (capacidade):",
+ "Produits utilisés :": "Produtos utilizados:",
+ "Produits utilisés. Importez d'abord les produits, puis les prestations.": "Produtos utilizados. Importe primeiro os produtos e depois os serviços.",
+ "après la quantité marque le choix par défaut (un seul par groupe).": "depois da quantidade marca a escolha predefinida (apenas uma por grupo).",
+ "la vide. Un produit ou une variante introuvable est signalé, les autres lignes sont importées.": "esvazia-a. Um produto ou uma variante não encontrados são assinalados; as outras linhas são importadas."
+}

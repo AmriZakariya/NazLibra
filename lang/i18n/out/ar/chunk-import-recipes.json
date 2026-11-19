@@ -1,0 +1,11 @@
+{
+ ": les produits du groupe sont des choix,": "هي خيارات،",
+ "Contenu (nombre), Unité de contenu (ml, cl, l, g, kg, pièce, dose), Contenant (flacon, pot, tube, boîte, sachet, bidon, rouleau, paquet, pièce).": "المحتوى (رقم)، وحدة المحتوى (مل، سل، ل، غ، كغ، قطعة، جرعة)، العبوة (قارورة، علبة صغيرة، أنبوب، علبة، كيس صغير، دلو، لفة، عبوة، قطعة).",
+ "Exemple :": "مثال:",
+ "Prestations (recette) :": "الخدمات (الوصفة):",
+ "Produits (capacité) :": "المنتجات (السعة):",
+ "Produits utilisés :": "المنتجات المستعملة:",
+ "Produits utilisés. Importez d'abord les produits, puis les prestations.": "المنتجات المستعملة. استورد المنتجات أولاً ثم الخدمات.",
+ "après la quantité marque le choix par défaut (un seul par groupe).": "بعد الكمية تحدد الخيار الافتراضي (واحد فقط في كل مجموعة).",
+ "la vide. Un produit ou une variante introuvable est signalé, les autres lignes sont importées.": "تفرغها. يتم الإبلاغ عن أي منتج أو متغير غير موجود، وتُستورد الأسطر الأخرى."
+}

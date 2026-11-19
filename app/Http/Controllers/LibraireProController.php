@@ -2704,6 +2704,7 @@ class LibraireProController extends Controller
         // cells: reported, never fatal.
         $warnings = [];
         $offers = app(\App\Services\Catalogue\ImportOffers::class);
+        $recipes = app(\App\Services\Catalogue\ImportRecipes::class);
         $rowNumber = 1;
         // Photos are attached after the rows are committed: a failed download
         // must not roll back the catalogue, and a rolled-back row must not
@@ -2845,8 +2846,11 @@ class LibraireProController extends Controller
             $resolveCat, $resolveBrand, $resolveUnit, $resolveTax, $resolveNextCode,
             $defaultMinStock,
             &$ledgerQtyMap, &$created, &$updated, &$skipped, &$services, &$photoJobs,
-            &$warnings, &$rowNumber, $offers,
+            &$warnings, &$rowNumber, $offers, $recipes,
         ) {
+            // The shop's products by title, loaded once and only when a
+            // « Produits utilisés » cell asks for them.
+            $productsByTitle = null;
             foreach ($rows as $row) {
                 $rowNumber++;
                 $title = trim((string) $this->rowValue($row, ['title', 'titre', 'name', 'nom', 'item_name', 'nom_article', 'nom_de_l_article']));
@@ -2953,6 +2957,11 @@ class LibraireProController extends Controller
                 if ($duration !== null) {
                     $payload['duration_minutes'] = $duration;
                 }
+                // Capacity: « Contenu » + « Unité de contenu » (+ « Contenant »).
+                // Cells left out leave the product's capacity as it was.
+                if ($type !== 'service') {
+                    $payload = array_merge($payload, $this->importedCapacity($row, $rowWarn));
+                }
                 if ($isFrom !== null && \Illuminate\Support\Facades\Schema::hasColumn('items', 'price_is_from')) {
                     $payload['price_is_from'] = $isFrom;
                 }
@@ -3002,6 +3011,16 @@ class LibraireProController extends Controller
                 }
                 if ($parsedOptions['options'] !== []) {
                     $offers->applyOptions($model, $parsedOptions['options']);
+                }
+                // « Produits utilisés »: after the variants, which a recipe row may name.
+                $recipeCell = $model->type === 'service' ? trim((string) $this->rowValue($row, ['produits_utilises', 'produits_utilise', 'recette', 'consommation', 'components', 'recipe', 'products_used'])) : '';
+                if ($recipeCell !== '') {
+                    $productsByTitle ??= Item::where('tenant_id', $tenant->id)->where('type', '!=', 'service')
+                        ->orderBy('id')->get()
+                        ->reverse()->keyBy(fn (Item $i) => \App\Services\Catalogue\ImportRecipes::key($i->title));
+                    foreach ($recipes->apply($model, $recipeCell, $productsByTitle) as $problem) {
+                        $rowWarn($problem);
+                    }
                 }
 
                 $photoJobs[] = [
@@ -11739,6 +11758,51 @@ class LibraireProController extends Controller
             'out_of_stock' => 'Rupture',
             default => 'Actif',
         };
+    }
+
+    /**
+     * The capacity columns of a products row as item attributes: « Contenu »
+     * (number), « Unité de contenu » (ml, g, pièce…), « Contenant » (flacon,
+     * pot…). Only what the row states is returned; a bad cell is a warning.
+     *
+     * @return array<string, mixed>
+     */
+    private function importedCapacity(array $row, \Closure $warn): array
+    {
+        $quantityCell = $this->rowValue($row, ['contenu', 'contenance', 'capacite', 'content', 'content_quantity', 'capacity']);
+        $unitCell = $this->rowValue($row, ['unite_de_contenu', 'unite_contenu', 'content_unit', 'capacity_unit']);
+        $containerCell = $this->rowValue($row, ['contenant', 'container', 'content_container']);
+        $out = [];
+
+        if ($quantityCell !== null || $unitCell !== null) {
+            $quantity = $quantityCell !== null ? \App\Services\Catalogue\ImportRecipes::amount((string) $quantityCell) : null;
+            $unit = $unitCell !== null ? \App\Support\ContentUnits::parseUnit((string) $unitCell) : null;
+            if ($quantityCell !== null && ($quantity === null || $quantity < 0.001 || $quantity > 999999)) {
+                $warn('« Contenu » « '.trim((string) $quantityCell).' » ignoré (nombre entre 0,001 et 999999)');
+                $quantity = null;
+            }
+            if ($unitCell !== null && $unit === null) {
+                $warn('« Unité de contenu » « '.trim((string) $unitCell).' » ignorée (ml, cl, l, g, kg, pièce, dose)');
+            }
+            if ($quantity !== null && $unit !== null) {
+                $out['content_quantity'] = round($quantity, 3);
+                $out['content_unit'] = $unit;
+            } elseif ($quantity !== null && $unitCell === null) {
+                $warn('« Contenu » ignoré : indiquez aussi l\'« Unité de contenu »');
+            } elseif ($unit !== null && $quantityCell === null) {
+                $warn('« Unité de contenu » ignorée : indiquez aussi le « Contenu »');
+            }
+        }
+        if ($containerCell !== null) {
+            $container = \App\Support\ContentUnits::parseContainer((string) $containerCell);
+            if ($container === null) {
+                $warn('« Contenant » « '.trim((string) $containerCell).' » ignoré (flacon, pot, tube, boîte, sachet, bidon, rouleau, paquet, pièce)');
+            } else {
+                $out['content_container'] = $container;
+            }
+        }
+
+        return $out;
     }
 
     private function rowValue(array $row, array $keys): mixed

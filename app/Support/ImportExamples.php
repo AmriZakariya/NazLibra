@@ -22,7 +22,10 @@ final class ImportExamples
      * taxed, tags, description] (the first is the activity's main type, the
      * second a plain product); services as [name, cost, price, tags, description]
      * and, for the trades that price by length or duration, four more cells:
-     * duration in minutes, « à partir de » (oui/empty), variants, options.
+     * duration in minutes, « à partir de » (oui/empty), variants, options,
+     * then « Produits utilisés » (the recipe, naming products of the items
+     * list). An item may end with three cells: content, content unit and
+     * container (« 200 », « ml », « flacon »).
      */
     private const DATA = [
         'library' => [
@@ -90,13 +93,13 @@ final class ImportExamples
             'brands' => [['L’ORÉAL', 'Professionnel'], ['ARGANE', 'Soins naturels']],
             'variants' => [['CHEVEUX LONGS', 'Longueur'], ['250 ML', 'Contenance']],
             'items' => [
-                ['Masque cheveux 250 ml', 'PRODUITS', 'L’ORÉAL', 'Pièce', 15, 3, 70, 140, true, 'soin, cheveux', 'Masque nourrissant 250 ml'],
-                ['Huile d’argan 100 ml', 'PRODUITS', 'ARGANE', 'Pièce', 20, 4, 60, 120, true, 'argan, soin', 'Huile d’argan pure 100 ml'],
+                ['Masque cheveux 250 ml', 'PRODUITS', 'L’ORÉAL', 'Pièce', 15, 3, 70, 140, true, 'soin, cheveux', 'Masque nourrissant 250 ml', 250, 'ml', 'pot'],
+                ['Huile d’argan 100 ml', 'PRODUITS', 'ARGANE', 'Pièce', 20, 4, 60, 120, true, 'argan, soin', 'Huile d’argan pure 100 ml', 200, 'ml', 'flacon'],
             ],
             'services' => [
-                ['Shampoing', 0, 0, 'coiffure', 'Shampoing et soin selon la longueur des cheveux', 20, '', 'Court=20; Mi-long=40; Long=60', ''],
+                ['Shampoing', 0, 0, 'coiffure', 'Shampoing et soin selon la longueur des cheveux', 20, '', 'Court=20; Mi-long=40; Long=60', '', 'Masque cheveux 250 ml=10; Long > Masque cheveux 250 ml=25'],
                 ['Coloration', 0, 300, 'coiffure, couleur', 'Coloration complète, le prix dépend de la longueur', 90, 'oui', '', ''],
-                ['Massage', 0, 0, 'bien-être', 'Massage relaxant, le prix dépend de la durée', '', '', '30 min=200@30; 1 h=400@60', ''],
+                ['Massage', 0, 0, 'bien-être', 'Massage relaxant, le prix dépend de la durée', '', '', '30 min=200@30; 1 h=400@60', '', 'Huile d’argan 100 ml=30; 1 h > Huile d’argan 100 ml=60'],
                 ['Pédicure', 0, 150, 'ongles', 'Pédicure classique, soins en option', 45, '', '', 'Paraffine=+50; Vernis=+20'],
             ],
         ],
@@ -105,12 +108,12 @@ final class ImportExamples
             'brands' => [['REUZEL', 'Cires et pommades'], ['PROraso', 'Rasage']],
             'variants' => [['ENFANT', 'Client'], ['100 G', 'Contenance']],
             'items' => [
-                ['Cire coiffante 100 g', 'PRODUITS', 'REUZEL', 'Pièce', 12, 3, 60, 120, true, 'cire, coiffage', 'Cire tenue forte 100 g'],
-                ['Baume après-rasage', 'PRODUITS', 'PROraso', 'Pièce', 10, 2, 50, 95, true, 'rasage', 'Baume apaisant 100 ml'],
+                ['Cire coiffante 100 g', 'PRODUITS', 'REUZEL', 'Pièce', 12, 3, 60, 120, true, 'cire, coiffage', 'Cire tenue forte 100 g', 100, 'g', 'pot'],
+                ['Baume après-rasage', 'PRODUITS', 'PROraso', 'Pièce', 10, 2, 50, 95, true, 'rasage', 'Baume apaisant 100 ml', 100, 'ml', 'tube'],
             ],
             'services' => [
-                ['Coupe homme', 0, 60, 'coupe', 'Coupe classique ou dégradé', 30, '', 'Adulte=60; Enfant=40', ''],
-                ['Taille de barbe', 0, 40, 'barbe', 'Taille et contours de barbe', 20, 'oui', '', 'Soin à l’huile=+15'],
+                ['Coupe homme', 0, 60, 'coupe', 'Coupe classique ou dégradé', 30, '', 'Adulte=60; Enfant=40', '', 'Cire coiffante 100 g=5; Enfant > Cire coiffante 100 g=3'],
+                ['Taille de barbe', 0, 40, 'barbe', 'Taille et contours de barbe', 20, 'oui', '', 'Soin à l’huile=+15', 'Baume après-rasage=4'],
             ],
         ],
         'cosmetics' => [
@@ -267,13 +270,13 @@ final class ImportExamples
         return [
             'title' => 'Liste des services',
             'filename' => 'exemple-import-services.xlsx',
-            'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément", 'Image', 'Durée (min)', 'Prix à partir de', 'Variantes', 'Options'],
+            'headers' => ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Unité', "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément", 'Image', 'Durée (min)', 'Prix à partir de', 'Variantes', 'Options', 'Produits utilisés'],
             'rows' => array_map(fn (array $s) => [
                 '', $s[0], 'Services[SERVICE]', 'Service', self::amount($s[1]),
                 // A price given by variants is left empty: the cheapest becomes the article's.
                 ($s[7] ?? '') !== '' && (float) $s[2] === 0.0 ? '' : self::amount($s[2]),
                 self::tax($tenant, false), 'Active', $s[3], $s[4], $type, '',
-                (string) ($s[5] ?? ''), (string) ($s[6] ?? ''), (string) ($s[7] ?? ''), (string) ($s[8] ?? ''),
+                (string) ($s[5] ?? ''), (string) ($s[6] ?? ''), (string) ($s[7] ?? ''), (string) ($s[8] ?? ''), (string) ($s[9] ?? ''),
             ], $services),
         ];
     }
@@ -290,8 +293,15 @@ final class ImportExamples
             ? ['Code de barre', 'ISBN', "Nom de l'article", "Catégorie/Type d'élément", 'Marque', 'Auteur', 'Unité', 'Stock', "Quantité d'alerte", "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément", 'Image']
             : ['Code de barre', "Nom de l'article", "Catégorie/Type d'élément", 'Marque', 'Unité', 'Stock', "Quantité d'alerte", "Prix d'achat", 'Prix de vente', 'Impôt', 'Statut', 'Tags', 'Description', "Type d'élément", 'Image'];
 
+        // The capacity columns only appear for trades that sell by content.
+        $withCapacity = collect($items)->contains(fn (array $item) => isset($item[11]));
+        if ($withCapacity) {
+            array_push($headers, 'Contenu', 'Unité de contenu', 'Contenant');
+        }
+
         $rows = [];
         foreach ($items as $i => [$name, $category, $brand, $unit, $stock, $alert, $cost, $price, $taxed, $tags, $description]) {
+            $capacity = $items[$i];
             $type = $i === 0 ? $main : 'supply';
             $barcode = '61100000000'.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT);
             $row = [$barcode];
@@ -305,6 +315,9 @@ final class ImportExamples
             }
             array_push($row, $unit, (string) $stock, (string) $alert, self::amount($cost), self::amount($price),
                 self::tax($tenant, $taxed), 'Active', $tags, $description, ItemTypes::label($tenant, $type), '');
+            if ($withCapacity) {
+                array_push($row, (string) ($capacity[11] ?? ''), (string) ($capacity[12] ?? ''), (string) ($capacity[13] ?? ''));
+            }
             $rows[] = $row;
         }
 
