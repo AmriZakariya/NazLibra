@@ -819,6 +819,11 @@ class LibraireProController extends Controller
                         CASE
                             WHEN sm2.quantity_delta >= 0
                                 THEN COALESCE(sm2.total_cost, 0)
+                            -- A service\'s consumption: only what left the layers
+                            -- (cogs). Its total_cost also prices the part taken from
+                            -- an empty shelf, which never was stock value.
+                            WHEN sm2.type = \'service_consumption\'
+                                THEN -ABS(COALESCE(sm2.cogs, 0))
                             ELSE -ABS(COALESCE(NULLIF(sm2.cogs, 0), sm2.total_cost, 0))
                         END
                     ), 0)

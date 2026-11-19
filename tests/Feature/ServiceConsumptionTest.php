@@ -789,5 +789,6 @@ class ServiceConsumptionTest extends TestCase
         $this->assertStringContainsString('-0,05', $page, '10 ml of a 200 ml gel');
         $this->assertStringContainsString('(10 ml)', $page);
         $this->assertStringContainsString('0,96', $page);
+        $this->assertStringNotContainsString('-0,96', $page, 'an empty shelf is worth 0, never less');
     }
 }
