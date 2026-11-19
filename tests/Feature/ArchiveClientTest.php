@@ -83,6 +83,7 @@ class ArchiveClientTest extends TestCase
         $this->assertSame(1, $approved->viewData('counts')['approved']);
         $this->assertSame(1, $approved->viewData('counts')['archived']);
         $approved->assertSee('Retirés')->assertSee('data-stats-fold', false);
+        $approved->assertSee('href="'.$kept->install->url().'"', false)->assertSee('data-space-link', false);
 
         $archived = $this->actingAs($admin)->get(route('castlit.admin.index', ['status' => 'archived']))->assertOk();
         $this->assertSame([$gone->id], $archived->viewData('subscriptions')->pluck('id')->all());

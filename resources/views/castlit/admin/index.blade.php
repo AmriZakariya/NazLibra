@@ -40,6 +40,8 @@
     .pill-rejected { background: var(--err-bg); color: var(--err); }
     .pill-live { background: var(--ok-bg); color: var(--ok); }
     .pill-failed { background: var(--err-bg); color: var(--err); }
+    a.sd-link { display: inline-block; color: var(--brand); text-decoration: none; }
+    a.sd-link:hover { text-decoration: underline; }
     .pill-archived { background: color-mix(in srgb, var(--muted) 14%, transparent); color: var(--muted); }
     .pill-running, .pill-queued { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
     .row-link { color: var(--brand); font-weight: 650; font-size: 13.5px; }
@@ -162,7 +164,13 @@
                         <tr>
                             <td>
                                 <div class="biz">{{ $sub->business_name }}</div>
-                                <div class="sd">{{ $sub->desired_subdomain }}.{{ config('castlit.main_domain') }}</div>
+                                {{-- A space that exists opens in a new tab; a request not yet
+                                     provisioned only shows the address it asked for. --}}
+                                @if ($sub->install && in_array($sub->install->status, [\App\Models\TenantInstall::STATUS_LIVE, \App\Models\TenantInstall::STATUS_ARCHIVED], true))
+                                    <a class="sd sd-link" href="{{ $sub->install->url() }}" target="_blank" rel="noopener" data-space-link>{{ $sub->install->domain }} ↗</a>
+                                @else
+                                    <div class="sd">{{ $sub->desired_subdomain }}.{{ config('castlit.main_domain') }}</div>
+                                @endif
                                 {{-- Le code que le client saisit dans l'application pour
                                      trouver son espace. Affiché ici pour pouvoir le lui
                                      donner au téléphone sans changer de page ; la
