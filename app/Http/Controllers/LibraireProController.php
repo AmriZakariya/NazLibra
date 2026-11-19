@@ -4620,8 +4620,20 @@ class LibraireProController extends Controller
             $sourceAppointment = \App\Models\Appointment::where('tenant_id', $tenant->id)
                 ->whereNull('sale_id')->find((int) $request->query('appointment'));
             if ($sourceAppointment?->item_id) {
+                // The service AS BOOKED: its size / length (« 1 h », « Long »)
+                // and the price that goes with it. Without the variant the
+                // till would ask again, or charge the service's base price.
+                $bookedItem = Item::where('tenant_id', $tenant->id)->find($sourceAppointment->item_id);
+                $bookedVariant = $bookedItem && $sourceAppointment->variant_id
+                    ? $bookedItem->variants()->whereKey($sourceAppointment->variant_id)->where('is_active', true)->first()
+                    : null;
                 $sourceCart = collect([[
                     'item_id' => $sourceAppointment->item_id, 'quantity' => 1,
+                    'variant_id' => $bookedVariant?->id,
+                    // The catalogue price, which for « à partir de » is the
+                    // floor the cashier may raise.
+                    'price' => $bookedItem ? ($bookedVariant ? $bookedVariant->price() : (float) $bookedItem->sale_price) : null,
+                    'name' => $bookedItem ? ($bookedVariant ? $bookedItem->title.' — '.$bookedVariant->name : $bookedItem->title) : null,
                     'staff_user_id' => $sourceAppointment->staff_user_id,
                 ]]);
             }

@@ -2986,8 +2986,8 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
             cartCount.textContent = String(cart.length);
         }
         if (cartJson) {
-            cartJson.value = JSON.stringify(cart.map(({ id, quantity, price, originalPrice, note, staffUserId, kind, packageId, customerPackageId, recipientName, recipientPhone, componentChoices, componentOverrides }) => ({
-                id, quantity, price, original_price: originalPrice, note, staff_user_id: staffUserId || null,
+            cartJson.value = JSON.stringify(cart.map(({ id, variantId, quantity, price, originalPrice, note, staffUserId, kind, packageId, customerPackageId, recipientName, recipientPhone, componentChoices, componentOverrides }) => ({
+                id, variant_id: variantId || null, quantity, price, original_price: originalPrice, note, staff_user_id: staffUserId || null,
                 kind: kind || null, package_id: packageId || null, customer_package_id: customerPackageId || null,
                 recipient_name: recipientName || null, recipient_phone: recipientPhone || null,
                 // « Produits utilisés »: [{group, component_item_id}] and [{component_item_id, quantity}].
@@ -4366,6 +4366,12 @@ document.querySelectorAll('.pos-screen').forEach((screen) => {
                     added.originalPrice = Number(line.original_price || product.dataset.price || added.originalPrice);
                     added.note = line.note || '';
                     if (line.staff_user_id) added.staffUserId = String(line.staff_user_id);
+                    // A booked size / length (« Massage — 1 h »): the line keeps
+                    // the variant, so the sale names it and deducts its pile.
+                    if (line.variant_id) {
+                        added.variantId = Number(line.variant_id);
+                        if (line.name) added.name = line.name;
+                    }
                 }
             }
         });
