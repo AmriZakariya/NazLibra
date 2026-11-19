@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Item;
 use App\Models\Tenant;
 use App\Support\Appointments;
+use App\Support\FromPrice;
 use App\Support\Locale;
+use App\Support\Money;
 use App\Support\OnlineBooking;
 use App\Support\Phone;
 use App\Support\TenantContext;
@@ -30,12 +33,18 @@ class BookingController extends Controller
     {
         $tenant = $this->open($request);
 
+        $services = OnlineBooking::services($tenant);
+
         return view('booking.show', [
             'tenant' => $tenant,
-            'services' => OnlineBooking::services($tenant),
+            'services' => $services,
             'staff' => OnlineBooking::staff($tenant),
             'serviceStaff' => \App\Support\ServiceStaff::map($tenant),
             'days' => OnlineBooking::openDays($tenant),
+            'dayStrip' => $this->dayStrip($tenant),
+            'cards' => $this->cards($tenant, $services),
+            'categories' => $services->pluck('category')->filter()->unique('id')->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values()->all(),
+            'shop' => $this->shop($tenant),
             'duration' => OnlineBooking::settings($tenant)['duration'],
             'sent' => session('booking_sent'),
         ]);
@@ -101,6 +110,92 @@ class BookingController extends Controller
             'time' => $when->format('H:i'),
             'staff' => $appointment->staff?->name,
         ]);
+    }
+
+    /**
+     * What each service card needs, ready to print: photo, the shop's price
+     * (« dès » when it is a floor or the variants differ), the length (a
+     * range when variants differ) and the options of a variant service.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function cards(Tenant $tenant, \Illuminate\Support\Collection $services): array
+    {
+        $money = Money::for($tenant);
+        $word = __('booking.from');
+
+        return $services->map(function (Item $service) use ($tenant, $money, $word) {
+            $prices = $service->variants->map(fn ($v) => (float) $v->price());
+            $price = $prices->isNotEmpty() ? $prices->min() : $service->sale_price;
+            $from = (bool) $service->price_is_from || $prices->unique()->count() > 1;
+            $variants = $service->variants->map(fn ($v) => [
+                'id' => $v->id,
+                'name' => $v->name,
+                'price' => $money->format($v->price()),
+                'minutes' => OnlineBooking::durationOf($tenant, $service, $v),
+            ])->values();
+            $minutes = $variants->isNotEmpty() ? $variants->pluck('minutes') : collect([OnlineBooking::durationOf($tenant, $service)]);
+            $photo = collect($service->images)->first();
+
+            return [
+                'id' => $service->id,
+                'title' => $service->title,
+                'category_id' => $service->category_id,
+                'category' => $service->category?->name,
+                'photo' => $photo ? asset('storage/'.$photo) : null,
+                'price' => FromPrice::label($money, $price, $from, $word),
+                'minutes_min' => (int) $minutes->min(),
+                'minutes_max' => (int) $minutes->max(),
+                'variants' => $variants->all(),
+            ];
+        })->all();
+    }
+
+    /**
+     * The days the strip shows, from today: each says whether the shop takes
+     * bookings that day (hours, a barber working, no holiday).
+     *
+     * @return list<array{date: string, open: bool}>
+     */
+    private function dayStrip(Tenant $tenant): array
+    {
+        $open = array_flip(OnlineBooking::openDays($tenant));
+        $today = CarbonImmutable::now(Appointments::timezone($tenant))->startOfDay();
+        $out = [];
+        for ($i = 0; $i <= OnlineBooking::DAYS_AHEAD; $i++) {
+            $date = $today->addDays($i)->toDateString();
+            $out[] = ['date' => $date, 'open' => isset($open[$date])];
+        }
+
+        return $out;
+    }
+
+    /** The header: address, phone links and the week's opening hours. */
+    private function shop(Tenant $tenant): array
+    {
+        $tz = Appointments::timezone($tenant);
+        $now = CarbonImmutable::now($tz)->locale(app()->getLocale());
+        $hours = OnlineBooking::settings($tenant)['hours'];
+        $week = [];
+        foreach ($hours as $iso => $range) {
+            $week[] = [
+                'day' => ucfirst($now->startOfWeek(CarbonImmutable::MONDAY)->addDays($iso - 1)->isoFormat('dddd')),
+                'today' => $iso === $now->dayOfWeekIso,
+                // Isolated left-to-right: in Arabic the range must not flip.
+                'hours' => $range ? "\u{2066}".$range[0].' – '.$range[1]."\u{2069}" : null,
+            ];
+        }
+        $e164 = $tenant->phone ? Phone::internationalize((string) $tenant->phone, Phone::defaultCountry($tenant)) : null;
+        $digits = preg_replace('/\D+/', '', (string) $e164);
+        $valid = strlen($digits) >= 8;
+
+        return [
+            'address' => $tenant->address ? trim(preg_replace('/\s+/', ' ', (string) $tenant->address)) : null,
+            'tel' => $valid ? 'tel:+'.$digits : null,
+            'whatsapp' => $valid ? 'https://wa.me/'.$digits : null,
+            'week' => $week,
+            'today' => $week[$now->dayOfWeekIso - 1],
+        ];
     }
 
     /** The shop, in its language, or the closed page when booking is off. */

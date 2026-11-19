@@ -121,7 +121,7 @@ class OnlineBooking
             // What the client picks among, when a service has several prices
             // or lengths: « Court / Mi-long / Long », « 30 min / 1 h ».
             ->with(['variants' => fn ($q) => $q->where('is_active', true)->orderBy('sort_order')->orderBy('id'), 'category:id,name'])
-            ->get(['id', 'title', 'sale_price', 'duration_minutes', 'price_is_from', 'category_id'])
+            ->get(['id', 'title', 'sale_price', 'duration_minutes', 'price_is_from', 'category_id', 'images'])
             ->sortBy([
                 fn (Item $a, Item $b) => ($a->category_id === null) <=> ($b->category_id === null),
                 fn (Item $a, Item $b) => strcasecmp((string) $a->category?->name, (string) $b->category?->name),
