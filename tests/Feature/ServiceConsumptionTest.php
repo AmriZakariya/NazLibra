@@ -406,16 +406,23 @@ class ServiceConsumptionTest extends TestCase
         $this->assertEqualsWithDelta(14.0, $service['cost'], 0.001);
 
         // The same through the API and the back office.
+        $this->gel->update(['content_container' => 'flacon']);
         $this->app['auth']->forgetGuards();
         $api = $this->withToken($this->token())
             ->withHeader('X-Tenant-Slug', $this->tenant->slug)->withHeader('X-Location-Id', (string) $this->location->id)
             ->getJson('/api/v1/statistics/consumption?from='.now()->subDay()->toDateString().'&to='.now()->addDay()->toDateString())
             ->assertOk();
         $this->assertEqualsWithDelta(14.0, $api->json('totals.cost'), 0.001);
+        // What one stocked unit is called, or null: « ≈ 0,1 flacon » instead of « unités ».
+        $rows = collect($api->json('by_product'));
+        $this->assertSame('flacon', $rows->firstWhere('item_id', $this->gel->id)['content_container']);
+        $this->assertTrue($rows->every(fn ($r) => array_key_exists('content_container', $r)));
+        $this->assertNull($rows->firstWhere('item_id', $this->gloves->id)['content_container']);
 
         $this->actingAs($this->owner)
             ->get(route('module', ['module' => 'reports', 'section' => 'consumption', 'from' => now()->subDay()->toDateString(), 'to' => now()->addDay()->toDateString()]))
-            ->assertOk()->assertSee('data-consumption-row="'.$this->gel->id.'"', false)->assertSee('data-consumption-service="'.$this->service->id.'"', false);
+            ->assertOk()->assertSee('data-consumption-row="'.$this->gel->id.'"', false)->assertSee('data-consumption-service="'.$this->service->id.'"', false)
+            ->assertSeeInOrder(['data-consumption-row="'.$this->gel->id.'"', '0,1 flacon'], false);
     }
 
     public function test_the_estimated_cost_and_margin_come_from_the_recipe(): void

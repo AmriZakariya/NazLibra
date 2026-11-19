@@ -38,6 +38,11 @@ final class ConsumptionReport
             ->whereIn('id', $rows->pluck('component_item_id')->merge($rows->pluck('service_item_id'))->filter()->unique()->all())
             ->pluck('title', 'id');
 
+        // What one stocked unit is called (« flacon »), so « 3,45 » can read « 3,45 flacons ».
+        $containers = Item::withTrashed()->where('tenant_id', $tenantId)
+            ->whereIn('id', $rows->pluck('component_item_id')->filter()->unique()->all())
+            ->pluck('content_container', 'id');
+
         $products = [];
         $services = [];
         $totalCost = 0.0;
@@ -56,6 +61,7 @@ final class ConsumptionReport
                 'item_id' => (int) $r->component_item_id,
                 'name' => $names[$r->component_item_id] ?? '—',
                 'content_unit' => $r->content_unit,
+                'content_container' => $containers[$r->component_item_id] ?? null,
                 'quantity_content' => 0.0, 'quantity_stock' => 0.0, 'cost' => 0.0, 'lines' => [],
             ];
             $products[$pKey]['quantity_content'] += $content;
